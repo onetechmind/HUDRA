@@ -1,0 +1,87 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>HUDRA</RootNamespace>
+
+    <Platforms>x64</Platforms>
+    <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+
+    <WindowsPackageType>None</WindowsPackageType>
+
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <UseWinUI>true</UseWinUI>
+    <EnableMsixTooling>true</EnableMsixTooling>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Remove="Tools\ryzenadj\demo.bat" />
+    <None Remove="Tools\ryzenadj\inpoutx64.dll" />
+    <None Remove="Tools\ryzenadj\installServiceTask.bat" />
+    <None Remove="Tools\ryzenadj\libryzenadj.dll" />
+    <None Remove="Tools\ryzenadj\pmtable-example.py" />
+    <None Remove="Tools\ryzenadj\readjust.py" />
+    <None Remove="Tools\ryzenadj\readjustService.ps1" />
+    <None Remove="Tools\ryzenadj\ryzenadj.exe" />
+    <None Remove="Tools\ryzenadj\RyzenAdjServiceTask.xml.template" />
+    <None Remove="Tools\ryzenadj\uninstallServiceTask.bat" />
+    <None Remove="Tools\ryzenadj\WinRing0x64.dll" />
+    <None Remove="Tools\ryzenadj\WinRing0x64.sys" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Tools\ryzenadj\demo.bat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\inpoutx64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\installServiceTask.bat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\libryzenadj.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\pmtable-example.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\readjust.py">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\readjustService.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\ryzenadj.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\RyzenAdjServiceTask.xml.template">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\uninstallServiceTask.bat">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\WinRing0x64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Tools\ryzenadj\WinRing0x64.sys">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240428000" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
+
+    <Manifest Include="$(ApplicationManifest)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="Tools\ryzenadj.exe">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Tools\text.txt">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

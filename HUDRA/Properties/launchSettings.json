@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "HUDRA (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "HUDRA (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
