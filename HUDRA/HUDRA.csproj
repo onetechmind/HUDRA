@@ -7,8 +7,9 @@
 
     <Platforms>x64</Platforms>
     <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+	  <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
 
-    <WindowsPackageType>None</WindowsPackageType>
+	  <WindowsPackageType>None</WindowsPackageType>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
 

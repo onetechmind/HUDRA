@@ -7,27 +7,13 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel x:Name="LayoutRoot" Orientation="Vertical" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
-
-        <TextBlock Text="Ryzen TDP Control" HorizontalAlignment="Center" Style="{ThemeResource TitleTextBlockStyle}"/>
-
-        <Slider x:Name="TdpSlider" 
-                Minimum="5" 
-                Maximum="35" 
-                StepFrequency="1" 
-                Width="300" 
-                Header="TDP Limit (Watts)"/>
-
-        <TextBlock x:Name="CurrentTdpStatusText"
-                   Text="{Binding CurrentTdpDisplayText}"
-                   HorizontalAlignment="Center"
-                   Style="{ThemeResource SubtitleTextBlockStyle}"
-                   Margin="0,10,0,0"/>
-
-        <Button x:Name="SetTdpButton" 
-                Content="Apply TDP" 
-                HorizontalAlignment="Center" 
-                Click="SetTdpButton_Click"/>
-
-    </StackPanel>
+    <Grid x:Name="LayoutRoot" Background="#33000000">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
+                       FontSize="20" Margin="0,0,0,20"/>
+            <Slider x:Name="TdpSlider" Minimum="5" Maximum="30" Value="15"
+                    Width="200" Margin="0,0,0,10"/>
+            <Button Content="Set TDP" Click="SetTdpButton_Click" Width="100"/>
+        </StackPanel>
+    </Grid>
 </Window>
