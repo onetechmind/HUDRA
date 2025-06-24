@@ -276,13 +276,10 @@ namespace HUDRA
 
                     try
                     {
-                        // Get the bounds of the TDP picker border
-                        var stackPanel = (StackPanel)LayoutRoot.Children[0];
-                        var tdpPickerBorder = (Border)stackPanel.Children[1];
-
-                        var transform = tdpPickerBorder.TransformToVisual(MainBorder);
+                        // Get the bounds of the TDP picker border using the named element
+                        var transform = TdpPickerBorder.TransformToVisual(MainBorder);
                         var borderBounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0,
-                            tdpPickerBorder.ActualWidth, tdpPickerBorder.ActualHeight));
+                            TdpPickerBorder.ActualWidth, TdpPickerBorder.ActualHeight));
 
                         // If click is inside TDP picker, don't start window dragging
                         if (borderBounds.Contains(position.Position))
@@ -442,30 +439,32 @@ namespace HUDRA
         {
             double _lastPointerX = 0;
             bool _isManualScrolling = false;
+            bool _wasInertialScrolling = false;
 
+            // Mouse/pen pointer events (existing logic)
             TdpScrollViewer.PointerPressed += (s, e) =>
             {
-                System.Diagnostics.Debug.WriteLine("TdpScrollViewer PointerPressed");
                 _lastPointerX = e.GetCurrentPoint(TdpScrollViewer).Position.X;
-                _isManualScrolling = true;
-                _isScrolling = true; // Disable ViewChanged handling during manual scroll
-                TdpScrollViewer.CapturePointer(e.Pointer);
-                e.Handled = true;
+
+                // Only set manual scrolling for mouse, not touch
+                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+                {
+                    _isManualScrolling = true;
+                    _isScrolling = true;
+                    TdpScrollViewer.CapturePointer(e.Pointer);
+                    e.Handled = true;
+                }
             };
 
             TdpScrollViewer.PointerMoved += (s, e) =>
             {
-                if (_isManualScrolling)
+                if (_isManualScrolling && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
                 {
                     var currentX = e.GetCurrentPoint(TdpScrollViewer).Position.X;
                     var deltaX = _lastPointerX - currentX;
-
-                    // Smooth the movement by reducing sensitivity
-                    deltaX *= 0.8; // Reduce sensitivity for smoother scrolling
+                    deltaX *= 0.8;
 
                     var newScrollPosition = TdpScrollViewer.HorizontalOffset + deltaX;
-
-                    // Clamp scroll position to valid bounds
                     var maxScroll = TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth;
                     newScrollPosition = Math.Max(0, Math.Min(maxScroll, newScrollPosition));
 
@@ -476,55 +475,87 @@ namespace HUDRA
 
             TdpScrollViewer.PointerReleased += (s, e) =>
             {
-                System.Diagnostics.Debug.WriteLine("TdpScrollViewer PointerReleased");
-                _isManualScrolling = false;
-                _isScrolling = false;
-
-                TdpScrollViewer.ReleasePointerCapture(e.Pointer);
-
-                // Manually trigger selection and snapping after drag ends
-                var scrollOffset = TdpScrollViewer.HorizontalOffset;
-                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-                var centerPosition = scrollOffset + (scrollViewerWidth / 2);
-
-                var adjustedOffset = centerPosition - 115; // Subtract start padding
-                var centerIndex = Math.Round(adjustedOffset / ItemWidth);
-                var selectedValue = (int)(centerIndex + 5);
-
-                // Clamp to valid range
-                selectedValue = Math.Max(5, Math.Min(30, selectedValue));
-
-                if (selectedValue != _selectedTdp)
+                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && _isManualScrolling)
                 {
-                    _selectedTdp = selectedValue;
-                    UpdateNumberOpacity();
-
-                    // Auto-set TDP with delay and rate limiting
-                    _pendingTdpValue = _selectedTdp;
-                    _autoSetTimer?.Stop();
-                    _autoSetTimer?.Start();
-                }
-
-                // Force snapping
-                var targetIndex = _selectedTdp - 5;
-                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
-                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
-
-                if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
-                {
-                    _isScrolling = true;
-                    TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
-
-                    // Reset scrolling flag after snap
-                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                    timer.Tick += (sender, args) =>
-                    {
-                        _isScrolling = false;
-                        timer.Stop();
-                    };
-                    timer.Start();
+                    _isManualScrolling = false;
+                    _isScrolling = false;
+                    TdpScrollViewer.ReleasePointerCapture(e.Pointer);
+                    HandleScrollEnd();
                 }
             };
+
+            // Primary method: DirectManipulationCompleted for touch
+            TdpScrollViewer.DirectManipulationCompleted += (s, e) =>
+            {
+                HandleScrollEnd();
+            };
+
+            // Backup method: Use a scroll position change detector
+            double _lastScrollPosition = 0;
+            DispatcherTimer? _scrollStopTimer = null;
+
+            TdpScrollViewer.ViewChanged += (s, e) =>
+            {
+                var currentPosition = ((ScrollViewer)s).HorizontalOffset;
+
+                // If we're not manually scrolling (mouse) and position changed
+                if (!_isManualScrolling && Math.Abs(currentPosition - _lastScrollPosition) > 0.1)
+                {
+                    _lastScrollPosition = currentPosition;
+
+                    // Reset the timer - scroll is still happening
+                    _scrollStopTimer?.Stop();
+                    _scrollStopTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+                    _scrollStopTimer.Tick += (sender, args) =>
+                    {
+                        _scrollStopTimer.Stop();
+                        HandleScrollEnd();
+                    };
+                    _scrollStopTimer.Start();
+                }
+            };
+        }
+
+        private void HandleScrollEnd()
+        {
+            var scrollOffset = TdpScrollViewer.HorizontalOffset;
+            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var centerPosition = scrollOffset + (scrollViewerWidth / 2);
+
+            var adjustedOffset = centerPosition - 115;
+            var centerIndex = Math.Round(adjustedOffset / ItemWidth);
+            var selectedValue = (int)(centerIndex + 5);
+
+            selectedValue = Math.Max(5, Math.Min(30, selectedValue));
+
+            if (selectedValue != _selectedTdp)
+            {
+                _selectedTdp = selectedValue;
+                UpdateNumberOpacity();
+
+                _pendingTdpValue = _selectedTdp;
+                _autoSetTimer?.Stop();
+                _autoSetTimer?.Start();
+            }
+
+            // Force snapping
+            var targetIndex = _selectedTdp - 5;
+            var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
+            var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+
+            if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
+            {
+                _isScrolling = true;
+                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                timer.Tick += (sender, args) =>
+                {
+                    _isScrolling = false;
+                    timer.Stop();
+                };
+                timer.Start();
+            }
         }
 
         private void ChangeTdpBy(int delta)
