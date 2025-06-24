@@ -37,13 +37,17 @@ namespace HUDRA
             }
         }
 
-        private MicaController? _micaController;
+        private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private IntPtr _hwnd;
         private bool _isDragging = false;
         private Windows.Graphics.PointInt32 _lastPointerPosition;
         private int _selectedTdp = 15;
         private bool _isScrolling = false;
+        private DispatcherTimer? _autoSetTimer;
+        private int _pendingTdpValue;
+        private bool _isAutoSetting = false;
+        private const double ItemWidth = 65.0; // 50 width + 15 spacing
 
         public MainWindow()
         {
@@ -53,12 +57,24 @@ namespace HUDRA
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
 
-            TrySetMicaBackdrop();
+            TrySetAcrylicBackdrop();
             SetInitialSize();
             MakeBorderlessWithRoundedCorners();
+            ApplyRoundedCornersToWindow();
             SetupDragHandling();
+            LoadCurrentTdp();
             InitializeTdpPicker();
-            LoadCurrentTdp(); // Add this new method call
+
+            // Initialize auto-set timer (add this after InitializeTdpPicker)
+            _autoSetTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1000) // 1 second delay
+            };
+            _autoSetTimer.Tick += (s, e) =>
+            {
+                _autoSetTimer.Stop();
+                AutoSetTdp();
+            };
         }
 
         private void InitializeTdpPicker()
@@ -79,7 +95,7 @@ namespace HUDRA
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     Width = 50,
-                    Opacity = i == 15 ? 1.0 : 0.4 // Highlight default selection
+                    Opacity = i == _selectedTdp ? 1.0 : 0.4 // Highlight actual loaded TDP
                 };
                 NumbersPanel.Children.Add(textBlock);
             }
@@ -87,12 +103,16 @@ namespace HUDRA
             var endPadding = new Border { Width = 115 };
             NumbersPanel.Children.Add(endPadding);
 
-            // Set initial scroll position to center on current TDP (will be updated by LoadCurrentTdp)
+            // Set initial scroll position to center on current TDP
+            // Set initial scroll position to center on current TDP
             LayoutRoot.Loaded += (s, e) =>
             {
                 var targetIndex = _selectedTdp - 5;
-                var scrollPosition = 115 + (targetIndex * 80);
-                TdpScrollViewer.ScrollToHorizontalOffset(scrollPosition);
+                // Use the same calculation as ViewChanged - center the number in the scroll viewer
+                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25; // +25 for half the number width
+                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
             };
         }
 
@@ -112,13 +132,7 @@ namespace HUDRA
                     // Update the picker wheel to show current value
                     UpdateNumberOpacity();
 
-                    // If the window is already loaded, scroll to the current position
-                    if (LayoutRoot.IsLoaded)
-                    {
-                        var targetIndex = _selectedTdp - 5;
-                        var scrollPosition = 115 + (targetIndex * 80);
-                        TdpScrollViewer.ScrollToHorizontalOffset(scrollPosition);
-                    }
+                    
                 }
                 else
                 {
@@ -138,10 +152,13 @@ namespace HUDRA
             var scrollViewer = sender as ScrollViewer;
             if (scrollViewer == null) return;
 
-            // Calculate which number is closest to center (account for padding)
+            // Calculate which number is closest to center
             var scrollOffset = scrollViewer.HorizontalOffset;
-            var itemWidth = 80.0; // 50 width + 30 spacing
-            var adjustedOffset = scrollOffset - 115; // Subtract start padding
+            var scrollViewerWidth = scrollViewer.ActualWidth;
+            var centerPosition = scrollOffset + (scrollViewerWidth / 2);
+
+            var itemWidth = ItemWidth;
+            var adjustedOffset = centerPosition - 115; // Subtract start padding
             var centerIndex = Math.Round(adjustedOffset / itemWidth);
             var selectedValue = (int)(centerIndex + 5);
 
@@ -152,10 +169,37 @@ namespace HUDRA
             {
                 _selectedTdp = selectedValue;
                 UpdateNumberOpacity();
+
+                // Auto-set TDP with delay and rate limiting
+                _pendingTdpValue = _selectedTdp;
+                _autoSetTimer?.Stop(); // Cancel any existing timer
+                _autoSetTimer?.Start(); // Start new countdown
             }
 
-            // TODO: Add snapping back once basic scrolling works
-            // Commenting out snapping for now to debug scrolling
+            // Add snapping when scrolling stops
+            if (!e.IsIntermediate) // This indicates the scroll has stopped
+            {
+                var targetIndex = _selectedTdp - 5;
+                // Calculate position to center the selected number in the scroll viewer
+                var numberCenterPosition = 115 + (targetIndex * itemWidth) + 25; // +25 for half the number width (50/2)
+                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+
+                // Only snap if we're not already at the correct position (avoid infinite loops)
+                if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
+                {
+                    _isScrolling = true;
+                    scrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                    // Reset the scrolling flag after a short delay
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                    timer.Tick += (s, args) =>
+                    {
+                        _isScrolling = false;
+                        timer.Stop();
+                    };
+                    timer.Start();
+                }
+            }
         }
 
         private void UpdateNumberOpacity()
@@ -175,20 +219,21 @@ namespace HUDRA
 
         private void SetupDragHandling()
         {
-            LayoutRoot.PointerPressed += OnPointerPressed;
-            LayoutRoot.PointerMoved += OnPointerMoved;
-            LayoutRoot.PointerReleased += OnPointerReleased;
+            MainBorder.PointerPressed += OnPointerPressed;
+            MainBorder.PointerMoved += OnPointerMoved;
+            MainBorder.PointerReleased += OnPointerReleased;
         }
+
 
         private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
         {
             if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
             {
-                var properties = e.GetCurrentPoint(LayoutRoot).Properties;
+                var properties = e.GetCurrentPoint(MainBorder).Properties;
                 if (properties.IsLeftButtonPressed)
                 {
                     _isDragging = true;
-                    LayoutRoot.CapturePointer(e.Pointer);
+                    MainBorder.CapturePointer(e.Pointer);
 
                     GetCursorPos(out POINT cursorPos);
                     _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
@@ -200,7 +245,7 @@ namespace HUDRA
         {
             if (_isDragging && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
             {
-                var properties = e.GetCurrentPoint(LayoutRoot).Properties;
+                var properties = e.GetCurrentPoint(MainBorder).Properties;
                 if (properties.IsLeftButtonPressed)
                 {
                     GetCursorPos(out POINT cursorPos);
@@ -228,17 +273,7 @@ namespace HUDRA
         private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
         {
             _isDragging = false;
-            LayoutRoot.ReleasePointerCapture(e.Pointer);
-        }
-
-        [DllImport("user32.dll")]
-        private static extern bool GetCursorPos(out POINT lpPoint);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct POINT
-        {
-            public int X;
-            public int Y;
+            MainBorder.ReleasePointerCapture(e.Pointer);
         }
 
         private void SetInitialSize()
@@ -267,38 +302,88 @@ namespace HUDRA
             appWindow.TitleBar.ExtendsContentIntoTitleBar = true;
         }
 
-        private bool TrySetMicaBackdrop()
+        private void ApplyRoundedCornersToWindow()
         {
-            if (MicaController.IsSupported())
+            var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
+
+            // Set window corner preference to rounded
+            if (appWindow.Presenter is OverlappedPresenter presenter)
+            {
+                // This sets the window itself to have rounded corners
+                presenter.SetBorderAndTitleBar(false, false);
+            }
+
+            // Use Windows 11 rounded corners if available
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var preference = 2; // DWMWCP_ROUND
+                DwmSetWindowAttribute(hwnd, 33, ref preference, sizeof(int)); // DWMWA_WINDOW_CORNER_PREFERENCE
+            }
+            catch
+            {
+                // Fallback for older Windows versions - rounded corners not supported
+            }
+        }
+
+        private bool TrySetAcrylicBackdrop()
+        {
+            if (DesktopAcrylicController.IsSupported())
             {
                 _backdropConfig = new SystemBackdropConfiguration
                 {
                     IsInputActive = true,
-                    Theme = SystemBackdropTheme.Default
+                    Theme = SystemBackdropTheme.Dark
                 };
 
-                _micaController = new MicaController();
-                _micaController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
-                _micaController.SetSystemBackdropConfiguration(_backdropConfig);
+                _acrylicController = new DesktopAcrylicController();
+                _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+                _acrylicController.SetSystemBackdropConfiguration(_backdropConfig);
 
                 return true;
             }
-
             return false;
         }
-
-        private async void SetTdpButton_Click(object sender, RoutedEventArgs e)
+        private async void AutoSetTdp()
         {
-            var tdpService = new TDPService();
-            int targetTdp = _selectedTdp;
-            int tdpInMilliwatts = targetTdp * 1000;
+            if (_isAutoSetting) return; // Rate limiting - prevent multiple simultaneous calls
 
-            var result = tdpService.SetTdp(tdpInMilliwatts);
+            _isAutoSetting = true;
 
-            if (result.Success)
-                CurrentTdpDisplayText = $"Current TDP: {targetTdp}W";
-            else
-                CurrentTdpDisplayText = $"Error: {result.Message}";
+            try
+            {
+                var tdpService = new TDPService();
+                int targetTdp = _pendingTdpValue;
+                int tdpInMilliwatts = targetTdp * 1000;
+
+                var result = tdpService.SetTdp(tdpInMilliwatts);
+
+                if (result.Success)
+                    CurrentTdpDisplayText = $"Current TDP: {targetTdp}W";
+                else
+                    CurrentTdpDisplayText = $"Error: {result.Message}";
+            }
+            catch (Exception ex)
+            {
+                CurrentTdpDisplayText = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                _isAutoSetting = false;
+            }
         }
+  
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     }
 }
