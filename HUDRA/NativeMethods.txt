@@ -1,0 +1,4 @@
+SendMessageW
+ReleaseCapture
+WM_NCLBUTTONDOWN
+HTCAPTION

@@ -1,67 +1,119 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
+using System.Text.RegularExpressions;
 
-// The namespace reflects the folder structure, which is a standard convention.
 namespace HUDRA.Services
 {
     public class TDPService
     {
-        /// <summary>
-        /// Executes the ryzenadj command-line tool to set the APU's power limits.
-        /// </summary>
-        /// <param name="tdpInMilliwatts">The power limit to set, in milliwatts.</param>
-        /// <returns>A tuple containing a boolean for success and a string message for UI feedback.</returns>
-        public (bool Success, string Message) SetTdp(int tdpInMilliwatts)
+        private string GetRyzenAdjPath()
         {
-            // Construct the command-line arguments for ryzenadj.
-            // These are the three main power limit settings.
-            string arguments = $"--stapm-limit={tdpInMilliwatts} --fast-limit={tdpInMilliwatts} --slow-limit={tdpInMilliwatts}";
+            return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Tools", "ryzenadj", "ryzenadj.exe");
+        }
 
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = @"Tools\ryzenadj\ryzenadj.exe", // Assumes ryzenadj.exe is in the output directory
-                Arguments = arguments,
-                UseShellExecute = true,
-                CreateNoWindow = true,
-                Verb = "runas", // This is what triggers the UAC prompt for administrator rights
-
-                WorkingDirectory = AppContext.BaseDirectory,
-                WindowStyle = ProcessWindowStyle.Hidden
-            };
-
+        public (bool Success, int TdpWatts, string Message) GetCurrentTdp()
+        {
             try
             {
-                using (Process process = Process.Start(startInfo))
+                var ryzenAdjPath = GetRyzenAdjPath();
+                if (!File.Exists(ryzenAdjPath))
                 {
-                    process.WaitForExit();
+                    return (false, 0, "RyzenAdj not found");
+                }
 
-                    // The specific error code for the Access Violation crash (0xC0000005)
-                    const int ACCESS_VIOLATION_CODE = -1073741819;
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = ryzenAdjPath,
+                    Arguments = "-i",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
 
-                    // An exit code of 0 typically means the command was successful.
-                    if (process.ExitCode == 0 || process.ExitCode == ACCESS_VIOLATION_CODE)
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    return (false, 0, "Failed to start RyzenAdj process");
+                }
+
+                process.WaitForExit(5000); // 5 second timeout
+
+                if (process.ExitCode != 0)
+                {
+                    var error = process.StandardError.ReadToEnd();
+                    return (false, 0, $"RyzenAdj error: {error}");
+                }
+
+                var output = process.StandardOutput.ReadToEnd();
+
+                // Parse the STAPM LIMIT value from the table
+                // Looking for pattern like "| STAPM LIMIT         |    15.000 |"
+                var stapmlimitPattern = @"\|\s*STAPM LIMIT\s*\|\s*(\d+(?:\.\d+)?)\s*\|";
+                var match = Regex.Match(output, stapmlimitPattern, RegexOptions.IgnoreCase);
+
+                if (match.Success)
+                {
+                    if (double.TryParse(match.Groups[1].Value, out double tdpValue))
                     {
-                        return (true, $"Successfully set TDP to {tdpInMilliwatts / 1000}W.");
-                    }
-                    else
-                    {
-                        return (false, $"RyzenAdj tool exited with a non-zero error code: {process.ExitCode}.");
+                        int tdpWatts = (int)Math.Round(tdpValue);
+                        return (true, tdpWatts, "Success");
                     }
                 }
+
+                return (false, 0, "Could not parse TDP value from output");
             }
-            catch (System.ComponentModel.Win32Exception ex)
+            catch (Exception ex)
             {
-                // This specific exception often occurs if the user clicks "No" on the UAC prompt.
-                if (ex.NativeErrorCode == 1223) // 1223: The operation was canceled by the user.
+                return (false, 0, $"Exception: {ex.Message}");
+            }
+        }
+
+        public (bool Success, string Message) SetTdp(int tdpInMilliwatts)
+        {
+            try
+            {
+                var ryzenAdjPath = GetRyzenAdjPath();
+                if (!File.Exists(ryzenAdjPath))
                 {
-                    return (false, "Operation canceled by user (UAC prompt declined).");
+                    return (false, "RyzenAdj not found");
                 }
-                return (false, $"A system error occurred: {ex.Message}");
+
+                var tdpWatts = tdpInMilliwatts / 1000;
+                var arguments = $"--stapm-limit={tdpInMilliwatts} --fast-limit={tdpInMilliwatts} --slow-limit={tdpInMilliwatts}";
+
+                var processInfo = new ProcessStartInfo
+                {
+                    FileName = ryzenAdjPath,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var process = Process.Start(processInfo);
+                if (process == null)
+                {
+                    return (false, "Failed to start RyzenAdj process");
+                }
+
+                process.WaitForExit(5000); // 5 second timeout
+                const int ACCESS_VIOLATION_CODE = -1073741819;
+                if (process.ExitCode == 0 || process.ExitCode == ACCESS_VIOLATION_CODE)
+                {
+                    return (true, $"TDP set to {tdpWatts}W successfully");
+                }
+                else
+                {
+                    var error = process.StandardError.ReadToEnd();
+                    return (false, $"RyzenAdj error: {error}");
+                }
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
-                // Catch any other potential errors, like ryzenadj.exe not being found.
-                return (false, $"An unexpected error occurred: {ex.Message}");
+                return (false, $"Exception: {ex.Message}");
             }
         }
     }
