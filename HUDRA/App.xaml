@@ -12,6 +12,10 @@
             </ResourceDictionary.MergedDictionaries>
             <!-- Other app resources here -->
             <SolidColorBrush x:Key="MicaBackground" Color="{StaticResource SystemBaseLowColor}" />
+
+            <Style TargetType="TextBlock">
+                <Setter Property="FontFamily" Value="Calibri"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

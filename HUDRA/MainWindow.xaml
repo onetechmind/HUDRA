@@ -9,40 +9,62 @@
 
     <Border x:Name="MainBorder" CornerRadius="12" Background="#22000000">
         <Grid x:Name="LayoutRoot">
-            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="20">
-                <!-- Your existing content stays the same -->
-                <TextBlock Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
-                           FontSize="20" HorizontalAlignment="Center"/>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- TDP Picker centered in the main area -->
+            <StackPanel Grid.Row="0" 
+                    HorizontalAlignment="Center" 
+                    VerticalAlignment="Top" 
+                    Spacing="10"
+                    Margin="0,40,0,0">
+                <!-- TDP Label -->
+                <TextBlock Text="TDP" 
+                       FontSize="14" 
+                       Foreground="#CCFFFFFF"
+                       HorizontalAlignment="Center"/>
 
                 <!-- Custom TDP Picker Wheel -->
-                <Border Background="#22FFFFFF" 
-                        CornerRadius="12" 
-                        Padding="20,15"
-                        Width="280">
-                    <!-- Rest of your picker content stays the same -->
-                    <StackPanel Spacing="15">
-                        <TextBlock Text="TDP (Watts)" 
-                                   FontSize="14" 
-                                   Foreground="#CCFFFFFF"
-                                   HorizontalAlignment="Center"/>
-
-                        <Grid Height="80">
-                            <ScrollViewer x:Name="TdpScrollViewer"
-                                          HorizontalScrollBarVisibility="Hidden"
-                                          VerticalScrollBarVisibility="Disabled"
-                                          HorizontalScrollMode="Enabled"
-                                          VerticalScrollMode="Disabled"
-                                          ZoomMode="Disabled"
-                                          ViewChanged="TdpScrollViewer_ViewChanged"
-                                          Padding="0,20">
-                                <StackPanel x:Name="NumbersPanel" 
-                                            Orientation="Horizontal" 
-                                            Spacing="15"/>
-                            </ScrollViewer>
-                        </Grid>
-                    </StackPanel>
+                <Border x:Name="TdpPickerBorder"
+                        Background="#22FFFFFF" 
+                    CornerRadius="12" 
+                    Padding="20,0"
+                    Width="280">
+                    <Grid Height="80">
+                        <ScrollViewer x:Name="TdpScrollViewer"
+                                  HorizontalScrollBarVisibility="Hidden"
+                                  VerticalScrollBarVisibility="Disabled"
+                                  HorizontalScrollMode="Enabled"
+                                  VerticalScrollMode="Disabled"
+                                  ZoomMode="Disabled"
+                                  ManipulationMode="TranslateX"
+                                  ViewChanged="TdpScrollViewer_ViewChanged"
+                                  Padding="0,20">
+                            <StackPanel x:Name="NumbersPanel" 
+                                    Orientation="Horizontal" 
+                                    Spacing="15"/>
+                        </ScrollViewer>
+                    </Grid>
                 </Border>
+
+                <!-- Mute Button -->
+                <Button x:Name="MuteButton"
+            Content="Toggle Mute"
+            Click="MuteButton_Click"
+            Width="Auto"
+            Background="#4C4C4C"
+            Foreground="White"
+            CornerRadius="8"/>
             </StackPanel>
+
+            <!-- Current TDP Display at the bottom -->
+            <TextBlock Grid.Row="1"
+                   Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
+                   FontSize="12" 
+                   HorizontalAlignment="Center"
+                   Margin="0,0,0,20"/>
         </Grid>
     </Border>
 </Window>

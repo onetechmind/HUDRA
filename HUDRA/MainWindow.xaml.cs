@@ -5,10 +5,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Windows.Gaming.Input;
 using WinRT;
 using WinRT.Interop;
 
@@ -48,6 +50,19 @@ namespace HUDRA
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
         private const double ItemWidth = 65.0; // 50 width + 15 spacing
+        private AudioService _audioService;
+        private bool _isCurrentlyMuted = false; // Track state in the UI
+
+        //gamepad fields
+        private DispatcherTimer? _gamepadTimer;
+        private bool _gamepadLeftPressed = false;
+        private bool _gamepadRightPressed = false;
+        private bool _gamepadAPressed = false;
+        private bool _gamepadBPressed = false;
+        private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Mute button
+        private const int TOTAL_CONTROLS = 2;
+        private bool _gamepadUpPressed = false;
+        private bool _gamepadDownPressed = false;
 
         public MainWindow()
         {
@@ -64,6 +79,10 @@ namespace HUDRA
             SetupDragHandling();
             LoadCurrentTdp();
             InitializeTdpPicker();
+            SetupTdpScrollViewerEvents();
+
+            // Initialize audio service and set initial button state
+            _audioService = new AudioService();
 
             // Initialize auto-set timer (add this after InitializeTdpPicker)
             _autoSetTimer = new DispatcherTimer
@@ -75,8 +94,27 @@ namespace HUDRA
                 _autoSetTimer.Stop();
                 AutoSetTdp();
             };
+
+            SetupGamepadInput();
         }
 
+        private void MuteButton_Click(object sender, RoutedEventArgs e)
+        {
+            _audioService.ToggleMute();
+
+            // Toggle our UI state
+            _isCurrentlyMuted = !_isCurrentlyMuted;
+
+            // Update button text
+            if (_isCurrentlyMuted)
+            {
+                MuteButton.Content = "Unmute";
+            }
+            else
+            {
+                MuteButton.Content = "Mute";
+            }
+        }
         private void InitializeTdpPicker()
         {
             // Add padding elements at start and end for proper centering
@@ -90,6 +128,7 @@ namespace HUDRA
                 {
                     Text = i.ToString(),
                     FontSize = 24,
+                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -232,6 +271,31 @@ namespace HUDRA
                 var properties = e.GetCurrentPoint(MainBorder).Properties;
                 if (properties.IsLeftButtonPressed)
                 {
+                    // Check if the click is over the TDP picker area
+                    var position = e.GetCurrentPoint(MainBorder);
+
+                    try
+                    {
+                        // Get the bounds of the TDP picker border
+                        var stackPanel = (StackPanel)LayoutRoot.Children[0];
+                        var tdpPickerBorder = (Border)stackPanel.Children[1];
+
+                        var transform = tdpPickerBorder.TransformToVisual(MainBorder);
+                        var borderBounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0,
+                            tdpPickerBorder.ActualWidth, tdpPickerBorder.ActualHeight));
+
+                        // If click is inside TDP picker, don't start window dragging
+                        if (borderBounds.Contains(position.Position))
+                        {
+                            return; // Exit early - let the ScrollViewer handle this
+                        }
+                    }
+                    catch
+                    {
+                        // If bounds detection fails, allow dragging
+                    }
+
+                    // Start window dragging only if not clicking on TDP picker
                     _isDragging = true;
                     MainBorder.CapturePointer(e.Pointer);
 
@@ -373,7 +437,251 @@ namespace HUDRA
                 _isAutoSetting = false;
             }
         }
-  
+
+        private void SetupTdpScrollViewerEvents()
+        {
+            double _lastPointerX = 0;
+            bool _isManualScrolling = false;
+
+            TdpScrollViewer.PointerPressed += (s, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine("TdpScrollViewer PointerPressed");
+                _lastPointerX = e.GetCurrentPoint(TdpScrollViewer).Position.X;
+                _isManualScrolling = true;
+                _isScrolling = true; // Disable ViewChanged handling during manual scroll
+                TdpScrollViewer.CapturePointer(e.Pointer);
+                e.Handled = true;
+            };
+
+            TdpScrollViewer.PointerMoved += (s, e) =>
+            {
+                if (_isManualScrolling)
+                {
+                    var currentX = e.GetCurrentPoint(TdpScrollViewer).Position.X;
+                    var deltaX = _lastPointerX - currentX;
+
+                    // Smooth the movement by reducing sensitivity
+                    deltaX *= 0.8; // Reduce sensitivity for smoother scrolling
+
+                    var newScrollPosition = TdpScrollViewer.HorizontalOffset + deltaX;
+
+                    // Clamp scroll position to valid bounds
+                    var maxScroll = TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth;
+                    newScrollPosition = Math.Max(0, Math.Min(maxScroll, newScrollPosition));
+
+                    TdpScrollViewer.ScrollToHorizontalOffset(newScrollPosition);
+                    _lastPointerX = currentX;
+                }
+            };
+
+            TdpScrollViewer.PointerReleased += (s, e) =>
+            {
+                System.Diagnostics.Debug.WriteLine("TdpScrollViewer PointerReleased");
+                _isManualScrolling = false;
+                _isScrolling = false;
+
+                TdpScrollViewer.ReleasePointerCapture(e.Pointer);
+
+                // Manually trigger selection and snapping after drag ends
+                var scrollOffset = TdpScrollViewer.HorizontalOffset;
+                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+                var centerPosition = scrollOffset + (scrollViewerWidth / 2);
+
+                var adjustedOffset = centerPosition - 115; // Subtract start padding
+                var centerIndex = Math.Round(adjustedOffset / ItemWidth);
+                var selectedValue = (int)(centerIndex + 5);
+
+                // Clamp to valid range
+                selectedValue = Math.Max(5, Math.Min(30, selectedValue));
+
+                if (selectedValue != _selectedTdp)
+                {
+                    _selectedTdp = selectedValue;
+                    UpdateNumberOpacity();
+
+                    // Auto-set TDP with delay and rate limiting
+                    _pendingTdpValue = _selectedTdp;
+                    _autoSetTimer?.Stop();
+                    _autoSetTimer?.Start();
+                }
+
+                // Force snapping
+                var targetIndex = _selectedTdp - 5;
+                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
+                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+
+                if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
+                {
+                    _isScrolling = true;
+                    TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                    // Reset scrolling flag after snap
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                    timer.Tick += (sender, args) =>
+                    {
+                        _isScrolling = false;
+                        timer.Stop();
+                    };
+                    timer.Start();
+                }
+            };
+        }
+
+        private void ChangeTdpBy(int delta)
+        {
+            var newTdp = Math.Max(5, Math.Min(30, _selectedTdp + delta));
+
+            if (newTdp != _selectedTdp)
+            {
+                _selectedTdp = newTdp;
+                UpdateNumberOpacity();
+
+                // Scroll to the new position
+                var targetIndex = _selectedTdp - 5;
+                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
+                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+
+                _isScrolling = true;
+                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                // Reset scrolling flag and trigger auto-set
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                timer.Tick += (s, args) =>
+                {
+                    _isScrolling = false;
+                    timer.Stop();
+
+                    // Trigger auto-set
+                    _pendingTdpValue = _selectedTdp;
+                    _autoSetTimer?.Stop();
+                    _autoSetTimer?.Start();
+                };
+                timer.Start();
+            }
+        }
+
+        private void SetupGamepadInput()
+        {
+            // Check for gamepads every 100ms
+            _gamepadTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _gamepadTimer.Tick += GamepadTimer_Tick;
+            _gamepadTimer.Start();
+
+            // Initialize UI selection
+            UpdateControlSelection();
+        }
+
+        private void GamepadTimer_Tick(object sender, object e)
+        {
+            var gamepads = Gamepad.Gamepads;
+            if (gamepads.Count == 0) return;
+
+            var gamepad = gamepads[0]; // Use first gamepad
+            var reading = gamepad.GetCurrentReading();
+
+            // Check D-pad for TDP control (when TDP selector is selected)
+            if (_selectedControlIndex == 0)
+            {
+                bool leftPressed = (reading.Buttons & GamepadButtons.DPadLeft) != 0;
+                bool rightPressed = (reading.Buttons & GamepadButtons.DPadRight) != 0;
+
+                // Only trigger on button press (not hold)
+                if (leftPressed && !_gamepadLeftPressed)
+                {
+                    ChangeTdpBy(-1);
+                }
+                else if (rightPressed && !_gamepadRightPressed)
+                {
+                    ChangeTdpBy(1);
+                }
+
+                _gamepadLeftPressed = leftPressed;
+                _gamepadRightPressed = rightPressed;
+            }
+
+            // Check D-pad up/down for control selection
+            bool upPressed = (reading.Buttons & GamepadButtons.DPadUp) != 0;
+            bool downPressed = (reading.Buttons & GamepadButtons.DPadDown) != 0;
+
+            if (upPressed && !_gamepadUpPressed)
+            {
+                _selectedControlIndex = (_selectedControlIndex - 1 + TOTAL_CONTROLS) % TOTAL_CONTROLS;
+                UpdateControlSelection();
+            }
+            else if (downPressed && !_gamepadDownPressed)
+            {
+                _selectedControlIndex = (_selectedControlIndex + 1) % TOTAL_CONTROLS;
+                UpdateControlSelection();
+            }
+
+            // Check A button for activation
+            bool aPressed = (reading.Buttons & GamepadButtons.A) != 0;
+            if (aPressed && !_gamepadAPressed)
+            {
+                ActivateSelectedControl();
+            }
+
+            _gamepadUpPressed = upPressed;
+            _gamepadDownPressed = downPressed;
+            _gamepadAPressed = aPressed;
+        }
+
+        private void UpdateControlSelection()
+        {
+            switch (_selectedControlIndex)
+            {
+                case 0: // TDP Selector
+                    TdpPickerBorder.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    TdpPickerBorder.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+                    TdpPickerBorder.Shadow = new ThemeShadow();
+
+                    // Remove effects from mute button
+                    MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+                    MuteButton.Shadow = null;
+                    break;
+
+                case 1: // Mute Button
+                        // Remove effects from TDP picker
+                    TdpPickerBorder.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    TdpPickerBorder.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+                    TdpPickerBorder.Shadow = null;
+
+                    // Add effects to mute button
+                    MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+                    MuteButton.Shadow = new ThemeShadow();
+                    break;
+            }
+        }
+
+        private Border? FindTdpPickerBorder()
+        {
+            try
+            {
+                var stackPanel = (StackPanel)LayoutRoot.Children[0];
+                var tdpSection = (StackPanel)stackPanel.Children[0];
+                return (Border)tdpSection.Children[1];
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private void ActivateSelectedControl()
+        {
+            switch (_selectedControlIndex)
+            {
+                case 0: // TDP Selector - no specific action needed, use left/right to control
+                    break;
+                case 1: // Mute Button
+                    MuteButton_Click(MuteButton, new RoutedEventArgs());
+                    break;
+            }
+        }
+
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
 
