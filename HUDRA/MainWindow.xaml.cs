@@ -266,10 +266,17 @@ namespace HUDRA
 
         private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
         {
-            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+            // Handle both mouse and touch input
+            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
+                e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
             {
                 var properties = e.GetCurrentPoint(MainBorder).Properties;
-                if (properties.IsLeftButtonPressed)
+
+                // For mouse, check left button. For touch, primary contact is always "pressed"
+                bool shouldStartDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
+                                      (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+
+                if (shouldStartDrag)
                 {
                     // Check if the click is over the TDP picker area
                     var position = e.GetCurrentPoint(MainBorder);
@@ -292,7 +299,7 @@ namespace HUDRA
                         // If bounds detection fails, allow dragging
                     }
 
-                    // Start window dragging only if not clicking on TDP picker
+                    // Start window dragging for both mouse and touch
                     _isDragging = true;
                     MainBorder.CapturePointer(e.Pointer);
 
@@ -304,10 +311,16 @@ namespace HUDRA
 
         private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
         {
-            if (_isDragging && e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+            if (_isDragging && (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
+                               e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch))
             {
                 var properties = e.GetCurrentPoint(MainBorder).Properties;
-                if (properties.IsLeftButtonPressed)
+
+                // For mouse, check if button is still pressed. For touch, if we're getting moved events, contact is maintained
+                bool shouldContinueDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
+                                         (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+
+                if (shouldContinueDrag)
                 {
                     GetCursorPos(out POINT cursorPos);
 
