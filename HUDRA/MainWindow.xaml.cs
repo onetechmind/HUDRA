@@ -52,6 +52,10 @@ namespace HUDRA
         private const double ItemWidth = 65.0; // 50 width + 15 spacing
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
+        private Windows.Foundation.Point _lastTouchPosition;
+        private bool _isUsingTouchDrag = false;
+        private Windows.Graphics.PointInt32 _touchStartWindowPos;
+        private bool _touchDragStarted = false;
 
         //gamepad fields
         private DispatcherTimer? _gamepadTimer;
@@ -80,6 +84,7 @@ namespace HUDRA
             LoadCurrentTdp();
             InitializeTdpPicker();
             SetupTdpScrollViewerEvents();
+
 
             // Initialize audio service and set initial button state
             _audioService = new AudioService();
@@ -293,6 +298,16 @@ namespace HUDRA
                         {
                             return; // Exit early - let the ScrollViewer handle this
                         }
+
+                        // Also check if clicking on the mute button
+                        var muteButtonTransform = MuteButton.TransformToVisual(MainBorder);
+                        var muteButtonBounds = muteButtonTransform.TransformBounds(new Windows.Foundation.Rect(0, 0,
+                            MuteButton.ActualWidth, MuteButton.ActualHeight));
+
+                        if (muteButtonBounds.Contains(position.Position))
+                        {
+                            return; // Let the button handle the click
+                        }
                     }
                     catch
                     {
@@ -301,10 +316,30 @@ namespace HUDRA
 
                     // Start window dragging for both mouse and touch
                     _isDragging = true;
+                    _isUsingTouchDrag = e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch;
                     MainBorder.CapturePointer(e.Pointer);
 
-                    GetCursorPos(out POINT cursorPos);
-                    _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
+                    if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+                    {
+                        GetCursorPos(out POINT cursorPos);
+                        _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
+                    }
+                    else // Touch
+                    {
+                        // For touch, use screen coordinates directly
+                        var screenPoint = position.Position;
+
+                        // Convert to screen coordinates
+                        var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+                        var appWindow = AppWindow.GetFromWindowId(windowId);
+                        var windowPos = appWindow.Position;
+
+                        _lastTouchPosition = new Windows.Foundation.Point(
+                            windowPos.X + screenPoint.X,
+                            windowPos.Y + screenPoint.Y);
+
+                        _touchDragStarted = true;
+                    }
                 }
             }
         }
@@ -322,24 +357,57 @@ namespace HUDRA
 
                 if (shouldContinueDrag)
                 {
-                    GetCursorPos(out POINT cursorPos);
-
-                    int deltaX = cursorPos.X - _lastPointerPosition.X;
-                    int deltaY = cursorPos.Y - _lastPointerPosition.Y;
-
                     var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
                     var appWindow = AppWindow.GetFromWindowId(windowId);
-                    var currentPos = appWindow.Position;
 
-                    appWindow.Move(new Windows.Graphics.PointInt32(
-                        currentPos.X + deltaX,
-                        currentPos.Y + deltaY));
+                    if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+                    {
+                        // Mouse handling (unchanged)
+                        GetCursorPos(out POINT cursorPos);
+                        var currentPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
 
-                    _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
+                        int deltaX = currentPosition.X - _lastPointerPosition.X;
+                        int deltaY = currentPosition.Y - _lastPointerPosition.Y;
+
+                        var currentPos = appWindow.Position;
+                        appWindow.Move(new Windows.Graphics.PointInt32(
+                            currentPos.X + deltaX,
+                            currentPos.Y + deltaY));
+
+                        _lastPointerPosition = currentPosition;
+                    }
+                    else // Touch - use delta-based movement like mouse
+                    {
+                        if (_touchDragStarted)
+                        {
+                            var currentTouchPoint = e.GetCurrentPoint(MainBorder);
+                            var windowPos = appWindow.Position;
+
+                            // Current touch position in screen coordinates
+                            var currentScreenTouch = new Windows.Foundation.Point(
+                                windowPos.X + currentTouchPoint.Position.X,
+                                windowPos.Y + currentTouchPoint.Position.Y);
+
+                            // Calculate delta from last position
+                            double deltaX = currentScreenTouch.X - _lastTouchPosition.X;
+                            double deltaY = currentScreenTouch.Y - _lastTouchPosition.Y;
+
+                            // Move window by delta
+                            var newX = windowPos.X + (int)deltaX;
+                            var newY = windowPos.Y + (int)deltaY;
+
+                            appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+
+                            // Update last position for next delta calculation
+                            _lastTouchPosition = currentScreenTouch;
+                        }
+                    }
                 }
                 else
                 {
                     _isDragging = false;
+                    _isUsingTouchDrag = false;
+                    _touchDragStarted = false;
                 }
             }
         }
@@ -347,6 +415,8 @@ namespace HUDRA
         private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
         {
             _isDragging = false;
+            _isUsingTouchDrag = false;
+            _touchDragStarted = false;
             MainBorder.ReleasePointerCapture(e.Pointer);
         }
 
@@ -452,7 +522,6 @@ namespace HUDRA
         {
             double _lastPointerX = 0;
             bool _isManualScrolling = false;
-            bool _wasInertialScrolling = false;
 
             // Mouse/pen pointer events (existing logic)
             TdpScrollViewer.PointerPressed += (s, e) =>
@@ -495,12 +564,6 @@ namespace HUDRA
                     TdpScrollViewer.ReleasePointerCapture(e.Pointer);
                     HandleScrollEnd();
                 }
-            };
-
-            // Primary method: DirectManipulationCompleted for touch
-            TdpScrollViewer.DirectManipulationCompleted += (s, e) =>
-            {
-                HandleScrollEnd();
             };
 
             // Backup method: Use a scroll position change detector
