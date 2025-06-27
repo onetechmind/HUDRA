@@ -26,7 +26,7 @@
                        Foreground="#CCFFFFFF"
                        HorizontalAlignment="Center"/>
 
-                <!-- Custom TDP Picker Wheel -->
+                <!-- Custom TDP Picker Wheel - restore fixed width -->
                 <Border x:Name="TdpPickerBorder"
                         Background="#22FFFFFF" 
                     CornerRadius="12" 
@@ -48,8 +48,8 @@
                         </ScrollViewer>
                     </Grid>
                 </Border>
-
-                <!-- Mute Button -->
+                
+                <!-- Mute Button - restore auto width -->
                 <Button x:Name="MuteButton"
             Content="Toggle Mute"
             Click="MuteButton_Click"

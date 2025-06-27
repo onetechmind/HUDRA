@@ -49,7 +49,28 @@ namespace HUDRA
         private DispatcherTimer? _autoSetTimer;
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
-        private const double ItemWidth = 65.0; // 50 width + 15 spacing
+
+        // DPI-aware fields replacing hard-coded values
+        private double _currentScaleFactor = 1.0;
+        private readonly double _baseNumberWidth = 50.0;   // Width of each number
+        private readonly double _baseSpacing = 15.0;       // Spacing between numbers  
+        private readonly double _basePadding = 115.0;      // Start/end padding
+
+        // Use BASE values (not DPI-scaled) for scroll calculations
+        // because WinUI 3 ScrollViewer already works in logical pixels
+       
+        private double NumberWidth => _baseNumberWidth;
+        private double Spacing => _baseSpacing;
+        private double StartPadding => _basePadding;
+        private double ItemWidth => _baseNumberWidth + _baseSpacing;
+
+        // Keep these for actual UI element sizing (when we manually set widths in code)
+        private double ScaledNumberWidth => _baseNumberWidth * _currentScaleFactor;
+        private double ScaledSpacing => _baseSpacing * _currentScaleFactor;
+        private double ScaledStartPadding => _basePadding * _currentScaleFactor;
+        private double ScaledItemWidth => (_baseNumberWidth + _baseSpacing) * _currentScaleFactor;
+
+
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
         private Windows.Foundation.Point _lastTouchPosition;
@@ -76,6 +97,9 @@ namespace HUDRA
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
 
+            // Initialize DPI awareness BEFORE other setup
+            UpdateCurrentDpiScale();
+
             TrySetAcrylicBackdrop();
             SetInitialSize();
             MakeBorderlessWithRoundedCorners();
@@ -84,7 +108,6 @@ namespace HUDRA
             LoadCurrentTdp();
             InitializeTdpPicker();
             SetupTdpScrollViewerEvents();
-
 
             // Initialize audio service and set initial button state
             _audioService = new AudioService();
@@ -101,6 +124,9 @@ namespace HUDRA
             };
 
             SetupGamepadInput();
+
+            // Monitor DPI changes
+            this.SizeChanged += MainWindow_SizeChanged;
         }
 
         private void MuteButton_Click(object sender, RoutedEventArgs e)
@@ -120,10 +146,14 @@ namespace HUDRA
                 MuteButton.Content = "Mute";
             }
         }
+
         private void InitializeTdpPicker()
         {
-            // Add padding elements at start and end for proper centering
-            var startPadding = new Border { Width = 115 }; // Half of container width minus half of item width
+            // Update DPI scaling first
+            UpdateCurrentDpiScale();
+
+            // Use SCALED padding for UI creation (because we're setting Width in code)
+            var startPadding = new Border { Width = ScaledStartPadding };
             NumbersPanel.Children.Add(startPadding);
 
             // Create number TextBlocks from 5 to 30
@@ -132,33 +162,33 @@ namespace HUDRA
                 var textBlock = new TextBlock
                 {
                     Text = i.ToString(),
-                    FontSize = 24,
+                    FontSize = 24, // WinUI 3 handles font DPI automatically
                     FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Width = 50,
-                    Opacity = i == _selectedTdp ? 1.0 : 0.4 // Highlight actual loaded TDP
+                    Width = ScaledNumberWidth, // Use SCALED width for UI creation
+                    Opacity = i == _selectedTdp ? 1.0 : 0.4
                 };
                 NumbersPanel.Children.Add(textBlock);
             }
 
-            var endPadding = new Border { Width = 115 };
+            var endPadding = new Border { Width = ScaledStartPadding };
             NumbersPanel.Children.Add(endPadding);
 
-            // Set initial scroll position to center on current TDP
-            // Set initial scroll position to center on current TDP
+            // Use BASE (unscaled) values for scroll calculations
+            // because ScrollViewer.HorizontalOffset is already in logical pixels
             LayoutRoot.Loaded += (s, e) =>
             {
                 var targetIndex = _selectedTdp - 5;
-                // Use the same calculation as ViewChanged - center the number in the scroll viewer
-                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25; // +25 for half the number width
+                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
                 var scrollViewerWidth = TdpScrollViewer.ActualWidth;
                 var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
                 TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
             };
         }
+
 
         private async void LoadCurrentTdp()
         {
@@ -175,8 +205,6 @@ namespace HUDRA
 
                     // Update the picker wheel to show current value
                     UpdateNumberOpacity();
-
-                    
                 }
                 else
                 {
@@ -201,10 +229,10 @@ namespace HUDRA
             var scrollViewerWidth = scrollViewer.ActualWidth;
             var centerPosition = scrollOffset + (scrollViewerWidth / 2);
 
-            var itemWidth = ItemWidth;
-            var adjustedOffset = centerPosition - 115; // Subtract start padding
-            var centerIndex = Math.Round(adjustedOffset / itemWidth);
-            var selectedValue = (int)(centerIndex + 5);
+            // Use UNSCALED calculations (Approach 1) - this is correct based on debug output
+            var adjustedOffset = centerPosition - StartPadding;
+            var centerIndex = Math.Round(adjustedOffset / ItemWidth);
+            var selectedValue = (int)(centerIndex + 5);  // Add 5 back - this was right
 
             // Clamp to valid range
             selectedValue = Math.Max(5, Math.Min(30, selectedValue));
@@ -214,27 +242,23 @@ namespace HUDRA
                 _selectedTdp = selectedValue;
                 UpdateNumberOpacity();
 
-                // Auto-set TDP with delay and rate limiting
                 _pendingTdpValue = _selectedTdp;
-                _autoSetTimer?.Stop(); // Cancel any existing timer
-                _autoSetTimer?.Start(); // Start new countdown
+                _autoSetTimer?.Stop();
+                _autoSetTimer?.Start();
             }
 
-            // Add snapping when scrolling stops
-            if (!e.IsIntermediate) // This indicates the scroll has stopped
+            // Snapping when scrolling stops (use UNSCALED values)
+            if (!e.IsIntermediate)
             {
                 var targetIndex = _selectedTdp - 5;
-                // Calculate position to center the selected number in the scroll viewer
-                var numberCenterPosition = 115 + (targetIndex * itemWidth) + 25; // +25 for half the number width (50/2)
+                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
                 var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
 
-                // Only snap if we're not already at the correct position (avoid infinite loops)
                 if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
                 {
                     _isScrolling = true;
                     scrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
 
-                    // Reset the scrolling flag after a short delay
                     var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
                     timer.Tick += (s, args) =>
                     {
@@ -267,7 +291,6 @@ namespace HUDRA
             MainBorder.PointerMoved += OnPointerMoved;
             MainBorder.PointerReleased += OnPointerReleased;
         }
-
 
         private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
         {
@@ -424,7 +447,14 @@ namespace HUDRA
         {
             var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
-            appWindow.Resize(new Windows.Graphics.SizeInt32(320, 450));
+
+            // Scale the base logical size by current DPI
+            var logicalWidth = 320.0;
+            var logicalHeight = 450.0;
+            var scaledWidth = (int)Math.Round(logicalWidth * _currentScaleFactor);
+            var scaledHeight = (int)Math.Round(logicalHeight * _currentScaleFactor);
+
+            appWindow.Resize(new Windows.Graphics.SizeInt32(scaledWidth, scaledHeight));
         }
 
         private void MakeBorderlessWithRoundedCorners()
@@ -489,6 +519,7 @@ namespace HUDRA
             }
             return false;
         }
+
         private async void AutoSetTdp()
         {
             if (_isAutoSetting) return; // Rate limiting - prevent multiple simultaneous calls
@@ -598,7 +629,8 @@ namespace HUDRA
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
             var centerPosition = scrollOffset + (scrollViewerWidth / 2);
 
-            var adjustedOffset = centerPosition - 115;
+            // Use UNSCALED calculations
+            var adjustedOffset = centerPosition - StartPadding;
             var centerIndex = Math.Round(adjustedOffset / ItemWidth);
             var selectedValue = (int)(centerIndex + 5);
 
@@ -614,9 +646,9 @@ namespace HUDRA
                 _autoSetTimer?.Start();
             }
 
-            // Force snapping
+            // Force snapping with UNSCALED calculations
             var targetIndex = _selectedTdp - 5;
-            var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
+            var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
             var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
 
             if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
@@ -643,23 +675,21 @@ namespace HUDRA
                 _selectedTdp = newTdp;
                 UpdateNumberOpacity();
 
-                // Scroll to the new position
+                // Use UNSCALED calculations for scrolling
                 var targetIndex = _selectedTdp - 5;
-                var numberCenterPosition = 115 + (targetIndex * ItemWidth) + 25;
+                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
                 var scrollViewerWidth = TdpScrollViewer.ActualWidth;
                 var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
 
                 _isScrolling = true;
                 TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
 
-                // Reset scrolling flag and trigger auto-set
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
                 timer.Tick += (s, args) =>
                 {
                     _isScrolling = false;
                     timer.Stop();
 
-                    // Trigger auto-set
                     _pendingTdpValue = _selectedTdp;
                     _autoSetTimer?.Stop();
                     _autoSetTimer?.Start();
@@ -789,8 +819,67 @@ namespace HUDRA
             }
         }
 
+        // DPI Helper Methods
+        private void UpdateCurrentDpiScale()
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(this);
+                var dpi = GetDpiForWindow(hwnd);
+                _currentScaleFactor = dpi / 96.0; // 96 DPI = 100% scale
+            }
+            catch
+            {
+                _currentScaleFactor = 1.0; // Fallback to 100% scale
+            }
+        }
+
+        private void UpdateTdpPickerSizing()
+        {
+            if (NumbersPanel?.Children == null) return;
+
+            // Update start padding with SCALED value
+            if (NumbersPanel.Children.Count > 0 && NumbersPanel.Children[0] is Border startPadding)
+            {
+                startPadding.Width = ScaledStartPadding;
+            }
+
+            // Update end padding with SCALED value
+            if (NumbersPanel.Children.Count > 27 && NumbersPanel.Children[27] is Border endPadding)
+            {
+                endPadding.Width = ScaledStartPadding;
+            }
+
+            // Update number TextBlocks with SCALED width
+            for (int i = 1; i <= 26; i++)
+            {
+                if (NumbersPanel.Children[i] is TextBlock textBlock)
+                {
+                    textBlock.Width = ScaledNumberWidth;
+                }
+            }
+        }
+
+        private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
+        {
+            // Check if DPI changed and update accordingly
+            var newScaleFactor = GetDpiForWindow(_hwnd) / 96.0;
+            if (Math.Abs(newScaleFactor - _currentScaleFactor) > 0.01)
+            {
+                _currentScaleFactor = newScaleFactor;
+                UpdateTdpPickerSizing();
+            }
+        }
+
+        // P/Invoke declarations
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
+
+        [DllImport("user32.dll")]
+        private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct POINT
@@ -798,7 +887,5 @@ namespace HUDRA
             public int X;
             public int Y;
         }
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     }
 }
