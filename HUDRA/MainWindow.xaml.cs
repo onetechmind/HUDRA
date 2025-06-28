@@ -188,9 +188,6 @@ namespace HUDRA
                 startPadding.Width = adjustedHalfWidth;
                 endPadding.Width = adjustedHalfWidth;
 
-                System.Diagnostics.Debug.WriteLine($"Setting up adjusted padding: {adjustedHalfWidth:F1}, adjustment: {paddingAdjustment:F1}");
-
-                DebugItemPositions();
                 NumbersPanel.UpdateLayout();
 
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
@@ -216,18 +213,6 @@ namespace HUDRA
 
         private void ScrollToTdpSimple(int tdpValue)
         {
-            // TEST: Add obvious debug to verify changes are working
-            System.Diagnostics.Debug.WriteLine("*** ScrollToTdpSimple called - CHANGES ARE WORKING ***");
-
-            // ... rest of method stays the same for now ...
-
-            // Wait for ScrollViewer to be properly sized
-            if (TdpScrollViewer.ActualWidth <= 0)
-            {
-                System.Diagnostics.Debug.WriteLine("ScrollViewer not ready, deferring scroll");
-                return;
-            }
-
             var tdpIndex = tdpValue - MIN_TDP;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
             var scrollViewerCenter = scrollViewerWidth / 2;
@@ -245,8 +230,6 @@ namespace HUDRA
             // Clamp to valid range
             var maxScroll = Math.Max(0, TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth);
             targetScrollPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
-
-            System.Diagnostics.Debug.WriteLine($"ScrollToTdp({tdpValue}): targetScroll={targetScrollPosition:F1}");
 
             TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
         }
@@ -276,8 +259,6 @@ namespace HUDRA
             var calculatedNumberCenter = startPadding + (calculatedIndex * ItemWidth) + (NumberWidth / 2);
             var distance = Math.Abs(visibleCenterPosition - calculatedNumberCenter);
 
-            System.Diagnostics.Debug.WriteLine($"GetCenteredTdpAdjusted: paddingAdj={paddingAdjustment:F1}, TDP={result}, distance={distance:F1}");
-
             return result;
         }
         private async void LoadCurrentTdp()
@@ -292,8 +273,6 @@ namespace HUDRA
                     // Clamp to our valid range
                     _selectedTdp = Math.Max(MIN_TDP, Math.Min(MAX_TDP, result.TdpWatts));
                     CurrentTdpDisplayText = $"Current TDP: {_selectedTdp}W";
-
-                    System.Diagnostics.Debug.WriteLine($"Loaded current TDP: {_selectedTdp}W");
 
                     // Update the picker wheel to show current value
                     UpdateNumberOpacity();
@@ -898,8 +877,6 @@ namespace HUDRA
                 var hwnd = WindowNative.GetWindowHandle(this);
                 var dpi = GetDpiForWindow(hwnd);
                 _currentScaleFactor = dpi / 96.0; // 96 DPI = 100% scale
-
-                System.Diagnostics.Debug.WriteLine($"Current DPI scale factor: {_currentScaleFactor:F2}");
             }
             catch
             {
@@ -944,7 +921,6 @@ namespace HUDRA
 
             if (Math.Abs(_currentScaleFactor - oldScaleFactor) > 0.01)
             {
-                System.Diagnostics.Debug.WriteLine($"DPI changed from {oldScaleFactor:F2} to {_currentScaleFactor:F2}");
                 UpdateTdpPickerSizing();
 
                 // Re-scroll to current position with new scaling
@@ -957,33 +933,7 @@ namespace HUDRA
                 timer.Start();
             }
         }
-        private void DebugItemPositions()
-        {
-            if (TdpScrollViewer.ActualWidth <= 0) return;
-
-            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-            var startPadding = scrollViewerWidth / 2;
-
-            System.Diagnostics.Debug.WriteLine($"=== TDP Item Positions Debug ===");
-            System.Diagnostics.Debug.WriteLine($"ScrollViewer Width: {scrollViewerWidth:F1}");
-            System.Diagnostics.Debug.WriteLine($"NumberWidth (DPI-scaled): {NumberWidth:F1}");
-            System.Diagnostics.Debug.WriteLine($"XAML Spacing: 15.0");
-            System.Diagnostics.Debug.WriteLine($"ItemWidth (calculated): {ItemWidth:F1}");
-            System.Diagnostics.Debug.WriteLine($"Start Padding: {startPadding:F1}");
-            System.Diagnostics.Debug.WriteLine($"DPI Scale Factor: {_currentScaleFactor:F2}");
-
-            for (int tdp = MIN_TDP; tdp <= Math.Min(MIN_TDP + 5, MAX_TDP); tdp++)
-            {
-                var index = tdp - MIN_TDP;
-                var leftEdge = startPadding + (index * ItemWidth);
-                var center = leftEdge + (NumberWidth / 2);
-                var rightEdge = leftEdge + NumberWidth;
-
-                System.Diagnostics.Debug.WriteLine($"TDP {tdp}: Left={leftEdge:F1}, Center={center:F1}, Right={rightEdge:F1}");
-            }
-            System.Diagnostics.Debug.WriteLine($"================================");
-        }
-
+       
         // P/Invoke declarations
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
