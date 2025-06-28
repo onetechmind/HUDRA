@@ -50,26 +50,18 @@ namespace HUDRA
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
 
-        // DPI-aware fields replacing hard-coded values
+        // TDP Configuration - Change these to easily modify the range
+        private const int MIN_TDP = 5;
+        private const int MAX_TDP = 30;
+        private int TotalTdpCount => MAX_TDP - MIN_TDP + 1; // 26 items (5-30)
+
+        // DPI-aware fields
         private double _currentScaleFactor = 1.0;
-        private readonly double _baseNumberWidth = 50.0;   // Width of each number
-        private readonly double _baseSpacing = 15.0;       // Spacing between numbers  
-        private readonly double _basePadding = 115.0;      // Start/end padding
+        private readonly double _baseNumberWidth = 50.0;
 
-        // Use BASE values (not DPI-scaled) for scroll calculations
-        // because WinUI 3 ScrollViewer already works in logical pixels
-       
-        private double NumberWidth => _baseNumberWidth;
-        private double Spacing => _baseSpacing;
-        private double StartPadding => _basePadding;
-        private double ItemWidth => _baseNumberWidth + _baseSpacing;
-
-        // Keep these for actual UI element sizing (when we manually set widths in code)
-        private double ScaledNumberWidth => _baseNumberWidth * _currentScaleFactor;
-        private double ScaledSpacing => _baseSpacing * _currentScaleFactor;
-        private double ScaledStartPadding => _basePadding * _currentScaleFactor;
-        private double ScaledItemWidth => (_baseNumberWidth + _baseSpacing) * _currentScaleFactor;
-
+        // Properties for DPI scaling
+        private double NumberWidth => _baseNumberWidth * _currentScaleFactor;
+        private double ItemWidth => NumberWidth + 15.0; // Use fixed 15px spacing from XAML
 
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
@@ -78,7 +70,7 @@ namespace HUDRA
         private Windows.Graphics.PointInt32 _touchStartWindowPos;
         private bool _touchDragStarted = false;
 
-        //gamepad fields
+        // Gamepad fields
         private DispatcherTimer? _gamepadTimer;
         private bool _gamepadLeftPressed = false;
         private bool _gamepadRightPressed = false;
@@ -152,44 +144,141 @@ namespace HUDRA
             // Update DPI scaling first
             UpdateCurrentDpiScale();
 
-            // Use SCALED padding for UI creation (because we're setting Width in code)
-            var startPadding = new Border { Width = ScaledStartPadding };
+            // Clear any existing children
+            NumbersPanel.Children.Clear();
+
+            // We'll set the actual padding when layout is complete
+            var startPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(startPadding);
 
-            // Create number TextBlocks from 5 to 30
-            for (int i = 5; i <= 30; i++)
+            // Create number TextBlocks dynamically based on TDP range
+            for (int tdpValue = MIN_TDP; tdpValue <= MAX_TDP; tdpValue++)
             {
                 var textBlock = new TextBlock
                 {
-                    Text = i.ToString(),
-                    FontSize = 24, // WinUI 3 handles font DPI automatically
+                    Text = tdpValue.ToString(),
+                    FontSize = 24,
                     FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Width = ScaledNumberWidth, // Use SCALED width for UI creation
-                    Opacity = i == _selectedTdp ? 1.0 : 0.4
+                    Width = NumberWidth,
+                    Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4
                 };
                 NumbersPanel.Children.Add(textBlock);
             }
 
-            var endPadding = new Border { Width = ScaledStartPadding };
+            // Add end padding
+            var endPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(endPadding);
 
-            // Use BASE (unscaled) values for scroll calculations
-            // because ScrollViewer.HorizontalOffset is already in logical pixels
-            LayoutRoot.Loaded += (s, e) =>
+            // IMPORTANT: Use multiple layout events to ensure proper positioning
+            bool hasScrolledToInitialPosition = false;
+
+            void SetupPaddingAndScroll()
             {
-                var targetIndex = _selectedTdp - 5;
-                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
-                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
-                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+                if (TdpScrollViewer.ActualWidth <= 0) return;
+
+                // Apply the same padding adjustment here too
+                var paddingAdjustment = 7.0 * _currentScaleFactor;
+                var adjustedHalfWidth = (TdpScrollViewer.ActualWidth / 2) + paddingAdjustment;
+
+                startPadding.Width = adjustedHalfWidth;
+                endPadding.Width = adjustedHalfWidth;
+
+                System.Diagnostics.Debug.WriteLine($"Setting up adjusted padding: {adjustedHalfWidth:F1}, adjustment: {paddingAdjustment:F1}");
+
+                DebugItemPositions();
+                NumbersPanel.UpdateLayout();
+
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                timer.Tick += (sender, args) =>
+                {
+                    timer.Stop();
+                    ScrollToTdpSimple(_selectedTdp);
+                };
+                timer.Start();
+            }
+
+            LayoutRoot.Loaded += (s, e) => SetupPaddingAndScroll();
+            TdpScrollViewer.Loaded += (s, e) => SetupPaddingAndScroll();
+            TdpScrollViewer.SizeChanged += (s, e) =>
+            {
+                if (e.NewSize.Width > 0 && !hasScrolledToInitialPosition)
+                {
+                    SetupPaddingAndScroll();
+                    hasScrolledToInitialPosition = true;
+                }
             };
         }
 
+        private void ScrollToTdpSimple(int tdpValue)
+        {
+            // TEST: Add obvious debug to verify changes are working
+            System.Diagnostics.Debug.WriteLine("*** ScrollToTdpSimple called - CHANGES ARE WORKING ***");
 
+            // ... rest of method stays the same for now ...
+
+            // Wait for ScrollViewer to be properly sized
+            if (TdpScrollViewer.ActualWidth <= 0)
+            {
+                System.Diagnostics.Debug.WriteLine("ScrollViewer not ready, deferring scroll");
+                return;
+            }
+
+            var tdpIndex = tdpValue - MIN_TDP;
+            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var scrollViewerCenter = scrollViewerWidth / 2;
+            var startPadding = scrollViewerCenter;
+
+            // Calculate the left edge of this number
+            var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
+
+            // Calculate the center of this number
+            var numberCenter = numberLeftEdge + (NumberWidth / 2);
+
+            // Calculate scroll position to center this number
+            var targetScrollPosition = numberCenter - scrollViewerCenter;
+
+            // Clamp to valid range
+            var maxScroll = Math.Max(0, TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth);
+            targetScrollPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
+
+            System.Diagnostics.Debug.WriteLine($"ScrollToTdp({tdpValue}): targetScroll={targetScrollPosition:F1}");
+
+            TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+        }
+
+        private int GetCenteredTdpAdjusted()
+        {
+            var scrollOffset = TdpScrollViewer.HorizontalOffset;
+            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var scrollViewerCenter = scrollViewerWidth / 2;
+
+            // Apply the same padding adjustment
+            var paddingAdjustment = 7.0 * _currentScaleFactor; // Same value as above
+            var startPadding = scrollViewerCenter + paddingAdjustment;
+
+            // The absolute position of the center of the visible area
+            var visibleCenterPosition = scrollOffset + scrollViewerCenter;
+
+            // Calculate which number's center is closest to the visible center
+            var adjustedPosition = visibleCenterPosition - startPadding - (NumberWidth / 2);
+            var slotIndex = Math.Round(adjustedPosition / ItemWidth);
+
+            var tdpValue = (int)(slotIndex + MIN_TDP);
+            var result = Math.Max(MIN_TDP, Math.Min(MAX_TDP, tdpValue));
+
+            // Verify our calculation
+            var calculatedIndex = result - MIN_TDP;
+            var calculatedNumberCenter = startPadding + (calculatedIndex * ItemWidth) + (NumberWidth / 2);
+            var distance = Math.Abs(visibleCenterPosition - calculatedNumberCenter);
+
+            System.Diagnostics.Debug.WriteLine($"GetCenteredTdpAdjusted: paddingAdj={paddingAdjustment:F1}, TDP={result}, distance={distance:F1}");
+
+            return result;
+        }
         private async void LoadCurrentTdp()
         {
             try
@@ -199,12 +288,20 @@ namespace HUDRA
 
                 if (result.Success)
                 {
-                    // Clamp to our valid range (5-30)
-                    _selectedTdp = Math.Max(5, Math.Min(30, result.TdpWatts));
+                    // Clamp to our valid range
+                    _selectedTdp = Math.Max(MIN_TDP, Math.Min(MAX_TDP, result.TdpWatts));
                     CurrentTdpDisplayText = $"Current TDP: {_selectedTdp}W";
+
+                    System.Diagnostics.Debug.WriteLine($"Loaded current TDP: {_selectedTdp}W");
 
                     // Update the picker wheel to show current value
                     UpdateNumberOpacity();
+
+                    // If the ScrollViewer is ready, scroll to the correct position
+                    if (TdpScrollViewer.ActualWidth > 0)
+                    {
+                        ScrollToTdpSimple(_selectedTdp);
+                    }
                 }
                 else
                 {
@@ -221,69 +318,56 @@ namespace HUDRA
         {
             if (_isScrolling) return;
 
-            var scrollViewer = sender as ScrollViewer;
-            if (scrollViewer == null) return;
+            var centeredTdp = GetCenteredTdpAdjusted();
 
-            // Calculate which number is closest to center
-            var scrollOffset = scrollViewer.HorizontalOffset;
-            var scrollViewerWidth = scrollViewer.ActualWidth;
-            var centerPosition = scrollOffset + (scrollViewerWidth / 2);
-
-            // Use UNSCALED calculations (Approach 1) - this is correct based on debug output
-            var adjustedOffset = centerPosition - StartPadding;
-            var centerIndex = Math.Round(adjustedOffset / ItemWidth);
-            var selectedValue = (int)(centerIndex + 5);  // Add 5 back - this was right
-
-            // Clamp to valid range
-            selectedValue = Math.Max(5, Math.Min(30, selectedValue));
-
-            if (selectedValue != _selectedTdp)
+            // Update selection if it changed
+            if (centeredTdp != _selectedTdp)
             {
-                _selectedTdp = selectedValue;
+                _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
 
+                // Trigger TDP setting with delay
                 _pendingTdpValue = _selectedTdp;
                 _autoSetTimer?.Stop();
                 _autoSetTimer?.Start();
             }
 
-            // Snapping when scrolling stops (use UNSCALED values)
+            // Snap to position when scrolling stops
             if (!e.IsIntermediate)
             {
-                var targetIndex = _selectedTdp - 5;
-                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
-                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
-
-                if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
-                {
-                    _isScrolling = true;
-                    scrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
-
-                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                    timer.Tick += (s, args) =>
-                    {
-                        _isScrolling = false;
-                        timer.Stop();
-                    };
-                    timer.Start();
-                }
+                SnapToCurrentTdp();
             }
+        }
+
+        private void SnapToCurrentTdp()
+        {
+            _isScrolling = true;
+            ScrollToTdpSimple(_selectedTdp);
+
+            // Reset scrolling flag after animation
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+            timer.Tick += (s, args) =>
+            {
+                _isScrolling = false;
+                timer.Stop();
+            };
+            timer.Start();
         }
 
         private void UpdateNumberOpacity()
         {
-            // Skip the first and last elements (padding borders)
-            for (int i = 1; i <= 26; i++) // Numbers are at indices 1-26 (after start padding)
+            // Update all number TextBlocks (skip first and last elements which are padding borders)
+            for (int i = 1; i <= TotalTdpCount; i++) // Now correctly uses dynamic count
             {
-                var textBlock = NumbersPanel.Children[i] as TextBlock;
-                if (textBlock != null)
+                if (i < NumbersPanel.Children.Count - 1 && NumbersPanel.Children[i] is TextBlock textBlock)
                 {
-                    var value = i + 4; // i=1 corresponds to value=5, so value = i+4
-                    textBlock.Opacity = value == _selectedTdp ? 1.0 : 0.4;
-                    textBlock.FontSize = value == _selectedTdp ? 28 : 24;
+                    var tdpValue = (i - 1) + MIN_TDP; // Convert index back to TDP value
+                    textBlock.Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4;
+                    textBlock.FontSize = tdpValue == _selectedTdp ? 28 : 24;
                 }
             }
         }
+
 
         private void SetupDragHandling()
         {
@@ -625,20 +709,11 @@ namespace HUDRA
 
         private void HandleScrollEnd()
         {
-            var scrollOffset = TdpScrollViewer.HorizontalOffset;
-            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-            var centerPosition = scrollOffset + (scrollViewerWidth / 2);
+            var centeredTdp = GetCenteredTdpAdjusted();
 
-            // Use UNSCALED calculations
-            var adjustedOffset = centerPosition - StartPadding;
-            var centerIndex = Math.Round(adjustedOffset / ItemWidth);
-            var selectedValue = (int)(centerIndex + 5);
-
-            selectedValue = Math.Max(5, Math.Min(30, selectedValue));
-
-            if (selectedValue != _selectedTdp)
+            if (centeredTdp != _selectedTdp)
             {
-                _selectedTdp = selectedValue;
+                _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
 
                 _pendingTdpValue = _selectedTdp;
@@ -646,50 +721,26 @@ namespace HUDRA
                 _autoSetTimer?.Start();
             }
 
-            // Force snapping with UNSCALED calculations
-            var targetIndex = _selectedTdp - 5;
-            var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
-            var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
-
-            if (Math.Abs(scrollOffset - targetScrollPosition) > 1)
-            {
-                _isScrolling = true;
-                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
-
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                timer.Tick += (sender, args) =>
-                {
-                    _isScrolling = false;
-                    timer.Stop();
-                };
-                timer.Start();
-            }
+            SnapToCurrentTdp();
         }
 
         private void ChangeTdpBy(int delta)
         {
-            var newTdp = Math.Max(5, Math.Min(30, _selectedTdp + delta));
+            var newTdp = Math.Max(MIN_TDP, Math.Min(MAX_TDP, _selectedTdp + delta));
 
             if (newTdp != _selectedTdp)
             {
                 _selectedTdp = newTdp;
                 UpdateNumberOpacity();
 
-                // Use UNSCALED calculations for scrolling
-                var targetIndex = _selectedTdp - 5;
-                var numberCenterPosition = StartPadding + (targetIndex * ItemWidth) + (NumberWidth / 2);
-                var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-                var targetScrollPosition = numberCenterPosition - (scrollViewerWidth / 2);
+                // Scroll to new position
+                ScrollToTdpSimple(_selectedTdp);
 
-                _isScrolling = true;
-                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
-
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                // Trigger auto-set after scroll animation
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
                 timer.Tick += (s, args) =>
                 {
-                    _isScrolling = false;
                     timer.Stop();
-
                     _pendingTdpValue = _selectedTdp;
                     _autoSetTimer?.Stop();
                     _autoSetTimer?.Start();
@@ -827,6 +878,8 @@ namespace HUDRA
                 var hwnd = WindowNative.GetWindowHandle(this);
                 var dpi = GetDpiForWindow(hwnd);
                 _currentScaleFactor = dpi / 96.0; // 96 DPI = 100% scale
+
+                System.Diagnostics.Debug.WriteLine($"Current DPI scale factor: {_currentScaleFactor:F2}");
             }
             catch
             {
@@ -838,24 +891,27 @@ namespace HUDRA
         {
             if (NumbersPanel?.Children == null) return;
 
-            // Update start padding with SCALED value
+            var halfScrollViewerWidth = TdpScrollViewer.ActualWidth / 2;
+
+            // Update start padding
             if (NumbersPanel.Children.Count > 0 && NumbersPanel.Children[0] is Border startPadding)
             {
-                startPadding.Width = ScaledStartPadding;
+                startPadding.Width = halfScrollViewerWidth;
             }
 
-            // Update end padding with SCALED value
-            if (NumbersPanel.Children.Count > 27 && NumbersPanel.Children[27] is Border endPadding)
+            // Update end padding (last element)
+            var lastIndex = NumbersPanel.Children.Count - 1;
+            if (lastIndex > 0 && NumbersPanel.Children[lastIndex] is Border endPadding)
             {
-                endPadding.Width = ScaledStartPadding;
+                endPadding.Width = halfScrollViewerWidth;
             }
 
-            // Update number TextBlocks with SCALED width
-            for (int i = 1; i <= 26; i++)
+            // Update number TextBlocks with current DPI-scaled width
+            for (int i = 1; i <= TotalTdpCount; i++)
             {
-                if (NumbersPanel.Children[i] is TextBlock textBlock)
+                if (i < NumbersPanel.Children.Count - 1 && NumbersPanel.Children[i] is TextBlock textBlock)
                 {
-                    textBlock.Width = ScaledNumberWidth;
+                    textBlock.Width = NumberWidth;
                 }
             }
         }
@@ -863,12 +919,49 @@ namespace HUDRA
         private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
         {
             // Check if DPI changed and update accordingly
-            var newScaleFactor = GetDpiForWindow(_hwnd) / 96.0;
-            if (Math.Abs(newScaleFactor - _currentScaleFactor) > 0.01)
+            var oldScaleFactor = _currentScaleFactor;
+            UpdateCurrentDpiScale();
+
+            if (Math.Abs(_currentScaleFactor - oldScaleFactor) > 0.01)
             {
-                _currentScaleFactor = newScaleFactor;
+                System.Diagnostics.Debug.WriteLine($"DPI changed from {oldScaleFactor:F2} to {_currentScaleFactor:F2}");
                 UpdateTdpPickerSizing();
+
+                // Re-scroll to current position with new scaling
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                timer.Tick += (s, args) =>
+                {
+                    timer.Stop();
+                    ScrollToTdpSimple(_selectedTdp);
+                };
+                timer.Start();
             }
+        }
+        private void DebugItemPositions()
+        {
+            if (TdpScrollViewer.ActualWidth <= 0) return;
+
+            var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var startPadding = scrollViewerWidth / 2;
+
+            System.Diagnostics.Debug.WriteLine($"=== TDP Item Positions Debug ===");
+            System.Diagnostics.Debug.WriteLine($"ScrollViewer Width: {scrollViewerWidth:F1}");
+            System.Diagnostics.Debug.WriteLine($"NumberWidth (DPI-scaled): {NumberWidth:F1}");
+            System.Diagnostics.Debug.WriteLine($"XAML Spacing: 15.0");
+            System.Diagnostics.Debug.WriteLine($"ItemWidth (calculated): {ItemWidth:F1}");
+            System.Diagnostics.Debug.WriteLine($"Start Padding: {startPadding:F1}");
+            System.Diagnostics.Debug.WriteLine($"DPI Scale Factor: {_currentScaleFactor:F2}");
+
+            for (int tdp = MIN_TDP; tdp <= Math.Min(MIN_TDP + 5, MAX_TDP); tdp++)
+            {
+                var index = tdp - MIN_TDP;
+                var leftEdge = startPadding + (index * ItemWidth);
+                var center = leftEdge + (NumberWidth / 2);
+                var rightEdge = leftEdge + NumberWidth;
+
+                System.Diagnostics.Debug.WriteLine($"TDP {tdp}: Left={leftEdge:F1}, Center={center:F1}, Right={rightEdge:F1}");
+            }
+            System.Diagnostics.Debug.WriteLine($"================================");
         }
 
         // P/Invoke declarations
