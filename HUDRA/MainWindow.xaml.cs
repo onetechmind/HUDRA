@@ -1,5 +1,6 @@
 using HUDRA.Services;
 using Microsoft.UI;
+using Microsoft.UI.Composition;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -85,7 +86,7 @@ namespace HUDRA
         public MainWindow()
         {
             this.InitializeComponent();
-            this.Title = "HUDRA Control Center";
+            this.Title = "HUDRA";
 
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
@@ -93,10 +94,15 @@ namespace HUDRA
             // Initialize DPI awareness BEFORE other setup
             UpdateCurrentDpiScale();
 
+            //Set Acrylic backdrop if supported
             TrySetAcrylicBackdrop();
+
             SetInitialSize();
             MakeBorderlessWithRoundedCorners();
             ApplyRoundedCornersToWindow();
+
+            this.Activated += (s, e) => PositionAboveSystemTray();
+
             SetupDragHandling();
             LoadCurrentTdp();
             InitializeTdpPicker();
@@ -120,6 +126,24 @@ namespace HUDRA
 
             // Monitor DPI changes
             this.SizeChanged += MainWindow_SizeChanged;
+        }
+
+        public class TransparentBackdrop : SystemBackdrop
+        {
+            protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target, XamlRoot xamlRoot)
+            {
+                // Do nothing - keep transparent
+            }
+
+            protected override void OnTargetConnected(ICompositionSupportsSystemBackdrop connectedTarget, XamlRoot xamlRoot)
+            {
+                // Do nothing - keep transparent
+            }
+
+            protected override void OnTargetDisconnected(ICompositionSupportsSystemBackdrop disconnectedTarget)
+            {
+                // Do nothing
+            }
         }
 
         private void MuteButton_Click(object sender, RoutedEventArgs e)
@@ -567,7 +591,6 @@ namespace HUDRA
                 // Fallback for older Windows versions - rounded corners not supported
             }
         }
-
         private bool TrySetAcrylicBackdrop()
         {
             if (DesktopAcrylicController.IsSupported())
@@ -579,6 +602,12 @@ namespace HUDRA
                 };
 
                 _acrylicController = new DesktopAcrylicController();
+
+                // Make the acrylic much more transparent so your Border shows through
+                _acrylicController.TintColor = Windows.UI.Color.FromArgb(20, 0, 0, 0); // Very transparent black
+                _acrylicController.TintOpacity = 0.1f; // Very low opacity
+                _acrylicController.LuminosityOpacity = 0.1f; // Very low luminosity
+
                 _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
                 _acrylicController.SetSystemBackdropConfiguration(_backdropConfig);
 
@@ -949,6 +978,45 @@ namespace HUDRA
         {
             public int X;
             public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
+
+        [DllImport("user32.dll")]
+        private static extern bool SystemParametersInfo(int uAction, int uParam, ref RECT lpvParam, int fuWinIni);
+
+        private const int SPI_GETWORKAREA = 48;
+
+        private void PositionAboveSystemTray()
+        {
+            try
+            {
+                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+
+                // Get work area (screen minus taskbar)
+                var workArea = new RECT();
+                SystemParametersInfo(SPI_GETWORKAREA, 0, ref workArea, 0);
+
+                var padding = (int)(20 * _currentScaleFactor);
+                var windowSize = appWindow.Size;
+
+                var x = workArea.Right - windowSize.Width - padding;
+                var y = workArea.Bottom - windowSize.Height - padding;
+
+                appWindow.Move(new Windows.Graphics.PointInt32(x, y));
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to position window: {ex.Message}");
+            }
         }
     }
 }

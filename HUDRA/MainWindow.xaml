@@ -7,7 +7,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Border x:Name="MainBorder" CornerRadius="12" Background="#22000000">
+    <Border x:Name="MainBorder" CornerRadius="20" Background="Transparent" >
         <Grid x:Name="LayoutRoot">
             <Grid.RowDefinitions>
                 <RowDefinition Height="*"/>
