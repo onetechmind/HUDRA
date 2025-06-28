@@ -10,6 +10,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Windows.Gaming.Input;
 using WinRT;
 using WinRT.Interop;
@@ -326,10 +327,13 @@ namespace HUDRA
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
 
-                // Trigger TDP setting with delay
-                _pendingTdpValue = _selectedTdp;
-                _autoSetTimer?.Stop();
-                _autoSetTimer?.Start();
+                // Only restart timer if we're not currently processing a TDP change
+                if (!_isAutoSetting)
+                {
+                    _pendingTdpValue = _selectedTdp;
+                    _autoSetTimer?.Stop();
+                    _autoSetTimer?.Start();
+                }
             }
 
             // Snap to position when scrolling stops
@@ -606,22 +610,35 @@ namespace HUDRA
 
         private async void AutoSetTdp()
         {
-            if (_isAutoSetting) return; // Rate limiting - prevent multiple simultaneous calls
+            // Capture the current pending value and clear the timer immediately
+            int targetTdp = _pendingTdpValue;
+
+            // Stop the timer to prevent multiple calls
+            _autoSetTimer?.Stop();
+
+            // Quick check to prevent duplicate calls for the same value
+            if (_isAutoSetting) return;
 
             _isAutoSetting = true;
 
             try
             {
-                var tdpService = new TDPService();
-                int targetTdp = _pendingTdpValue;
-                int tdpInMilliwatts = targetTdp * 1000;
+                // Run the TDP setting operation asynchronously to not block UI
+                await Task.Run(() =>
+                {
+                    var tdpService = new TDPService();
+                    int tdpInMilliwatts = targetTdp * 1000;
+                    var result = tdpService.SetTdp(tdpInMilliwatts);
 
-                var result = tdpService.SetTdp(tdpInMilliwatts);
-
-                if (result.Success)
-                    CurrentTdpDisplayText = $"Current TDP: {targetTdp}W";
-                else
-                    CurrentTdpDisplayText = $"Error: {result.Message}";
+                    // Update UI on the UI thread
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (result.Success)
+                            CurrentTdpDisplayText = $"Current TDP: {targetTdp}W";
+                        else
+                            CurrentTdpDisplayText = $"Error: {result.Message}";
+                    });
+                });
             }
             catch (Exception ex)
             {
@@ -736,16 +753,19 @@ namespace HUDRA
                 // Scroll to new position
                 ScrollToTdpSimple(_selectedTdp);
 
-                // Trigger auto-set after scroll animation
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-                timer.Tick += (s, args) =>
+                // Only trigger auto-set if not currently processing
+                if (!_isAutoSetting)
                 {
-                    timer.Stop();
-                    _pendingTdpValue = _selectedTdp;
-                    _autoSetTimer?.Stop();
-                    _autoSetTimer?.Start();
-                };
-                timer.Start();
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+                    timer.Tick += (s, args) =>
+                    {
+                        timer.Stop();
+                        _pendingTdpValue = _selectedTdp;
+                        _autoSetTimer?.Stop();
+                        _autoSetTimer?.Start();
+                    };
+                    timer.Start();
+                }
             }
         }
 
