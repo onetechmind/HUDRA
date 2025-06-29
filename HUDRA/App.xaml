@@ -61,10 +61,12 @@
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="FontSize" Value="14"/>
                 <Setter Property="CornerRadius" Value="12"/>
-                <Setter Property="Padding" Value="8,8"/>
+                <Setter Property="Padding" Value="8,12"/>
+                <Setter Property="MinHeight" Value="48"/>
+                <Setter Property="Height" Value="48"/>
                 <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
             </Style>
-
             <!-- Simple ComboBoxItem Style -->
             <Style x:Key="HudraComboBoxItemStyle" TargetType="ComboBoxItem">
                 <Setter Property="FontFamily" Value="Cascadia Code"/>
