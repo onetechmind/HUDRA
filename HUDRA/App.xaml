@@ -10,11 +10,68 @@
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Global theme overrides for ComboBox dropdown styling -->
+            <SolidColorBrush x:Key="ComboBoxDropDownBackground">#333333</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush">#555555</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxDropDownForeground">White</SolidColorBrush>
+            <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
+
+            <!-- ComboBox item styling - comprehensive override to eliminate red -->
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver">#4C4C4C</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected">#4C4C4C</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedUnfocused">#4C4C4C</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver">#5A5A5A</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed">#666666</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelected">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedUnfocused">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPointerOver">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundSelectedPressed">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver">White</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemForegroundPressed">White</SolidColorBrush>
+
+            <!-- Nuclear option: Override ALL possible accent color variants -->
+            <SolidColorBrush x:Key="SystemAccentColor">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorLight1">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorLight2">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorLight3">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorDark1">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorDark2">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="SystemAccentColorDark3">DarkViolet</SolidColorBrush>
+
+            <!-- Target ComboBox-specific accent usage -->
+            <SolidColorBrush x:Key="ComboBoxSelectionIndicatorForeground">DarkViolet</SolidColorBrush>
+            <SolidColorBrush x:Key="ComboBoxItemPillFillBrush">DarkViolet</SolidColorBrush>
+
             <!-- Other app resources here -->
             <SolidColorBrush x:Key="MicaBackground" Color="{StaticResource SystemBaseLowColor}" />
 
             <Style TargetType="TextBlock">
                 <Setter Property="FontFamily" Value="Calibri"/>
+            </Style>
+
+            <!-- Simple ComboBox Style - clean and reliable -->
+            <Style x:Key="HudraComboBoxStyle" TargetType="ComboBox">
+                <Setter Property="Background" Value="#22FFFFFF"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+                <Setter Property="BorderThickness" Value="0"/>
+                <Setter Property="FontFamily" Value="Cascadia Code"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="CornerRadius" Value="12"/>
+                <Setter Property="Padding" Value="8,8"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            </Style>
+
+            <!-- Simple ComboBoxItem Style -->
+            <Style x:Key="HudraComboBoxItemStyle" TargetType="ComboBoxItem">
+                <Setter Property="FontFamily" Value="Cascadia Code"/>
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="HorizontalContentAlignment" Value="Left"/>
+                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Padding" Value="8,6"/>
             </Style>
         </ResourceDictionary>
     </Application.Resources>

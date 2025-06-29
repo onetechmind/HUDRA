@@ -8,7 +8,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -59,11 +61,18 @@ namespace HUDRA
 
         // DPI-aware fields
         private double _currentScaleFactor = 1.0;
-        private readonly double _baseNumberWidth = 50.0;
+        private readonly double _baseNumberWidth = 35.0;
+        private readonly double _baseSpacing = 0.0;
 
         // Properties for DPI scaling
+        private readonly double _baseBorderPadding = 5.0;  // Match XAML Padding="5,0"
+        private readonly double _baseScrollPadding = 10.0; // Match XAML Padding="0,10"
+
+        private double BorderPadding => _baseBorderPadding * _currentScaleFactor;
+        private double ScrollPadding => _baseScrollPadding * _currentScaleFactor;
         private double NumberWidth => _baseNumberWidth * _currentScaleFactor;
-        private double ItemWidth => NumberWidth + 15.0; // Use fixed 15px spacing from XAML
+        private double SpacingWidth => _baseSpacing * _currentScaleFactor;
+        private double ItemWidth => NumberWidth + SpacingWidth;
 
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
@@ -79,9 +88,57 @@ namespace HUDRA
         private bool _gamepadAPressed = false;
         private bool _gamepadBPressed = false;
         private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Mute button
-        private const int TOTAL_CONTROLS = 2;
+        private const int TOTAL_CONTROLS = 4;
         private bool _gamepadUpPressed = false;
         private bool _gamepadDownPressed = false;
+        private bool _isComboBoxPopupOpen = false;
+
+        // Resolution-related fields
+        private ResolutionService _resolutionService;
+        private List<ResolutionService.Resolution> _availableResolutions;
+        private int _selectedResolutionIndex = 0;
+        private bool _isResolutionScrolling = false;
+        private DispatcherTimer? _resolutionAutoSetTimer;
+        private int _pendingResolutionIndex;
+        private bool _isResolutionAutoSetting = false;
+
+        // Refresh rate-related fields
+        private List<int> _availableRefreshRates;
+        private int _selectedRefreshRateIndex = 0;
+        private DispatcherTimer? _refreshRateAutoSetTimer;
+        private int _pendingRefreshRateIndex;
+        private bool _isRefreshRateAutoSetting = false;
+
+        // Add this property for binding
+        private string _currentResolutionDisplayText = "Current Resolution: Not Set";
+        public string CurrentResolutionDisplayText
+        {
+            get => _currentResolutionDisplayText;
+            set
+            {
+                if (_currentResolutionDisplayText != value)
+                {
+                    _currentResolutionDisplayText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        // ADD this property for status display:
+        private string _currentRefreshRateDisplayText = "Refresh Rate: Not Set";
+        public string CurrentRefreshRateDisplayText
+        {
+            get => _currentRefreshRateDisplayText;
+            set
+            {
+                if (_currentRefreshRateDisplayText != value)
+                {
+                    _currentRefreshRateDisplayText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
 
         public MainWindow()
         {
@@ -101,11 +158,13 @@ namespace HUDRA
             MakeBorderlessWithRoundedCorners();
             ApplyRoundedCornersToWindow();
 
-            this.Activated += (s, e) => PositionAboveSystemTray();
+            PositionAboveSystemTray();
 
             SetupDragHandling();
             LoadCurrentTdp();
             InitializeTdpPicker();
+            InitializeResolutionPicker();
+            InitializeRefreshRatePicker();
             SetupTdpScrollViewerEvents();
 
             // Initialize audio service and set initial button state
@@ -172,6 +231,9 @@ namespace HUDRA
             // Clear any existing children
             NumbersPanel.Children.Clear();
 
+            // Set DPI-aware spacing
+            NumbersPanel.Spacing = SpacingWidth;
+
             // We'll set the actual padding when layout is complete
             var startPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(startPadding);
@@ -183,7 +245,7 @@ namespace HUDRA
                 {
                     Text = tdpValue.ToString(),
                     FontSize = 24,
-                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Consolas"),
+                    FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Cascadia Code"),
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -205,12 +267,15 @@ namespace HUDRA
             {
                 if (TdpScrollViewer.ActualWidth <= 0) return;
 
-                // Apply the same padding adjustment here too
-                var paddingAdjustment = 7.0 * _currentScaleFactor;
-                var adjustedHalfWidth = (TdpScrollViewer.ActualWidth / 2) + paddingAdjustment;
+                // Add a small offset to align with the visual center
+                var centerOffset = 6.5 * _currentScaleFactor; // Adjust this value as needed
+
+                var borderPaddingTotal = BorderPadding * 2;
+                var effectiveScrollWidth = TdpScrollViewer.ActualWidth - borderPaddingTotal;
+                var adjustedHalfWidth = (effectiveScrollWidth / 2) + centerOffset;
 
                 startPadding.Width = adjustedHalfWidth;
-                endPadding.Width = adjustedHalfWidth;
+                endPadding.Width = adjustedHalfWidth - (centerOffset * 2); // Compensate on the right side
 
                 NumbersPanel.UpdateLayout();
 
@@ -234,19 +299,20 @@ namespace HUDRA
                 }
             };
         }
-
         private void ScrollToTdpSimple(int tdpValue)
         {
             var tdpIndex = tdpValue - MIN_TDP;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var borderPaddingTotal = BorderPadding * 2;
+            var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = scrollViewerCenter;
+            var startPadding = effectiveScrollWidth / 2;
 
             // Calculate the left edge of this number
             var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
 
             // Calculate the center of this number
-            var numberCenter = numberLeftEdge + (NumberWidth / 2);
+            var numberCenter = numberLeftEdge + (ItemWidth / 2);
 
             // Calculate scroll position to center this number
             var targetScrollPosition = numberCenter - scrollViewerCenter;
@@ -262,28 +328,17 @@ namespace HUDRA
         {
             var scrollOffset = TdpScrollViewer.HorizontalOffset;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
+            var borderPaddingTotal = BorderPadding * 2;
+            var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
+            var startPadding = effectiveScrollWidth / 2;
 
-            // Apply the same padding adjustment
-            var paddingAdjustment = 7.0 * _currentScaleFactor; // Same value as above
-            var startPadding = scrollViewerCenter + paddingAdjustment;
-
-            // The absolute position of the center of the visible area
             var visibleCenterPosition = scrollOffset + scrollViewerCenter;
-
-            // Calculate which number's center is closest to the visible center
-            var adjustedPosition = visibleCenterPosition - startPadding - (NumberWidth / 2);
+            var adjustedPosition = visibleCenterPosition - startPadding - (ItemWidth / 2);
             var slotIndex = Math.Round(adjustedPosition / ItemWidth);
 
             var tdpValue = (int)(slotIndex + MIN_TDP);
-            var result = Math.Max(MIN_TDP, Math.Min(MAX_TDP, tdpValue));
-
-            // Verify our calculation
-            var calculatedIndex = result - MIN_TDP;
-            var calculatedNumberCenter = startPadding + (calculatedIndex * ItemWidth) + (NumberWidth / 2);
-            var distance = Math.Abs(visibleCenterPosition - calculatedNumberCenter);
-
-            return result;
+            return Math.Max(MIN_TDP, Math.Min(MAX_TDP, tdpValue));
         }
         private async void LoadCurrentTdp()
         {
@@ -407,10 +462,20 @@ namespace HUDRA
                         var borderBounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0,
                             TdpPickerBorder.ActualWidth, TdpPickerBorder.ActualHeight));
 
+                        // Check Resolution ComboBox bounds
+                        var resolutionTransform = ResolutionComboBox.TransformToVisual(MainBorder);
+                        var resolutionBounds = resolutionTransform.TransformBounds(new Windows.Foundation.Rect(0, 0,
+                            ResolutionComboBox.ActualWidth, ResolutionComboBox.ActualHeight));
+
                         // If click is inside TDP picker, don't start window dragging
                         if (borderBounds.Contains(position.Position))
                         {
                             return; // Exit early - let the ScrollViewer handle this
+                        }
+
+                        if (resolutionBounds.Contains(position.Position))
+                        {
+                            return; // Exit early - let the ComboBox handle this
                         }
 
                         // Also check if clicking on the mute button
@@ -793,33 +858,100 @@ namespace HUDRA
             var gamepads = Gamepad.Gamepads;
             if (gamepads.Count == 0) return;
 
-            var gamepad = gamepads[0]; // Use first gamepad
+            var gamepad = gamepads[0];
             var reading = gamepad.GetCurrentReading();
 
-            // Check D-pad for TDP control (when TDP selector is selected)
-            if (_selectedControlIndex == 0)
-            {
-                bool leftPressed = (reading.Buttons & GamepadButtons.DPadLeft) != 0;
-                bool rightPressed = (reading.Buttons & GamepadButtons.DPadRight) != 0;
-
-                // Only trigger on button press (not hold)
-                if (leftPressed && !_gamepadLeftPressed)
-                {
-                    ChangeTdpBy(-1);
-                }
-                else if (rightPressed && !_gamepadRightPressed)
-                {
-                    ChangeTdpBy(1);
-                }
-
-                _gamepadLeftPressed = leftPressed;
-                _gamepadRightPressed = rightPressed;
-            }
-
-            // Check D-pad up/down for control selection
+            // Declare button states once at the top
             bool upPressed = (reading.Buttons & GamepadButtons.DPadUp) != 0;
             bool downPressed = (reading.Buttons & GamepadButtons.DPadDown) != 0;
+            bool leftPressed = (reading.Buttons & GamepadButtons.DPadLeft) != 0;
+            bool rightPressed = (reading.Buttons & GamepadButtons.DPadRight) != 0;
+            bool aPressed = (reading.Buttons & GamepadButtons.A) != 0;
+            bool bPressed = (reading.Buttons & GamepadButtons.B) != 0;
 
+            // Check if any ComboBox popup is open
+            _isComboBoxPopupOpen = ResolutionComboBox.IsDropDownOpen || RefreshRateComboBox.IsDropDownOpen;
+
+            // If a popup is open, handle gamepad navigation within the popup
+            if (_isComboBoxPopupOpen)
+            {
+                // Navigate within the open ComboBox
+                if (ResolutionComboBox.IsDropDownOpen)
+                {
+                    if (upPressed && !_gamepadUpPressed)
+                    {
+                        NavigateComboBoxUp(ResolutionComboBox, ref _selectedResolutionIndex, _availableResolutions.Count);
+                    }
+                    else if (downPressed && !_gamepadDownPressed)
+                    {
+                        NavigateComboBoxDown(ResolutionComboBox, ref _selectedResolutionIndex, _availableResolutions.Count);
+                    }
+                    else if (aPressed && !_gamepadAPressed)
+                    {
+                        // Select current item and close popup
+                        ResolutionComboBox.IsDropDownOpen = false;
+                    }
+                }
+                else if (RefreshRateComboBox.IsDropDownOpen)
+                {
+                    if (upPressed && !_gamepadUpPressed)
+                    {
+                        NavigateComboBoxUp(RefreshRateComboBox, ref _selectedRefreshRateIndex, _availableRefreshRates.Count);
+                    }
+                    else if (downPressed && !_gamepadDownPressed)
+                    {
+                        NavigateComboBoxDown(RefreshRateComboBox, ref _selectedRefreshRateIndex, _availableRefreshRates.Count);
+                    }
+                    else if (aPressed && !_gamepadAPressed)
+                    {
+                        // Select current item and close popup
+                        RefreshRateComboBox.IsDropDownOpen = false;
+                    }
+                }
+
+                // B button closes popup without selecting
+                if (bPressed && !_gamepadBPressed)
+                {
+                    ResolutionComboBox.IsDropDownOpen = false;
+                    RefreshRateComboBox.IsDropDownOpen = false;
+                }
+
+                // Update button states
+                _gamepadUpPressed = upPressed;
+                _gamepadDownPressed = downPressed;
+                _gamepadAPressed = aPressed;
+                _gamepadBPressed = bPressed;
+                return; // Exit early - don't process main UI navigation
+            }
+
+            // Rest of your existing gamepad logic for main UI navigation
+            // Handle left/right based on selected control
+            if (_selectedControlIndex == 0) // TDP
+            {
+                if (leftPressed && !_gamepadLeftPressed)
+                    ChangeTdpBy(-1);
+                else if (rightPressed && !_gamepadRightPressed)
+                    ChangeTdpBy(1);
+            }
+            else if (_selectedControlIndex == 1) // Resolution
+            {
+                if (leftPressed && !_gamepadLeftPressed)
+                    ChangeResolutionBy(-1);
+                else if (rightPressed && !_gamepadRightPressed)
+                    ChangeResolutionBy(1);
+            }
+            else if (_selectedControlIndex == 2) // Refresh Rate
+            {
+                if (leftPressed && !_gamepadLeftPressed)
+                    ChangeRefreshRateBy(-1);
+                else if (rightPressed && !_gamepadRightPressed)
+                    ChangeRefreshRateBy(1);
+            }
+
+            _gamepadLeftPressed = leftPressed;
+            _gamepadRightPressed = rightPressed;
+
+            // Check D-pad up/down for control selection
             if (upPressed && !_gamepadUpPressed)
             {
                 _selectedControlIndex = (_selectedControlIndex - 1 + TOTAL_CONTROLS) % TOTAL_CONTROLS;
@@ -832,7 +964,6 @@ namespace HUDRA
             }
 
             // Check A button for activation
-            bool aPressed = (reading.Buttons & GamepadButtons.A) != 0;
             if (aPressed && !_gamepadAPressed)
             {
                 ActivateSelectedControl();
@@ -841,37 +972,83 @@ namespace HUDRA
             _gamepadUpPressed = upPressed;
             _gamepadDownPressed = downPressed;
             _gamepadAPressed = aPressed;
+            _gamepadBPressed = bPressed;
+        }
+
+        private void NavigateComboBoxUp(ComboBox comboBox, ref int selectedIndex, int totalCount)
+        {
+            if (totalCount == 0) return;
+
+            selectedIndex = Math.Max(0, selectedIndex - 1);
+            comboBox.SelectedIndex = selectedIndex;
+        }
+
+        private void NavigateComboBoxDown(ComboBox comboBox, ref int selectedIndex, int totalCount)
+        {
+            if (totalCount == 0) return;
+
+            selectedIndex = Math.Min(totalCount - 1, selectedIndex + 1);
+            comboBox.SelectedIndex = selectedIndex;
+        }
+
+
+        private void ChangeResolutionBy(int delta)
+        {
+            if (_availableResolutions == null || _availableResolutions.Count == 0) return;
+
+            var newIndex = Math.Max(0, Math.Min(_availableResolutions.Count - 1, _selectedResolutionIndex + delta));
+
+            if (newIndex != _selectedResolutionIndex)
+            {
+                _selectedResolutionIndex = newIndex;
+                ResolutionComboBox.SelectedIndex = newIndex;
+
+                // The SelectionChanged event will handle the auto-set timer
+            }
         }
 
         private void UpdateControlSelection()
         {
+            // Reset all borders first
+            TdpPickerBorder.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            TdpPickerBorder.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            TdpPickerBorder.Shadow = null;
+
+            ResolutionComboBox.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            ResolutionComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+
+            RefreshRateComboBox.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            RefreshRateComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+
+            MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+            MuteButton.Shadow = null;
+
             switch (_selectedControlIndex)
             {
                 case 0: // TDP Selector
                     TdpPickerBorder.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     TdpPickerBorder.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     TdpPickerBorder.Shadow = new ThemeShadow();
-
-                    // Remove effects from mute button
-                    MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                    MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
-                    MuteButton.Shadow = null;
                     break;
 
-                case 1: // Mute Button
-                        // Remove effects from TDP picker
-                    TdpPickerBorder.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                    TdpPickerBorder.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
-                    TdpPickerBorder.Shadow = null;
+                case 1: // Resolution Selector
+                    ResolutionComboBox.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    ResolutionComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
+                    break;
 
-                    // Add effects to mute button
+                case 2: // Refresh Rate Selector - NEW!
+                    RefreshRateComboBox.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    RefreshRateComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
+                    break;
+
+                case 3: // Mute Button (was case 2)
                     MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     MuteButton.Shadow = new ThemeShadow();
                     break;
             }
         }
-
         private Border? FindTdpPickerBorder()
         {
             try
@@ -885,18 +1062,24 @@ namespace HUDRA
                 return null;
             }
         }
-
         private void ActivateSelectedControl()
         {
             switch (_selectedControlIndex)
             {
                 case 0: // TDP Selector - no specific action needed, use left/right to control
                     break;
-                case 1: // Mute Button
+                case 1: // Resolution Selector - open dropdown
+                    ResolutionComboBox.IsDropDownOpen = true;
+                    break;
+                case 2: // Refresh Rate Selector - open dropdown - NEW!
+                    RefreshRateComboBox.IsDropDownOpen = true;
+                    break;
+                case 3: // Mute Button (was case 2)
                     MuteButton_Click(MuteButton, new RoutedEventArgs());
                     break;
             }
         }
+
 
         // DPI Helper Methods
         private void UpdateCurrentDpiScale()
@@ -1016,6 +1199,259 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to position window: {ex.Message}");
+            }
+        }
+
+        private void InitializeResolutionPicker()
+        {
+            _resolutionService = new ResolutionService();
+            _availableResolutions = _resolutionService.GetAvailableResolutions();
+
+            if (_availableResolutions.Count == 0)
+            {
+                CurrentResolutionDisplayText = "No resolutions available";
+                ResolutionComboBox.IsEnabled = false;
+                return;
+            }
+
+            // Populate ComboBox with strings
+            ResolutionComboBox.ItemsSource = _availableResolutions.Select(r => r.DisplayText).ToList();
+
+            // Find and select current resolution
+            var currentRes = _resolutionService.GetCurrentResolution();
+            if (currentRes.Success)
+            {
+                var match = _availableResolutions.FindIndex(r =>
+                    r.Width == currentRes.CurrentResolution.Width &&
+                    r.Height == currentRes.CurrentResolution.Height);
+
+                if (match >= 0)
+                {
+                    _selectedResolutionIndex = match;
+                    ResolutionComboBox.SelectedIndex = match;
+                }
+                CurrentResolutionDisplayText = $"Resolution: {currentRes.CurrentResolution.DisplayText}";
+            }
+            else
+            {
+                _selectedResolutionIndex = 0;
+                ResolutionComboBox.SelectedIndex = 0;
+                CurrentResolutionDisplayText = "Resolution: Unknown";
+            }
+
+            // Initialize auto-set timer
+            _resolutionAutoSetTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(300)
+            };
+            _resolutionAutoSetTimer.Tick += (s, e) =>
+            {
+                _resolutionAutoSetTimer.Stop();
+                AutoSetResolution();
+            };
+
+            ResolutionComboBox.DropDownOpened += (s, e) => _isComboBoxPopupOpen = true;
+            ResolutionComboBox.DropDownClosed += (s, e) => _isComboBoxPopupOpen = false;
+        }
+        private void ResolutionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ResolutionComboBox.SelectedIndex < 0 ||
+                _availableResolutions == null ||
+                ResolutionComboBox.SelectedIndex >= _availableResolutions.Count ||
+                _isResolutionAutoSetting)
+                return;
+
+            _selectedResolutionIndex = ResolutionComboBox.SelectedIndex;
+
+            // Update refresh rates for the new resolution
+            UpdateRefreshRatesForSelectedResolution();
+
+            // Start the resolution auto-set timer
+            _pendingResolutionIndex = _selectedResolutionIndex;
+            _resolutionAutoSetTimer?.Stop();
+            _resolutionAutoSetTimer?.Start();
+        }
+        private async void AutoSetResolution()
+        {
+            int targetIndex = _pendingResolutionIndex;
+            _resolutionAutoSetTimer?.Stop();
+
+            if (_isResolutionAutoSetting || targetIndex < 0 || targetIndex >= _availableResolutions.Count)
+                return;
+
+            _isResolutionAutoSetting = true;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    var targetResolution = _availableResolutions[targetIndex];
+                    var result = _resolutionService.SetResolution(targetResolution);
+
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (result.Success)
+                            CurrentResolutionDisplayText = $"Resolution: {targetResolution.DisplayText}";
+                        else
+                            CurrentResolutionDisplayText = $"Resolution Error: {result.Message}";
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                CurrentResolutionDisplayText = $"Resolution Error: {ex.Message}";
+            }
+            finally
+            {
+                _isResolutionAutoSetting = false;
+            }
+        }
+
+        // ADD this method to initialize refresh rates (call it in your constructor after InitializeResolutionPicker()):
+        private void InitializeRefreshRatePicker()
+        {
+            // Get refresh rates for the currently selected resolution
+            if (_availableResolutions != null && _selectedResolutionIndex >= 0 && _selectedResolutionIndex < _availableResolutions.Count)
+            {
+                var currentResolution = _availableResolutions[_selectedResolutionIndex];
+                _availableRefreshRates = _resolutionService.GetAvailableRefreshRates(currentResolution);
+            }
+            else
+            {
+                _availableRefreshRates = new List<int>();
+            }
+
+            if (_availableRefreshRates.Count == 0)
+            {
+                CurrentRefreshRateDisplayText = "No refresh rates available";
+                RefreshRateComboBox.IsEnabled = false;
+                return;
+            }
+
+            // Populate ComboBox with refresh rate strings
+            RefreshRateComboBox.ItemsSource = _availableRefreshRates.Select(rate => $"{rate}Hz").ToList();
+
+            // Find and select current refresh rate
+            var currentRefreshRate = _resolutionService.GetCurrentRefreshRate();
+            if (currentRefreshRate.Success)
+            {
+                var match = _availableRefreshRates.FindIndex(rate => rate == currentRefreshRate.RefreshRate);
+                if (match >= 0)
+                {
+                    _selectedRefreshRateIndex = match;
+                    RefreshRateComboBox.SelectedIndex = match;
+                }
+                CurrentRefreshRateDisplayText = $"Refresh Rate: {currentRefreshRate.RefreshRate}Hz";
+            }
+            else
+            {
+                _selectedRefreshRateIndex = 0;
+                RefreshRateComboBox.SelectedIndex = 0;
+                CurrentRefreshRateDisplayText = "Refresh Rate: Unknown";
+            }
+
+            // Initialize auto-set timer
+            _refreshRateAutoSetTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(300) // Same fast response as resolution
+            };
+            _refreshRateAutoSetTimer.Tick += (s, e) =>
+            {
+                _refreshRateAutoSetTimer.Stop();
+                AutoSetRefreshRate();
+            };
+
+            RefreshRateComboBox.DropDownOpened += (s, e) => _isComboBoxPopupOpen = true;
+            RefreshRateComboBox.DropDownClosed += (s, e) => _isComboBoxPopupOpen = false;
+        }
+
+        private void RefreshRateComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (RefreshRateComboBox.SelectedIndex < 0 ||
+                _availableRefreshRates == null ||
+                RefreshRateComboBox.SelectedIndex >= _availableRefreshRates.Count ||
+                _isRefreshRateAutoSetting)
+                return;
+
+            _selectedRefreshRateIndex = RefreshRateComboBox.SelectedIndex;
+
+            // Start the auto-set timer
+            _pendingRefreshRateIndex = _selectedRefreshRateIndex;
+            _refreshRateAutoSetTimer?.Stop();
+            _refreshRateAutoSetTimer?.Start();
+        }
+
+        private async void AutoSetRefreshRate()
+        {
+            int targetIndex = _pendingRefreshRateIndex;
+            _refreshRateAutoSetTimer?.Stop();
+
+            if (_isRefreshRateAutoSetting || targetIndex < 0 || targetIndex >= _availableRefreshRates.Count)
+                return;
+
+            _isRefreshRateAutoSetting = true;
+
+            try
+            {
+                await Task.Run(() =>
+                {
+                    var targetRefreshRate = _availableRefreshRates[targetIndex];
+                    var currentResolution = _availableResolutions[_selectedResolutionIndex];
+                    var result = _resolutionService.SetRefreshRate(currentResolution, targetRefreshRate);
+
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (result.Success)
+                            CurrentRefreshRateDisplayText = $"Refresh Rate: {targetRefreshRate}Hz";
+                        else
+                            CurrentRefreshRateDisplayText = $"Refresh Rate Error: {result.Message}";
+                    });
+                });
+            }
+            catch (Exception ex)
+            {
+                CurrentRefreshRateDisplayText = $"Refresh Rate Error: {ex.Message}";
+            }
+            finally
+            {
+                _isRefreshRateAutoSetting = false;
+            }
+        }
+
+        private void UpdateRefreshRatesForSelectedResolution()
+        {
+            if (_availableResolutions == null || _selectedResolutionIndex < 0 || _selectedResolutionIndex >= _availableResolutions.Count)
+                return;
+
+            var selectedResolution = _availableResolutions[_selectedResolutionIndex];
+            _availableRefreshRates = _resolutionService.GetAvailableRefreshRates(selectedResolution);
+
+            RefreshRateComboBox.ItemsSource = _availableRefreshRates.Select(rate => $"{rate}Hz").ToList();
+
+            // Select the first available refresh rate
+            if (_availableRefreshRates.Count > 0)
+            {
+                _selectedRefreshRateIndex = 0;
+                RefreshRateComboBox.SelectedIndex = 0;
+                RefreshRateComboBox.IsEnabled = true;
+            }
+            else
+            {
+                RefreshRateComboBox.IsEnabled = false;
+                CurrentRefreshRateDisplayText = "No refresh rates available";
+            }
+        }
+        private void ChangeRefreshRateBy(int delta)
+        {
+            if (_availableRefreshRates == null || _availableRefreshRates.Count == 0) return;
+
+            var newIndex = Math.Max(0, Math.Min(_availableRefreshRates.Count - 1, _selectedRefreshRateIndex + delta));
+
+            if (newIndex != _selectedRefreshRateIndex)
+            {
+                _selectedRefreshRateIndex = newIndex;
+                RefreshRateComboBox.SelectedIndex = newIndex;
+                // The SelectionChanged event will handle the auto-set timer
             }
         }
     }

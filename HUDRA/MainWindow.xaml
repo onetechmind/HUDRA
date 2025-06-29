@@ -14,57 +14,123 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- TDP Picker centered in the main area -->
+            <!-- Control pickers centered in the main area -->
             <StackPanel Grid.Row="0" 
                     HorizontalAlignment="Center" 
                     VerticalAlignment="Top" 
-                    Spacing="10"
-                    Margin="0,40,0,0">
-                <!-- TDP Label -->
-                <TextBlock Text="TDP" 
-                       FontSize="14" 
-                       Foreground="#CCFFFFFF"
-                       HorizontalAlignment="Center"/>
+                    Spacing="15"
+                    Margin="0,30,0,0">
 
-                <!-- Custom TDP Picker Wheel - restore fixed width -->
-                <Border x:Name="TdpPickerBorder"
-                        Background="#22FFFFFF" 
-                    CornerRadius="12" 
-                    Padding="20,0"
-                    Width="280">
-                    <Grid Height="80">
-                        <ScrollViewer x:Name="TdpScrollViewer"
-                                  HorizontalScrollBarVisibility="Hidden"
-                                  VerticalScrollBarVisibility="Disabled"
-                                  HorizontalScrollMode="Enabled"
-                                  VerticalScrollMode="Disabled"
-                                  ZoomMode="Disabled"
-                                  ManipulationMode="TranslateX"
-                                  ViewChanged="TdpScrollViewer_ViewChanged"
-                                  Padding="0,20">
-                            <StackPanel x:Name="NumbersPanel" 
-                                    Orientation="Horizontal" 
-                                    Spacing="15"/>
-                        </ScrollViewer>
+                <!-- TDP Section -->
+                <StackPanel Spacing="8">
+                    <TextBlock Text="TDP" 
+                           FontSize="14" 
+                           Foreground="#CCFFFFFF"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"/>
+
+                    <Border x:Name="TdpPickerBorder"
+                            Background="#22FFFFFF" 
+                        CornerRadius="12" 
+                        Padding="5,0"
+                        Width="280">
+                        <Grid Height="60">
+                            <ScrollViewer x:Name="TdpScrollViewer"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      HorizontalScrollMode="Enabled"
+                                      VerticalScrollMode="Disabled"
+                                      ZoomMode="Disabled"
+                                      ManipulationMode="TranslateX"
+                                      ViewChanged="TdpScrollViewer_ViewChanged"
+                                      Padding="0,10">
+                                <StackPanel x:Name="NumbersPanel" 
+                                        Orientation="Horizontal"/>
+                            </ScrollViewer>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <!-- Resolution Section -->
+                <StackPanel Spacing="8">
+
+                    <Grid Width="280">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Text="Resolution" 
+                           FontSize="14" 
+                           Foreground="#CCFFFFFF"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Grid.Column="0"/>
+
+                        <TextBlock Text="Refresh Rate" 
+                           FontSize="14" 
+                           Foreground="#CCFFFFFF"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Grid.Column="2"/>
+
                     </Grid>
-                </Border>
-                
-                <!-- Mute Button - restore auto width -->
+
+                    <Grid Width="280">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Resolution Combobox -->
+                        <ComboBox x:Name="ResolutionComboBox"
+                                  Grid.Column="0"
+                                  Style="{StaticResource HudraComboBoxStyle}"
+                                  ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                                  SelectionChanged="ResolutionComboBox_SelectionChanged"
+                                  HorizontalAlignment="Stretch"/>
+
+                        <!-- Refresh Rate Combobox -->
+                        <ComboBox x:Name="RefreshRateComboBox"
+                                  Grid.Column="2"
+                                  Style="{StaticResource HudraComboBoxStyle}"
+                                  ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                                  SelectionChanged="RefreshRateComboBox_SelectionChanged"
+                                  HorizontalAlignment="Stretch"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Mute Button -->
                 <Button x:Name="MuteButton"
-            Content="Toggle Mute"
-            Click="MuteButton_Click"
-            Width="Auto"
-            Background="#4C4C4C"
-            Foreground="White"
-            CornerRadius="8"/>
+                Content="Toggle Mute"
+                Click="MuteButton_Click"
+                Width="Auto"
+                Background="#4C4C4C"
+                Foreground="White"
+                CornerRadius="8"
+                Margin="0,10,0,0"/>
             </StackPanel>
 
-            <!-- Current TDP Display at the bottom -->
-            <TextBlock Grid.Row="1"
-                   Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
-                   FontSize="12" 
-                   HorizontalAlignment="Center"
-                   Margin="0,0,0,20"/>
+            <!-- Status Display at the bottom -->
+            <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,15">
+                <TextBlock x:Name="TdpStatusText"
+                       Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
+                       FontSize="11" 
+                       HorizontalAlignment="Center"
+                       Foreground="#CCFFFFFF"/>
+                <TextBlock x:Name="ResolutionStatusText"
+                       Text="{x:Bind CurrentResolutionDisplayText, Mode=OneWay}"
+                       FontSize="11" 
+                       HorizontalAlignment="Center"
+                       Foreground="#CCFFFFFF"/>
+                <TextBlock x:Name="RefreshRateStatusText"
+                       Text="{x:Bind CurrentRefreshRateDisplayText, Mode=OneWay}"
+                       FontSize="11" 
+                       HorizontalAlignment="Center"
+                       Foreground="#CCFFFFFF"/>
+            </StackPanel>
         </Grid>
     </Border>
 </Window>
