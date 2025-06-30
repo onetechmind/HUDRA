@@ -132,6 +132,34 @@
                             ValueChanged="VolumeSlider_ValueChanged">
                     </Slider>
                 </Grid>
+
+                <!-- Brightness Controls -->
+                <Grid Width="280" Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="45"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Brightness Icon -->
+                    <Button IsEnabled="False"
+                            Width="45"
+                            Height="45"
+                            Background="#4C4C4C"
+                            Foreground="White"
+                            CornerRadius="8"
+                            Grid.Column="0">
+                        <FontIcon FontFamily="Segoe MDL2 Assets"
+                                  Glyph="&#xE706;"/>
+                    </Button>
+
+                    <!-- Brightness Slider -->
+                    <Slider x:Name="BrightnessSlider"
+                            Grid.Column="2"
+                            Minimum="0"
+                            Maximum="100"
+                            ValueChanged="BrightnessSlider_ValueChanged"/>
+                </Grid>
             </StackPanel>
 
             <!-- Status Display at the bottom -->
