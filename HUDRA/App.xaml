@@ -13,9 +13,16 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Slider and Thumb overrides -->
-            <x:Double x:Key="SliderTrackThemeHeight">40</x:Double>
-            <x:Double x:Key="SliderHorizontalThumbWidth">0</x:Double>
-            <x:Double x:Key="SliderVerticalThumbHeight">0</x:Double>
+            <x:Double x:Key="SliderTrackThemeHeight">15</x:Double>
+            <x:Double x:Key="SliderThumbHeight">15</x:Double>
+            <x:Double x:Key="SliderThumbWidth">15</x:Double>
+            <x:Double x:Key="SliderHorizontalThumbHeight">25</x:Double>
+            <x:Double x:Key="SliderHorizontalThumbWidth">25</x:Double>
+
+            <SolidColorBrush x:Key="SliderThumbBackground" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="SliderThumbBorderBrush" Color="LightSlateGray"/>
 
             <!-- Track background colors (unfilled portion) -->
             <SolidColorBrush x:Key="SliderTrackFill" Color="#666666"/>
@@ -29,8 +36,6 @@
             <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#AA00FF"/>
             <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#8B00A0"/>
             <SolidColorBrush x:Key="SliderTrackValueFillDisabled" Color="#666666"/>
-
-           
 
             <!-- Global theme overrides for ComboBox dropdown styling -->
             <SolidColorBrush x:Key="ComboBoxDropDownBackground">#333333</SolidColorBrush>
@@ -97,12 +102,7 @@
                 <Setter Property="Padding" Value="8,6"/>
             </Style>
 
-            <!-- Slider style used for volume control -->
-            <Style x:Key="HudraSliderStyle" TargetType="Slider">
-                <Setter Property="Background" Value="#4C4C4C"/>
-                <Setter Property="Foreground" Value="DarkViolet"/>
-                <Setter Property="VerticalAlignment" Value="Center" />
-            </Style>
+
         </ResourceDictionary>
     </Application.Resources>
 </Application>

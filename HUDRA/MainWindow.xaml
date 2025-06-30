@@ -127,7 +127,6 @@
                     <!-- Volume Slider -->
                     <Slider x:Name="VolumeSlider"
                             Grid.Column="2"
-                            Style="{StaticResource HudraSliderStyle}"
                             Minimum="0"
                             Maximum="100"
                             ValueChanged="VolumeSlider_ValueChanged">
