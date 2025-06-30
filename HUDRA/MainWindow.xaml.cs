@@ -1441,15 +1441,37 @@ namespace HUDRA
                 return;
 
             var selectedResolution = _availableResolutions[_selectedResolutionIndex];
+
+            // Remember the currently selected refresh rate so we can keep it if
+            // the new resolution supports it.
+            int previousRate = -1;
+            if (_availableRefreshRates != null &&
+                _selectedRefreshRateIndex >= 0 &&
+                _selectedRefreshRateIndex < _availableRefreshRates.Count)
+            {
+                previousRate = _availableRefreshRates[_selectedRefreshRateIndex];
+            }
+
             _availableRefreshRates = _resolutionService.GetAvailableRefreshRates(selectedResolution);
 
-            RefreshRateComboBox.ItemsSource = _availableRefreshRates.Select(rate => $"{rate}Hz").ToList();
+            RefreshRateComboBox.ItemsSource = _availableRefreshRates
+                .Select(rate => $"{rate}Hz")
+                .ToList();
 
-            // Select the first available refresh rate
             if (_availableRefreshRates.Count > 0)
             {
-                _selectedRefreshRateIndex = 0;
-                RefreshRateComboBox.SelectedIndex = 0;
+                // Try to keep the previously selected refresh rate if it's available
+                int match = previousRate >= 0 ? _availableRefreshRates.FindIndex(r => r == previousRate) : -1;
+                if (match >= 0)
+                {
+                    _selectedRefreshRateIndex = match;
+                }
+                else
+                {
+                    _selectedRefreshRateIndex = 0;
+                }
+
+                RefreshRateComboBox.SelectedIndex = _selectedRefreshRateIndex;
                 RefreshRateComboBox.IsEnabled = true;
             }
             else
