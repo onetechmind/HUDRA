@@ -185,6 +185,8 @@ namespace HUDRA
 
             // Initialize audio service and set initial button state
             _audioService = new AudioService();
+            _isCurrentlyMuted = _audioService.GetMuteStatus();
+            UpdateMuteButtonIcon();
 
             // Initialize auto-set timer (add this after InitializeTdpPicker)
             _autoSetTimer = new DispatcherTimer
@@ -227,15 +229,18 @@ namespace HUDRA
 
             // Toggle our UI state
             _isCurrentlyMuted = !_isCurrentlyMuted;
+            UpdateMuteButtonIcon();
+        }
 
-            // Update button text
+        private void UpdateMuteButtonIcon()
+        {
             if (_isCurrentlyMuted)
             {
-                MuteButton.Content = "Unmute";
+                MuteButtonIcon.Glyph = "\uE74F"; // Mute
             }
             else
             {
-                MuteButton.Content = "Mute";
+                MuteButtonIcon.Glyph = "\uE767"; // Volume
             }
         }
 

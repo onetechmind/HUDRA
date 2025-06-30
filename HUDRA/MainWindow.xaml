@@ -104,13 +104,17 @@
 
                 <!-- Mute Button -->
                 <Button x:Name="MuteButton"
-                Content="Toggle Mute"
-                Click="MuteButton_Click"
-                Width="Auto"
-                Background="#4C4C4C"
-                Foreground="White"
-                CornerRadius="8"
-                Margin="0,10,0,0"/>
+                        Click="MuteButton_Click"
+                        Width="40"
+                        Height="40"
+                        Background="#4C4C4C"
+                        Foreground="White"
+                        CornerRadius="8"
+                        Margin="0,10,0,0">
+                    <FontIcon x:Name="MuteButtonIcon"
+                              FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xE74F;"/>
+                </Button>
             </StackPanel>
 
             <!-- Status Display at the bottom -->
