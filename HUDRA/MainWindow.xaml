@@ -105,8 +105,8 @@
                 <!-- Mute Button -->
                 <Button x:Name="MuteButton"
                         Click="MuteButton_Click"
-                        Width="40"
-                        Height="40"
+                        Width="45"
+                        Height="45"
                         Background="#4C4C4C"
                         Foreground="White"
                         CornerRadius="8"
@@ -121,16 +121,6 @@
             <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,15">
                 <TextBlock x:Name="TdpStatusText"
                        Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
-                       FontSize="11" 
-                       HorizontalAlignment="Center"
-                       Foreground="#CCFFFFFF"/>
-                <TextBlock x:Name="ResolutionStatusText"
-                       Text="{x:Bind CurrentResolutionDisplayText, Mode=OneWay}"
-                       FontSize="11" 
-                       HorizontalAlignment="Center"
-                       Foreground="#CCFFFFFF"/>
-                <TextBlock x:Name="RefreshRateStatusText"
-                       Text="{x:Bind CurrentRefreshRateDisplayText, Mode=OneWay}"
                        FontSize="11" 
                        HorizontalAlignment="Center"
                        Foreground="#CCFFFFFF"/>
