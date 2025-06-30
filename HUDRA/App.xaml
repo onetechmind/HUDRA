@@ -75,6 +75,13 @@
                 <Setter Property="VerticalContentAlignment" Value="Center"/>
                 <Setter Property="Padding" Value="8,6"/>
             </Style>
+
+            <!-- Slider style used for volume control -->
+            <Style x:Key="HudraSliderStyle" TargetType="Slider">
+                <Setter Property="Background" Value="#4C4C4C"/>
+                <Setter Property="Foreground" Value="DarkViolet"/>
+                <Setter Property="Height" Value="45"/>
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>
