@@ -80,7 +80,17 @@
             <Style x:Key="HudraSliderStyle" TargetType="Slider">
                 <Setter Property="Background" Value="#4C4C4C"/>
                 <Setter Property="Foreground" Value="DarkViolet"/>
-                <Setter Property="Height" Value="45"/>
+                <!-- Increase overall slider size -->
+                <Setter Property="MinHeight" Value="60"/>
+                <Setter Property="Height" Value="60"/>
+                <!-- Make the track thicker and thumb larger for touch -->
+                <Setter Property="Resources">
+                    <ResourceDictionary>
+                        <x:Double x:Key="SliderTrackHeight">10</x:Double>
+                        <x:Double x:Key="SliderThumbWidth">28</x:Double>
+                        <x:Double x:Key="SliderThumbHeight">28</x:Double>
+                    </ResourceDictionary>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Application.Resources>
