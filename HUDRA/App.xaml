@@ -6,10 +6,31 @@
     xmlns:local="using:HUDRA">
     <Application.Resources>
         <ResourceDictionary>
+   
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Slider and Thumb overrides -->
+            <x:Double x:Key="SliderTrackThemeHeight">40</x:Double>
+            <x:Double x:Key="SliderHorizontalThumbWidth">0</x:Double>
+            <x:Double x:Key="SliderVerticalThumbHeight">0</x:Double>
+
+            <!-- Track background colors (unfilled portion) -->
+            <SolidColorBrush x:Key="SliderTrackFill" Color="#666666"/>
+            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#777777"/>
+            <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#555555"/>
+            <SolidColorBrush x:Key="SliderTrackFillDisabled" Color="#333333"/>
+            
+
+            <!-- Track value colors (filled portion) -->
+            <SolidColorBrush x:Key="SliderTrackValueFill" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#AA00FF"/>
+            <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#8B00A0"/>
+            <SolidColorBrush x:Key="SliderTrackValueFillDisabled" Color="#666666"/>
+
+           
 
             <!-- Global theme overrides for ComboBox dropdown styling -->
             <SolidColorBrush x:Key="ComboBoxDropDownBackground">#333333</SolidColorBrush>
@@ -80,17 +101,7 @@
             <Style x:Key="HudraSliderStyle" TargetType="Slider">
                 <Setter Property="Background" Value="#4C4C4C"/>
                 <Setter Property="Foreground" Value="DarkViolet"/>
-                <!-- Increase overall slider size -->
-                <Setter Property="MinHeight" Value="60"/>
-                <Setter Property="Height" Value="60"/>
-                <!-- Make the track thicker and thumb larger for touch -->
-                <Setter Property="Resources">
-                    <ResourceDictionary>
-                        <x:Double x:Key="SliderTrackHeight">10</x:Double>
-                        <x:Double x:Key="SliderThumbWidth">28</x:Double>
-                        <x:Double x:Key="SliderThumbHeight">28</x:Double>
-                    </ResourceDictionary>
-                </Setter>
+                <Setter Property="VerticalAlignment" Value="Center" />
             </Style>
         </ResourceDictionary>
     </Application.Resources>
