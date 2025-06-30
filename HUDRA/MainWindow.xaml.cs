@@ -79,7 +79,6 @@ namespace HUDRA
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
         private bool _suppressVolumeEvent = false;
-        private double _lastVolumeBeforeMute = 0; // Remember last volume before muting
         private Windows.Foundation.Point _lastTouchPosition;
         private bool _isUsingTouchDrag = false;
         private Windows.Graphics.PointInt32 _touchStartWindowPos;
@@ -193,9 +192,7 @@ namespace HUDRA
 
             // Set initial volume slider value
             _suppressVolumeEvent = true;
-            var initialVolume = _audioService.GetMasterVolumeScalar() * 100.0;
-            VolumeSlider.Value = initialVolume;
-            _lastVolumeBeforeMute = initialVolume;
+            VolumeSlider.Value = _audioService.GetMasterVolumeScalar() * 100.0;
             _suppressVolumeEvent = false;
 
             // Initialize auto-set timer (add this after InitializeTdpPicker)
@@ -240,19 +237,6 @@ namespace HUDRA
             // Toggle our UI state
             _isCurrentlyMuted = !_isCurrentlyMuted;
             UpdateMuteButtonIcon();
-
-            // Reflect mute state on the slider without affecting system volume
-            _suppressVolumeEvent = true;
-            if (_isCurrentlyMuted)
-            {
-                _lastVolumeBeforeMute = VolumeSlider.Value;
-                VolumeSlider.Value = 0;
-            }
-            else
-            {
-                VolumeSlider.Value = _lastVolumeBeforeMute;
-            }
-            _suppressVolumeEvent = false;
         }
 
         private void UpdateMuteButtonIcon()
@@ -273,11 +257,6 @@ namespace HUDRA
 
             var level = (float)(e.NewValue / 100.0);
             _audioService.SetMasterVolumeScalar(level);
-
-            if (!_isCurrentlyMuted)
-            {
-                _lastVolumeBeforeMute = e.NewValue;
-            }
         }
 
         private void InitializeTdpPicker()
