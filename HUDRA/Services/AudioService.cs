@@ -52,6 +52,66 @@ namespace HUDRA.Services
             }
         }
 
+        // Get the current master volume level (0.0 - 1.0)
+        public float GetMasterVolumeScalar()
+        {
+            try
+            {
+                var type = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"));
+                if (type == null)
+                {
+                    return 0f;
+                }
+
+                var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(type)!;
+                enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out var device);
+
+                var iid = typeof(IAudioEndpointVolume).GUID;
+                device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var endpoint);
+
+                endpoint.GetMasterVolumeLevelScalar(out var level);
+
+                Marshal.ReleaseComObject(endpoint);
+                Marshal.ReleaseComObject(device);
+                Marshal.ReleaseComObject(enumerator);
+
+                return level;
+            }
+            catch
+            {
+                return 0f;
+            }
+        }
+
+        // Set the master volume level (0.0 - 1.0)
+        public void SetMasterVolumeScalar(float level)
+        {
+            try
+            {
+                level = Math.Clamp(level, 0f, 1f);
+                var type = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"));
+                if (type == null)
+                {
+                    return;
+                }
+
+                var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(type)!;
+                enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out var device);
+
+                var iid = typeof(IAudioEndpointVolume).GUID;
+                device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var endpoint);
+
+                endpoint.SetMasterVolumeLevelScalar(level, Guid.Empty);
+
+                Marshal.ReleaseComObject(endpoint);
+                Marshal.ReleaseComObject(device);
+                Marshal.ReleaseComObject(enumerator);
+            }
+            catch
+            {
+            }
+        }
+
         private const uint CLSCTX_ALL = 23; // Inproc + LocalServer
 
         // Minimal COM interfaces for CoreAudio APIs
