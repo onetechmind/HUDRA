@@ -110,6 +110,10 @@ namespace HUDRA
         private int _pendingRefreshRateIndex;
         private bool _isRefreshRateAutoSetting = false;
 
+        // References to dynamic padding borders used in the TDP picker
+        private Border? _tdpStartPadding;
+        private Border? _tdpEndPadding;
+
         // Add this property for binding
         private string _currentResolutionDisplayText = "Current Resolution: Not Set";
         public string CurrentResolutionDisplayText
@@ -249,6 +253,7 @@ namespace HUDRA
             // We'll set the actual padding when layout is complete
             var startPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(startPadding);
+            _tdpStartPadding = startPadding;
 
             // Create number TextBlocks dynamically based on TDP range
             for (int tdpValue = MIN_TDP; tdpValue <= MAX_TDP; tdpValue++)
@@ -271,9 +276,11 @@ namespace HUDRA
             // Add end padding
             var endPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(endPadding);
+            _tdpEndPadding = endPadding;
 
             // IMPORTANT: Use multiple layout events to ensure proper positioning
             bool hasScrolledToInitialPosition = false;
+
 
             void SetupPaddingAndScroll()
             {
@@ -286,8 +293,10 @@ namespace HUDRA
                 var effectiveScrollWidth = TdpScrollViewer.ActualWidth - borderPaddingTotal;
                 var adjustedHalfWidth = (effectiveScrollWidth / 2) + centerOffset;
 
-                startPadding.Width = adjustedHalfWidth;
-                endPadding.Width = adjustedHalfWidth - (centerOffset * 2); // Compensate on the right side
+                if (_tdpStartPadding != null)
+                    _tdpStartPadding.Width = adjustedHalfWidth;
+                if (_tdpEndPadding != null)
+                    _tdpEndPadding.Width = adjustedHalfWidth - (centerOffset * 2); // Compensate on the right side
 
                 NumbersPanel.UpdateLayout();
 
@@ -318,7 +327,7 @@ namespace HUDRA
             var borderPaddingTotal = BorderPadding * 2;
             var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = effectiveScrollWidth / 2;
+            var startPadding = _tdpStartPadding?.Width ?? (effectiveScrollWidth / 2);
 
             // Calculate the left edge of this number
             var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
@@ -343,7 +352,7 @@ namespace HUDRA
             var borderPaddingTotal = BorderPadding * 2;
             var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = effectiveScrollWidth / 2;
+            var startPadding = _tdpStartPadding?.Width ?? (effectiveScrollWidth / 2);
 
             var visibleCenterPosition = scrollOffset + scrollViewerCenter;
             var adjustedPosition = visibleCenterPosition - startPadding - (ItemWidth / 2);
@@ -1114,18 +1123,11 @@ namespace HUDRA
 
             var halfScrollViewerWidth = TdpScrollViewer.ActualWidth / 2;
 
-            // Update start padding
-            if (NumbersPanel.Children.Count > 0 && NumbersPanel.Children[0] is Border startPadding)
-            {
-                startPadding.Width = halfScrollViewerWidth;
-            }
+            if (_tdpStartPadding != null)
+                _tdpStartPadding.Width = halfScrollViewerWidth;
 
-            // Update end padding (last element)
-            var lastIndex = NumbersPanel.Children.Count - 1;
-            if (lastIndex > 0 && NumbersPanel.Children[lastIndex] is Border endPadding)
-            {
-                endPadding.Width = halfScrollViewerWidth;
-            }
+            if (_tdpEndPadding != null)
+                _tdpEndPadding.Width = halfScrollViewerWidth;
 
             // Update number TextBlocks with current DPI-scaled width
             for (int i = 1; i <= TotalTdpCount; i++)
