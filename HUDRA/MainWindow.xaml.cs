@@ -1286,14 +1286,31 @@ namespace HUDRA
                 await Task.Run(() =>
                 {
                     var targetResolution = _availableResolutions[targetIndex];
-                    var result = _resolutionService.SetResolution(targetResolution);
+
+                    // Determine the refresh rate that should be applied. Use the currently
+                    // selected refresh rate if available; otherwise fall back to the one
+                    // stored with the resolution entry.
+                    int refreshRate = targetResolution.RefreshRate;
+                    if (_availableRefreshRates != null &&
+                        _selectedRefreshRateIndex >= 0 &&
+                        _selectedRefreshRateIndex < _availableRefreshRates.Count)
+                    {
+                        refreshRate = _availableRefreshRates[_selectedRefreshRateIndex];
+                    }
+
+                    var result = _resolutionService.SetRefreshRate(targetResolution, refreshRate);
 
                     DispatcherQueue.TryEnqueue(() =>
                     {
                         if (result.Success)
+                        {
                             CurrentResolutionDisplayText = $"Resolution: {targetResolution.DisplayText}";
+                            CurrentRefreshRateDisplayText = $"Refresh Rate: {refreshRate}Hz";
+                        }
                         else
+                        {
                             CurrentResolutionDisplayText = $"Resolution Error: {result.Message}";
+                        }
                     });
                 });
             }
