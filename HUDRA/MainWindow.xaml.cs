@@ -80,6 +80,8 @@ namespace HUDRA
         private bool _isCurrentlyMuted = false; // Track state in the UI
         private bool _suppressVolumeEvent = false;
         private double _lastVolumeBeforeMute = 0; // Remember last volume before muting
+        private BrightnessService _brightnessService;
+        private bool _suppressBrightnessEvent = false;
         private Windows.Foundation.Point _lastTouchPosition;
         private bool _isUsingTouchDrag = false;
         private Windows.Graphics.PointInt32 _touchStartWindowPos;
@@ -91,8 +93,8 @@ namespace HUDRA
         private bool _gamepadRightPressed = false;
         private bool _gamepadAPressed = false;
         private bool _gamepadBPressed = false;
-        private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Resolution, 2 = Refresh Rate, 3 = Mute button, 4 = Volume slider
-        private const int TOTAL_CONTROLS = 5;
+        private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Resolution, 2 = Refresh Rate, 3 = Mute button, 4 = Volume slider, 5 = Brightness slider
+        private const int TOTAL_CONTROLS = 6;
         private bool _gamepadUpPressed = false;
         private bool _gamepadDownPressed = false;
         private bool _isComboBoxPopupOpen = false;
@@ -198,6 +200,13 @@ namespace HUDRA
             _lastVolumeBeforeMute = initialVolume;
             _suppressVolumeEvent = false;
 
+            // Initialize brightness service and set initial slider value
+            _brightnessService = new BrightnessService();
+            _suppressBrightnessEvent = true;
+            var initialBrightness = _brightnessService.GetBrightness();
+            BrightnessSlider.Value = initialBrightness;
+            _suppressBrightnessEvent = false;
+
             // Initialize auto-set timer (add this after InitializeTdpPicker)
             _autoSetTimer = new DispatcherTimer
             {
@@ -282,6 +291,12 @@ namespace HUDRA
             _audioService.SetMasterVolumeScalar(level);
 
             _lastVolumeBeforeMute = e.NewValue;
+        }
+
+        private void BrightnessSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            if (_suppressBrightnessEvent) return;
+            _brightnessService.SetBrightness((int)e.NewValue);
         }
 
         private void InitializeTdpPicker()
@@ -1020,6 +1035,13 @@ namespace HUDRA
                 else if (rightPressed && !_gamepadRightPressed)
                     ChangeVolumeBy(2);
             }
+            else if (_selectedControlIndex == 5) // Brightness Slider
+            {
+                if (leftPressed && !_gamepadLeftPressed)
+                    ChangeBrightnessBy(-2);
+                else if (rightPressed && !_gamepadRightPressed)
+                    ChangeBrightnessBy(2);
+            }
 
             _gamepadLeftPressed = leftPressed;
             _gamepadRightPressed = rightPressed;
@@ -1100,6 +1122,9 @@ namespace HUDRA
             VolumeSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
             VolumeSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
 
+            BrightnessSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            BrightnessSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+
             switch (_selectedControlIndex)
             {
                 case 0: // TDP Selector
@@ -1126,6 +1151,10 @@ namespace HUDRA
                 case 4: // Volume Slider
                     VolumeSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     VolumeSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+                    break;
+                case 5: // Brightness Slider
+                    BrightnessSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    BrightnessSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     break;
             }
         }
@@ -1158,6 +1187,9 @@ namespace HUDRA
                     MuteButton_Click(MuteButton, new RoutedEventArgs());
                     break;
                 case 4: // Volume Slider
+                    // No action on A press
+                    break;
+                case 5: // Brightness Slider
                     // No action on A press
                     break;
             }
@@ -1599,6 +1631,12 @@ namespace HUDRA
         {
             var newValue = Math.Max(0, Math.Min(100, VolumeSlider.Value + delta));
             VolumeSlider.Value = newValue;
+        }
+
+        private void ChangeBrightnessBy(int delta)
+        {
+            var newValue = Math.Max(0, Math.Min(100, BrightnessSlider.Value + delta));
+            BrightnessSlider.Value = newValue;
         }
 
         private IntPtr CustomWndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
