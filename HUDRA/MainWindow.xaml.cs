@@ -46,6 +46,7 @@ namespace HUDRA
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private IntPtr _hwnd;
+        private bool _isWindowVisible = true;
         private bool _isDragging = false;
         private Windows.Graphics.PointInt32 _lastPointerPosition;
         private int _selectedTdp = 15;
@@ -147,6 +148,17 @@ namespace HUDRA
 
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
+
+            _wndProcDelegate = CustomWndProc;
+            _prevWndProc = SetWindowLongPtr(_hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
+
+            RegisterHotKey(_hwnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, VK_H);
+
+            this.Closed += (s, e) =>
+            {
+                SetWindowLongPtr(_hwnd, GWLP_WNDPROC, _prevWndProc);
+                UnregisterHotKey(_hwnd, HOTKEY_ID);
+            };
 
             // Initialize DPI awareness BEFORE other setup
             UpdateCurrentDpiScale();
@@ -1177,6 +1189,30 @@ namespace HUDRA
 
         private const int SPI_GETWORKAREA = 48;
 
+        private const int HOTKEY_ID = 1;
+        private const uint MOD_ALT = 0x0001;
+        private const uint MOD_CONTROL = 0x0002;
+        private const int WM_HOTKEY = 0x0312;
+        private const int VK_H = 0x48; // 'H'
+
+        private const int GWLP_WNDPROC = -4;
+
+        [DllImport("user32.dll")]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+
+        [DllImport("user32.dll")]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+        private delegate IntPtr WndProcDelegate(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        private WndProcDelegate? _wndProcDelegate;
+        private IntPtr _prevWndProc;
+
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+        [DllImport("user32.dll", EntryPoint = "CallWindowProc")]
+        private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
         private void PositionAboveSystemTray()
         {
             try
@@ -1492,6 +1528,28 @@ namespace HUDRA
                 RefreshRateComboBox.SelectedIndex = newIndex;
                 // The SelectionChanged event will handle the auto-set timer
             }
+        }
+
+        private IntPtr CustomWndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
+        {
+            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+            {
+                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+
+                if (_isWindowVisible)
+                {
+                    appWindow.Hide();
+                }
+                else
+                {
+                    appWindow.Show();
+                }
+
+                _isWindowVisible = !_isWindowVisible;
+                return IntPtr.Zero;
+            }
+            return CallWindowProc(_prevWndProc, hWnd, msg, wParam, lParam);
         }
     }
 }
