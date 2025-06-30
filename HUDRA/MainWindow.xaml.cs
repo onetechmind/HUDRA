@@ -110,6 +110,10 @@ namespace HUDRA
         private int _pendingRefreshRateIndex;
         private bool _isRefreshRateAutoSetting = false;
 
+        // References to dynamic padding borders used in the TDP picker
+        private Border? _tdpStartPadding;
+        private Border? _tdpEndPadding;
+
         // Add this property for binding
         private string _currentResolutionDisplayText = "Current Resolution: Not Set";
         public string CurrentResolutionDisplayText
@@ -249,6 +253,7 @@ namespace HUDRA
             // We'll set the actual padding when layout is complete
             var startPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(startPadding);
+            _tdpStartPadding = startPadding;
 
             // Create number TextBlocks dynamically based on TDP range
             for (int tdpValue = MIN_TDP; tdpValue <= MAX_TDP; tdpValue++)
@@ -262,6 +267,7 @@ namespace HUDRA
                     Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.White),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
+                    TextAlignment = TextAlignment.Center,
                     Width = NumberWidth,
                     Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4
                 };
@@ -271,23 +277,23 @@ namespace HUDRA
             // Add end padding
             var endPadding = new Border { Width = 100 }; // Temporary value
             NumbersPanel.Children.Add(endPadding);
+            _tdpEndPadding = endPadding;
 
             // IMPORTANT: Use multiple layout events to ensure proper positioning
             bool hasScrolledToInitialPosition = false;
+
 
             void SetupPaddingAndScroll()
             {
                 if (TdpScrollViewer.ActualWidth <= 0) return;
 
-                // Add a small offset to align with the visual center
-                var centerOffset = 6.5 * _currentScaleFactor; // Adjust this value as needed
+                // Center the selected number regardless of the digit count
+                var startPaddingWidth = (TdpScrollViewer.ActualWidth - ItemWidth) / 2;
 
-                var borderPaddingTotal = BorderPadding * 2;
-                var effectiveScrollWidth = TdpScrollViewer.ActualWidth - borderPaddingTotal;
-                var adjustedHalfWidth = (effectiveScrollWidth / 2) + centerOffset;
-
-                startPadding.Width = adjustedHalfWidth;
-                endPadding.Width = adjustedHalfWidth - (centerOffset * 2); // Compensate on the right side
+                if (_tdpStartPadding != null)
+                    _tdpStartPadding.Width = startPaddingWidth;
+                if (_tdpEndPadding != null)
+                    _tdpEndPadding.Width = startPaddingWidth;
 
                 NumbersPanel.UpdateLayout();
 
@@ -315,10 +321,8 @@ namespace HUDRA
         {
             var tdpIndex = tdpValue - MIN_TDP;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-            var borderPaddingTotal = BorderPadding * 2;
-            var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = effectiveScrollWidth / 2;
+            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
 
             // Calculate the left edge of this number
             var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
@@ -340,10 +344,8 @@ namespace HUDRA
         {
             var scrollOffset = TdpScrollViewer.HorizontalOffset;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
-            var borderPaddingTotal = BorderPadding * 2;
-            var effectiveScrollWidth = scrollViewerWidth - borderPaddingTotal;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = effectiveScrollWidth / 2;
+            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
 
             var visibleCenterPosition = scrollOffset + scrollViewerCenter;
             var adjustedPosition = visibleCenterPosition - startPadding - (ItemWidth / 2);
@@ -1112,20 +1114,13 @@ namespace HUDRA
         {
             if (NumbersPanel?.Children == null) return;
 
-            var halfScrollViewerWidth = TdpScrollViewer.ActualWidth / 2;
+            var startPaddingWidth = (TdpScrollViewer.ActualWidth - ItemWidth) / 2;
 
-            // Update start padding
-            if (NumbersPanel.Children.Count > 0 && NumbersPanel.Children[0] is Border startPadding)
-            {
-                startPadding.Width = halfScrollViewerWidth;
-            }
+            if (_tdpStartPadding != null)
+                _tdpStartPadding.Width = startPaddingWidth;
 
-            // Update end padding (last element)
-            var lastIndex = NumbersPanel.Children.Count - 1;
-            if (lastIndex > 0 && NumbersPanel.Children[lastIndex] is Border endPadding)
-            {
-                endPadding.Width = halfScrollViewerWidth;
-            }
+            if (_tdpEndPadding != null)
+                _tdpEndPadding.Width = startPaddingWidth;
 
             // Update number TextBlocks with current DPI-scaled width
             for (int i = 1; i <= TotalTdpCount; i++)
