@@ -5,6 +5,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
@@ -77,6 +78,7 @@ namespace HUDRA
 
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
+        private bool _suppressVolumeEvent = false;
         private Windows.Foundation.Point _lastTouchPosition;
         private bool _isUsingTouchDrag = false;
         private Windows.Graphics.PointInt32 _touchStartWindowPos;
@@ -88,8 +90,8 @@ namespace HUDRA
         private bool _gamepadRightPressed = false;
         private bool _gamepadAPressed = false;
         private bool _gamepadBPressed = false;
-        private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Mute button
-        private const int TOTAL_CONTROLS = 4;
+        private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Resolution, 2 = Refresh Rate, 3 = Mute button, 4 = Volume slider
+        private const int TOTAL_CONTROLS = 5;
         private bool _gamepadUpPressed = false;
         private bool _gamepadDownPressed = false;
         private bool _isComboBoxPopupOpen = false;
@@ -188,6 +190,11 @@ namespace HUDRA
             _isCurrentlyMuted = _audioService.GetMuteStatus();
             UpdateMuteButtonIcon();
 
+            // Set initial volume slider value
+            _suppressVolumeEvent = true;
+            VolumeSlider.Value = _audioService.GetMasterVolumeScalar() * 100.0;
+            _suppressVolumeEvent = false;
+
             // Initialize auto-set timer (add this after InitializeTdpPicker)
             _autoSetTimer = new DispatcherTimer
             {
@@ -242,6 +249,14 @@ namespace HUDRA
             {
                 MuteButtonIcon.Glyph = "\uE767"; // Volume
             }
+        }
+
+        private void VolumeSlider_ValueChanged(object sender, RangeBaseValueChangedEventArgs e)
+        {
+            if (_suppressVolumeEvent) return;
+
+            var level = (float)(e.NewValue / 100.0);
+            _audioService.SetMasterVolumeScalar(level);
         }
 
         private void InitializeTdpPicker()
@@ -968,6 +983,18 @@ namespace HUDRA
                 else if (rightPressed && !_gamepadRightPressed)
                     ChangeRefreshRateBy(1);
             }
+            else if (_selectedControlIndex == 3) // Mute Button
+            {
+                if (aPressed && !_gamepadAPressed)
+                    MuteButton_Click(MuteButton, new RoutedEventArgs());
+            }
+            else if (_selectedControlIndex == 4) // Volume Slider
+            {
+                if (leftPressed && !_gamepadLeftPressed)
+                    ChangeVolumeBy(-2);
+                else if (rightPressed && !_gamepadRightPressed)
+                    ChangeVolumeBy(2);
+            }
 
             _gamepadLeftPressed = leftPressed;
             _gamepadRightPressed = rightPressed;
@@ -1045,6 +1072,9 @@ namespace HUDRA
             MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
             MuteButton.Shadow = null;
 
+            VolumeSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            VolumeSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+
             switch (_selectedControlIndex)
             {
                 case 0: // TDP Selector
@@ -1067,6 +1097,10 @@ namespace HUDRA
                     MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     MuteButton.Shadow = new ThemeShadow();
+                    break;
+                case 4: // Volume Slider
+                    VolumeSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    VolumeSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     break;
             }
         }
@@ -1097,6 +1131,9 @@ namespace HUDRA
                     break;
                 case 3: // Mute Button (was case 2)
                     MuteButton_Click(MuteButton, new RoutedEventArgs());
+                    break;
+                case 4: // Volume Slider
+                    // No action on A press
                     break;
             }
         }
@@ -1531,6 +1568,12 @@ namespace HUDRA
                 RefreshRateComboBox.SelectedIndex = newIndex;
                 // The SelectionChanged event will handle the auto-set timer
             }
+        }
+
+        private void ChangeVolumeBy(int delta)
+        {
+            var newValue = Math.Max(0, Math.Min(100, VolumeSlider.Value + delta));
+            VolumeSlider.Value = newValue;
         }
 
         private IntPtr CustomWndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
