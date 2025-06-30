@@ -142,16 +142,15 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Brightness Icon -->
-                    <Button IsEnabled="False"
-                            Width="45"
-                            Height="45"
-                            Background="#4C4C4C"
-                            Foreground="White"
-                            CornerRadius="8"
-                            Grid.Column="0">
-                        <FontIcon FontFamily="Segoe MDL2 Assets"
-                                  Glyph="&#xE706;"/>
-                    </Button>
+
+                    <TextBlock Text="&#xE706;" 
+                       FontSize="30" 
+                       FontFamily="Segoe MDL2 Assets"
+                       Foreground="#CCFFFFFF"
+                       FontWeight="Normal"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Grid.Column="0"/>
 
                     <!-- Brightness Slider -->
                     <Slider x:Name="BrightnessSlider"
