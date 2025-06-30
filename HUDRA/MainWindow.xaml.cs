@@ -324,6 +324,7 @@ namespace HUDRA
             var scrollViewerCenter = scrollViewerWidth / 2;
             var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
 
+
             // Calculate the left edge of this number
             var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
 
@@ -346,6 +347,7 @@ namespace HUDRA
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
             var scrollViewerCenter = scrollViewerWidth / 2;
             var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
+
 
             var visibleCenterPosition = scrollOffset + scrollViewerCenter;
             var adjustedPosition = visibleCenterPosition - startPadding - (ItemWidth / 2);
@@ -1121,6 +1123,7 @@ namespace HUDRA
 
             if (_tdpEndPadding != null)
                 _tdpEndPadding.Width = startPaddingWidth;
+
 
             // Update number TextBlocks with current DPI-scaled width
             for (int i = 1; i <= TotalTdpCount; i++)
