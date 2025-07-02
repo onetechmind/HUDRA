@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Input;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
@@ -86,6 +87,7 @@ namespace HUDRA
         private bool _isUsingTouchDrag = false;
         private Windows.Graphics.PointInt32 _touchStartWindowPos;
         private bool _touchDragStarted = false;
+        private GestureRecognizer? _gestureRecognizer;
 
         // Gamepad fields
         private DispatcherTimer? _gamepadTimer;
@@ -182,6 +184,9 @@ namespace HUDRA
             PositionAboveSystemTray();
 
             SetupDragHandling();
+            _gestureRecognizer = new GestureRecognizer();
+            _gestureRecognizer.GestureSettings = GestureSettings.Tap;
+            _gestureRecognizer.Tapped += GestureRecognizer_Tapped;
             LoadCurrentTdp();
             InitializeTdpPicker();
             InitializeResolutionPicker();
@@ -512,10 +517,12 @@ namespace HUDRA
             MainBorder.PointerPressed += OnPointerPressed;
             MainBorder.PointerMoved += OnPointerMoved;
             MainBorder.PointerReleased += OnPointerReleased;
+            MainBorder.PointerCanceled += OnPointerCanceled;
         }
 
         private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
         {
+            _gestureRecognizer?.ProcessDownEvent(e.GetCurrentPoint(MainBorder));
             // Handle both mouse and touch input
             if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
                 e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
@@ -601,6 +608,7 @@ namespace HUDRA
 
         private void OnPointerMoved(object sender, PointerRoutedEventArgs e)
         {
+            _gestureRecognizer?.ProcessMoveEvents(e.GetIntermediatePoints(MainBorder));
             if (_isDragging && (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
                                e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch))
             {
@@ -669,10 +677,27 @@ namespace HUDRA
 
         private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
         {
+            _gestureRecognizer?.ProcessUpEvent(e.GetCurrentPoint(MainBorder));
             _isDragging = false;
             _isUsingTouchDrag = false;
             _touchDragStarted = false;
             MainBorder.ReleasePointerCapture(e.Pointer);
+        }
+
+        private void OnPointerCanceled(object sender, PointerRoutedEventArgs e)
+        {
+            _gestureRecognizer?.CompleteGesture();
+            _isDragging = false;
+            _isUsingTouchDrag = false;
+            _touchDragStarted = false;
+        }
+
+        private void GestureRecognizer_Tapped(GestureRecognizer sender, TappedEventArgs args)
+        {
+            if (args.ContactCount == 3)
+            {
+                ToggleWindowVisibility();
+            }
         }
 
         private void SetInitialSize()
@@ -1639,23 +1664,28 @@ namespace HUDRA
             BrightnessSlider.Value = newValue;
         }
 
+        private void ToggleWindowVisibility()
+        {
+            var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+            var appWindow = AppWindow.GetFromWindowId(windowId);
+
+            if (_isWindowVisible)
+            {
+                appWindow.Hide();
+            }
+            else
+            {
+                appWindow.Show();
+            }
+
+            _isWindowVisible = !_isWindowVisible;
+        }
+
         private IntPtr CustomWndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
         {
             if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
             {
-                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
-                var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                if (_isWindowVisible)
-                {
-                    appWindow.Hide();
-                }
-                else
-                {
-                    appWindow.Show();
-                }
-
-                _isWindowVisible = !_isWindowVisible;
+                ToggleWindowVisibility();
                 return IntPtr.Zero;
             }
             return CallWindowProc(_prevWndProc, hWnd, msg, wParam, lParam);
