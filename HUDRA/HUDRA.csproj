@@ -65,21 +65,22 @@
     </Content>
     <Content Include="Tools\ryzenadj\WinRing0x64.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		<Link>WinRing0x64.dll</Link>
     </Content>
     <Content Include="Tools\ryzenadj\WinRing0x64.sys">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		<Link>WinRing0x64.sys</Link>
     </Content>
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240428000" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
+	<PackageReference Include="MouseKeyHook" Version="5.7.1" />
 
     <Manifest Include="$(ApplicationManifest)" />
 
     <PackageReference Include="System.Management" Version="9.0.6" />
-    <PackageReference Include="Gma.System.MouseKeyHook" Version="5.7.1" />
-    <PackageReference Include="HandheldCompanion.OpenLibSys" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>

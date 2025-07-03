@@ -159,30 +159,18 @@ namespace HUDRA
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
 
-            _wndProcDelegate = CustomWndProc;
-            _prevWndProc = SetWindowLongPtr(_hwnd, GWLP_WNDPROC, Marshal.GetFunctionPointerForDelegate(_wndProcDelegate));
-
-            RegisterHotKey(_hwnd, HOTKEY_ID, MOD_CONTROL | MOD_ALT, VK_H);
-
             this.Closed += (s, e) =>
             {
-                SetWindowLongPtr(_hwnd, GWLP_WNDPROC, _prevWndProc);
-                UnregisterHotKey(_hwnd, HOTKEY_ID);
                 _turboService?.Dispose();
             };
 
             // Initialize DPI awareness BEFORE other setup
             UpdateCurrentDpiScale();
-
-            //Set Acrylic backdrop if supported
             TrySetAcrylicBackdrop();
-
             SetInitialSize();
             MakeBorderlessWithRoundedCorners();
             ApplyRoundedCornersToWindow();
-
             PositionAboveSystemTray();
-
             SetupDragHandling();
             LoadCurrentTdp();
             InitializeTdpPicker();
@@ -221,13 +209,65 @@ namespace HUDRA
             };
 
             SetupGamepadInput();
-
-            _turboService = new TurboService();
+            SetupTurboService();
 
             // Monitor DPI changes
             this.SizeChanged += MainWindow_SizeChanged;
         }
 
+        private void SetupTurboService()
+        {
+            try
+            {
+                _turboService = new TurboService();
+                _turboService.TurboButtonPressed += OnTurboButtonPressed;
+                System.Diagnostics.Debug.WriteLine("TurboService connected successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"TurboService setup failed: {ex.Message}");
+                // App continues to work without turbo button functionality
+                _turboService = null;
+            }
+        }
+
+        private void OnTurboButtonPressed(object? sender, EventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("MainWindow: Turbo button pressed - toggling visibility");
+
+            // Use DispatcherQueue to ensure UI updates happen on the UI thread
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ToggleWindowVisibility();
+            });
+        }
+
+        private void ToggleWindowVisibility()
+        {
+            try
+            {
+                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+                var appWindow = AppWindow.GetFromWindowId(windowId);
+
+                if (_isWindowVisible)
+                {
+                    appWindow.Hide();
+                    System.Diagnostics.Debug.WriteLine("Window hidden via turbo button");
+                }
+                else
+                {
+                    appWindow.Show();
+                    PositionAboveSystemTray(); // Reposition when showing
+                    System.Diagnostics.Debug.WriteLine("Window shown via turbo button");
+                }
+
+                _isWindowVisible = !_isWindowVisible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to toggle window visibility: {ex.Message}");
+            }
+        }
         public class TransparentBackdrop : SystemBackdrop
         {
             protected override void OnDefaultSystemBackdropConfigurationChanged(ICompositionSupportsSystemBackdrop target, XamlRoot xamlRoot)
@@ -1289,31 +1329,6 @@ namespace HUDRA
         private static extern bool SystemParametersInfo(int uAction, int uParam, ref RECT lpvParam, int fuWinIni);
 
         private const int SPI_GETWORKAREA = 48;
-
-        private const int HOTKEY_ID = 1;
-        private const uint MOD_ALT = 0x0001;
-        private const uint MOD_CONTROL = 0x0002;
-        private const int WM_HOTKEY = 0x0312;
-        private const int VK_H = 0x48; // 'H'
-
-        private const int GWLP_WNDPROC = -4;
-
-        [DllImport("user32.dll")]
-        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
-
-        [DllImport("user32.dll")]
-        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
-
-        private delegate IntPtr WndProcDelegate(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-        private WndProcDelegate? _wndProcDelegate;
-        private IntPtr _prevWndProc;
-
-        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr", SetLastError = true)]
-        private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
-
-        [DllImport("user32.dll", EntryPoint = "CallWindowProc")]
-        private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
-
         private void PositionAboveSystemTray()
         {
             try
@@ -1571,7 +1586,6 @@ namespace HUDRA
                 _isRefreshRateAutoSetting = false;
             }
         }
-
         private void UpdateRefreshRatesForSelectedResolution()
         {
             if (_availableResolutions == null || _selectedResolutionIndex < 0 || _selectedResolutionIndex >= _availableResolutions.Count)
@@ -1643,26 +1657,5 @@ namespace HUDRA
             BrightnessSlider.Value = newValue;
         }
 
-        private IntPtr CustomWndProc(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam)
-        {
-            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
-            {
-                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
-                var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                if (_isWindowVisible)
-                {
-                    appWindow.Hide();
-                }
-                else
-                {
-                    appWindow.Show();
-                }
-
-                _isWindowVisible = !_isWindowVisible;
-                return IntPtr.Zero;
-            }
-            return CallWindowProc(_prevWndProc, hWnd, msg, wParam, lParam);
-        }
     }
 }
