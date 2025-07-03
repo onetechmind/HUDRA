@@ -15,6 +15,7 @@ using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using HUDRA.Services;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -27,6 +28,7 @@ namespace HUDRA
     public partial class App : Application
     {
         private Window? _window;
+        private TrayIconService? _trayIcon;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -45,6 +47,27 @@ namespace HUDRA
         {
             _window = new MainWindow();
             _window.Activate();
+
+            _trayIcon = new TrayIconService();
+            _trayIcon.DoubleClicked += (s, e) =>
+            {
+                if (_window is MainWindow mw)
+                {
+                    mw.DispatcherQueue.TryEnqueue(() => mw.ToggleWindowVisibility());
+                }
+            };
+            _trayIcon.ExitRequested += (s, e) =>
+            {
+                _trayIcon?.Dispose();
+                _window?.Close();
+                Exit();
+            };
+        }
+
+        protected override void OnExit(object sender, ExitEventArgs e)
+        {
+            _trayIcon?.Dispose();
+            base.OnExit(sender, e);
         }
     }
 }

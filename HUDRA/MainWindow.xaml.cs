@@ -242,7 +242,7 @@ namespace HUDRA
             });
         }
 
-        private void ToggleWindowVisibility()
+        public void ToggleWindowVisibility()
         {
             try
             {
