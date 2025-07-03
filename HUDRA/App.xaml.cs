@@ -37,6 +37,9 @@ namespace HUDRA
         public App()
         {
             InitializeComponent();
+
+            // Handle unhandled exceptions
+            this.UnhandledException += OnUnhandledException;
         }
 
         /// <summary>
@@ -48,6 +51,7 @@ namespace HUDRA
             _window = new MainWindow();
             _window.Activate();
 
+            // Initialize tray icon
             _trayIcon = new TrayIconService();
             _trayIcon.DoubleClicked += (s, e) =>
             {
@@ -58,16 +62,38 @@ namespace HUDRA
             };
             _trayIcon.ExitRequested += (s, e) =>
             {
-                _trayIcon?.Dispose();
-                _window?.Close();
-                Exit();
+                CleanupAndExit();
+            };
+
+            // Handle window closed event for proper cleanup
+            _window.Closed += (s, e) =>
+            {
+                CleanupAndExit();
             };
         }
 
-        protected override void OnExit(object sender, ExitEventArgs e)
+        private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
-            _trayIcon?.Dispose();
-            base.OnExit(sender, e);
+            // Log the exception or handle it appropriately
+            System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+
+            // Mark as handled to prevent crash (optional)
+            // e.Handled = true;
+        }
+
+        private void CleanupAndExit()
+        {
+            try
+            {
+                _trayIcon?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error disposing tray icon: {ex.Message}");
+            }
+
+            // Exit the application
+            Environment.Exit(0);
         }
     }
 }

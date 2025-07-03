@@ -65,11 +65,9 @@
     </Content>
     <Content Include="Tools\ryzenadj\WinRing0x64.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		<Link>WinRing0x64.dll</Link>
     </Content>
     <Content Include="Tools\ryzenadj\WinRing0x64.sys">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		<Link>WinRing0x64.sys</Link>
     </Content>
   </ItemGroup>
 
