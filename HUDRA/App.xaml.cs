@@ -15,6 +15,7 @@ using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using HUDRA.Services;
 
 // To learn more about WinUI, the WinUI project structure,
 // and more about our project templates, see: http://aka.ms/winui-project-info.
@@ -27,6 +28,7 @@ namespace HUDRA
     public partial class App : Application
     {
         private Window? _window;
+        private TrayIconService? _trayIcon;
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -35,6 +37,9 @@ namespace HUDRA
         public App()
         {
             InitializeComponent();
+
+            // Handle unhandled exceptions
+            this.UnhandledException += OnUnhandledException;
         }
 
         /// <summary>
@@ -45,6 +50,50 @@ namespace HUDRA
         {
             _window = new MainWindow();
             _window.Activate();
+
+            // Initialize tray icon
+            _trayIcon = new TrayIconService();
+            _trayIcon.DoubleClicked += (s, e) =>
+            {
+                if (_window is MainWindow mw)
+                {
+                    mw.DispatcherQueue.TryEnqueue(() => mw.ToggleWindowVisibility());
+                }
+            };
+            _trayIcon.ExitRequested += (s, e) =>
+            {
+                CleanupAndExit();
+            };
+
+            // Handle window closed event for proper cleanup
+            _window.Closed += (s, e) =>
+            {
+                CleanupAndExit();
+            };
+        }
+
+        private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
+        {
+            // Log the exception or handle it appropriately
+            System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+
+            // Mark as handled to prevent crash (optional)
+            // e.Handled = true;
+        }
+
+        private void CleanupAndExit()
+        {
+            try
+            {
+                _trayIcon?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error disposing tray icon: {ex.Message}");
+            }
+
+            // Exit the application
+            Environment.Exit(0);
         }
     }
 }
