@@ -15,6 +15,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Drawing;
 using Windows.Gaming.Input;
 using WinRT;
 using WinRT.Interop;
@@ -56,6 +58,7 @@ namespace HUDRA
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
         private TurboService? _turboService;
+        private NotifyIcon? _notifyIcon;
 
         // TDP Configuration - Change these to easily modify the range
         private const int MIN_TDP = 5;
@@ -162,6 +165,11 @@ namespace HUDRA
             this.Closed += (s, e) =>
             {
                 _turboService?.Dispose();
+                if (_notifyIcon != null)
+                {
+                    _notifyIcon.Visible = false;
+                    _notifyIcon.Dispose();
+                }
             };
 
             // Initialize DPI awareness BEFORE other setup
@@ -210,6 +218,7 @@ namespace HUDRA
 
             SetupGamepadInput();
             SetupTurboService();
+            SetupTrayIcon();
 
             // Monitor DPI changes
             this.SizeChanged += MainWindow_SizeChanged;
@@ -266,6 +275,41 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to toggle window visibility: {ex.Message}");
+            }
+        }
+
+        private void SetupTrayIcon()
+        {
+            try
+            {
+                string iconPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "HUDRA_Logo.ico");
+                _notifyIcon = new NotifyIcon
+                {
+                    Icon = new Icon(iconPath),
+                    Visible = true,
+                    Text = "HUDRA"
+                };
+
+                _notifyIcon.DoubleClick += (s, e) =>
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        ToggleWindowVisibility();
+                    });
+                };
+
+                var menu = new ContextMenuStrip();
+                var exitItem = new ToolStripMenuItem("Exit");
+                exitItem.Click += (s, e) =>
+                {
+                    Close();
+                };
+                menu.Items.Add(exitItem);
+                _notifyIcon.ContextMenuStrip = menu;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize tray icon: {ex.Message}");
             }
         }
         public class TransparentBackdrop : SystemBackdrop

@@ -14,9 +14,10 @@
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
-    <UseWinUI>true</UseWinUI>
-    <EnableMsixTooling>true</EnableMsixTooling>
-    <Nullable>enable</Nullable>
+  <UseWinUI>true</UseWinUI>
+  <EnableMsixTooling>true</EnableMsixTooling>
+  <Nullable>enable</Nullable>
+  <UseWindowsForms>true</UseWindowsForms>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Tools\ryzenadj\demo.bat" />
@@ -89,6 +90,11 @@
     </Content>
     <Content Update="Tools\text.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assets\HUDRA_Logo.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 </Project>
