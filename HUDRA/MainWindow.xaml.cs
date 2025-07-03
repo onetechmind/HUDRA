@@ -55,6 +55,7 @@ namespace HUDRA
         private DispatcherTimer? _autoSetTimer;
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
+        private TurboService? _turboService;
 
         // TDP Configuration - Change these to easily modify the range
         private const int MIN_TDP = 5;
@@ -167,6 +168,7 @@ namespace HUDRA
             {
                 SetWindowLongPtr(_hwnd, GWLP_WNDPROC, _prevWndProc);
                 UnregisterHotKey(_hwnd, HOTKEY_ID);
+                _turboService?.Dispose();
             };
 
             // Initialize DPI awareness BEFORE other setup
@@ -219,6 +221,8 @@ namespace HUDRA
             };
 
             SetupGamepadInput();
+
+            _turboService = new TurboService();
 
             // Monitor DPI changes
             this.SizeChanged += MainWindow_SizeChanged;

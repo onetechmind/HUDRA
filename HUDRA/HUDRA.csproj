@@ -78,6 +78,8 @@
     <Manifest Include="$(ApplicationManifest)" />
 
     <PackageReference Include="System.Management" Version="9.0.6" />
+    <PackageReference Include="Gma.System.MouseKeyHook" Version="5.7.1" />
+    <PackageReference Include="HandheldCompanion.OpenLibSys" Version="1.0.0" />
   </ItemGroup>
 
   <ItemGroup>
