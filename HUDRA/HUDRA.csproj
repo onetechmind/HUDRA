@@ -19,6 +19,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <None Remove="Assets\HUDRA_Logo.ico" />
+    <None Remove="Assets\HUDRA_Logo_64x64.ico" />
     <None Remove="Tools\ryzenadj\demo.bat" />
     <None Remove="Tools\ryzenadj\inpoutx64.dll" />
     <None Remove="Tools\ryzenadj\installServiceTask.bat" />
@@ -82,14 +84,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="Assets\HUDRA_Logo.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\HUDRA_Logo_64x64.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Update="Tools\ryzenadj.exe">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
     <Content Update="Tools\text.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
-    </Content>
-    <Content Include="Assets\HUDRA_Logo.ico">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
 </Project>

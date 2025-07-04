@@ -11,6 +11,7 @@ using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -95,7 +96,7 @@ namespace HUDRA
         private bool _gamepadAPressed = false;
         private bool _gamepadBPressed = false;
         private int _selectedControlIndex = 0; // 0 = TDP selector, 1 = Resolution, 2 = Refresh Rate, 3 = Mute button, 4 = Volume slider, 5 = Brightness slider
-        private const int TOTAL_CONTROLS = 6;
+        private const int TOTAL_CONTROLS = 7;
         private bool _gamepadUpPressed = false;
         private bool _gamepadDownPressed = false;
         private bool _isComboBoxPopupOpen = false;
@@ -119,6 +120,10 @@ namespace HUDRA
         // References to dynamic padding borders used in the TDP picker
         private Border? _tdpStartPadding;
         private Border? _tdpEndPadding;
+
+        // Topmost window 
+        private DispatcherTimer? _topmostTimer;
+        private bool _forceTopmost = true;
 
         // Add this property for binding
         private string _currentResolutionDisplayText = "Current Resolution: Not Set";
@@ -252,13 +257,21 @@ namespace HUDRA
                 if (_isWindowVisible)
                 {
                     appWindow.Hide();
-                    System.Diagnostics.Debug.WriteLine("Window hidden via turbo button");
+                    System.Diagnostics.Debug.WriteLine("Window hidden");
                 }
                 else
                 {
                     appWindow.Show();
-                    PositionAboveSystemTray(); // Reposition when showing
-                    System.Diagnostics.Debug.WriteLine("Window shown via turbo button");
+                    PositionAboveSystemTray();
+
+                    // Force topmost immediately when showing
+                    if (_forceTopmost)
+                    {
+                        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    }
+
+                    System.Diagnostics.Debug.WriteLine("Window shown with topmost");
                 }
 
                 _isWindowVisible = !_isWindowVisible;
@@ -410,7 +423,12 @@ namespace HUDRA
                 timer.Start();
             }
 
-            LayoutRoot.Loaded += (s, e) => SetupPaddingAndScroll();
+            LayoutRoot.Loaded += (s, e) =>
+            {
+                SetupPaddingAndScroll();
+                SetWindowIcon();
+            };
+ 
             TdpScrollViewer.Loaded += (s, e) => SetupPaddingAndScroll();
             TdpScrollViewer.SizeChanged += (s, e) =>
             {
@@ -1169,6 +1187,10 @@ namespace HUDRA
             BrightnessSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
             BrightnessSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
 
+            // Reset close button
+            CloseButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            CloseButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(0);
+
             switch (_selectedControlIndex)
             {
                 case 0: // TDP Selector
@@ -1182,23 +1204,30 @@ namespace HUDRA
                     ResolutionComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
                     break;
 
-                case 2: // Refresh Rate Selector - NEW!
+                case 2: // Refresh Rate Selector
                     RefreshRateComboBox.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     RefreshRateComboBox.BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
                     break;
 
-                case 3: // Mute Button (was case 2)
+                case 3: // Mute Button
                     MuteButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     MuteButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     MuteButton.Shadow = new ThemeShadow();
                     break;
+
                 case 4: // Volume Slider
                     VolumeSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     VolumeSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
                     break;
+
                 case 5: // Brightness Slider
                     BrightnessSlider.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                     BrightnessSlider.BorderThickness = new Microsoft.UI.Xaml.Thickness(1);
+                    break;
+
+                case 6: // Close Button - NEW!
+                    CloseButton.BorderBrush = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    CloseButton.BorderThickness = new Microsoft.UI.Xaml.Thickness(2);
                     break;
             }
         }
@@ -1224,21 +1253,21 @@ namespace HUDRA
                 case 1: // Resolution Selector - open dropdown
                     ResolutionComboBox.IsDropDownOpen = true;
                     break;
-                case 2: // Refresh Rate Selector - open dropdown - NEW!
+                case 2: // Refresh Rate Selector - open dropdown
                     RefreshRateComboBox.IsDropDownOpen = true;
                     break;
-                case 3: // Mute Button (was case 2)
+                case 3: // Mute Button
                     MuteButton_Click(MuteButton, new RoutedEventArgs());
                     break;
-                case 4: // Volume Slider
-                    // No action on A press
+                case 4: // Volume Slider - no action on A press
                     break;
-                case 5: // Brightness Slider
-                    // No action on A press
+                case 5: // Brightness Slider - no action on A press
+                    break;
+                case 6: // Close Button - NEW!
+                    CloseButton_Click(CloseButton, new RoutedEventArgs());
                     break;
             }
         }
-
 
         // DPI Helper Methods
         private void UpdateCurrentDpiScale()
@@ -1655,6 +1684,128 @@ namespace HUDRA
         {
             var newValue = Math.Max(0, Math.Min(100, BrightnessSlider.Value + delta));
             BrightnessSlider.Value = newValue;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
+        int X, int Y, int cx, int cy, uint uFlags);
+
+        private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
+        private static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
+        private const uint SWP_NOMOVE = 0x0002;
+        private const uint SWP_NOSIZE = 0x0001;
+        private const uint SWP_NOACTIVATE = 0x0010;
+
+        public void StartAggressiveTopmost()
+        {
+            _forceTopmost = true;
+
+            // Set topmost immediately
+            SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+            // Keep it topmost with a simple timer
+            _topmostTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+            _topmostTimer.Tick += (s, e) => {
+                if (_forceTopmost && _isWindowVisible)
+                {
+                    SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+            };
+            _topmostTimer.Start();
+
+            System.Diagnostics.Debug.WriteLine("Simple aggressive topmost enabled");
+        }
+
+        public void StopAggressiveTopmost()
+        {
+            _forceTopmost = false;
+            _topmostTimer?.Stop();
+
+            // Remove topmost
+            SetWindowPos(_hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+
+            System.Diagnostics.Debug.WriteLine("Simple aggressive topmost disabled");
+        }
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Use your new toggle method to hide the window
+            ToggleWindowVisibility();
+
+            System.Diagnostics.Debug.WriteLine("Close button clicked - window toggled");
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        // Virtual key codes
+        private const byte VK_MENU = 0x12;    // Alt key
+        private const byte VK_TAB = 0x09;     // Tab key
+
+        // Key event flags
+        private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        // Simple Alt+Tab button click handler
+        private void AltTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // First hide HUDRA window
+                ToggleWindowVisibility();
+
+                // Small delay to ensure window is hidden before Alt+Tab
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                timer.Tick += (s, args) =>
+                {
+                    timer.Stop();
+
+                    // Now simulate Alt+Tab key combination
+                    // Press Alt
+                    keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
+
+                    // Press Tab (while Alt is held)
+                    keybd_event(VK_TAB, 0, 0, UIntPtr.Zero);
+
+                    // Release Tab
+                    keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+
+                    // Release Alt
+                    keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+
+                    System.Diagnostics.Debug.WriteLine("Alt+Tab triggered and window hidden");
+                };
+                timer.Start();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to Alt+Tab and hide: {ex.Message}");
+            }
+        }
+        private void SetWindowIcon()
+        {
+            try
+            {
+                string iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "HUDRA_Logo_64x64.ico");
+
+                if (File.Exists(iconPath))
+                {
+                    var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
+                    var appWindow = AppWindow.GetFromWindowId(windowId);
+                    appWindow.SetIcon(iconPath);
+
+                    System.Diagnostics.Debug.WriteLine($"Window icon set from: {iconPath}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Icon file not found: {iconPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set window icon: {ex.Message}");
+            }
         }
 
     }
