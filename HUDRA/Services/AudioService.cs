@@ -20,6 +20,34 @@ namespace HUDRA.Services
             keybd_event(VK_VOLUME_MUTE, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
+        // Explicitly set mute state using CoreAudio APIs
+        public void SetMute(bool mute)
+        {
+            try
+            {
+                var type = Type.GetTypeFromCLSID(new Guid("BCDE0395-E52F-467C-8E3D-C4579291692E"));
+                if (type == null)
+                {
+                    return;
+                }
+
+                var enumerator = (IMMDeviceEnumerator)Activator.CreateInstance(type)!;
+                enumerator.GetDefaultAudioEndpoint(EDataFlow.eRender, ERole.eMultimedia, out var device);
+
+                var iid = typeof(IAudioEndpointVolume).GUID;
+                device.Activate(ref iid, CLSCTX_ALL, IntPtr.Zero, out var endpoint);
+
+                endpoint.SetMute(mute, Guid.Empty);
+
+                Marshal.ReleaseComObject(endpoint);
+                Marshal.ReleaseComObject(device);
+                Marshal.ReleaseComObject(enumerator);
+            }
+            catch
+            {
+            }
+        }
+
         // Query current system mute state
         public bool GetMuteStatus()
         {
