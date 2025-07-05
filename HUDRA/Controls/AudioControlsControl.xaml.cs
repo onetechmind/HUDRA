@@ -68,26 +68,23 @@ namespace HUDRA.Controls
 
             try
             {
-                // Get current state BEFORE toggling
-                bool wasUnmuted = !_audioService.GetMuteStatus();
+                bool currentlyMuted = _audioService.GetMuteStatus();
 
-                // If we're about to mute, remember current volume
-                if (wasUnmuted && VolumeSlider != null && VolumeSlider.Value > 0)
+                // If we're muting, remember the current volume level
+                if (!currentlyMuted && VolumeSlider != null && VolumeSlider.Value > 0)
                 {
                     _previousVolumeLevel = VolumeSlider.Value;
                 }
 
-                // Toggle the mute state
-                _audioService.ToggleMute();
+                // Explicitly set the mute state
+                _audioService.SetMute(!currentlyMuted);
 
-                // Add a small delay to ensure system state has updated
+                // Give the system a moment to update then refresh the UI
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                 {
-                    // Now update UI based on ACTUAL system state
                     UpdateMuteButtonIcon();
                     UpdateVolumeSliderForMuteState();
 
-                    // Fire event with current state
                     bool isNowMuted = _audioService.GetMuteStatus();
                     AudioStateChanged?.Invoke(this, new AudioStateChangedEventArgs(
                         isNowMuted,
@@ -114,7 +111,7 @@ namespace HUDRA.Controls
                 bool isMuted = _audioService.GetMuteStatus();
                 if (isMuted && e.NewValue > 0)
                 {
-                    _audioService.ToggleMute(); // Unmute
+                    _audioService.SetMute(false); // Unmute explicitly
                     UpdateMuteButtonIcon();
 
                     AudioStateChanged?.Invoke(this, new AudioStateChangedEventArgs(
