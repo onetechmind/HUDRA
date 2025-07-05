@@ -52,6 +52,7 @@ namespace HUDRA
         private readonly DpiScalingService _dpiService;
         private readonly WindowManagementService _windowManager;
         private readonly TdpAutoSetManager _tdpAutoSetManager;
+        private readonly GamepadInputService _gamepadService;
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
@@ -156,6 +157,10 @@ namespace HUDRA
             // STEP 2: Initialize TDP auto-set manager
             _tdpAutoSetManager = new TdpAutoSetManager(SetTdpAsync, status => CurrentTdpDisplayText = status);
 
+            _gamepadService = new GamepadInputService();
+            _gamepadService.NavigationChanged += OnGamepadNavigationChanged;
+            _gamepadService.ActionPressed += OnGamepadActionPressed;
+
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
 
@@ -164,6 +169,7 @@ namespace HUDRA
             {
                 _windowManager?.Dispose();
                 _tdpAutoSetManager?.Dispose();
+                _gamepadService?.Dispose();
                 _turboService?.Dispose();
             };
 
@@ -1719,7 +1725,33 @@ namespace HUDRA
                 });
                 return false;
             }
-        } 
+        }
+
+        private void OnGamepadNavigationChanged(object sender, GamepadNavigationEventArgs e)
+        {
+            // Just update the visual selection for now
+            _selectedControlIndex = e.SelectedControlIndex;
+            UpdateControlSelection();
+        }
+
+        private void OnGamepadActionPressed(object sender, GamepadActionEventArgs e)
+        {
+            // Handle the gamepad actions
+            switch (e.Action)
+            {
+                case GamepadAction.IncrementValue:
+                    if (e.ControlIndex == 0) ChangeTdpBy(1); // TDP
+                                                             // Add other controls later
+                    break;
+                case GamepadAction.DecrementValue:
+                    if (e.ControlIndex == 0) ChangeTdpBy(-1); // TDP
+                                                              // Add other controls later
+                    break;
+                case GamepadAction.Activate:
+                    if (e.ControlIndex == 3) MuteButton_Click(MuteButton, new RoutedEventArgs()); // Mute
+                    break;
+            }
+        }
 
     }
 }
