@@ -99,6 +99,7 @@ namespace HUDRA.Controls
                     Width = _dpiService.NumberWidth,
                     Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4
                 };
+                textBlock.Tapped += Number_Tapped;
                 NumbersPanel.Children.Add(textBlock);
             }
 
@@ -290,7 +291,13 @@ namespace HUDRA.Controls
                     _isManualScrolling = true;
                     _isScrolling = true;
                     TdpScrollViewer.CapturePointer(e.Pointer);
-                    e.Handled = true;
+
+                    // Only mark the event as handled when the press isn't on a number
+                    // so clicks on TextBlocks still raise their Tapped events
+                    if (e.OriginalSource is not TextBlock)
+                    {
+                        e.Handled = true;
+                    }
                 }
             };
 
@@ -357,6 +364,17 @@ namespace HUDRA.Controls
                 TdpChanged?.Invoke(this, _selectedTdp);
             }
             SnapToCurrentTdp();
+        }
+
+        private void Number_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (sender is TextBlock tb && int.TryParse(tb.Text, out int tdp))
+            {
+                SelectedTdp = tdp;
+                _autoSetManager?.ScheduleUpdate(_selectedTdp);
+                SnapToCurrentTdp();
+                e.Handled = true;
+            }
         }
 
         // Cleanup method
