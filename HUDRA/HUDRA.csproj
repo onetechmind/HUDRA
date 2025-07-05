@@ -21,6 +21,9 @@
   <ItemGroup>
     <None Remove="Assets\HUDRA_Logo.ico" />
     <None Remove="Assets\HUDRA_Logo_64x64.ico" />
+    <None Remove="Controls\AudioControlsControl.xaml" />
+    <None Remove="Controls\BrightnessControlControl.xaml" />
+    <None Remove="Controls\TdpPickerControl.xaml" />
     <None Remove="Tools\ryzenadj\demo.bat" />
     <None Remove="Tools\ryzenadj\inpoutx64.dll" />
     <None Remove="Tools\ryzenadj\installServiceTask.bat" />
@@ -96,5 +99,29 @@
     <Content Update="Tools\text.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\BrightnessControlControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\AudioControlsControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\ResolutionPickerControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\TdpPickerControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 </Project>

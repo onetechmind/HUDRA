@@ -17,7 +17,6 @@ namespace HUDRA.Helpers
         {
             _setValueAction = setValueAction;
             _updateStatusAction = updateStatusAction;
-
             _timer = new DispatcherTimer { Interval = delay };
             _timer.Tick += OnTimerTick;
         }
@@ -36,10 +35,12 @@ namespace HUDRA.Helpers
             _timer.Stop();
 
             if (_isProcessing) return;
+
             _isProcessing = true;
 
             try
             {
+                // FIXED: Remove asterisks - they're not valid C# syntax
                 var success = await _setValueAction(_pendingValue);
                 if (!success)
                 {

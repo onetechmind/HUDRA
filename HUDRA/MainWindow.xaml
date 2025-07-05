@@ -3,6 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:HUDRA"
+    xmlns:controls="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
@@ -64,152 +65,16 @@
                     Margin="0,50,0,0">
 
                 <!-- TDP Section -->
-                <StackPanel Spacing="8">
-                    <TextBlock Text="TDP" 
-                           FontSize="14" 
-                           Foreground="#CCFFFFFF"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"/>
-
-                    <Border x:Name="TdpPickerBorder"
-                            Background="#22FFFFFF" 
-                        CornerRadius="12" 
-                        Padding="5,0"
-                        Width="280">
-                        <Grid Height="60">
-                            <ScrollViewer x:Name="TdpScrollViewer"
-                                      HorizontalScrollBarVisibility="Hidden"
-                                      VerticalScrollBarVisibility="Disabled"
-                                      HorizontalScrollMode="Enabled"
-                                      VerticalScrollMode="Disabled"
-                                      ZoomMode="Disabled"
-                                      ManipulationMode="TranslateX"
-                                      ViewChanged="TdpScrollViewer_ViewChanged"
-                                      Padding="0,10">
-                                <StackPanel x:Name="NumbersPanel" 
-                                        Orientation="Horizontal"/>
-                            </ScrollViewer>
-                        </Grid>
-                    </Border>
-                </StackPanel>
+                <controls:TdpPickerControl x:Name="TdpPicker"/>
 
                 <!-- Resolution Section -->
-                <StackPanel Spacing="8">
-
-                    <Grid Width="280">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <TextBlock Text="Resolution" 
-                           FontSize="14" 
-                           Foreground="#CCFFFFFF"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"
-                           Grid.Column="0"/>
-
-                        <TextBlock Text="Refresh Rate" 
-                           FontSize="14" 
-                           Foreground="#CCFFFFFF"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center"
-                           Grid.Column="2"/>
-
-                    </Grid>
-
-                    <Grid Width="280">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="8"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Resolution Combobox -->
-                        <ComboBox x:Name="ResolutionComboBox"
-                                  Grid.Column="0"
-                                  Style="{StaticResource HudraComboBoxStyle}"
-                                  ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                                  SelectionChanged="ResolutionComboBox_SelectionChanged"
-                                  HorizontalAlignment="Stretch"/>
-
-                        <!-- Refresh Rate Combobox -->
-                        <ComboBox x:Name="RefreshRateComboBox"
-                                  Grid.Column="2"
-                                  Style="{StaticResource HudraComboBoxStyle}"
-                                  ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                                  SelectionChanged="RefreshRateComboBox_SelectionChanged"
-                                  HorizontalAlignment="Stretch"/>
-                    </Grid>
-                </StackPanel>
+                <controls:ResolutionPickerControl x:Name="ResolutionPicker"/>
 
                 <!-- Audio Controls -->
-                <Grid Width="280" Margin="0,0,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="45"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Mute Button -->
-                    <Button x:Name="MuteButton"
-                            Click="MuteButton_Click"
-                            Width="45"
-                            Height="45"
-                            Background="#4C4C4C"
-                            Foreground="White"
-                            CornerRadius="8"
-                            Grid.Column="0">
-                        <FontIcon x:Name="MuteButtonIcon"
-                                  FontFamily="Segoe MDL2 Assets"
-                                  Glyph="&#xE74F;"/>
-                    </Button>
-
-                    <!-- Volume Slider -->
-                    <Slider x:Name="VolumeSlider"
-                            Grid.Column="2"
-                            Minimum="0"
-                            Maximum="100"
-                            ValueChanged="VolumeSlider_ValueChanged">
-                    </Slider>
-                </Grid>
-
+                <controls:AudioControlsControl x:Name="AudioControls"/>
+                
                 <!-- Brightness Controls -->
-                <Grid Width="280" Margin="0,0,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="45"/>
-                        <ColumnDefinition Width="8"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <!-- Brightness Icon -->
-
-                    <TextBlock Text="&#xE706;" 
-                       FontSize="30" 
-                       FontFamily="Segoe MDL2 Assets"
-                       Foreground="#CCFFFFFF"
-                       FontWeight="Normal"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Grid.Column="0"/>
-
-                    <!-- Brightness Slider -->
-                    <Slider x:Name="BrightnessSlider"
-                            Grid.Column="2"
-                            Minimum="0"
-                            Maximum="100"
-                            ValueChanged="BrightnessSlider_ValueChanged"/>
-                </Grid>
-            </StackPanel>
-
-            <!-- Status Display at the bottom -->
-            <StackPanel Grid.Row="1" Spacing="5" Margin="0,0,0,15">
-                <TextBlock x:Name="TdpStatusText"
-                       Text="{x:Bind CurrentTdpDisplayText, Mode=OneWay}"
-                       FontSize="11" 
-                       HorizontalAlignment="Center"
-                       Foreground="#CCFFFFFF"/>
+                <controls:BrightnessControlControl x:Name="BrightnessControls"/>
             </StackPanel>
         </Grid>
     </Border>
