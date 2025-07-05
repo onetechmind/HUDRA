@@ -20,6 +20,10 @@ using Windows.Gaming.Input;
 using WinRT;
 using WinRT.Interop;
 
+using HUDRA.Configuration;
+using HUDRA.Helpers;
+
+
 namespace HUDRA
 {
     public sealed partial class MainWindow : Window, INotifyPropertyChanged
@@ -45,6 +49,10 @@ namespace HUDRA
             }
         }
 
+        private readonly DpiScalingService _dpiService;
+        private readonly WindowManagementService _windowManager;
+        private readonly TdpAutoSetManager _tdpAutoSetManager;
+
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
         private IntPtr _hwnd;
@@ -57,26 +65,6 @@ namespace HUDRA
         private int _pendingTdpValue;
         private bool _isAutoSetting = false;
         private TurboService? _turboService;
-
-        // TDP Configuration - Change these to easily modify the range
-        private const int MIN_TDP = 5;
-        private const int MAX_TDP = 30;
-        private int TotalTdpCount => MAX_TDP - MIN_TDP + 1; // 26 items (5-30)
-
-        // DPI-aware fields
-        private double _currentScaleFactor = 1.0;
-        private readonly double _baseNumberWidth = 35.0;
-        private readonly double _baseSpacing = 0.0;
-
-        // Properties for DPI scaling
-        private readonly double _baseBorderPadding = 5.0;  // Match XAML Padding="5,0"
-        private readonly double _baseScrollPadding = 10.0; // Match XAML Padding="0,10"
-
-        private double BorderPadding => _baseBorderPadding * _currentScaleFactor;
-        private double ScrollPadding => _baseScrollPadding * _currentScaleFactor;
-        private double NumberWidth => _baseNumberWidth * _currentScaleFactor;
-        private double SpacingWidth => _baseSpacing * _currentScaleFactor;
-        private double ItemWidth => NumberWidth + SpacingWidth;
 
         private AudioService _audioService;
         private bool _isCurrentlyMuted = false; // Track state in the UI
@@ -161,21 +149,35 @@ namespace HUDRA
             this.InitializeComponent();
             this.Title = "HUDRA";
 
+            // STEP 1: Initialize new services FIRST
+            _dpiService = new DpiScalingService(this);
+            _windowManager = new WindowManagementService(this, _dpiService);
+
+            // STEP 2: Initialize TDP auto-set manager
+            _tdpAutoSetManager = new TdpAutoSetManager(SetTdpAsync, status => CurrentTdpDisplayText = status);
+
             LayoutRoot.DataContext = this;
             _hwnd = WindowNative.GetWindowHandle(this);
 
+            // STEP 7: Add cleanup in your existing Closed event
             this.Closed += (s, e) =>
             {
+                _windowManager?.Dispose();
+                _tdpAutoSetManager?.Dispose();
                 _turboService?.Dispose();
             };
 
             // Initialize DPI awareness BEFORE other setup
-            UpdateCurrentDpiScale();
-            TrySetAcrylicBackdrop();
-            SetInitialSize();
-            MakeBorderlessWithRoundedCorners();
-            ApplyRoundedCornersToWindow();
-            PositionAboveSystemTray();
+            //TrySetAcrylicBackdrop();
+            //SetInitialSize();
+            //MakeBorderlessWithRoundedCorners();
+            //ApplyRoundedCornersToWindow();
+            //PositionAboveSystemTray();
+
+            // NEW: Use WindowManagementService instead
+            TrySetAcrylicBackdrop(); // Keep this for now
+            _windowManager.Initialize(); // This replaces all the window setup methods
+
             SetupDragHandling();
             LoadCurrentTdp();
             InitializeTdpPicker();
@@ -249,37 +251,7 @@ namespace HUDRA
 
         public void ToggleWindowVisibility()
         {
-            try
-            {
-                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
-                var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                if (_isWindowVisible)
-                {
-                    appWindow.Hide();
-                    System.Diagnostics.Debug.WriteLine("Window hidden");
-                }
-                else
-                {
-                    appWindow.Show();
-                    PositionAboveSystemTray();
-
-                    // Force topmost immediately when showing
-                    if (_forceTopmost)
-                    {
-                        SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-                    }
-
-                    System.Diagnostics.Debug.WriteLine("Window shown with topmost");
-                }
-
-                _isWindowVisible = !_isWindowVisible;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to toggle window visibility: {ex.Message}");
-            }
+            _windowManager.ToggleVisibility();
         }
         public class TransparentBackdrop : SystemBackdrop
         {
@@ -358,22 +330,18 @@ namespace HUDRA
 
         private void InitializeTdpPicker()
         {
-            // Update DPI scaling first
-            UpdateCurrentDpiScale();
+            // Update your existing method to use _dpiService instead of manual calculations
+            // Replace scattered constants with HudraSettings values
 
-            // Clear any existing children
             NumbersPanel.Children.Clear();
+            NumbersPanel.Spacing = _dpiService.SpacingWidth; // Use service instead of manual calc
 
-            // Set DPI-aware spacing
-            NumbersPanel.Spacing = SpacingWidth;
-
-            // We'll set the actual padding when layout is complete
-            var startPadding = new Border { Width = 100 }; // Temporary value
+            var startPadding = new Border { Width = 100 };
             NumbersPanel.Children.Add(startPadding);
             _tdpStartPadding = startPadding;
 
-            // Create number TextBlocks dynamically based on TDP range
-            for (int tdpValue = MIN_TDP; tdpValue <= MAX_TDP; tdpValue++)
+            // Use HudraSettings instead of hardcoded HudraSettings.MIN_TDP/HudraSettings.MAX_TDP
+            for (int tdpValue = HudraSettings.MIN_TDP; tdpValue <= HudraSettings.MAX_TDP; tdpValue++)
             {
                 var textBlock = new TextBlock
                 {
@@ -385,27 +353,25 @@ namespace HUDRA
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextAlignment = TextAlignment.Center,
-                    Width = NumberWidth,
+                    Width = _dpiService.NumberWidth, // Use service instead of manual calc
                     Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4
                 };
                 NumbersPanel.Children.Add(textBlock);
             }
 
-            // Add end padding
-            var endPadding = new Border { Width = 100 }; // Temporary value
+            var endPadding = new Border { Width = 100 };
             NumbersPanel.Children.Add(endPadding);
             _tdpEndPadding = endPadding;
 
             // IMPORTANT: Use multiple layout events to ensure proper positioning
             bool hasScrolledToInitialPosition = false;
 
-
             void SetupPaddingAndScroll()
             {
                 if (TdpScrollViewer.ActualWidth <= 0) return;
 
                 // Center the selected number regardless of the digit count
-                var startPaddingWidth = (TdpScrollViewer.ActualWidth - ItemWidth) / 2;
+                var startPaddingWidth = (TdpScrollViewer.ActualWidth - _dpiService.ItemWidth) / 2;
 
                 if (_tdpStartPadding != null)
                     _tdpStartPadding.Width = startPaddingWidth;
@@ -441,18 +407,17 @@ namespace HUDRA
         }
         private void ScrollToTdpSimple(int tdpValue)
         {
-            var tdpIndex = tdpValue - MIN_TDP;
+            var tdpIndex = tdpValue - HudraSettings.MIN_TDP;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
-
+            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - _dpiService.ItemWidth) / 2);
 
             // Calculate the left edge of this number
-            var numberLeftEdge = startPadding + (tdpIndex * ItemWidth);
+            var numberLeftEdge = startPadding + (tdpIndex * _dpiService.ItemWidth);
 
             // Calculate the center of this number
-            var numberCenter = numberLeftEdge + (ItemWidth / 2);
-
+            var numberCenter = numberLeftEdge + (_dpiService.ItemWidth / 2);
+           
             // Calculate scroll position to center this number
             var targetScrollPosition = numberCenter - scrollViewerCenter;
 
@@ -468,15 +433,15 @@ namespace HUDRA
             var scrollOffset = TdpScrollViewer.HorizontalOffset;
             var scrollViewerWidth = TdpScrollViewer.ActualWidth;
             var scrollViewerCenter = scrollViewerWidth / 2;
-            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - ItemWidth) / 2);
+            var startPadding = _tdpStartPadding?.Width ?? ((scrollViewerWidth - _dpiService.ItemWidth) / 2);
 
 
             var visibleCenterPosition = scrollOffset + scrollViewerCenter;
-            var adjustedPosition = visibleCenterPosition - startPadding - (ItemWidth / 2);
-            var slotIndex = Math.Round(adjustedPosition / ItemWidth);
+            var adjustedPosition = visibleCenterPosition - startPadding - (_dpiService.ItemWidth / 2);
+            var slotIndex = Math.Round(adjustedPosition / _dpiService.ItemWidth);
 
-            var tdpValue = (int)(slotIndex + MIN_TDP);
-            return Math.Max(MIN_TDP, Math.Min(MAX_TDP, tdpValue));
+            var tdpValue = (int)(slotIndex + HudraSettings.MIN_TDP);
+            return Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, tdpValue));
         }
         private async void LoadCurrentTdp()
         {
@@ -488,7 +453,7 @@ namespace HUDRA
                 if (result.Success)
                 {
                     // Clamp to our valid range
-                    _selectedTdp = Math.Max(MIN_TDP, Math.Min(MAX_TDP, result.TdpWatts));
+                    _selectedTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, result.TdpWatts));
                     CurrentTdpDisplayText = $"Current TDP: {_selectedTdp}W";
 
                     // Update the picker wheel to show current value
@@ -511,33 +476,33 @@ namespace HUDRA
             }
         }
 
+        // STEP 5: Update your existing TDP auto-set logic
+        // Find your existing TdpScrollViewer_ViewChanged method and replace the auto-set timer logic:
         private void TdpScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
             if (_isScrolling) return;
 
             var centeredTdp = GetCenteredTdpAdjusted();
 
-            // Update selection if it changed
             if (centeredTdp != _selectedTdp)
             {
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
 
-                // Only restart timer if we're not currently processing a TDP change
+                // OLD: Complex timer logic
+                // NEW: Simple auto-set manager call
                 if (!_isAutoSetting)
                 {
-                    _pendingTdpValue = _selectedTdp;
-                    _autoSetTimer?.Stop();
-                    _autoSetTimer?.Start();
+                    _tdpAutoSetManager.ScheduleUpdate(_selectedTdp);
                 }
             }
 
-            // Snap to position when scrolling stops
             if (!e.IsIntermediate)
             {
                 SnapToCurrentTdp();
             }
         }
+
 
         private void SnapToCurrentTdp()
         {
@@ -557,11 +522,11 @@ namespace HUDRA
         private void UpdateNumberOpacity()
         {
             // Update all number TextBlocks (skip first and last elements which are padding borders)
-            for (int i = 1; i <= TotalTdpCount; i++) // Now correctly uses dynamic count
+            for (int i = 1; i <= HudraSettings.TotalTdpCount; i++) // Now correctly uses dynamic count
             {
                 if (i < NumbersPanel.Children.Count - 1 && NumbersPanel.Children[i] is TextBlock textBlock)
                 {
-                    var tdpValue = (i - 1) + MIN_TDP; // Convert index back to TDP value
+                    var tdpValue = (i - 1) + HudraSettings.MIN_TDP; // Convert index back to TDP value
                     textBlock.Opacity = tdpValue == _selectedTdp ? 1.0 : 0.4;
                     textBlock.FontSize = tdpValue == _selectedTdp ? 28 : 24;
                 }
@@ -736,21 +701,6 @@ namespace HUDRA
             _touchDragStarted = false;
             MainBorder.ReleasePointerCapture(e.Pointer);
         }
-
-        private void SetInitialSize()
-        {
-            var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
-            var appWindow = AppWindow.GetFromWindowId(windowId);
-
-            // Scale the base logical size by current DPI
-            var logicalWidth = 320.0;
-            var logicalHeight = 450.0;
-            var scaledWidth = (int)Math.Round(logicalWidth * _currentScaleFactor);
-            var scaledHeight = (int)Math.Round(logicalHeight * _currentScaleFactor);
-
-            appWindow.Resize(new Windows.Graphics.SizeInt32(scaledWidth, scaledHeight));
-        }
-
         private void MakeBorderlessWithRoundedCorners()
         {
             var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -954,7 +904,7 @@ namespace HUDRA
 
         private void ChangeTdpBy(int delta)
         {
-            var newTdp = Math.Max(MIN_TDP, Math.Min(MAX_TDP, _selectedTdp + delta));
+            var newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
 
             if (newTdp != _selectedTdp)
             {
@@ -1268,55 +1218,14 @@ namespace HUDRA
                     break;
             }
         }
-
-        // DPI Helper Methods
-        private void UpdateCurrentDpiScale()
-        {
-            try
-            {
-                var hwnd = WindowNative.GetWindowHandle(this);
-                var dpi = GetDpiForWindow(hwnd);
-                _currentScaleFactor = dpi / 96.0; // 96 DPI = 100% scale
-            }
-            catch
-            {
-                _currentScaleFactor = 1.0; // Fallback to 100% scale
-            }
-        }
-
-        private void UpdateTdpPickerSizing()
-        {
-            if (NumbersPanel?.Children == null) return;
-
-            var startPaddingWidth = (TdpScrollViewer.ActualWidth - ItemWidth) / 2;
-
-            if (_tdpStartPadding != null)
-                _tdpStartPadding.Width = startPaddingWidth;
-
-            if (_tdpEndPadding != null)
-                _tdpEndPadding.Width = startPaddingWidth;
-
-
-            // Update number TextBlocks with current DPI-scaled width
-            for (int i = 1; i <= TotalTdpCount; i++)
-            {
-                if (i < NumbersPanel.Children.Count - 1 && NumbersPanel.Children[i] is TextBlock textBlock)
-                {
-                    textBlock.Width = NumberWidth;
-                }
-            }
-        }
-
         private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
         {
             // Check if DPI changed and update accordingly
-            var oldScaleFactor = _currentScaleFactor;
-            UpdateCurrentDpiScale();
+            var oldScaleFactor = _dpiService.ScaleFactor;
+            _dpiService.UpdateScaleFactor();
 
-            if (Math.Abs(_currentScaleFactor - oldScaleFactor) > 0.01)
+            if (_dpiService.HasScaleChanged(oldScaleFactor))
             {
-                UpdateTdpPickerSizing();
-
                 // Re-scroll to current position with new scaling
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
                 timer.Tick += (s, args) =>
@@ -1327,7 +1236,7 @@ namespace HUDRA
                 timer.Start();
             }
         }
-       
+
         // P/Invoke declarations
         [DllImport("user32.dll")]
         private static extern bool GetCursorPos(out POINT lpPoint);
@@ -1358,31 +1267,6 @@ namespace HUDRA
         private static extern bool SystemParametersInfo(int uAction, int uParam, ref RECT lpvParam, int fuWinIni);
 
         private const int SPI_GETWORKAREA = 48;
-        private void PositionAboveSystemTray()
-        {
-            try
-            {
-                var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
-                var appWindow = AppWindow.GetFromWindowId(windowId);
-
-                // Get work area (screen minus taskbar)
-                var workArea = new RECT();
-                SystemParametersInfo(SPI_GETWORKAREA, 0, ref workArea, 0);
-
-                var padding = (int)(20 * _currentScaleFactor);
-                var windowSize = appWindow.Size;
-
-                var x = workArea.Right - windowSize.Width - padding;
-                var y = workArea.Bottom - windowSize.Height - padding;
-
-                appWindow.Move(new Windows.Graphics.PointInt32(x, y));
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to position window: {ex.Message}");
-            }
-        }
-
         private void InitializeResolutionPicker()
         {
             _resolutionService = new ResolutionService();
@@ -1807,6 +1691,35 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine($"Failed to set window icon: {ex.Message}");
             }
         }
+
+        // STEP 4: Add this new method for the TDP auto-set manager
+        private async Task<bool> SetTdpAsync(int tdpValue)
+        {
+            try
+            {
+                var tdpService = new TDPService();
+                int tdpInMilliwatts = tdpValue * 1000;
+                var result = tdpService.SetTdp(tdpInMilliwatts);
+
+                // Update status on UI thread
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    CurrentTdpDisplayText = result.Success
+                        ? $"Current TDP: {tdpValue}W"
+                        : $"Error: {result.Message}";
+                });
+
+                return result.Success;
+            }
+            catch (Exception ex)
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    CurrentTdpDisplayText = $"Error: {ex.Message}";
+                });
+                return false;
+            }
+        } 
 
     }
 }
