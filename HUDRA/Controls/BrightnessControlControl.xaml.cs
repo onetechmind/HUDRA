@@ -31,8 +31,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Property for gamepad navigation
-        public Slider BrightnessSliderControl => BrightnessSlider;
 
         public BrightnessControlControl()
         {
@@ -106,14 +104,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Public method for external control (gamepad)
-        public void ChangeBrightnessBy(double delta)
-        {
-            if (BrightnessSlider == null) return;
-
-            var newValue = Math.Max(0, Math.Min(100, BrightnessSlider.Value + delta));
-            BrightnessSlider.Value = newValue;
-        }
 
         public void Dispose()
         {
@@ -137,5 +127,4 @@ namespace HUDRA.Controls
             BrightnessLevel = brightnessLevel;
             StatusMessage = statusMessage;
         }
-    }
-}
+    }}

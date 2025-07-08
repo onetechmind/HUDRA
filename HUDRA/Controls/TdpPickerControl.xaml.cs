@@ -267,7 +267,7 @@ namespace HUDRA.Controls
             {
                 SelectedTdp = newTdp;
 
-                // Schedule the update with a slight delay for gamepad input
+                // Schedule the update with a slight delay
                 var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
                 timer.Tick += (s, e) =>
                 {
