@@ -38,9 +38,6 @@
     <None Remove="Tools\ryzenadj\WinRing0x64.sys" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Services\TDPService.cs.old" />
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="Tools\ryzenadj\demo.bat">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
