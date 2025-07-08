@@ -24,16 +24,16 @@
                 Foreground="White"
                 CornerRadius="16"
                 BorderThickness="0"
-                HorizontalAlignment="Left"
+                HorizontalAlignment="Right"
                 VerticalAlignment="Top"
-                Margin="10,10,0,0"
+                Margin="0,10,70,0"
                 Grid.Row="0"
                 Grid.RowSpan="2"
                 ToolTipService.ToolTip="Previous App &amp; Hide">
                 <FontIcon x:Name="AltTabButtonIcon"
-              FontFamily="Segoe MDL2 Assets"
-              Glyph="&#xE8AB;"
-              FontSize="20"/>
+                  FontFamily="Segoe MDL2 Assets"
+                  Glyph="&#xE8AB;"
+                  FontSize="20"/>
             </Button>
 
             <Button x:Name="CloseButton"
@@ -56,25 +56,7 @@
                 </Button.Content>
             </Button>
 
-            <!-- Control pickers centered in the main area -->
-            <StackPanel Grid.Row="0" 
-                    HorizontalAlignment="Center" 
-                    VerticalAlignment="Top" 
-                    Spacing="20"
-                    Margin="0,50,0,0">
-
-                <!-- TDP Section -->
-                <controls:TdpPickerControl x:Name="TdpPicker"/>
-
-                <!-- Resolution Section -->
-                <controls:ResolutionPickerControl x:Name="ResolutionPicker"/>
-
-                <!-- Audio Controls -->
-                <controls:AudioControlsControl x:Name="AudioControls"/>
-                
-                <!-- Brightness Controls -->
-                <controls:BrightnessControlControl x:Name="BrightnessControls"/>
-            </StackPanel>
-        </Grid>
+            <Frame x:Name="ContentFrame" Grid.Row="0" />
+        </Grid>    
     </Border>
 </Window>
