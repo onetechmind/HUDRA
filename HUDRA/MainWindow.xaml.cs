@@ -21,7 +21,6 @@ namespace HUDRA
 
         private readonly DpiScalingService _dpiService;
         private readonly WindowManagementService _windowManager;
-        private readonly GamepadInputService _gamepadService;
         private readonly AudioService _audioService;
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
@@ -60,7 +59,6 @@ namespace HUDRA
             _dpiService = new DpiScalingService(this);
             TdpPicker.Initialize(_dpiService);
             _windowManager = new WindowManagementService(this, _dpiService);
-            _gamepadService = new GamepadInputService();
             _audioService = new AudioService();
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
@@ -121,10 +119,6 @@ namespace HUDRA
 
         private void SetupEventHandlers()
         {
-            // Gamepad events
-            _gamepadService.NavigationChanged += OnGamepadNavigationChanged;
-            _gamepadService.ActionPressed += OnGamepadActionPressed;
-
             // Window events
             this.SizeChanged += MainWindow_SizeChanged;
         }
@@ -145,105 +139,7 @@ namespace HUDRA
             }
         }
 
-        private void OnGamepadNavigationChanged(object sender, GamepadNavigationEventArgs e)
-        {
-            UpdateControlSelection(e.SelectedControlIndex);
-        }
 
-        private void OnGamepadActionPressed(object sender, GamepadActionEventArgs e)
-        {
-            switch (e.Action)
-            {
-                case GamepadAction.IncrementValue:
-                    HandleIncrementValue(e.ControlIndex);
-                    break;
-                case GamepadAction.DecrementValue:
-                    HandleDecrementValue(e.ControlIndex);
-                    break;
-                case GamepadAction.Activate:
-                    HandleActivateControl(e.ControlIndex);
-                    break;
-                    // Handle popup actions...
-            }
-        }
-
-        private void HandleIncrementValue(int controlIndex)
-        {
-            switch ((HudraSettings.ControlIndex)controlIndex)
-            {
-                case HudraSettings.ControlIndex.TdpSelector:
-                    TdpPicker.ChangeTdpBy(1);  // Use TdpPicker, not _tdpPicker
-                    break;
-                case HudraSettings.ControlIndex.BrightnessSlider:
-                    //ChangeBrightnessBy(HudraSettings.BRIGHTNESS_STEP);
-                    break;
-                    // Handle other controls...
-            }
-        }
-
-
-        private void HandleDecrementValue(int controlIndex)
-        {
-            switch ((HudraSettings.ControlIndex)controlIndex)
-            {
-                case HudraSettings.ControlIndex.TdpSelector:
-                    TdpPicker.ChangeTdpBy(-1);  // Use TdpPicker, not _tdpPicker
-                    break;
-                case HudraSettings.ControlIndex.BrightnessSlider:
-                    //ChangeBrightnessBy(-HudraSettings.BRIGHTNESS_STEP);
-                    break;
-                    // Handle other controls...
-            }
-        }
-
-
-        private void HandleActivateControl(int controlIndex)
-        {
-            switch ((HudraSettings.ControlIndex)controlIndex)
-            {
-                case HudraSettings.ControlIndex.CloseButton:
-                    CloseButton_Click(CloseButton, new RoutedEventArgs());
-                    break;
-                    // Handle other activations...
-            }
-        }
-
-        private void UpdateControlSelection(int selectedIndex)
-{
-    // Reset all control borders
-    //ResetControlBorders();
-
-    // Apply selection styling based on control index
-    switch ((HudraSettings.ControlIndex)selectedIndex)
-    {
-        case HudraSettings.ControlIndex.TdpSelector:
-            //ApplySelectionBorder(TdpPicker.PickerBorder);  // Use TdpPicker, not _tdpPicker
-            break;
-        case HudraSettings.ControlIndex.MuteButton:
-            //ApplySelectionBorder(MuteButton);
-            break;
-        case HudraSettings.ControlIndex.VolumeSlider:
-            //ApplySelectionBorder(VolumeSlider);
-            break;
-        case HudraSettings.ControlIndex.BrightnessSlider:
-            //ApplySelectionBorder(BrightnessSlider);
-            break;
-        case HudraSettings.ControlIndex.CloseButton:
-            //ApplySelectionBorder(CloseButton);
-            break;
-            // Handle other controls...
-    }
-}
-
-        private void ResetControlBorders()
-        {
-            // Implementation to reset all control borders
-        }
-
-        private void ApplySelectionBorder(FrameworkElement element)
-        {
-            // Implementation to apply selection styling
-        }
         // Event handlers
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
@@ -300,7 +196,6 @@ namespace HUDRA
 
         private void Cleanup()
         {
-            _gamepadService?.Dispose();
             _windowManager?.Dispose();
             _turboService?.Dispose();
             _acrylicController?.Dispose();

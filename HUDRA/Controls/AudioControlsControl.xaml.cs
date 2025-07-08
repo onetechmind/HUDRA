@@ -32,9 +32,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Properties for gamepad navigation
-        public Button MuteButtonControl => MuteButton;
-        public Slider VolumeSliderControl => VolumeSlider;
 
         public AudioControlsControl()
         {
@@ -246,19 +243,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Public methods for external control (gamepad)
-        public void ToggleMute()
-        {
-            OnMuteButtonClick(MuteButton, new RoutedEventArgs());
-        }
-
-        public void ChangeVolumeBy(double delta)
-        {
-            if (VolumeSlider == null) return;
-
-            var newValue = Math.Max(0, Math.Min(100, VolumeSlider.Value + delta));
-            VolumeSlider.Value = newValue;
-        }
 
         public void Dispose()
         {

@@ -55,13 +55,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Properties for gamepad navigation
-        public bool IsDropDownOpen =>
-            (ResolutionComboBox?.IsDropDownOpen ?? false) ||
-            (RefreshRateComboBox?.IsDropDownOpen ?? false);
-
-        public ComboBox ResolutionControl => ResolutionComboBox;
-        public ComboBox RefreshRateControl => RefreshRateComboBox;
 
         public ResolutionPickerControl()
         {
@@ -342,28 +335,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // Public methods for gamepad control
-        public void ChangeResolutionBy(int delta)
-        {
-            if (_availableResolutions.Count == 0) return;
-
-            var newIndex = Math.Max(0, Math.Min(_availableResolutions.Count - 1, _selectedResolutionIndex + delta));
-            if (newIndex != _selectedResolutionIndex && ResolutionComboBox != null)
-            {
-                ResolutionComboBox.SelectedIndex = newIndex;
-            }
-        }
-
-        public void ChangeRefreshRateBy(int delta)
-        {
-            if (_availableRefreshRates.Count == 0) return;
-
-            var newIndex = Math.Max(0, Math.Min(_availableRefreshRates.Count - 1, _selectedRefreshRateIndex + delta));
-            if (newIndex != _selectedRefreshRateIndex && RefreshRateComboBox != null)
-            {
-                RefreshRateComboBox.SelectedIndex = newIndex;
-            }
-        }
 
         public void Dispose()
         {
