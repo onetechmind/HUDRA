@@ -219,24 +219,53 @@ namespace HUDRA.Controls
             try
             {
                 var tdpService = new TDPService();
+
+                // Show initialization status in your UI
+                StatusText = $"TDP Service: {tdpService.InitializationStatus}";
+
                 var result = tdpService.GetCurrentTdp();
 
                 if (result.Success)
                 {
+                    // Use the actual current TDP value
                     SelectedTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, result.TdpWatts));
-                    StatusText = $"Current TDP: {_selectedTdp}W";
+                    StatusText = $"Current TDP: {_selectedTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
                 }
                 else
                 {
-                    StatusText = $"TDP Status: {result.Message}";
+                    // Default to 10W if we can't read current TDP
+                    SelectedTdp = 10; // Changed from MIN_TDP (5) to 10
+                    StatusText = $"TDP defaulted to 10W - {result.Message}";
+
+                    // Set the default TDP
+                    _ = Task.Run(async () =>
+                    {
+                        var setResult = tdpService.SetTdp(10000); // 10W in milliwatts
+                        await Task.Delay(100); // Small delay to let it apply
+
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            if (setResult.Success)
+                            {
+                                StatusText = "TDP initialized to 10W";
+                            }
+                            else
+                            {
+                                StatusText = $"Failed to set default TDP: {setResult.Message}";
+                            }
+                        });
+                    });
                 }
+
+                tdpService.Dispose();
             }
             catch (Exception ex)
             {
-                StatusText = $"Error reading TDP: {ex.Message}";
+                // Also default to 10W on any error
+                SelectedTdp = 10;
+                StatusText = $"Error reading TDP (defaulted to 10W): {ex.Message}";
             }
         }
-
         private async Task<bool> SetTdpAsync(int tdpValue)
         {
             try

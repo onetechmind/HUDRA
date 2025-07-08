@@ -233,6 +233,7 @@ namespace HUDRA
 
         private void Cleanup()
         {
+            _mainPage?.TdpPicker?.Dispose();
             _windowManager?.Dispose();
             _turboService?.Dispose();
             _acrylicController?.Dispose();

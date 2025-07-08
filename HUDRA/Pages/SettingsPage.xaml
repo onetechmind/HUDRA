@@ -12,7 +12,8 @@
         </Grid.RowDefinitions>
         <Button x:Name="BackButton"
                 FontFamily="Segoe MDL2 Assets"
-                Content="&#xE72B;"
+                FontSize="25"
+                Content="&#xE80F;"
                 Width="50" Height="50"
                 Background="Transparent" Foreground="White"
                 CornerRadius="16" BorderThickness="0"
