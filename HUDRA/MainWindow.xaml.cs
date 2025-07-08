@@ -74,9 +74,7 @@ namespace HUDRA
 
             InitializeWindow();
 
-            _navigationService.Navigate(typeof(MainPage));
-            _mainPage = ContentFrame.Content as MainPage;
-            InitializeControls();
+            ContentFrame.Loaded += ContentFrame_Loaded;
             SetupEventHandlers();
             SetupDragHandling();
             SetupTurboService();
@@ -148,6 +146,14 @@ namespace HUDRA
             {
                 System.Diagnostics.Debug.WriteLine($"TurboService setup failed: {ex.Message}");
             }
+        }
+
+        private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
+        {
+            ContentFrame.Loaded -= ContentFrame_Loaded;
+            _navigationService.Navigate(typeof(MainPage));
+            _mainPage = ContentFrame.Content as MainPage;
+            InitializeControls();
         }
 
 
