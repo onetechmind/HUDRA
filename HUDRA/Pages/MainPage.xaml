@@ -7,14 +7,33 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel x:Name="RootPanel"
+    <Grid>
+        <StackPanel x:Name="RootPanel"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Top"
                 Spacing="20"
                 Margin="0,50,0,0">
-        <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
-        <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
-        <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />
-        <controls:BrightnessControlControl x:Name="BrightnessControls" x:FieldModifier="public" />
-    </StackPanel>
+            <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
+            <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
+            <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />
+            <controls:BrightnessControlControl x:Name="BrightnessControls" x:FieldModifier="public" />
+        </StackPanel>
+        <!-- Settings button in bottom-right -->
+        <Button x:Name="SettingsButton"
+                Width="50"
+                Height="50"
+                Background="Transparent"
+                Foreground="White"
+                CornerRadius="16"
+                BorderThickness="0"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,20,20">
+            <Button.Content>
+                <FontIcon FontFamily="Segoe MDL2 Assets"
+                          Glyph="&#xE713;"
+                          FontSize="20"/>
+            </Button.Content>
+        </Button>
+    </Grid>
 </UserControl>

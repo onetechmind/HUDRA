@@ -24,16 +24,16 @@
                 Foreground="White"
                 CornerRadius="16"
                 BorderThickness="0"
-                HorizontalAlignment="Left"
+                HorizontalAlignment="Right"
                 VerticalAlignment="Top"
-                Margin="10,10,0,0"
+                Margin="0,10,70,0"
                 Grid.Row="0"
                 Grid.RowSpan="2"
                 ToolTipService.ToolTip="Previous App &amp; Hide">
                 <FontIcon x:Name="AltTabButtonIcon"
-              FontFamily="Segoe MDL2 Assets"
-              Glyph="&#xE8AB;"
-              FontSize="20"/>
+                  FontFamily="Segoe MDL2 Assets"
+                  Glyph="&#xE8AB;"
+                  FontSize="20"/>
             </Button>
 
             <Button x:Name="CloseButton"
@@ -56,25 +56,7 @@
                 </Button.Content>
             </Button>
 
-            <Button x:Name="SettingsButton"
-                Click="SettingsButton_Click"
-                Width="50"
-                Height="50"
-                Background="Transparent"
-                Foreground="White"
-                CornerRadius="16"
-                BorderThickness="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,10,70,0"
-                Grid.Row="0"
-                Grid.RowSpan="2">
-                <Button.Content>
-                    <FontIcon FontFamily="Segoe MDL2 Assets"
-                              Glyph="&#xE713;"
-                              FontSize="20"/>
-                </Button.Content>
-            </Button>
-
-            <Frame x:Name="ContentFrame" x:FieldModifier="public" Grid.Row="0" />
-        </Grid>    </Border></Window>
+            <Frame x:Name="ContentFrame" Grid.Row="0" />
+        </Grid>    
+    </Border>
+</Window>

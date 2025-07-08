@@ -65,11 +65,6 @@ namespace HUDRA
             _audioService = new AudioService();
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
-
-            if (ContentFrame == null)
-            {
-                ContentFrame = new Frame();
-            }
             _navigationService = new NavigationService(ContentFrame);
 
             InitializeWindow();
@@ -93,7 +88,7 @@ namespace HUDRA
             if (_mainPage == null) return;
 
             _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
-
+            _mainPage.SettingsRequested += (s, e) => SettingsButton_Click(s, new RoutedEventArgs());
             _mainPage.ResolutionPicker.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(ResolutionPickerControl.ResolutionStatusText))
@@ -151,11 +146,16 @@ namespace HUDRA
         private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
         {
             ContentFrame.Loaded -= ContentFrame_Loaded;
-            _navigationService.Navigate(typeof(MainPage));
-            _mainPage = ContentFrame.Content as MainPage;
-            InitializeControls();
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                _navigationService.Navigate(typeof(MainPage));
+                _mainPage = ContentFrame.Content as MainPage;
+                if (_mainPage != null)
+                {
+                    InitializeControls();
+                }
+            });
         }
-
 
         // Event handlers
         private void CloseButton_Click(object sender, RoutedEventArgs e)
@@ -172,11 +172,16 @@ namespace HUDRA
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             _navigationService.Navigate(typeof(SettingsPage));
-            if (ContentFrame.Content is SettingsPage sp)
+
+            // Delay the setup slightly to ensure navigation completes
+            DispatcherQueue.TryEnqueue(() =>
             {
-                _settingsPage = sp;
-                sp.BackButton.Click += BackButton_Click;
-            }
+                if (ContentFrame.Content is SettingsPage sp)
+                {
+                    _settingsPage = sp;
+                    sp.BackButton.Click += BackButton_Click;
+                }
+            });
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
@@ -287,10 +292,6 @@ namespace HUDRA
                         var closeTransform = CloseButton.TransformToVisual(MainBorder);
                         var closeBounds = closeTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, CloseButton.ActualWidth, CloseButton.ActualHeight));
                         if (closeBounds.Contains(position.Position)) return;
-
-                        var settingsTransform = SettingsButton.TransformToVisual(MainBorder);
-                        var settingsBounds = settingsTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, SettingsButton.ActualWidth, SettingsButton.ActualHeight));
-                        if (settingsBounds.Contains(position.Position)) return;
 
                         var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
                         var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
