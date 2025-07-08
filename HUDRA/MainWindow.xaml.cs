@@ -66,6 +66,10 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
 
+            if (ContentFrame == null)
+            {
+                ContentFrame = new Frame();
+            }
             _navigationService = new NavigationService(ContentFrame);
 
             InitializeWindow();

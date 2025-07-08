@@ -76,6 +76,5 @@
                 </Button.Content>
             </Button>
 
-            <Frame x:Name="ContentFrame" Grid.Row="0" />
-        </Grid>
-    </Border></Window>
+            <Frame x:Name="ContentFrame" x:FieldModifier="public" Grid.Row="0" />
+        </Grid>    </Border></Window>
