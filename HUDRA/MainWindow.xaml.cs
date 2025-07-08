@@ -1,5 +1,6 @@
 using HUDRA.Configuration;
 using HUDRA.Controls;
+using HUDRA.Pages;
 using HUDRA.Services;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -24,6 +25,9 @@ namespace HUDRA
         private readonly AudioService _audioService;
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
+        private readonly NavigationService _navigationService;
+        private MainPage? _mainPage;
+        private SettingsPage? _settingsPage;
         private TurboService? _turboService;
 
         private DesktopAcrylicController? _acrylicController;
@@ -57,13 +61,17 @@ namespace HUDRA
 
             // Initialize services
             _dpiService = new DpiScalingService(this);
-            TdpPicker.Initialize(_dpiService);
             _windowManager = new WindowManagementService(this, _dpiService);
             _audioService = new AudioService();
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
 
+            _navigationService = new NavigationService(ContentFrame);
+
             InitializeWindow();
+
+            _navigationService.Navigate(typeof(MainPage));
+            _mainPage = ContentFrame.Content as MainPage;
             InitializeControls();
             SetupEventHandlers();
             SetupDragHandling();
@@ -80,32 +88,31 @@ namespace HUDRA
 
         private void InitializeControls()
         {
-            ResolutionPicker.Initialize();
-            AudioControls.Initialize();
-            BrightnessControls.Initialize();
+            if (_mainPage == null) return;
 
-            ResolutionPicker.PropertyChanged += (s, e) =>
+            _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
+
+            _mainPage.ResolutionPicker.PropertyChanged += (s, e) =>
             {
-                if (e.PropertyName == nameof(ResolutionPicker.ResolutionStatusText))
-                    CurrentResolutionDisplayText = ResolutionPicker.ResolutionStatusText;
-                else if (e.PropertyName == nameof(ResolutionPicker.RefreshRateStatusText))
-                    CurrentRefreshRateDisplayText = ResolutionPicker.RefreshRateStatusText;
+                if (e.PropertyName == nameof(ResolutionPickerControl.ResolutionStatusText))
+                    CurrentResolutionDisplayText = _mainPage.ResolutionPicker.ResolutionStatusText;
+                else if (e.PropertyName == nameof(ResolutionPickerControl.RefreshRateStatusText))
+                    CurrentRefreshRateDisplayText = _mainPage.ResolutionPicker.RefreshRateStatusText;
             };
 
-            AudioControls.PropertyChanged += (s, e) =>
+            _mainPage.AudioControls.PropertyChanged += (s, e) =>
             {
-                if (e.PropertyName == nameof(AudioControls.AudioStatusText))
+                if (e.PropertyName == nameof(AudioControlsControl.AudioStatusText))
                 {
-                    // Update any main window audio status display if you have one
-                    System.Diagnostics.Debug.WriteLine(AudioControls.AudioStatusText);
+                    System.Diagnostics.Debug.WriteLine(_mainPage.AudioControls.AudioStatusText);
                 }
             };
 
-            BrightnessControls.PropertyChanged += (s, e) =>
+            _mainPage.BrightnessControls.PropertyChanged += (s, e) =>
             {
-                if (e.PropertyName == nameof(BrightnessControls.BrightnessStatusText))
+                if (e.PropertyName == nameof(BrightnessControlControl.BrightnessStatusText))
                 {
-                    System.Diagnostics.Debug.WriteLine(BrightnessControls.BrightnessStatusText);
+                    System.Diagnostics.Debug.WriteLine(_mainPage.BrightnessControls.BrightnessStatusText);
                 }
             };
         }
@@ -150,6 +157,21 @@ namespace HUDRA
         {
             _windowManager.ToggleVisibility();
             SimulateAltTab();
+        }
+
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.Navigate(typeof(SettingsPage));
+            if (ContentFrame.Content is SettingsPage sp)
+            {
+                _settingsPage = sp;
+                sp.BackButton.Click += BackButton_Click;
+            }
+        }
+
+        private void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.GoBack();
         }
         private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
         {
@@ -232,30 +254,33 @@ namespace HUDRA
                     // Check if click is over any UserControl - if so, don't drag
                     try
                     {
-                        // Check TDP picker
-                        var tdpTransform = TdpPicker.TransformToVisual(MainBorder);
-                        var tdpBounds = tdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, TdpPicker.ActualWidth, TdpPicker.ActualHeight));
-                        if (tdpBounds.Contains(position.Position)) return;
+                        if (_mainPage != null)
+                        {
+                            var tdpTransform = _mainPage.TdpPicker.TransformToVisual(MainBorder);
+                            var tdpBounds = tdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.TdpPicker.ActualWidth, _mainPage.TdpPicker.ActualHeight));
+                            if (tdpBounds.Contains(position.Position)) return;
 
-                        // Check Resolution picker
-                        var resolutionTransform = ResolutionPicker.TransformToVisual(MainBorder);
-                        var resolutionBounds = resolutionTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, ResolutionPicker.ActualWidth, ResolutionPicker.ActualHeight));
-                        if (resolutionBounds.Contains(position.Position)) return;
+                            var resolutionTransform = _mainPage.ResolutionPicker.TransformToVisual(MainBorder);
+                            var resolutionBounds = resolutionTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.ResolutionPicker.ActualWidth, _mainPage.ResolutionPicker.ActualHeight));
+                            if (resolutionBounds.Contains(position.Position)) return;
 
-                        // Check Audio controls
-                        var audioTransform = AudioControls.TransformToVisual(MainBorder);
-                        var audioBounds = audioTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AudioControls.ActualWidth, AudioControls.ActualHeight));
-                        if (audioBounds.Contains(position.Position)) return;
+                            var audioTransform = _mainPage.AudioControls.TransformToVisual(MainBorder);
+                            var audioBounds = audioTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.AudioControls.ActualWidth, _mainPage.AudioControls.ActualHeight));
+                            if (audioBounds.Contains(position.Position)) return;
 
-                        // Check Brightness controls
-                        var brightnessTransform = BrightnessControls.TransformToVisual(MainBorder);
-                        var brightnessBounds = brightnessTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, BrightnessControls.ActualWidth, BrightnessControls.ActualHeight));
-                        if (brightnessBounds.Contains(position.Position)) return;
+                            var brightnessTransform = _mainPage.BrightnessControls.TransformToVisual(MainBorder);
+                            var brightnessBounds = brightnessTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.BrightnessControls.ActualWidth, _mainPage.BrightnessControls.ActualHeight));
+                            if (brightnessBounds.Contains(position.Position)) return;
+                        }
 
                         // Check buttons
                         var closeTransform = CloseButton.TransformToVisual(MainBorder);
                         var closeBounds = closeTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, CloseButton.ActualWidth, CloseButton.ActualHeight));
                         if (closeBounds.Contains(position.Position)) return;
+
+                        var settingsTransform = SettingsButton.TransformToVisual(MainBorder);
+                        var settingsBounds = settingsTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, SettingsButton.ActualWidth, SettingsButton.ActualHeight));
+                        if (settingsBounds.Contains(position.Position)) return;
 
                         var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
                         var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
