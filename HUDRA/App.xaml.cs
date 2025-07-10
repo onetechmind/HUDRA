@@ -29,6 +29,7 @@ namespace HUDRA
     {
         private Window? _window;
         private TrayIconService? _trayIcon;
+        public TdpMonitorService? TdpMonitor { get; private set; }
 
         /// <summary>
         /// Initializes the singleton application object.  This is the first line of authored code
@@ -50,6 +51,8 @@ namespace HUDRA
         {
             _window = new MainWindow();
             _window.Activate();
+
+            TdpMonitor = new TdpMonitorService(_window.DispatcherQueue);
 
             // Initialize tray icon
             _trayIcon = new TrayIconService();
@@ -86,6 +89,7 @@ namespace HUDRA
             try
             {
                 _trayIcon?.Dispose();
+                TdpMonitor?.Dispose();
             }
             catch (Exception ex)
             {
