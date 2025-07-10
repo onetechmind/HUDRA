@@ -26,6 +26,7 @@ namespace HUDRA
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
         private readonly NavigationService _navigationService;
+        private readonly TdpMonitorService? _tdpMonitor;
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
         private TurboService? _turboService;
@@ -66,6 +67,7 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
+            _tdpMonitor = (App.Current as App)?.TdpMonitor;
 
             InitializeWindow();
 
@@ -112,6 +114,22 @@ namespace HUDRA
                     System.Diagnostics.Debug.WriteLine(_mainPage.BrightnessControls.BrightnessStatusText);
                 }
             };
+
+            if (_tdpMonitor != null)
+            {
+                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+                _mainPage.TdpPicker.TdpChanged += (s, value) => _tdpMonitor.UpdateTargetTdp(value);
+
+                _tdpMonitor.TdpDriftDetected += (s, args) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
+                };
+
+                if (SettingsService.GetTdpCorrectionEnabled())
+                {
+                    _tdpMonitor.Start();
+                }
+            }
         }
 
         private void SetupDragHandling()
@@ -237,6 +255,7 @@ namespace HUDRA
             _windowManager?.Dispose();
             _turboService?.Dispose();
             _acrylicController?.Dispose();
+            _tdpMonitor?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();

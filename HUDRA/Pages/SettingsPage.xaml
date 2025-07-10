@@ -8,6 +8,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <Button x:Name="BackButton"
@@ -21,7 +22,11 @@
                 Margin="10" x:FieldModifier="public"/>
         <TextBlock Text="Settings" Grid.Row="1"
                    HorizontalAlignment="Center" VerticalAlignment="Center"
-                   FontSize="32"/>
+                   FontSize="32" Margin="0,0,0,10"/>
+        <StackPanel Grid.Row="2" Spacing="20" Padding="20,0">
+            <ToggleSwitch x:Name="TdpCorrectionToggle"
+                           Header="TDP Correction"
+                           Toggled="TdpCorrectionToggle_Toggled"/>
+        </StackPanel>
     </Grid>
 </UserControl>
-
