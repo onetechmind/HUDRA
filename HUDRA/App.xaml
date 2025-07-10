@@ -102,7 +102,50 @@
                 <Setter Property="Padding" Value="8,6"/>
             </Style>
 
+            <!-- Custom ToggleSwitch Style -->
+            <Style TargetType="ToggleSwitch">
+                <Setter Property="FontFamily" Value="Cascadia Code"/>
+                <Setter Property="FontSize" Value="12"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="OnContent" Value=""/>
+                <Setter Property="OffContent" Value=""/>
+            </Style>
 
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#777777"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#AA00FF"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="#444444"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#AA00FF"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="White"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="White"/>
+
+            <!-- ToggleSwitch pressed colors -->
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="#555555"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#8B00A0"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="#222222"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#8B00A0"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#DDDDDD"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#DDDDDD"/>
+
+            <!-- Override toggle switch colors -->
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#666666"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#333333"/>
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="DarkViolet"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#CCFFFFFF"/>
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="White"/>
+            <SolidColorBrush x:Key="ToggleSwitchContentForeground" Color="White"/>
+            <SolidColorBrush x:Key="ToggleSwitchContentForegroundDisabled" Color="#666666"/>
+
+            <Style x:Key="SettingsLabelStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="14"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="FontFamily" Value="Cascadia Code"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+            </Style>
+            
         </ResourceDictionary>
     </Application.Resources>
 </Application>
