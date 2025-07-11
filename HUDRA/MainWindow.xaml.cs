@@ -4,8 +4,11 @@ using HUDRA.Pages;
 using HUDRA.Services;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
+using Microsoft.UI.Composition;
+using Microsoft.UI.Xaml.Hosting;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System.Numerics;
 using System;
 using System.IO;
 using System.ComponentModel;
@@ -30,6 +33,9 @@ namespace HUDRA
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
         private TurboService? _turboService;
+        private BatteryService? _batteryService;
+        private DispatcherTimer? _batteryTimer;
+        private bool _batteryAnimating = false;
 
         private DesktopAcrylicController? _acrylicController;
         private SystemBackdropConfiguration? _backdropConfig;
@@ -54,6 +60,13 @@ namespace HUDRA
             set { _currentRefreshRateDisplayText = value; OnPropertyChanged(); }
         }
 
+        private string _batteryToolTipText = string.Empty;
+        public string BatteryToolTipText
+        {
+            get => _batteryToolTipText;
+            set { _batteryToolTipText = value; OnPropertyChanged(); }
+        }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -68,12 +81,14 @@ namespace HUDRA
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
             _tdpMonitor = (App.Current as App)?.TdpMonitor;
+            _batteryService = new BatteryService();
 
             InitializeWindow();
 
             ContentFrame.Loaded += ContentFrame_Loaded;
             SetupEventHandlers();
             SetupDragHandling();
+            SetupBatteryService();
             SetupTurboService();
 
             this.Closed += (s, e) => Cleanup();
@@ -161,6 +176,23 @@ namespace HUDRA
             }
         }
 
+        private void SetupBatteryService()
+        {
+            if (_batteryService == null)
+                return;
+
+            _batteryService.PowerStatusChanged += (s, e) => UpdateBatteryStatus();
+
+            _batteryTimer = new DispatcherTimer
+            {
+                Interval = HudraSettings.BATTERY_UPDATE_INTERVAL
+            };
+            _batteryTimer.Tick += (s, e) => UpdateBatteryStatus();
+            _batteryTimer.Start();
+
+            UpdateBatteryStatus();
+        }
+
         private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
         {
             ContentFrame.Loaded -= ContentFrame_Loaded;
@@ -226,6 +258,92 @@ namespace HUDRA
             keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
+        private void UpdateBatteryStatus()
+        {
+            if (_batteryService == null) return;
+
+            var info = _batteryService.GetStatus();
+
+            BatteryText.Text = $"{info.Percentage}%";
+            BatteryIcon.Glyph = GetBatteryGlyph(info.Percentage, info.IsCharging);
+            BatteryIcon.Foreground = new Windows.UI.Xaml.Media.SolidColorBrush(
+                info.IsCharging ? Windows.UI.Colors.DarkViolet : Windows.UI.Colors.White);
+
+            if (info.IsCharging)
+                StartBatteryAnimation();
+            else
+                StopBatteryAnimation();
+
+            BatteryToolTipText = BuildBatteryToolTip(info);
+        }
+
+        private static string GetBatteryGlyph(int percent, bool charging)
+        {
+            int level = Math.Clamp((int)Math.Round(percent / 10.0), 0, 10);
+            if (charging)
+            {
+                if (level >= 9)
+                    return "\uE83E"; // BatteryCharging9
+                return char.ConvertFromUtf32(0xE85A + level);
+            }
+            else
+            {
+                if (level >= 10)
+                    return "\uE83F"; // Battery10
+                return char.ConvertFromUtf32(0xE850 + level);
+            }
+        }
+
+        private string BuildBatteryToolTip(BatteryInfo info)
+        {
+            string source = info.IsAcPowered ? "AC" : "Battery";
+            if (info.RemainingTime.HasValue)
+            {
+                var t = info.RemainingTime.Value;
+                return $"Power source: {source}\nTime remaining: {(int)t.TotalHours}h {t.Minutes}m";
+            }
+            return $"Power source: {source}";
+        }
+
+        private void StartBatteryAnimation()
+        {
+            if (_batteryAnimating) return;
+
+            var visual = ElementCompositionPreview.GetElementVisual(BatteryIndicator);
+            var compositor = visual.Compositor;
+            visual.CenterPoint = new Vector3((float)(BatteryIndicator.ActualWidth / 2), (float)(BatteryIndicator.ActualHeight / 2), 0f);
+
+            var anim = compositor.CreateScalarKeyFrameAnimation();
+            anim.InsertKeyFrame(0f, 1f);
+            anim.InsertKeyFrame(0.5f, 1.1f);
+            anim.InsertKeyFrame(1f, 1f);
+            anim.Duration = TimeSpan.FromSeconds(1.5);
+            anim.IterationBehavior = AnimationIterationBehavior.Forever;
+
+            visual.StartAnimation("Scale.X", anim);
+            var animY = compositor.CreateScalarKeyFrameAnimation();
+            animY.InsertKeyFrame(0f, 1f);
+            animY.InsertKeyFrame(0.5f, 1.1f);
+            animY.InsertKeyFrame(1f, 1f);
+            animY.Duration = TimeSpan.FromSeconds(1.5);
+            animY.IterationBehavior = AnimationIterationBehavior.Forever;
+            visual.StartAnimation("Scale.Y", animY);
+
+            _batteryAnimating = true;
+        }
+
+        private void StopBatteryAnimation()
+        {
+            if (!_batteryAnimating) return;
+
+            var visual = ElementCompositionPreview.GetElementVisual(BatteryIndicator);
+            visual.StopAnimation("Scale.X");
+            visual.StopAnimation("Scale.Y");
+            visual.Scale = new Vector3(1f, 1f, 1f);
+
+            _batteryAnimating = false;
+        }
+
         private bool TrySetAcrylicBackdrop()
         {
             if (DesktopAcrylicController.IsSupported())
@@ -256,6 +374,8 @@ namespace HUDRA
             _turboService?.Dispose();
             _acrylicController?.Dispose();
             _tdpMonitor?.Dispose();
+            _batteryTimer?.Stop();
+            _batteryService?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
@@ -316,6 +436,10 @@ namespace HUDRA
                         var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
                         var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
                         if (altTabBounds.Contains(position.Position)) return;
+
+                        var batteryTransform = BatteryIndicator.TransformToVisual(MainBorder);
+                        var batteryBounds = batteryTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, BatteryIndicator.ActualWidth, BatteryIndicator.ActualHeight));
+                        if (batteryBounds.Contains(position.Position)) return;
                     }
                     catch
                     {

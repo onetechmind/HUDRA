@@ -15,6 +15,31 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
+            <!-- Battery indicator -->
+            <Border x:Name="BatteryIndicator"
+                    Background="#66000000"
+                    CornerRadius="16"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,10,130,0"
+                    Padding="8,4"
+                    Grid.Row="0"
+                    Grid.RowSpan="2"
+                    ToolTipService.ToolTip="{x:Bind BatteryToolTipText, Mode=OneWay}">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <FontIcon x:Name="BatteryIcon"
+                              FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xE859;"
+                              FontSize="14"
+                              Foreground="White"/>
+                    <TextBlock x:Name="BatteryText"
+                               Text="100%"
+                               FontSize="12"
+                               Margin="4,0,0,0"
+                               Foreground="White"/>
+                </StackPanel>
+            </Border>
+
             <!-- Alt+Tab button in top-left corner -->
             <Button x:Name="AltTabButton"
                 Click="AltTabButton_Click"
