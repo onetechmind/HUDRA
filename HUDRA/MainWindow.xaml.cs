@@ -117,18 +117,39 @@ namespace HUDRA
 
             if (_tdpMonitor != null)
             {
-                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
-                _mainPage.TdpPicker.TdpChanged += (s, value) => _tdpMonitor.UpdateTargetTdp(value);
+                // Don't start monitoring until TDP picker has loaded its initial value
+                bool tdpMonitorStarted = false;
+
+                // Set up the event handler for future changes
+                _mainPage.TdpPicker.TdpChanged += (s, value) => {
+                    _tdpMonitor.UpdateTargetTdp(value);
+
+                    // Start monitor on first TDP value if correction is enabled
+                    if (!tdpMonitorStarted && SettingsService.GetTdpCorrectionEnabled() && value > 0)
+                    {
+                        _tdpMonitor.Start();
+                        tdpMonitorStarted = true;
+                        System.Diagnostics.Debug.WriteLine($"TDP Monitor started with initial target: {value}W");
+                    }
+                };
+
+                // Also check if TDP picker already has a value (in case event already fired)
+                if (_mainPage.TdpPicker.SelectedTdp > 0)
+                {
+                    _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+
+                    if (SettingsService.GetTdpCorrectionEnabled())
+                    {
+                        _tdpMonitor.Start();
+                        tdpMonitorStarted = true;
+                        System.Diagnostics.Debug.WriteLine($"TDP Monitor started with existing target: {_mainPage.TdpPicker.SelectedTdp}W");
+                    }
+                }
 
                 _tdpMonitor.TdpDriftDetected += (s, args) =>
                 {
                     System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
                 };
-
-                if (SettingsService.GetTdpCorrectionEnabled())
-                {
-                    _tdpMonitor.Start();
-                }
             }
         }
 

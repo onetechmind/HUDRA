@@ -230,12 +230,18 @@ namespace HUDRA.Controls
                     // Use the actual current TDP value
                     SelectedTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, result.TdpWatts));
                     StatusText = $"Current TDP: {_selectedTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
+
+                    // Ensure the initial value is propagated
+                    TdpChanged?.Invoke(this, _selectedTdp);
                 }
                 else
                 {
                     // Default to 10W if we can't read current TDP
                     SelectedTdp = 10; // Changed from MIN_TDP (5) to 10
                     StatusText = $"TDP defaulted to 10W - {result.Message}";
+
+                    // Ensure the initial value is propagated
+                    TdpChanged?.Invoke(this, _selectedTdp);
 
                     // Set the default TDP
                     _ = Task.Run(async () =>
@@ -264,6 +270,9 @@ namespace HUDRA.Controls
                 // Also default to 10W on any error
                 SelectedTdp = 10;
                 StatusText = $"Error reading TDP (defaulted to 10W): {ex.Message}";
+
+                // Ensure the initial value is propagated
+                TdpChanged?.Invoke(this, _selectedTdp);
             }
         }
         private async Task<bool> SetTdpAsync(int tdpValue)

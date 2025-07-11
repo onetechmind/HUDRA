@@ -39,7 +39,7 @@
                         <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="TDP Correction" 
+                    <TextBlock Text="Sticky TDP" 
                        Style="{StaticResource SettingsLabelStyle}"
                        Grid.Column="0"/>
 
