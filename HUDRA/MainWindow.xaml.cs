@@ -6,6 +6,9 @@ using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using Windows.UI;
 using System;
 using System.IO;
 using System.ComponentModel;
@@ -26,6 +29,7 @@ namespace HUDRA
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
         private readonly NavigationService _navigationService;
+        private BatteryService? _batteryService;
         private TdpMonitorService? _tdpMonitor;
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
@@ -39,6 +43,13 @@ namespace HUDRA
         private Windows.Graphics.PointInt32 _lastPointerPosition;
         private Windows.Foundation.Point _lastTouchPosition;
         private bool _touchDragStarted = false;
+
+        private string _batteryToolTipText = string.Empty;
+        public string BatteryToolTipText
+        {
+            get => _batteryToolTipText;
+            set { _batteryToolTipText = value; OnPropertyChanged(); }
+        }
 
         private string _currentResolutionDisplayText = "Resolution: Not Set";
         public string CurrentResolutionDisplayText
@@ -67,6 +78,9 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
+            _batteryService = new BatteryService();
+            _batteryService.BatteryInfoUpdated += BatteryService_BatteryInfoUpdated;
+            _batteryService.Start();
 
             InitializeWindow();
 
@@ -271,6 +285,7 @@ namespace HUDRA
             _turboService?.Dispose();
             _acrylicController?.Dispose();
             _tdpMonitor?.Dispose();
+            _batteryService?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
@@ -345,6 +360,10 @@ namespace HUDRA
                         var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
                         var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
                         if (altTabBounds.Contains(position.Position)) return;
+
+                        var batteryTransform = BatteryPanel.TransformToVisual(MainBorder);
+                        var batteryBounds = batteryTransform.TransformBounds(new Windows.Foundation.Rect(0,0,BatteryPanel.ActualWidth,BatteryPanel.ActualHeight));
+                        if (batteryBounds.Contains(position.Position)) return;
                     }
                     catch
                     {
@@ -518,6 +537,54 @@ namespace HUDRA
             };
 
             System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
+        }
+
+        private Storyboard? _chargingStoryboard;
+
+        private void BatteryService_BatteryInfoUpdated(object? sender, BatteryInfo info)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                BatteryText.Text = $"{info.Percent}%";
+                BatteryIcon.Text = info.IsCharging ? "\uE83E" : "\uE850";
+
+                BatteryPanel.Background = new SolidColorBrush(info.IsCharging ? Windows.UI.Colors.DarkViolet : Windows.UI.Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
+
+                BatteryToolTipText = info.RemainingSeconds > 0
+                    ? $"{info.Percent}% {(info.IsCharging ? "Charging" : "Discharging")} - {(info.IsOnAc ? "AC" : "Battery")}, {TimeSpan.FromSeconds(info.RemainingSeconds):h\:mm} remaining"
+                    : $"{info.Percent}% {(info.IsCharging ? "Charging" : "Discharging")} - {(info.IsOnAc ? "AC" : "Battery")}";
+
+                if (info.IsCharging)
+                    StartChargingAnimation();
+                else
+                    StopChargingAnimation();
+            });
+        }
+
+        private void StartChargingAnimation()
+        {
+            if (_chargingStoryboard != null) return;
+            var animation = new DoubleAnimation
+            {
+                From = 1,
+                To = 0.6,
+                Duration = new Duration(TimeSpan.FromSeconds(1)),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+            _chargingStoryboard = new Storyboard();
+            Storyboard.SetTarget(animation, BatteryIcon);
+            Storyboard.SetTargetProperty(animation, "Opacity");
+            _chargingStoryboard.Children.Add(animation);
+            _chargingStoryboard.Begin();
+        }
+
+        private void StopChargingAnimation()
+        {
+            if (_chargingStoryboard == null) return;
+            _chargingStoryboard.Stop();
+            _chargingStoryboard = null;
+            BatteryIcon.Opacity = 1;
         }
     }
 

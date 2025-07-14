@@ -23,6 +23,7 @@ namespace HUDRA.Configuration
         public static readonly TimeSpan RESOLUTION_AUTO_SET_DELAY = TimeSpan.FromMilliseconds(300);
         public static readonly TimeSpan REFRESH_RATE_AUTO_SET_DELAY = TimeSpan.FromMilliseconds(300);
         public static readonly TimeSpan TOPMOST_CHECK_INTERVAL = TimeSpan.FromMilliseconds(200);
+        public static readonly TimeSpan BATTERY_UPDATE_INTERVAL = TimeSpan.FromSeconds(30);
         public static readonly TimeSpan SNAP_ANIMATION_DELAY = TimeSpan.FromMilliseconds(150);
 
 
