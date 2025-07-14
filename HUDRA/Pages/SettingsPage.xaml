@@ -31,8 +31,27 @@
         <StackPanel Grid.Row="2" Spacing="15" Padding="0" MaxWidth="280">
 
             <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="1*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="Use Startup TDP"
+                               Style="{StaticResource SettingsLabelStyle}"
+                               Grid.Column="0"/>
+
+                    <ToggleSwitch x:Name="UseStartupTdpToggle"
+                                  Grid.Column="1"
+                                  VerticalAlignment="Center"
+                                  HorizontalAlignment="Right"
+                                  Toggled="UseStartupTdpToggle_Toggled"/>
+                </Grid>
+            </Border>
+
+            <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,12">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="Default TDP" Style="{StaticResource SettingsLabelStyle}"/>
+                    <TextBlock Text="Startup TDP" Style="{StaticResource SettingsLabelStyle}"/>
                     <controls:TdpPickerControl x:Name="StartupTdpPicker" x:FieldModifier="public"/>
                 </StackPanel>
             </Border>

@@ -26,6 +26,8 @@ namespace HUDRA.Pages
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
         {
             TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
+            UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
+            UpdateStartupTdpEnabledState();
         }
 
         private void SettingsPage_Unloaded(object sender, RoutedEventArgs e)
@@ -36,7 +38,10 @@ namespace HUDRA.Pages
 
         private void StartupTdpPicker_TdpChanged(object? sender, int value)
         {
-            SettingsService.SetStartupTdp(value);
+            if (UseStartupTdpToggle.IsOn)
+            {
+                SettingsService.SetStartupTdp(value);
+            }
         }
 
         private void TdpCorrectionToggle_Toggled(object sender, RoutedEventArgs e)
@@ -52,6 +57,20 @@ namespace HUDRA.Pages
                 else
                     monitor.Stop();
             }
+        }
+
+        private void UseStartupTdpToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var isOn = UseStartupTdpToggle.IsOn;
+            SettingsService.SetUseStartupTdp(isOn);
+            UpdateStartupTdpEnabledState();
+        }
+
+        private void UpdateStartupTdpEnabledState()
+        {
+            bool enable = UseStartupTdpToggle.IsOn;
+            StartupTdpPicker.IsEnabled = enable;
+            StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
         }
     }
 }

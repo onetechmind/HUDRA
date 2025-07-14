@@ -232,18 +232,26 @@ namespace HUDRA.Controls
                 var tdpService = new TDPService();
                 StatusText = $"TDP Service: {tdpService.InitializationStatus}";
 
-                var result = tdpService.GetCurrentTdp();
-
                 int targetTdp;
-                if (result.Success && result.TdpWatts >= HudraSettings.MIN_TDP && result.TdpWatts <= HudraSettings.MAX_TDP)
+
+                if (SettingsService.GetUseStartupTdp())
                 {
-                    targetTdp = result.TdpWatts;
-                    StatusText = $"Current TDP: {targetTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
+                    targetTdp = SettingsService.GetStartupTdp();
+                    StatusText = $"Using startup TDP: {targetTdp}W";
                 }
                 else
                 {
-                    targetTdp = SettingsService.GetStartupTdp();
-                    StatusText = $"TDP defaulted to {targetTdp}W - {result.Message}";
+                    var result = tdpService.GetCurrentTdp();
+                    if (result.Success && result.TdpWatts >= HudraSettings.MIN_TDP && result.TdpWatts <= HudraSettings.MAX_TDP)
+                    {
+                        targetTdp = result.TdpWatts;
+                        StatusText = $"Current TDP: {targetTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
+                    }
+                    else
+                    {
+                        targetTdp = SettingsService.GetLastUsedTdp();
+                        StatusText = $"Using last TDP: {targetTdp}W - {result.Message}";
+                    }
                 }
 
                 // Always force set TDP on startup to ensure all limits match
@@ -257,6 +265,7 @@ namespace HUDRA.Controls
                     if (setResult.Success)
                     {
                         StatusText = $"TDP synchronized: {targetTdp}W (all limits)";
+                        SettingsService.SetLastUsedTdp(targetTdp);
                     }
                     else
                     {
@@ -272,7 +281,9 @@ namespace HUDRA.Controls
             }
             catch (Exception ex)
             {
-                int fallbackTdp = SettingsService.GetStartupTdp();
+                int fallbackTdp = SettingsService.GetUseStartupTdp()
+                    ? SettingsService.GetStartupTdp()
+                    : SettingsService.GetLastUsedTdp();
                 SelectedTdp = fallbackTdp;
                 StatusText = $"Error reading TDP (defaulted to {fallbackTdp}W): {ex.Message}";
                 TdpChanged?.Invoke(this, _selectedTdp);
@@ -289,6 +300,11 @@ namespace HUDRA.Controls
                 StatusText = result.Success
                     ? $"Current TDP: {tdpValue}W"
                     : $"Error: {result.Message}";
+
+                if (result.Success)
+                {
+                    SettingsService.SetLastUsedTdp(tdpValue);
+                }
 
                 return result.Success;
             }
