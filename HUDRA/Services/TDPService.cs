@@ -265,35 +265,21 @@ namespace HUDRA.Services
             try
             {
                 uint tdpValue = (uint)tdpInMilliwatts;
-                bool stapmSuccess = false;
-                bool fastSuccess = false;
-                bool slowSuccess = false;
+                bool anySuccess = false;
 
                 if (_setStapmLimit != null)
-                {
-                    stapmSuccess = _setStapmLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"STAPM limit set: {stapmSuccess}");
-                }
+                    anySuccess |= _setStapmLimit(_ryzenAdjHandle, tdpValue) == 0;
 
                 if (_setFastLimit != null)
-                {
-                    fastSuccess = _setFastLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"Fast limit set: {fastSuccess}");
-                }
+                    anySuccess |= _setFastLimit(_ryzenAdjHandle, tdpValue) == 0;
 
                 if (_setSlowLimit != null)
-                {
-                    slowSuccess = _setSlowLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"Slow limit set: {slowSuccess}");
-                }
-
-                bool anySuccess = stapmSuccess || fastSuccess || slowSuccess;
+                    anySuccess |= _setSlowLimit(_ryzenAdjHandle, tdpValue) == 0;
 
                 if (anySuccess)
                 {
                     var tdpWatts = tdpInMilliwatts / 1000;
-                    var details = $"STAPM:{stapmSuccess} Fast:{fastSuccess} Slow:{slowSuccess}";
-                    return (true, $"TDP set to {tdpWatts}W (DLL-FAST) [{details}]");
+                    return (true, $"TDP set to {tdpWatts}W (DLL-FAST)");
                 }
                 else
                 {

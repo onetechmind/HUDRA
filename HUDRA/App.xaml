@@ -12,16 +12,6 @@
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Settings Description Style -->
-            <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="#99FFFFFF"/>
-                <Setter Property="FontFamily" Value="Calibri"/>
-                <Setter Property="TextWrapping" Value="Wrap"/>
-                <Setter Property="LineHeight" Value="15"/>
-                <Setter Property="Margin" Value="0,0,0,10"/>
-            </Style>
-
             <!-- Slider and Thumb overrides -->
             <x:Double x:Key="SliderTrackThemeHeight">15</x:Double>
             <x:Double x:Key="SliderThumbHeight">15</x:Double>

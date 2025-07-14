@@ -74,13 +74,6 @@ namespace HUDRA.Services
                 target = _targetTdp;
             }
 
-            // Safety check - never try to set 0W TDP
-            if (target <= 0)
-            {
-                Debug.WriteLine($"TDP monitor skipping check - invalid target TDP: {target}W");
-                return;
-            }
-
             try
             {
                 var result = _tdpService.GetCurrentTdp();

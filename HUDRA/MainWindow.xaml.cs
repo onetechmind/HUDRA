@@ -29,7 +29,7 @@ namespace HUDRA
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
         private readonly NavigationService _navigationService;
-        private TdpMonitorService? _tdpMonitor;
+        private readonly TdpMonitorService? _tdpMonitor;
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
         private TurboService? _turboService;
@@ -80,6 +80,7 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
+            _tdpMonitor = (App.Current as App)?.TdpMonitor;
             _batteryService = new BatteryService();
 
             InitializeWindow();
@@ -101,22 +102,10 @@ namespace HUDRA
 
         private void InitializeControls()
         {
-            System.Diagnostics.Debug.WriteLine($"=== InitializeControls Called ===");
-            System.Diagnostics.Debug.WriteLine($"_mainPage is null: {_mainPage == null}");
+            if (_mainPage == null) return;
 
-            if (_mainPage == null)
-            {
-                System.Diagnostics.Debug.WriteLine("_mainPage is null, exiting InitializeControls");
-                return;
-            }
-
-            System.Diagnostics.Debug.WriteLine("=== Initializing MainPage ===");
             _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
-
-            System.Diagnostics.Debug.WriteLine("=== Setting up SettingsRequested event ===");
             _mainPage.SettingsRequested += (s, e) => SettingsButton_Click(s, new RoutedEventArgs());
-
-            System.Diagnostics.Debug.WriteLine("=== Setting up ResolutionPicker events ===");
             _mainPage.ResolutionPicker.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(ResolutionPickerControl.ResolutionStatusText))
@@ -125,7 +114,6 @@ namespace HUDRA
                     CurrentRefreshRateDisplayText = _mainPage.ResolutionPicker.RefreshRateStatusText;
             };
 
-            System.Diagnostics.Debug.WriteLine("=== Setting up AudioControls events ===");
             _mainPage.AudioControls.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(AudioControlsControl.AudioStatusText))
@@ -134,7 +122,6 @@ namespace HUDRA
                 }
             };
 
-            System.Diagnostics.Debug.WriteLine("=== Setting up BrightnessControls events ===");
             _mainPage.BrightnessControls.PropertyChanged += (s, e) =>
             {
                 if (e.PropertyName == nameof(BrightnessControlControl.BrightnessStatusText))
@@ -143,10 +130,21 @@ namespace HUDRA
                 }
             };
 
-            System.Diagnostics.Debug.WriteLine($"=== Checking _tdpMonitor: {_tdpMonitor != null} ===");
+            if (_tdpMonitor != null)
+            {
+                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+                _mainPage.TdpPicker.TdpChanged += (s, value) => _tdpMonitor.UpdateTargetTdp(value);
 
-            // Replace the old TDP monitor setup with this:
-            SetupTdpMonitor();
+                _tdpMonitor.TdpDriftDetected += (s, args) =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
+                };
+
+                if (SettingsService.GetTdpCorrectionEnabled())
+                {
+                    _tdpMonitor.Start();
+                }
+            }
         }
 
         private void SetupDragHandling()
@@ -198,25 +196,13 @@ namespace HUDRA
         private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
         {
             ContentFrame.Loaded -= ContentFrame_Loaded;
-            System.Diagnostics.Debug.WriteLine("=== ContentFrame_Loaded Event ===");
-
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                System.Diagnostics.Debug.WriteLine("=== Navigation Starting ===");
                 _navigationService.Navigate(typeof(MainPage));
-
-                System.Diagnostics.Debug.WriteLine($"ContentFrame.Content type: {ContentFrame.Content?.GetType().Name ?? "null"}");
                 _mainPage = ContentFrame.Content as MainPage;
-                System.Diagnostics.Debug.WriteLine($"_mainPage is null: {_mainPage == null}");
-
                 if (_mainPage != null)
                 {
-                    System.Diagnostics.Debug.WriteLine("=== Calling InitializeControls ===");
                     InitializeControls();
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("_mainPage is null, skipping InitializeControls");
                 }
             });
         }
@@ -244,7 +230,6 @@ namespace HUDRA
                 {
                     _settingsPage = sp;
                     sp.BackButton.Click += BackButton_Click;
-                    sp.Initialize(_dpiService);
                 }
             });
         }
@@ -443,20 +428,6 @@ namespace HUDRA
                             if (brightnessBounds.Contains(position.Position)) return;
                         }
 
-                        if (_settingsPage != null)
-                        {
-                            // Exclude StartupTdpPicker from drag handling
-                            var startupTdpTransform = _settingsPage.StartupTdpPicker.TransformToVisual(MainBorder);
-                            var startupTdpBounds = startupTdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.StartupTdpPicker.ActualWidth, _settingsPage.StartupTdpPicker.ActualHeight));
-                            if (startupTdpBounds.Contains(position.Position)) return;
-
-                            // Exclude TdpCorrectionToggle from drag handling
-                            var toggleTransform = _settingsPage.TdpCorrectionToggle.TransformToVisual(MainBorder);
-                            var toggleBounds = toggleTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.TdpCorrectionToggle.ActualWidth, _settingsPage.TdpCorrectionToggle.ActualHeight));
-                            if (toggleBounds.Contains(position.Position)) return;
-                        }
-
-
                         // Check buttons
                         var closeTransform = CloseButton.TransformToVisual(MainBorder);
                         var closeBounds = closeTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, CloseButton.ActualWidth, CloseButton.ActualHeight));
@@ -554,6 +525,7 @@ namespace HUDRA
                 }
             }
         }
+
         private void OnMainBorderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             _isDragging = false;
@@ -571,79 +543,5 @@ namespace HUDRA
             public int X;
             public int Y;
         }
-
-        public void SetTdpMonitor(TdpMonitorService tdpMonitor)
-        {
-            System.Diagnostics.Debug.WriteLine("=== SetTdpMonitor called ===");
-            _tdpMonitor = tdpMonitor;
-
-            // If MainPage is already loaded, set up the monitor immediately
-            if (_mainPage != null)
-            {
-                System.Diagnostics.Debug.WriteLine("=== MainPage already loaded, setting up TDP monitor ===");
-                SetupTdpMonitor();
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("=== MainPage not loaded yet, will setup TDP monitor later ===");
-            }
-        }
-
-        private void SetupTdpMonitor()
-        {
-            if (_tdpMonitor == null || _mainPage == null) return;
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Starting ===");
-            System.Diagnostics.Debug.WriteLine($"TDP Correction Enabled: {SettingsService.GetTdpCorrectionEnabled()}");
-            System.Diagnostics.Debug.WriteLine($"Initial TDP Picker Value: {_mainPage.TdpPicker.SelectedTdp}W");
-
-            bool tdpMonitorStarted = false;
-
-            _mainPage.TdpPicker.TdpChanged += (s, value) => {
-                System.Diagnostics.Debug.WriteLine($"TDP Changed Event: {value}W");
-                _tdpMonitor.UpdateTargetTdp(value);
-
-                if (!tdpMonitorStarted && SettingsService.GetTdpCorrectionEnabled() && value > 0)
-                {
-                    _tdpMonitor.Start();
-                    tdpMonitorStarted = true;
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with initial target: {value}W");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor NOT started - Started: {tdpMonitorStarted}, Enabled: {SettingsService.GetTdpCorrectionEnabled()}, Value: {value}");
-                }
-            };
-
-            if (_mainPage.TdpPicker.SelectedTdp > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"TDP Picker already has value: {_mainPage.TdpPicker.SelectedTdp}W");
-                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
-
-                if (SettingsService.GetTdpCorrectionEnabled())
-                {
-                    _tdpMonitor.Start();
-                    tdpMonitorStarted = true;
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with existing target: {_mainPage.TdpPicker.SelectedTdp}W");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("TDP Monitor NOT started - correction disabled in settings");
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("TDP Picker has no initial value");
-            }
-
-            _tdpMonitor.TdpDriftDetected += (s, args) =>
-            {
-                System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
-            };
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
-        }
     }
-
-
 }
