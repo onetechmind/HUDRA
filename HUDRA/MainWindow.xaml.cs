@@ -323,6 +323,20 @@ namespace HUDRA
                             if (brightnessBounds.Contains(position.Position)) return;
                         }
 
+                        if (_settingsPage != null)
+                        {
+                            // Exclude StartupTdpPicker from drag handling
+                            var startupTdpTransform = _settingsPage.StartupTdpPicker.TransformToVisual(MainBorder);
+                            var startupTdpBounds = startupTdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.StartupTdpPicker.ActualWidth, _settingsPage.StartupTdpPicker.ActualHeight));
+                            if (startupTdpBounds.Contains(position.Position)) return;
+
+                            // Exclude TdpCorrectionToggle from drag handling
+                            var toggleTransform = _settingsPage.TdpCorrectionToggle.TransformToVisual(MainBorder);
+                            var toggleBounds = toggleTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.TdpCorrectionToggle.ActualWidth, _settingsPage.TdpCorrectionToggle.ActualHeight));
+                            if (toggleBounds.Contains(position.Position)) return;
+                        }
+
+
                         // Check buttons
                         var closeTransform = CloseButton.TransformToVisual(MainBorder);
                         var closeBounds = closeTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, CloseButton.ActualWidth, CloseButton.ActualHeight));

@@ -29,4 +29,5 @@ namespace HUDRA.Configuration
         // Window Positioning
         public const int WINDOW_PADDING = 20;
 
-    }}
+    }
+}

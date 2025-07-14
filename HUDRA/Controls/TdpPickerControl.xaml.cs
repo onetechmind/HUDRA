@@ -24,8 +24,30 @@ namespace HUDRA.Controls
         private int _selectedTdp = HudraSettings.DEFAULT_STARTUP_TDP;
         private bool _isScrolling = false;
         private bool _isManualScrolling = false; // Add this for mouse drag detection
-
         private string _statusText = "Current TDP: Not Set";
+
+        private bool _showLabel = true;
+        public bool ShowLabel
+        {
+            get => _showLabel;
+            set
+            {
+                if (_showLabel != value)
+                {
+                    _showLabel = value;
+                    OnPropertyChanged();
+                    // FIXED: Force UI update without Bindings.Update()
+                    OnPropertyChanged(nameof(LabelVisibility));
+                }
+            }
+        }
+        public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
+
+        // 🆕 Add this conversion function
+        public Visibility GetLabelVisibility(bool showLabel)
+        {
+            return showLabel ? Visibility.Visible : Visibility.Collapsed;
+        }
         public string StatusText
         {
             get => _statusText;
