@@ -219,59 +219,50 @@ namespace HUDRA.Controls
             try
             {
                 var tdpService = new TDPService();
-
-                // Show initialization status in your UI
                 StatusText = $"TDP Service: {tdpService.InitializationStatus}";
 
                 var result = tdpService.GetCurrentTdp();
 
-                if (result.Success)
+                int targetTdp;
+                if (result.Success && result.TdpWatts >= HudraSettings.MIN_TDP && result.TdpWatts <= HudraSettings.MAX_TDP)
                 {
-                    // Use the actual current TDP value
-                    SelectedTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, result.TdpWatts));
-                    StatusText = $"Current TDP: {_selectedTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
-
-                    // Ensure the initial value is propagated
-                    TdpChanged?.Invoke(this, _selectedTdp);
+                    targetTdp = result.TdpWatts;
+                    StatusText = $"Current TDP: {targetTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
                 }
                 else
                 {
-                    // Default to 10W if we can't read current TDP
-                    SelectedTdp = 10; // Changed from MIN_TDP (5) to 10
-                    StatusText = $"TDP defaulted to 10W - {result.Message}";
-
-                    // Ensure the initial value is propagated
-                    TdpChanged?.Invoke(this, _selectedTdp);
-
-                    // Set the default TDP
-                    _ = Task.Run(async () =>
-                    {
-                        var setResult = tdpService.SetTdp(10000); // 10W in milliwatts
-                        await Task.Delay(100); // Small delay to let it apply
-
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            if (setResult.Success)
-                            {
-                                StatusText = "TDP initialized to 10W";
-                            }
-                            else
-                            {
-                                StatusText = $"Failed to set default TDP: {setResult.Message}";
-                            }
-                        });
-                    });
+                    targetTdp = 15; // Default
+                    StatusText = $"TDP defaulted to 15W - {result.Message}";
                 }
+
+                // Always force set TDP on startup to ensure all limits match
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await Task.Delay(200); // Small delay
+
+                    using var setService = new TDPService();
+                    var setResult = setService.SetTdp(targetTdp * 1000);
+
+                    if (setResult.Success)
+                    {
+                        StatusText = $"TDP synchronized: {targetTdp}W (all limits)";
+                    }
+                    else
+                    {
+                        StatusText = $"TDP sync failed: {setResult.Message}";
+                    }
+                });
+
+                // Set the UI value and trigger events
+                SelectedTdp = targetTdp;
+                TdpChanged?.Invoke(this, _selectedTdp);
 
                 tdpService.Dispose();
             }
             catch (Exception ex)
             {
-                // Also default to 10W on any error
-                SelectedTdp = 10;
-                StatusText = $"Error reading TDP (defaulted to 10W): {ex.Message}";
-
-                // Ensure the initial value is propagated
+                SelectedTdp = 15;
+                StatusText = $"Error reading TDP (defaulted to 15W): {ex.Message}";
                 TdpChanged?.Invoke(this, _selectedTdp);
             }
         }

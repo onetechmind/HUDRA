@@ -50,17 +50,25 @@ namespace HUDRA
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             _window = new MainWindow();
-            _window.Activate();
 
+            // Create TdpMonitor IMMEDIATELY after MainWindow creation
             TdpMonitor = new TdpMonitorService(_window.DispatcherQueue);
+
+            // Set the TdpMonitor in MainWindow so it can use it
+            if (_window is MainWindow mw)
+            {
+                mw.SetTdpMonitor(TdpMonitor);
+            }
+
+            _window.Activate();
 
             // Initialize tray icon
             _trayIcon = new TrayIconService();
             _trayIcon.DoubleClicked += (s, e) =>
             {
-                if (_window is MainWindow mw)
+                if (_window is MainWindow mw2)
                 {
-                    mw.DispatcherQueue.TryEnqueue(() => mw.ToggleWindowVisibility());
+                    mw2.DispatcherQueue.TryEnqueue(() => mw2.ToggleWindowVisibility());
                 }
             };
             _trayIcon.ExitRequested += (s, e) =>
