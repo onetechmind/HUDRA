@@ -15,7 +15,7 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- Battery indicator -->
+            <!-- Battery indicator to the left of Alt+Tab button -->
             <Border x:Name="BatteryIndicator"
                     Background="#66000000"
                     CornerRadius="16"
@@ -40,7 +40,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Alt+Tab button in top-left corner -->
+            <!-- Alt+Tab button in top-right corner -->
             <Button x:Name="AltTabButton"
                 Click="AltTabButton_Click"
                 Width="50"

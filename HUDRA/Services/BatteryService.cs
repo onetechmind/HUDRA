@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 using System;
-using System.Runtime.InteropServices;
+using Windows.System.Power;
 
 namespace HUDRA.Services
 {
@@ -19,6 +19,10 @@ namespace HUDRA.Services
         public BatteryService()
         {
             SystemEvents.PowerModeChanged += OnPowerModeChanged;
+            PowerManager.RemainingChargePercentChanged += OnPowerManagerChanged;
+            PowerManager.PowerSupplyStatusChanged += OnPowerManagerChanged;
+            PowerManager.BatteryStatusChanged += OnPowerManagerChanged;
+            PowerManager.RemainingDischargeTimeChanged += OnPowerManagerChanged;
         }
 
         private void OnPowerModeChanged(object? sender, PowerModeChangedEventArgs e)
@@ -26,39 +30,35 @@ namespace HUDRA.Services
             PowerStatusChanged?.Invoke(this, EventArgs.Empty);
         }
 
+        private void OnPowerManagerChanged(object? sender)
+        {
+            PowerStatusChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         public BatteryInfo GetStatus()
         {
-            if (GetSystemPowerStatus(out SYSTEM_POWER_STATUS status))
-            {
-                return new BatteryInfo
-                {
-                    Percentage = status.BatteryLifePercent == 255 ? 0 : status.BatteryLifePercent,
-                    IsCharging = (status.BatteryFlag & 8) != 0,
-                    IsAcPowered = status.ACLineStatus == 1,
-                    RemainingTime = status.BatteryLifeTime > 0 ? TimeSpan.FromSeconds(status.BatteryLifeTime) : null
-                };
-            }
+            var percent = PowerManager.RemainingChargePercent;
+            var isCharging = PowerManager.BatteryStatus == BatteryStatus.Charging;
+            var isAc = PowerManager.PowerSupplyStatus != PowerSupplyStatus.NotPresent &&
+                       PowerManager.PowerSupplyStatus != PowerSupplyStatus.Inadequate;
+            var time = PowerManager.RemainingDischargeTime;
 
-            return new BatteryInfo { Percentage = 0, IsCharging = false, IsAcPowered = false, RemainingTime = null };
+            return new BatteryInfo
+            {
+                Percentage = percent,
+                IsCharging = isCharging,
+                IsAcPowered = isAc,
+                RemainingTime = time == TimeSpan.Zero || time == TimeSpan.FromSeconds(-1) ? null : time
+            };
         }
 
         public void Dispose()
         {
             SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+            PowerManager.RemainingChargePercentChanged -= OnPowerManagerChanged;
+            PowerManager.PowerSupplyStatusChanged -= OnPowerManagerChanged;
+            PowerManager.BatteryStatusChanged -= OnPowerManagerChanged;
+            PowerManager.RemainingDischargeTimeChanged -= OnPowerManagerChanged;
         }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct SYSTEM_POWER_STATUS
-        {
-            public byte ACLineStatus;
-            public byte BatteryFlag;
-            public byte BatteryLifePercent;
-            public byte SystemStatusFlag;
-            public int BatteryLifeTime;
-            public int BatteryFullLifeTime;
-        }
-
-        [DllImport("kernel32.dll")]
-        private static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS status);
     }
 }
