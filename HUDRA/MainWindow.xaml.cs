@@ -212,6 +212,7 @@ namespace HUDRA
                 {
                     _settingsPage = sp;
                     sp.BackButton.Click += BackButton_Click;
+                    sp.Initialize(_dpiService);
                 }
             });
         }

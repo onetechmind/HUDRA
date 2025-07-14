@@ -4,6 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="using:HUDRA.Controls"
     mc:Ignorable="d">
     <Grid>
         <Grid.RowDefinitions>
@@ -29,9 +30,16 @@
 
         <StackPanel Grid.Row="2" Spacing="15" Padding="0" MaxWidth="280">
 
+            <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,12">
+                <StackPanel Spacing="8">
+                    <TextBlock Text="Default TDP" Style="{StaticResource SettingsLabelStyle}"/>
+                    <controls:TdpPickerControl x:Name="StartupTdpPicker" x:FieldModifier="public"/>
+                </StackPanel>
+            </Border>
+
             <!-- TDP Correction setting -->
-            <Border Background="#22FFFFFF" 
-            CornerRadius="12" 
+            <Border Background="#22FFFFFF"
+            CornerRadius="12"
             Padding="20,12">
                 <Grid>
                     <Grid.ColumnDefinitions>
