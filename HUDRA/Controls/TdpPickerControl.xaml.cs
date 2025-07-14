@@ -18,13 +18,36 @@ namespace HUDRA.Controls
 
         private DpiScalingService? _dpiService;
         private TdpAutoSetManager? _autoSetManager;
+        private bool _autoSetEnabled = true;
         private Border? _startPadding;
         private Border? _endPadding;
-        private int _selectedTdp = 15;
+        private int _selectedTdp = HudraSettings.DEFAULT_STARTUP_TDP;
         private bool _isScrolling = false;
         private bool _isManualScrolling = false; // Add this for mouse drag detection
-
         private string _statusText = "Current TDP: Not Set";
+
+        private bool _showLabel = true;
+        public bool ShowLabel
+        {
+            get => _showLabel;
+            set
+            {
+                if (_showLabel != value)
+                {
+                    _showLabel = value;
+                    OnPropertyChanged();
+                    // FIXED: Force UI update without Bindings.Update()
+                    OnPropertyChanged(nameof(LabelVisibility));
+                }
+            }
+        }
+        public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
+
+        // 🆕 Add this conversion function
+        public Visibility GetLabelVisibility(bool showLabel)
+        {
+            return showLabel ? Visibility.Visible : Visibility.Collapsed;
+        }
         public string StatusText
         {
             get => _statusText;
@@ -62,10 +85,11 @@ namespace HUDRA.Controls
             // Don't initialize here - wait for explicit Initialize() call
         }
 
-        public void Initialize(DpiScalingService dpiService)
+        public void Initialize(DpiScalingService dpiService, bool autoSetEnabled = true)
         {
             _dpiService = dpiService ?? throw new ArgumentNullException(nameof(dpiService));
-            _autoSetManager = new TdpAutoSetManager(SetTdpAsync, status => StatusText = status);
+            _autoSetEnabled = autoSetEnabled;
+            _autoSetManager = autoSetEnabled ? new TdpAutoSetManager(SetTdpAsync, status => StatusText = status) : null;
 
             InitializePicker();
             LoadCurrentTdp();
@@ -170,14 +194,14 @@ namespace HUDRA.Controls
 
         private void TdpScrollViewer_ViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            if (_isScrolling || _autoSetManager == null) return;
+            if (_isScrolling) return;
 
             var centeredTdp = GetCenteredTdp();
             if (centeredTdp != _selectedTdp)
             {
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
-                _autoSetManager.ScheduleUpdate(_selectedTdp);
+                _autoSetManager?.ScheduleUpdate(_selectedTdp);
                 TdpChanged?.Invoke(this, _selectedTdp);
             }
 
@@ -216,54 +240,75 @@ namespace HUDRA.Controls
 
         private async void LoadCurrentTdp()
         {
+            if (!_autoSetEnabled)
+            {
+                int startupTdp = SettingsService.GetStartupTdp();
+                SelectedTdp = startupTdp;
+                StatusText = $"Default TDP: {startupTdp}W";
+                TdpChanged?.Invoke(this, _selectedTdp);
+                return;
+            }
+
             try
             {
                 var tdpService = new TDPService();
-
-                // Show initialization status in your UI
                 StatusText = $"TDP Service: {tdpService.InitializationStatus}";
 
-                var result = tdpService.GetCurrentTdp();
+                int targetTdp;
 
-                if (result.Success)
+                if (SettingsService.GetUseStartupTdp())
                 {
-                    // Use the actual current TDP value
-                    SelectedTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, result.TdpWatts));
-                    StatusText = $"Current TDP: {_selectedTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
+                    targetTdp = SettingsService.GetStartupTdp();
+                    StatusText = $"Using startup TDP: {targetTdp}W";
                 }
                 else
                 {
-                    // Default to 10W if we can't read current TDP
-                    SelectedTdp = 10; // Changed from MIN_TDP (5) to 10
-                    StatusText = $"TDP defaulted to 10W - {result.Message}";
-
-                    // Set the default TDP
-                    _ = Task.Run(async () =>
+                    var result = tdpService.GetCurrentTdp();
+                    if (result.Success && result.TdpWatts >= HudraSettings.MIN_TDP && result.TdpWatts <= HudraSettings.MAX_TDP)
                     {
-                        var setResult = tdpService.SetTdp(10000); // 10W in milliwatts
-                        await Task.Delay(100); // Small delay to let it apply
-
-                        DispatcherQueue.TryEnqueue(() =>
-                        {
-                            if (setResult.Success)
-                            {
-                                StatusText = "TDP initialized to 10W";
-                            }
-                            else
-                            {
-                                StatusText = $"Failed to set default TDP: {setResult.Message}";
-                            }
-                        });
-                    });
+                        targetTdp = result.TdpWatts;
+                        StatusText = $"Current TDP: {targetTdp}W ({(tdpService.IsDllMode ? "DLL-FAST" : "EXE-SLOW")})";
+                    }
+                    else
+                    {
+                        targetTdp = SettingsService.GetLastUsedTdp();
+                        StatusText = $"Using last TDP: {targetTdp}W - {result.Message}";
+                    }
                 }
+
+                // Always force set TDP on startup to ensure all limits match
+                DispatcherQueue.TryEnqueue(async () =>
+                {
+                    await Task.Delay(200); // Small delay
+
+                    using var setService = new TDPService();
+                    var setResult = setService.SetTdp(targetTdp * 1000);
+
+                    if (setResult.Success)
+                    {
+                        StatusText = $"TDP synchronized: {targetTdp}W (all limits)";
+                        SettingsService.SetLastUsedTdp(targetTdp);
+                    }
+                    else
+                    {
+                        StatusText = $"TDP sync failed: {setResult.Message}";
+                    }
+                });
+
+                // Set the UI value and trigger events
+                SelectedTdp = targetTdp;
+                TdpChanged?.Invoke(this, _selectedTdp);
 
                 tdpService.Dispose();
             }
             catch (Exception ex)
             {
-                // Also default to 10W on any error
-                SelectedTdp = 10;
-                StatusText = $"Error reading TDP (defaulted to 10W): {ex.Message}";
+                int fallbackTdp = SettingsService.GetUseStartupTdp()
+                    ? SettingsService.GetStartupTdp()
+                    : SettingsService.GetLastUsedTdp();
+                SelectedTdp = fallbackTdp;
+                StatusText = $"Error reading TDP (defaulted to {fallbackTdp}W): {ex.Message}";
+                TdpChanged?.Invoke(this, _selectedTdp);
             }
         }
         private async Task<bool> SetTdpAsync(int tdpValue)
@@ -278,6 +323,11 @@ namespace HUDRA.Controls
                     ? $"Current TDP: {tdpValue}W"
                     : $"Error: {result.Message}";
 
+                if (result.Success)
+                {
+                    SettingsService.SetLastUsedTdp(tdpValue);
+                }
+
                 return result.Success;
             }
             catch (Exception ex)
@@ -289,21 +339,22 @@ namespace HUDRA.Controls
 
         public void ChangeTdpBy(int delta)
         {
-            if (_autoSetManager == null) return;
-
             var newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
             if (newTdp != _selectedTdp)
             {
                 SelectedTdp = newTdp;
 
-                // Schedule the update with a slight delay
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
-                timer.Tick += (s, e) =>
+                if (_autoSetManager != null)
                 {
-                    timer.Stop();
-                    _autoSetManager.ScheduleUpdate(_selectedTdp);
-                };
-                timer.Start();
+                    // Schedule the update with a slight delay
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+                    timer.Tick += (s, e) =>
+                    {
+                        timer.Stop();
+                        _autoSetManager.ScheduleUpdate(_selectedTdp);
+                    };
+                    timer.Start();
+                }
             }
         }
 
@@ -382,14 +433,12 @@ namespace HUDRA.Controls
 
         private void HandleScrollEnd()
         {
-            if (_autoSetManager == null) return;
-
             var centeredTdp = GetCenteredTdp();
             if (centeredTdp != _selectedTdp)
             {
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
-                _autoSetManager.ScheduleUpdate(_selectedTdp);
+                _autoSetManager?.ScheduleUpdate(_selectedTdp);
                 TdpChanged?.Invoke(this, _selectedTdp);
             }
             SnapToCurrentTdp();

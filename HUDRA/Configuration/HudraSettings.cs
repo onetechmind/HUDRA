@@ -7,6 +7,7 @@ namespace HUDRA.Configuration
         // TDP Configuration
         public const int MIN_TDP = 5;
         public const int MAX_TDP = 30;
+        public const int DEFAULT_STARTUP_TDP = 10;
         public static int TotalTdpCount => MAX_TDP - MIN_TDP + 1;
 
         // UI Dimensions (base logical pixels)
@@ -29,4 +30,5 @@ namespace HUDRA.Configuration
         // Window Positioning
         public const int WINDOW_PADDING = 20;
 
-    }}
+    }
+}

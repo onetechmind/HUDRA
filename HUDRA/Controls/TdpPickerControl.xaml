@@ -12,7 +12,8 @@
                    FontSize="14" 
                    Foreground="#CCFFFFFF"
                    FontWeight="SemiBold"
-                   HorizontalAlignment="Center"/>
+                   HorizontalAlignment="Center"
+                   Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
 
         <Border x:Name="TdpPickerBorder"
                 Background="#22FFFFFF" 
