@@ -6,9 +6,10 @@ using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using System;
-using System.IO;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using WinRT;
@@ -30,8 +31,7 @@ namespace HUDRA
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
         private TurboService? _turboService;
-
-        private DesktopAcrylicController? _acrylicController;
+        private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
 
         //Drag Handling
@@ -80,7 +80,7 @@ namespace HUDRA
 
         private void InitializeWindow()
         {
-            TrySetAcrylicBackdrop();
+            TrySetMicaBackdrop();
             _windowManager.Initialize();
         }
 
@@ -241,9 +241,10 @@ namespace HUDRA
             keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
         }
 
-        private bool TrySetAcrylicBackdrop()
+        private bool TrySetMicaBackdrop()
         {
-            if (DesktopAcrylicController.IsSupported())
+            // Try Mica first (better contrast)
+            if (MicaController.IsSupported())
             {
                 _backdropConfig = new SystemBackdropConfiguration
                 {
@@ -251,16 +252,14 @@ namespace HUDRA
                     Theme = SystemBackdropTheme.Dark
                 };
 
-                _acrylicController = new DesktopAcrylicController();
-                _acrylicController.TintColor = Windows.UI.Color.FromArgb(20, 0, 0, 0);
-                _acrylicController.TintOpacity = 0.1f;
-                _acrylicController.LuminosityOpacity = 0.1f;
-
-                _acrylicController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
-                _acrylicController.SetSystemBackdropConfiguration(_backdropConfig);
-
+                _micaController = new MicaController();
+                _micaController.AddSystemBackdropTarget(this.As<Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop>());
+                _micaController.SetSystemBackdropConfiguration(_backdropConfig);
                 return true;
             }
+
+            // Fallback to solid background if Mica not available
+            MainBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 30, 30, 45));
             return false;
         }
 
@@ -269,7 +268,7 @@ namespace HUDRA
             _mainPage?.TdpPicker?.Dispose();
             _windowManager?.Dispose();
             _turboService?.Dispose();
-            _acrylicController?.Dispose();
+            _micaController?.Dispose();
             _tdpMonitor?.Dispose();
         }
 

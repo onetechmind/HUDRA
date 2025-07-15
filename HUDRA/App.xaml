@@ -12,6 +12,23 @@
                 <!-- Other merged dictionaries here -->
             </ResourceDictionary.MergedDictionaries>
 
+            <!-- Horizontal Rule Style -->
+            <Style x:Key="HudraHorizontalRule" TargetType="Rectangle">
+                <Setter Property="Height" Value="1"/>
+                <Setter Property="HorizontalAlignment" Value="Stretch"/>
+                <Setter Property="Margin" Value="0"/>
+                <Setter Property="Opacity" Value="0.5"/>
+                <Setter Property="Fill">
+                    <Setter.Value>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="Transparent" Offset="0"/>
+                            <GradientStop Color="DarkViolet" Offset="0.5"/>
+                            <GradientStop Color="Transparent" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
             <!-- Settings Description Style -->
             <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="14"/>

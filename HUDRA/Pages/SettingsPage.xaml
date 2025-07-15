@@ -57,7 +57,9 @@
                 <controls:TdpPickerControl x:Name="StartupTdpPicker" x:FieldModifier="public" ShowLabel="False"/>
             </StackPanel>
 
-            <!-- TDP Correction setting -->
+            <Rectangle Style="{StaticResource HudraHorizontalRule}"/>
+
+            <!-- Sticky TDP setting -->
             <Border Background="#22FFFFFF"
             CornerRadius="12"
             Padding="20,5">
