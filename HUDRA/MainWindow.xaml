@@ -37,28 +37,27 @@
             </Button>
 
             <!-- Battery status -->
-            <StackPanel x:Name="BatteryPanel"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Top"
-                        Margin="0,20,0,0"
-                        Background="Transparent"
-                        BorderThickness=".5"
-                        BorderBrush="#20FFFFFF"
-                        CornerRadius="12"
-                        Padding="6,4"
-                        Grid.Row="0"
-                        ToolTipService.ToolTip="{x:Bind BatteryToolTip}">
-                <StackPanel.Resources>
+            <Grid x:Name="BatteryPanel"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Top"
+                  Margin="0,20,0,0"
+                  Background="Transparent"
+                  BorderThickness=".5"
+                  BorderBrush="#20FFFFFF"
+                  CornerRadius="12"
+                  Padding="6,4"
+                  Grid.Row="0"
+                  ToolTipService.ToolTip="{x:Bind BatteryToolTip, Mode=OneWay}">
+                <Grid.Resources>
                     <Storyboard x:Name="BatteryChargingStoryboard" AutoReverse="True" RepeatBehavior="Forever">
                         <DoubleAnimation Storyboard.TargetName="BatteryIcon"
                                          Storyboard.TargetProperty="Opacity"
                                          From="0.6" To="1" Duration="0:0:1" />
                     </Storyboard>
-                </StackPanel.Resources>
+                </Grid.Resources>
                 <FontIcon x:Name="BatteryIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE850;" FontSize="20" Foreground="White"/>
-                <TextBlock x:Name="BatteryText" Text="{x:Bind BatteryPercentageText, Mode=OneWay}" Margin="3" FontSize="12" Foreground="White" FontFamily="Cascadia Code"/>
-            </StackPanel>
+                <TextBlock x:Name="BatteryText" Text="{x:Bind BatteryPercentageText, Mode=OneWay}" FontSize="12" Foreground="White" FontFamily="Cascadia Code" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Grid>
 
             <Button x:Name="CloseButton"
                 Click="CloseButton_Click"
