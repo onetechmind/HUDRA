@@ -32,7 +32,7 @@
             <Button.Content>
                 <FontIcon FontFamily="Segoe MDL2 Assets"
                           Glyph="&#xE713;"
-                          FontSize="20"/>
+                          FontSize="25"/>
             </Button.Content>
         </Button>
     </Grid>
