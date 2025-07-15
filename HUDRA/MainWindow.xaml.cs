@@ -27,6 +27,7 @@ namespace HUDRA
         private readonly BrightnessService _brightnessService;
         private readonly ResolutionService _resolutionService;
         private readonly NavigationService _navigationService;
+        private readonly BatteryService _batteryService;
         private TdpMonitorService? _tdpMonitor;
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
@@ -54,6 +55,27 @@ namespace HUDRA
             set { _currentRefreshRateDisplayText = value; OnPropertyChanged(); }
         }
 
+        private string _batteryPercentageText = "0%";
+        public string BatteryPercentageText
+        {
+            get => _batteryPercentageText;
+            set { _batteryPercentageText = value; OnPropertyChanged(); }
+        }
+
+        private string _batteryToolTip = string.Empty;
+        public string BatteryToolTip
+        {
+            get => _batteryToolTip;
+            set { _batteryToolTip = value; OnPropertyChanged(); }
+        }
+
+        private SolidColorBrush _batteryTextBrush = new SolidColorBrush(Microsoft.UI.Colors.White);
+        public SolidColorBrush BatteryTextBrush
+        {
+            get => _batteryTextBrush;
+            set { _batteryTextBrush = value; OnPropertyChanged(); }
+        }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -67,6 +89,8 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
+            _batteryService = new BatteryService(DispatcherQueue);
+            _batteryService.BatteryInfoUpdated += OnBatteryInfoUpdated;
 
             InitializeWindow();
 
@@ -270,6 +294,7 @@ namespace HUDRA
             _turboService?.Dispose();
             _micaController?.Dispose();
             _tdpMonitor?.Dispose();
+            _batteryService?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
@@ -344,6 +369,10 @@ namespace HUDRA
                         var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
                         var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
                         if (altTabBounds.Contains(position.Position)) return;
+
+                        var batteryTransform = BatteryPanel.TransformToVisual(MainBorder);
+                        var batteryBounds = batteryTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, BatteryPanel.ActualWidth, BatteryPanel.ActualHeight));
+                        if (batteryBounds.Contains(position.Position)) return;
                     }
                     catch
                     {
@@ -517,6 +546,32 @@ namespace HUDRA
             };
 
             System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
+        }
+
+        private void OnBatteryInfoUpdated(object? sender, BatteryInfo info)
+        {
+            BatteryPercentageText = $"{info.Percent}%";
+            BatteryIcon.Glyph = GetBatteryGlyph(info.Percent, info.IsCharging);
+            BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.DarkGreen : Microsoft.UI.Colors.White);
+            BatteryTextBrush = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black);
+
+            string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
+            BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";             
+        }
+
+        private static string GetBatteryGlyph(int percent, bool charging)
+        {
+            int index = Math.Clamp(percent / 10, 0, 10);
+            if (charging)
+            {
+                if (index >= 9) return "\uE83E"; // BatteryCharging9
+                return char.ConvertFromUtf32(0xE85A + index);
+            }
+            else
+            {
+                if (index >= 10) return "\uE83F"; // Battery10
+                return char.ConvertFromUtf32(0xE850 + index);
+            }
         }
     }
 
