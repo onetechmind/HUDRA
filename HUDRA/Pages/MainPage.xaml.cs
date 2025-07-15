@@ -8,16 +8,11 @@ namespace HUDRA.Pages
 {
     public sealed partial class MainPage : UserControl
     {
-        public event EventHandler? SettingsRequested;
+        
         public MainPage()
         {
             this.InitializeComponent();
-            SettingsButton.Click += OnSettingsButtonClick;
-        }
-
-        private void OnSettingsButtonClick(object sender, RoutedEventArgs e)
-        {
-            SettingsRequested?.Invoke(this, EventArgs.Empty);
+            
         }
 
         public void Initialize(DpiScalingService dpiService,

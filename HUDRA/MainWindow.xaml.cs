@@ -34,6 +34,7 @@ namespace HUDRA
         private TurboService? _turboService;
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
+        public event EventHandler? SettingsRequested;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -99,7 +100,14 @@ namespace HUDRA
             SetupDragHandling();
             SetupTurboService();
 
+            SettingsButton.Click += OnSettingsButtonClick;
+
             this.Closed += (s, e) => Cleanup();
+        }
+
+        private void OnSettingsButtonClick(object sender, RoutedEventArgs e)
+        {
+            SettingsRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void InitializeWindow()
@@ -123,7 +131,7 @@ namespace HUDRA
             _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
 
             System.Diagnostics.Debug.WriteLine("=== Setting up SettingsRequested event ===");
-            _mainPage.SettingsRequested += (s, e) => SettingsButton_Click(s, new RoutedEventArgs());
+            SettingsRequested += (s, e) => SettingsButton_Click(s, new RoutedEventArgs());
 
             System.Diagnostics.Debug.WriteLine("=== Setting up ResolutionPicker events ===");
             _mainPage.ResolutionPicker.PropertyChanged += (s, e) =>

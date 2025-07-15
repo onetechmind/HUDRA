@@ -18,7 +18,7 @@
                 FontSize="20"
                 Content="&#xE76B;"
                 Width="50" Height="50"
-                Background="Transparent" Foreground="White"
+                Foreground="White"
                 CornerRadius="16" BorderThickness="0"
                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Grid.Row="2"
                 Margin="20" x:FieldModifier="public"/>
@@ -32,7 +32,7 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="4*" />
                         <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
 

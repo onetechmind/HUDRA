@@ -47,7 +47,6 @@ namespace HUDRA.Services
             {
                 var previousPage = _navigationStack.Pop();
                 _frame.Content = previousPage;
-                System.Diagnostics.Debug.WriteLine("Navigated back manually");
             }
         }
     }

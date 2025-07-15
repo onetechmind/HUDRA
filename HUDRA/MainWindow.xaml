@@ -15,12 +15,25 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
+            <Button x:Name="SettingsButton"
+                Width="50"
+                Height="50"
+                Foreground="White"
+                CornerRadius="16"
+                BorderThickness="0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Grid.Row="0"
+                Margin="0,10,0,0">
+                                <Image Source="/Assets/performance-settings-icon.png"
+                   Width="25"
+                   Height="25"/>
+                            </Button>
             <!-- Alt+Tab button in top-left corner -->
             <Button x:Name="AltTabButton"
                 Click="AltTabButton_Click"
                 Width="50"
                 Height="50"
-                Background="Transparent"
                 Foreground="White"
                 CornerRadius="16"
                 BorderThickness="0"
@@ -53,7 +66,6 @@
                 Click="CloseButton_Click"
                 Width="50"
                 Height="50"
-                Background="Transparent"
                 Foreground="White"
                 CornerRadius="16"
                 BorderThickness="0"

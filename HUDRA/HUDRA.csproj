@@ -21,6 +21,7 @@
   <ItemGroup>
     <None Remove="Assets\HUDRA_Logo.ico" />
     <None Remove="Assets\HUDRA_Logo_64x64.ico" />
+    <None Remove="Assets\performance-settings-icon.png" />
     <None Remove="Controls\AudioControlsControl.xaml" />
     <None Remove="Controls\BrightnessControlControl.xaml" />
     <None Remove="Controls\TdpPickerControl.xaml" />
@@ -97,6 +98,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Update="Assets\HUDRA_Logo_64x64.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Update="Assets\performance-settings-icon.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Update="Tools\ryzenadj.exe">
