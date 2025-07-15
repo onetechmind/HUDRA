@@ -547,17 +547,7 @@ namespace HUDRA
         {
             BatteryPercentageText = $"{info.Percent}%";
             BatteryIcon.Glyph = GetBatteryGlyph(info.Percent, info.IsCharging);
-            BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.LightGreen : Microsoft.UI.Colors.White);
-
-            if (info.IsCharging)
-            {
-                BatteryChargingStoryboard.Begin();
-            }
-            else
-            {
-                BatteryChargingStoryboard.Stop();
-                BatteryIcon.Opacity = 1;
-            }
+            BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.DarkGreen : Microsoft.UI.Colors.White);
 
             string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
             BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
