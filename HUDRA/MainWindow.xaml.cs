@@ -70,13 +70,6 @@ namespace HUDRA
             set { _batteryToolTip = value; OnPropertyChanged(); }
         }
 
-        private string _batteryToolTip = string.Empty;
-        public string BatteryToolTip
-        {
-            get => _batteryToolTip;
-            set { _batteryToolTip = value; OnPropertyChanged(); }
-        }
-
         public MainWindow()
         {
             this.InitializeComponent();
@@ -554,7 +547,7 @@ namespace HUDRA
         {
             BatteryPercentageText = $"{info.Percent}%";
             BatteryIcon.Glyph = GetBatteryGlyph(info.Percent, info.IsCharging);
-            BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Windows.UI.Colors.DarkViolet : Windows.UI.Colors.White);
+            BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.LightGreen : Microsoft.UI.Colors.White);
 
             if (info.IsCharging)
             {

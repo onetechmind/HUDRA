@@ -1,5 +1,6 @@
 using HUDRA.Configuration;
 using Microsoft.UI.Dispatching;
+using Microsoft.UI.Xaml;
 using System;
 using Windows.System.Power;
 
