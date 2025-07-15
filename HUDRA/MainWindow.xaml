@@ -46,7 +46,7 @@
                   Grid.Row="0"
                   ToolTipService.ToolTip="{x:Bind BatteryToolTip, Mode=OneWay}">
                 <FontIcon x:Name="BatteryIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE850;" FontSize="40" Foreground="White"/>
-                <TextBlock x:Name="BatteryText" Text="{x:Bind BatteryPercentageText, Mode=OneWay}" FontSize="12" Foreground="White" Margin="0,4,0,0" FontFamily="Cascadia Code" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock x:Name="BatteryText" Text="{x:Bind BatteryPercentageText, Mode=OneWay}" FontSize="12" Foreground="{x:Bind BatteryTextBrush, Mode=OneWay}" Margin="0,4,0,0" FontFamily="Cascadia Code" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             </Grid>
 
             <Button x:Name="CloseButton"

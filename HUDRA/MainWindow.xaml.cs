@@ -70,6 +70,13 @@ namespace HUDRA
             set { _batteryToolTip = value; OnPropertyChanged(); }
         }
 
+        private SolidColorBrush _batteryTextBrush = new SolidColorBrush(Microsoft.UI.Colors.White);
+        public SolidColorBrush BatteryTextBrush
+        {
+            get => _batteryTextBrush;
+            set { _batteryTextBrush = value; OnPropertyChanged(); }
+        }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -548,9 +555,10 @@ namespace HUDRA
             BatteryPercentageText = $"{info.Percent}%";
             BatteryIcon.Glyph = GetBatteryGlyph(info.Percent, info.IsCharging);
             BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.DarkGreen : Microsoft.UI.Colors.White);
+            BatteryTextBrush = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black);
 
             string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
-            BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
+            BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";             
         }
 
         private static string GetBatteryGlyph(int percent, bool charging)
