@@ -237,6 +237,9 @@ namespace HUDRA
         {
             _navigationService.Navigate(typeof(SettingsPage));
 
+            // Hide the settings button while the Settings page is visible
+            SettingsButton.Visibility = Visibility.Collapsed;
+
             // Delay the setup slightly to ensure navigation completes
             DispatcherQueue.TryEnqueue(() =>
             {
@@ -252,6 +255,9 @@ namespace HUDRA
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             _navigationService.GoBack();
+
+            // Show the settings button again once we return to the Main page
+            SettingsButton.Visibility = Visibility.Visible;
         }
         private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
         {
