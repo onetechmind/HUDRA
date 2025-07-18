@@ -2,17 +2,49 @@ using HUDRA.Controls;
 using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using System;
+using Microsoft.UI.Xaml.Navigation;
 
 namespace HUDRA.Pages
 {
-    public sealed partial class MainPage : UserControl
+    public sealed partial class MainPage : Page
     {
-        
+        private bool _hasScrollPositioned = false;
+
         public MainPage()
         {
             this.InitializeComponent();
-            
+            this.Loaded += MainPage_Loaded;
+        }
+
+        private void MainPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Only trigger scroll positioning once per page instance
+            if (!_hasScrollPositioned)
+            {
+                _hasScrollPositioned = true;
+
+                // Wait for navigation to complete before positioning scroll
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    // Check if navigation service indicates we're still navigating
+                    if (Application.Current is App app && app.MainWindow?.NavigationService.IsNavigating == false)
+                    {
+                        TdpPicker.EnsureScrollPositionAfterLayout();
+                    }
+                });
+            }
+        }
+
+        protected override void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            System.Diagnostics.Debug.WriteLine("MainPage: OnNavigatedTo");
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+            System.Diagnostics.Debug.WriteLine("MainPage: OnNavigatedFrom");
         }
 
         public void Initialize(DpiScalingService dpiService,
@@ -27,10 +59,8 @@ namespace HUDRA.Pages
 
             ResolutionPicker.PropertyChanged += (s, e) =>
             {
-                // Forwarded events can be handled by host if needed
+                // Property change events can be handled by parent window if needed
             };
         }
     }
 }
-
-

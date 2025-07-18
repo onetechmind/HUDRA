@@ -11,7 +11,7 @@ namespace HUDRA.Configuration
         public static int TotalTdpCount => MAX_TDP - MIN_TDP + 1;
 
         // UI Dimensions (base logical pixels)
-        public const double BASE_WINDOW_WIDTH = 320.0;
+        public const double BASE_WINDOW_WIDTH = 375.0;
         public const double BASE_WINDOW_HEIGHT = 450.0;
         public const double BASE_NUMBER_WIDTH = 35.0;
         public const double BASE_SPACING = 0.0;
