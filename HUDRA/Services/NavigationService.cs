@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using System;
-using System.Collections.Generic;
 
 namespace HUDRA.Services
 {
@@ -18,9 +17,7 @@ namespace HUDRA.Services
     {
         private readonly Frame _frame;
         private readonly Stack<Type> _history = new();
-
         public event NavigatedEventHandler? Navigated;
-
         public NavigationService(Frame frame)
         {
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
@@ -42,6 +39,9 @@ namespace HUDRA.Services
             return Navigate(typeof(T), parameter);
         }
 
+
+            _frame.Navigate(pageType);
+
         public bool Navigate(Type sourcePageType, object? parameter = null)
         {
             if (sourcePageType == null)
@@ -59,6 +59,11 @@ namespace HUDRA.Services
 
         private void OnFrameNavigated(object sender, NavigationEventArgs e)
         {
+
+            if (_frame.CanGoBack)
+            {
+                _frame.GoBack();
+
             if (e.NavigationMode == NavigationMode.New)
             {
                 _history.Push(e.SourcePageType);
