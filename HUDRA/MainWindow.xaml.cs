@@ -31,7 +31,26 @@ namespace HUDRA
         private bool _isDragging;
         private Windows.Graphics.PointInt32 _lastPointerPosition;
         private Windows.Foundation.Point _lastTouchPosition;
-        private bool _touchDragStarted;
+
+        private bool _touchDragStarted = false;
+
+        private bool _tdpPickerSubscribed = false;
+        private bool _tdpDriftHandlerSubscribed = false;
+        private bool _tdpMonitorStarted = false;
+
+        private string _currentResolutionDisplayText = "Resolution: Not Set";
+        public string CurrentResolutionDisplayText
+        {
+            get => _currentResolutionDisplayText;
+            set { _currentResolutionDisplayText = value; OnPropertyChanged(); }
+        }
+
+        private string _currentRefreshRateDisplayText = "Refresh Rate: Not Set";
+        public string CurrentRefreshRateDisplayText
+        {
+            get => _currentRefreshRateDisplayText;
+            set { _currentRefreshRateDisplayText = value; OnPropertyChanged(); }
+        }
 
         private string _batteryPercentageText = "0%";
         public string BatteryPercentageText
@@ -317,7 +336,85 @@ namespace HUDRA
         public void SetTdpMonitor(TdpMonitorService tdpMonitor)
         {
             _tdpMonitor = tdpMonitor;
+            
+            // If MainPage is already loaded, set up the monitor immediately
+            if (_mainPage != null)
+            {
+                System.Diagnostics.Debug.WriteLine("=== MainPage already loaded, setting up TDP monitor ===");
+                SetupTdpMonitor();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("=== MainPage not loaded yet, will setup TDP monitor later ===");
+            }
+        }
+
+        private void SetupTdpMonitor()
+        {
+            if (_tdpMonitor == null || _mainPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Starting ===");
+            System.Diagnostics.Debug.WriteLine($"TDP Correction Enabled: {SettingsService.GetTdpCorrectionEnabled()}");
+            System.Diagnostics.Debug.WriteLine($"Initial TDP Picker Value: {_mainPage.TdpPicker.SelectedTdp}W");
+            _tdpMonitorStarted = false;
+
+            if (_tdpPickerSubscribed)
+                _mainPage.TdpPicker.TdpChanged -= OnTdpPickerTdpChanged;
+
+            _mainPage.TdpPicker.TdpChanged += OnTdpPickerTdpChanged;
+            _tdpPickerSubscribed = true;
+
+            if (_mainPage.TdpPicker.SelectedTdp > 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"TDP Picker already has value: {_mainPage.TdpPicker.SelectedTdp}W");
+                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+
+                if (SettingsService.GetTdpCorrectionEnabled())
+                {
+                    _tdpMonitor.Start();
+                    _tdpMonitorStarted = true;
+                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with existing target: {_mainPage.TdpPicker.SelectedTdp}W");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("TDP Monitor NOT started - correction disabled in settings");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("TDP Picker has no initial value");
+            }
+
+            if (_tdpDriftHandlerSubscribed)
+                _tdpMonitor.TdpDriftDetected -= OnTdpDriftDetected;
+
+            _tdpMonitor.TdpDriftDetected += OnTdpDriftDetected;
+            _tdpDriftHandlerSubscribed = true;
+
+            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
             Shell.SetTdpMonitor(tdpMonitor);
+        }
+
+        private void OnTdpPickerTdpChanged(object? sender, int value)
+        {
+            System.Diagnostics.Debug.WriteLine($"TDP Changed Event: {value}W");
+            _tdpMonitor?.UpdateTargetTdp(value);
+
+            if (!_tdpMonitorStarted && SettingsService.GetTdpCorrectionEnabled() && value > 0)
+            {
+                _tdpMonitor?.Start();
+                _tdpMonitorStarted = true;
+                System.Diagnostics.Debug.WriteLine($"TDP Monitor started with initial target: {value}W");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"TDP Monitor NOT started - Started: {_tdpMonitorStarted}, Enabled: {SettingsService.GetTdpCorrectionEnabled()}, Value: {value}");
+            }
+        }
+
+        private void OnTdpDriftDetected(object? sender, TdpDriftEventArgs args)
+        {
+            System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
         }
 
         private void OnBatteryInfoUpdated(object? sender, BatteryInfo info)
