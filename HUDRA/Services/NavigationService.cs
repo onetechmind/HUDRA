@@ -1,53 +1,69 @@
-// Update your NavigationService.cs to use manual content setting:
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Navigation;
 using System;
 using System.Collections.Generic;
 
 namespace HUDRA.Services
 {
-    public class NavigationService
+    public interface INavigationService
+    {
+        bool CanGoBack { get; }
+        void GoBack();
+        bool Navigate<T>(object? parameter = null);
+        bool Navigate(Type sourcePageType, object? parameter = null);
+        event NavigatedEventHandler? Navigated;
+    }
+
+    public class NavigationService : INavigationService
     {
         private readonly Frame _frame;
-        private readonly Stack<UserControl> _navigationStack = new();
+        private readonly Stack<Type> _history = new();
+
+        public event NavigatedEventHandler? Navigated;
 
         public NavigationService(Frame frame)
         {
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
+            _frame.Navigated += OnFrameNavigated;
         }
 
-        public void Navigate(Type pageType)
-        {
-            if (pageType == null) throw new ArgumentNullException(nameof(pageType));
-
-            try
-            {
-                // Save current content to navigation stack
-                if (_frame.Content is UserControl currentPage)
-                {
-                    _navigationStack.Push(currentPage);
-                }
-
-                // Create new page instance manually instead of using Frame.Navigate()
-                var newPage = Activator.CreateInstance(pageType) as UserControl;
-                if (newPage != null)
-                {
-                    _frame.Content = newPage;
-                    System.Diagnostics.Debug.WriteLine($"Manually navigated to {pageType.Name}");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Manual navigation failed: {ex.Message}");
-            }
-        }
+        public bool CanGoBack => _frame.CanGoBack;
 
         public void GoBack()
         {
-            if (_navigationStack.Count > 0)
+            if (CanGoBack)
             {
-                var previousPage = _navigationStack.Pop();
-                _frame.Content = previousPage;
+                _frame.GoBack();
             }
+        }
+
+        public bool Navigate<T>(object? parameter = null)
+        {
+            return Navigate(typeof(T), parameter);
+        }
+
+        public bool Navigate(Type sourcePageType, object? parameter = null)
+        {
+            if (sourcePageType == null)
+                throw new ArgumentNullException(nameof(sourcePageType));
+            try
+            {
+                return _frame.Navigate(sourcePageType, parameter);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Navigation to {sourcePageType.Name} failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void OnFrameNavigated(object sender, NavigationEventArgs e)
+        {
+            if (e.NavigationMode == NavigationMode.New)
+            {
+                _history.Push(e.SourcePageType);
+            }
+            Navigated?.Invoke(sender, e);
         }
     }
 }
