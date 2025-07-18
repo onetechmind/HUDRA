@@ -13,15 +13,6 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Button x:Name="BackButton"
-                FontFamily="Segoe MDL2 Assets"
-                FontSize="20"
-                Content="&#xE76B;"
-                Width="50" Height="50"
-                Foreground="White"
-                CornerRadius="16" BorderThickness="0"
-                HorizontalAlignment="Left" VerticalAlignment="Bottom" Grid.Row="2"
-                Margin="20" x:FieldModifier="public"/>
 
         <StackPanel Grid.Row="2" Spacing="15" Padding="0" Margin="0,75,0,0" MaxWidth="280">
 
