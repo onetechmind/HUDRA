@@ -9,7 +9,6 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using System;
 using System.ComponentModel;
-using System.IO;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using WinRT;
@@ -29,12 +28,19 @@ namespace HUDRA
         private readonly NavigationService _navigationService;
         private readonly BatteryService _batteryService;
         private TdpMonitorService? _tdpMonitor;
-        private MainPage? _mainPage;
-        private SettingsPage? _settingsPage;
         private TurboService? _turboService;
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
-        public event EventHandler? SettingsRequested;
+
+        // Public navigation service access for TDP picker
+        public NavigationService NavigationService => _navigationService;
+
+        //Navigation events
+        private bool _mainPageInitialized = false;
+
+        // Current page references
+        private MainPage? _mainPage;
+        private SettingsPage? _settingsPage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -42,19 +48,11 @@ namespace HUDRA
         private Windows.Foundation.Point _lastTouchPosition;
         private bool _touchDragStarted = false;
 
-        private string _currentResolutionDisplayText = "Resolution: Not Set";
-        public string CurrentResolutionDisplayText
-        {
-            get => _currentResolutionDisplayText;
-            set { _currentResolutionDisplayText = value; OnPropertyChanged(); }
-        }
+        // Navigation state for visual feedback
+        private Type _currentPageType;
 
-        private string _currentRefreshRateDisplayText = "Refresh Rate: Not Set";
-        public string CurrentRefreshRateDisplayText
-        {
-            get => _currentRefreshRateDisplayText;
-            set { _currentRefreshRateDisplayText = value; OnPropertyChanged(); }
-        }
+        // Store the actual TDP value across navigation
+        private int _currentTdpValue = -1; // Initialize to -1 to indicate not set
 
         private string _batteryPercentageText = "0%";
         public string BatteryPercentageText
@@ -91,23 +89,19 @@ namespace HUDRA
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
             _batteryService = new BatteryService(DispatcherQueue);
+
+            // Subscribe to navigation events
+            _navigationService.PageChanged += OnPageChanged;
             _batteryService.BatteryInfoUpdated += OnBatteryInfoUpdated;
 
             InitializeWindow();
-
-            ContentFrame.Loaded += ContentFrame_Loaded;
             SetupEventHandlers();
             SetupDragHandling();
             SetupTurboService();
 
-            SettingsButton.Click += OnSettingsButtonClick;
+            _navigationService.NavigateToMain();
 
             this.Closed += (s, e) => Cleanup();
-        }
-
-        private void OnSettingsButtonClick(object sender, RoutedEventArgs e)
-        {
-            SettingsRequested?.Invoke(this, EventArgs.Empty);
         }
 
         private void InitializeWindow()
@@ -116,67 +110,217 @@ namespace HUDRA
             _windowManager.Initialize();
         }
 
-        private void InitializeControls()
+        private void OnPageChanged(object sender, Type pageType)
         {
-            System.Diagnostics.Debug.WriteLine($"=== InitializeControls Called ===");
-            System.Diagnostics.Debug.WriteLine($"_mainPage is null: {_mainPage == null}");
+            System.Diagnostics.Debug.WriteLine($"=== Page Changed to: {pageType.Name} ===");
 
-            if (_mainPage == null)
+            _currentPageType = pageType;
+            UpdateNavigationButtonStates();
+            HandlePageSpecificInitialization(pageType);
+        }
+
+        private void HandlePageSpecificInitialization(Type pageType)
+        {
+            if (pageType == typeof(MainPage))
             {
-                System.Diagnostics.Debug.WriteLine("_mainPage is null, exiting InitializeControls");
+                // Wait for navigation to complete then initialize
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is MainPage mainPage)
+                    {
+                        _mainPage = mainPage;
+                        InitializeMainPage();
+                    }
+                });
+            }
+            else if (pageType == typeof(SettingsPage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is SettingsPage settingsPage)
+                    {
+                        _settingsPage = settingsPage;
+                        InitializeSettingsPage();
+                    }
+                });
+            }
+        }
+
+        private void InitializeMainPage()
+        {
+            if (_mainPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== Initializing MainPage ===");
+
+            if (!_mainPageInitialized)
+            {
+                // First visit - full initialization
+                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
+                _mainPageInitialized = true;
+
+                // Set up TDP change tracking for the first time
+                _mainPage.TdpPicker.TdpChanged += (s, value) =>
+                {
+                    _currentTdpValue = value;
+                    System.Diagnostics.Debug.WriteLine($"Main TDP changed to: {value}");
+                };
+
+                // Store the initial TDP value after initialization completes
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    _currentTdpValue = _mainPage.TdpPicker.SelectedTdp;
+                    System.Diagnostics.Debug.WriteLine($"Initial TDP value stored: {_currentTdpValue}");
+                });
+            }
+            else
+            {
+                // Subsequent visits - preserve current TDP value
+                System.Diagnostics.Debug.WriteLine($"Returning to MainPage - preserving TDP: {_currentTdpValue}");
+
+                // Ensure we have a valid TDP value to preserve
+                if (_currentTdpValue < HudraSettings.MIN_TDP || _currentTdpValue > HudraSettings.MAX_TDP)
+                {
+                    // Fallback to determining the correct TDP using startup logic
+                    if (SettingsService.GetUseStartupTdp())
+                    {
+                        _currentTdpValue = SettingsService.GetStartupTdp();
+                    }
+                    else
+                    {
+                        _currentTdpValue = SettingsService.GetLastUsedTdp();
+                        if (_currentTdpValue < HudraSettings.MIN_TDP || _currentTdpValue > HudraSettings.MAX_TDP)
+                        {
+                            _currentTdpValue = HudraSettings.DEFAULT_STARTUP_TDP;
+                        }
+                    }
+                    System.Diagnostics.Debug.WriteLine($"Corrected TDP value to: {_currentTdpValue}");
+                }
+
+                // Initialize with preserved value flag
+                _mainPage.TdpPicker.ResetScrollPositioning();
+                _mainPage.TdpPicker.Initialize(_dpiService, autoSetEnabled: true, preserveCurrentValue: true);
+
+                // CRITICAL: Set the TDP value AFTER initialization but BEFORE other controls
+                System.Diagnostics.Debug.WriteLine($"Setting preserved TDP value: {_currentTdpValue}");
+                _mainPage.TdpPicker.SelectedTdp = _currentTdpValue;
+
+                // Initialize other controls
+                _mainPage.ResolutionPicker.Initialize();
+                _mainPage.AudioControls.Initialize();
+                _mainPage.BrightnessControls.Initialize();
+
+                // Re-establish TDP change tracking
+                _mainPage.TdpPicker.TdpChanged += (s, value) =>
+                {
+                    _currentTdpValue = value;
+                    System.Diagnostics.Debug.WriteLine($"Main TDP changed to: {value}");
+                };
+
+                // Ensure scroll positioning to the correct value
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    System.Diagnostics.Debug.WriteLine($"Ensuring scroll position for preserved TDP: {_currentTdpValue}");
+                    _mainPage.TdpPicker.EnsureScrollPositionAfterLayout();
+                });
+            }
+
+            SetupTdpMonitor();
+            System.Diagnostics.Debug.WriteLine("=== MainPage initialization complete ===");
+        }
+
+        private void InitializeSettingsPage()
+        {
+            if (_settingsPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== Initializing SettingsPage ===");
+            _settingsPage.Initialize(_dpiService);
+
+            System.Diagnostics.Debug.WriteLine("=== SettingsPage initialization complete ===");
+        }
+
+        private void UpdateNavigationButtonStates()
+        {
+            // Update visual states of navigation buttons based on current page
+            UpdateButtonState(MainPageNavButton, _currentPageType == typeof(MainPage));
+            UpdateButtonState(SettingsNavButton, _currentPageType == typeof(SettingsPage));
+        }
+
+        private void UpdateButtonState(Button button, bool isActive)
+        {
+            if (button == null)
+            {
+                System.Diagnostics.Debug.WriteLine("UpdateButtonState: button is null");
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine("=== Initializing MainPage ===");
-            _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
+            System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} - isActive: {isActive}");
 
-            System.Diagnostics.Debug.WriteLine("=== Setting up SettingsRequested event ===");
-            SettingsRequested += (s, e) => SettingsButton_Click(s, new RoutedEventArgs());
+            // Apply visual state for active/inactive navigation items
+            var foregroundBrush = isActive
+                ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet)
+                : new SolidColorBrush(Microsoft.UI.Colors.Gray);
 
-            System.Diagnostics.Debug.WriteLine("=== Setting up ResolutionPicker events ===");
-            _mainPage.ResolutionPicker.PropertyChanged += (s, e) =>
+            var newBackground = isActive
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 148, 0, 211)) // Semi-transparent DarkViolet
+                : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+            System.Diagnostics.Debug.WriteLine($"Setting {button.Name} background to: {(isActive ? "Purple" : "Transparent")}");
+
+            button.Background = newBackground;
+
+            // Handle both FontIcon and Image content
+            if (button.Content is FontIcon icon)
             {
-                if (e.PropertyName == nameof(ResolutionPickerControl.ResolutionStatusText))
-                    CurrentResolutionDisplayText = _mainPage.ResolutionPicker.ResolutionStatusText;
-                else if (e.PropertyName == nameof(ResolutionPickerControl.RefreshRateStatusText))
-                    CurrentRefreshRateDisplayText = _mainPage.ResolutionPicker.RefreshRateStatusText;
-            };
-
-            System.Diagnostics.Debug.WriteLine("=== Setting up AudioControls events ===");
-            _mainPage.AudioControls.PropertyChanged += (s, e) =>
+                System.Diagnostics.Debug.WriteLine($"{button.Name} has FontIcon content");
+                icon.Foreground = foregroundBrush;
+            }
+            else if (button.Content is Image image)
             {
-                if (e.PropertyName == nameof(AudioControlsControl.AudioStatusText))
-                {
-                    System.Diagnostics.Debug.WriteLine(_mainPage.AudioControls.AudioStatusText);
-                }
-            };
-
-            System.Diagnostics.Debug.WriteLine("=== Setting up BrightnessControls events ===");
-            _mainPage.BrightnessControls.PropertyChanged += (s, e) =>
+                System.Diagnostics.Debug.WriteLine($"{button.Name} has Image content");
+                image.Opacity = isActive ? 1.0 : 0.6;
+            }
+            else
             {
-                if (e.PropertyName == nameof(BrightnessControlControl.BrightnessStatusText))
-                {
-                    System.Diagnostics.Debug.WriteLine(_mainPage.BrightnessControls.BrightnessStatusText);
-                }
-            };
-
-            System.Diagnostics.Debug.WriteLine($"=== Checking _tdpMonitor: {_tdpMonitor != null} ===");
-
-            // Replace the old TDP monitor setup with this:
-            SetupTdpMonitor();
+                System.Diagnostics.Debug.WriteLine($"{button.Name} has unknown content type: {button.Content?.GetType().Name}");
+            }
         }
 
-        private void SetupDragHandling()
+        // Navigation event handlers
+        private void MainPageNavButton_Click(object sender, RoutedEventArgs e)
         {
-            MainBorder.PointerPressed += OnMainBorderPointerPressed;
-            MainBorder.PointerMoved += OnMainBorderPointerMoved;
-            MainBorder.PointerReleased += OnMainBorderPointerReleased;
+            System.Diagnostics.Debug.WriteLine("MainPage navigation button clicked");
+            _navigationService.NavigateToMain();
+        }
+
+        private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("Settings navigation button clicked");
+            _navigationService.NavigateToSettings();
+        }
+
+        // Existing event handlers
+        private void CloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            _windowManager.ToggleVisibility();
+        }
+
+        private void AltTabButton_Click(object sender, RoutedEventArgs e)
+        {
+            _windowManager.ToggleVisibility();
+            SimulateAltTab();
         }
 
         private void SetupEventHandlers()
         {
-            // Window events
             this.SizeChanged += MainWindow_SizeChanged;
+        }
+
+        private void SetupDragHandling()
+        {
+            // Set up drag handling on the main border itself for better coverage
+            MainBorder.PointerPressed += OnMainBorderPointerPressed;
+            MainBorder.PointerMoved += OnMainBorderPointerMoved;
+            MainBorder.PointerReleased += OnMainBorderPointerReleased;
         }
 
         private void SetupTurboService()
@@ -195,70 +339,6 @@ namespace HUDRA
             }
         }
 
-        private void ContentFrame_Loaded(object sender, RoutedEventArgs e)
-        {
-            ContentFrame.Loaded -= ContentFrame_Loaded;
-            System.Diagnostics.Debug.WriteLine("=== ContentFrame_Loaded Event ===");
-
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                System.Diagnostics.Debug.WriteLine("=== Navigation Starting ===");
-                _navigationService.Navigate(typeof(MainPage));
-
-                System.Diagnostics.Debug.WriteLine($"ContentFrame.Content type: {ContentFrame.Content?.GetType().Name ?? "null"}");
-                _mainPage = ContentFrame.Content as MainPage;
-                System.Diagnostics.Debug.WriteLine($"_mainPage is null: {_mainPage == null}");
-
-                if (_mainPage != null)
-                {
-                    System.Diagnostics.Debug.WriteLine("=== Calling InitializeControls ===");
-                    InitializeControls();
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("_mainPage is null, skipping InitializeControls");
-                }
-            });
-        }
-
-        // Event handlers
-        private void CloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            _windowManager.ToggleVisibility();
-        }
-
-        private void AltTabButton_Click(object sender, RoutedEventArgs e)
-        {
-            _windowManager.ToggleVisibility();
-            SimulateAltTab();
-        }
-
-        private void SettingsButton_Click(object sender, RoutedEventArgs e)
-        {
-            _navigationService.Navigate(typeof(SettingsPage));
-
-            // Hide the settings button while the Settings page is visible
-            SettingsButton.Visibility = Visibility.Collapsed;
-
-            // Delay the setup slightly to ensure navigation completes
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                if (ContentFrame.Content is SettingsPage sp)
-                {
-                    _settingsPage = sp;
-                    sp.BackButton.Click += BackButton_Click;
-                    sp.Initialize(_dpiService);
-                }
-            });
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            _navigationService.GoBack();
-
-            // Show the settings button again once we return to the Main page
-            SettingsButton.Visibility = Visibility.Visible;
-        }
         private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
         {
             var oldScaleFactor = _dpiService.ScaleFactor;
@@ -266,13 +346,12 @@ namespace HUDRA
 
             if (_dpiService.HasScaleChanged(oldScaleFactor))
             {
-                // Handle DPI change
                 _windowManager.PositionAboveSystemTray();
             }
         }
+
         private void SimulateAltTab()
         {
-            // Implementation for Alt+Tab simulation
             keybd_event(VK_MENU, 0, 0, UIntPtr.Zero);
             keybd_event(VK_TAB, 0, 0, UIntPtr.Zero);
             keybd_event(VK_TAB, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
@@ -281,7 +360,6 @@ namespace HUDRA
 
         private bool TrySetMicaBackdrop()
         {
-            // Try Mica first (better contrast)
             if (MicaController.IsSupported())
             {
                 _backdropConfig = new SystemBackdropConfiguration
@@ -296,36 +374,62 @@ namespace HUDRA
                 return true;
             }
 
-            // Fallback to solid background if Mica not available
             MainBorder.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(240, 30, 30, 45));
             return false;
         }
 
-        private void Cleanup()
+        public void SetTdpMonitor(TdpMonitorService tdpMonitor)
         {
-            _mainPage?.TdpPicker?.Dispose();
-            _windowManager?.Dispose();
-            _turboService?.Dispose();
-            _micaController?.Dispose();
-            _tdpMonitor?.Dispose();
-            _batteryService?.Dispose();
+            System.Diagnostics.Debug.WriteLine("=== SetTdpMonitor called ===");
+            _tdpMonitor = tdpMonitor;
+
+            if (_mainPage != null)
+            {
+                System.Diagnostics.Debug.WriteLine("=== MainPage already loaded, setting up TDP monitor ===");
+                SetupTdpMonitor();
+            }
         }
 
-        public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
-
-        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        private void SetupTdpMonitor()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            if (_tdpMonitor == null || _mainPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Starting ===");
+
+            bool tdpMonitorStarted = false;
+
+            _mainPage.TdpPicker.TdpChanged += (s, value) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"TDP Changed Event for Monitor: {value}W");
+                _tdpMonitor.UpdateTargetTdp(value);
+
+                if (!tdpMonitorStarted && SettingsService.GetTdpCorrectionEnabled() && value > 0)
+                {
+                    _tdpMonitor.Start();
+                    tdpMonitorStarted = true;
+                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with target: {value}W");
+                }
+            };
+
+            if (_mainPage.TdpPicker.SelectedTdp > 0)
+            {
+                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+                if (SettingsService.GetTdpCorrectionEnabled())
+                {
+                    _tdpMonitor.Start();
+                    tdpMonitorStarted = true;
+                }
+            }
+
+            _tdpMonitor.TdpDriftDetected += (s, args) =>
+            {
+                System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
+            };
+
+            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
         }
 
-        // P/Invoke declarations
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-        private const byte VK_MENU = 0x12;
-        private const byte VK_TAB = 0x09;
-        private const uint KEYEVENTF_KEYUP = 0x0002;
-
+        // Main border drag handling for window movement
         private void OnMainBorderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
@@ -339,54 +443,41 @@ namespace HUDRA
                 {
                     var position = e.GetCurrentPoint(MainBorder);
 
-                    // Check if click is over any UserControl - if so, don't drag
+                    // Check if click is over interactive controls - if so, don't drag
                     try
                     {
-                        if (_mainPage != null)
+                        // Check navigation bar controls
+                        if (CheckElementBounds(BatteryPanel, position.Position)) return;
+                        if (CheckElementBounds(MainPageNavButton, position.Position)) return;
+                        if (CheckElementBounds(SettingsNavButton, position.Position)) return;
+                        if (CheckElementBounds(AltTabButton, position.Position)) return;
+                        if (CheckElementBounds(CloseButton, position.Position)) return;
+
+                        // Check if clicking on the content frame (where interactive controls are)
+                        if (ContentFrame.Content != null)
                         {
-                            var tdpTransform = _mainPage.TdpPicker.TransformToVisual(MainBorder);
-                            var tdpBounds = tdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.TdpPicker.ActualWidth, _mainPage.TdpPicker.ActualHeight));
-                            if (tdpBounds.Contains(position.Position)) return;
+                            var frameTransform = ContentFrame.TransformToVisual(MainBorder);
+                            var frameBounds = frameTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, ContentFrame.ActualWidth, ContentFrame.ActualHeight));
 
-                            var resolutionTransform = _mainPage.ResolutionPicker.TransformToVisual(MainBorder);
-                            var resolutionBounds = resolutionTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.ResolutionPicker.ActualWidth, _mainPage.ResolutionPicker.ActualHeight));
-                            if (resolutionBounds.Contains(position.Position)) return;
-
-                            var audioTransform = _mainPage.AudioControls.TransformToVisual(MainBorder);
-                            var audioBounds = audioTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.AudioControls.ActualWidth, _mainPage.AudioControls.ActualHeight));
-                            if (audioBounds.Contains(position.Position)) return;
-
-                            var brightnessTransform = _mainPage.BrightnessControls.TransformToVisual(MainBorder);
-                            var brightnessBounds = brightnessTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _mainPage.BrightnessControls.ActualWidth, _mainPage.BrightnessControls.ActualHeight));
-                            if (brightnessBounds.Contains(position.Position)) return;
+                            // Allow dragging on content frame, but let individual controls handle their own interactions
+                            if (frameBounds.Contains(position.Position))
+                            {
+                                // Check if we're clicking on specific interactive controls within the frame
+                                if (ContentFrame.Content is MainPage mainPage)
+                                {
+                                    if (CheckElementBounds(mainPage.TdpPicker, position.Position, MainBorder)) return;
+                                    if (CheckElementBounds(mainPage.ResolutionPicker, position.Position, MainBorder)) return;
+                                    if (CheckElementBounds(mainPage.AudioControls, position.Position, MainBorder)) return;
+                                    if (CheckElementBounds(mainPage.BrightnessControls, position.Position, MainBorder)) return;
+                                }
+                                else if (ContentFrame.Content is SettingsPage settingsPage)
+                                {
+                                    if (CheckElementBounds(settingsPage.StartupTdpPicker, position.Position, MainBorder)) return;
+                                    if (CheckElementBounds(settingsPage.TdpCorrectionToggle, position.Position, MainBorder)) return;
+                                    if (CheckElementBounds(settingsPage.UseStartupTdpToggle, position.Position, MainBorder)) return;
+                                }
+                            }
                         }
-
-                        if (_settingsPage != null)
-                        {
-                            // Exclude StartupTdpPicker from drag handling
-                            var startupTdpTransform = _settingsPage.StartupTdpPicker.TransformToVisual(MainBorder);
-                            var startupTdpBounds = startupTdpTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.StartupTdpPicker.ActualWidth, _settingsPage.StartupTdpPicker.ActualHeight));
-                            if (startupTdpBounds.Contains(position.Position)) return;
-
-                            // Exclude TdpCorrectionToggle from drag handling
-                            var toggleTransform = _settingsPage.TdpCorrectionToggle.TransformToVisual(MainBorder);
-                            var toggleBounds = toggleTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, _settingsPage.TdpCorrectionToggle.ActualWidth, _settingsPage.TdpCorrectionToggle.ActualHeight));
-                            if (toggleBounds.Contains(position.Position)) return;
-                        }
-
-
-                        // Check buttons
-                        var closeTransform = CloseButton.TransformToVisual(MainBorder);
-                        var closeBounds = closeTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, CloseButton.ActualWidth, CloseButton.ActualHeight));
-                        if (closeBounds.Contains(position.Position)) return;
-
-                        var altTabTransform = AltTabButton.TransformToVisual(MainBorder);
-                        var altTabBounds = altTabTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, AltTabButton.ActualWidth, AltTabButton.ActualHeight));
-                        if (altTabBounds.Contains(position.Position)) return;
-
-                        var batteryTransform = BatteryPanel.TransformToVisual(MainBorder);
-                        var batteryBounds = batteryTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, BatteryPanel.ActualWidth, BatteryPanel.ActualHeight));
-                        if (batteryBounds.Contains(position.Position)) return;
                     }
                     catch
                     {
@@ -402,7 +493,7 @@ namespace HUDRA
                         GetCursorPos(out POINT cursorPos);
                         _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
                     }
-                    else // Touch
+                    else
                     {
                         var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
                         var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
@@ -419,59 +510,59 @@ namespace HUDRA
 
         private void OnMainBorderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
-            if (_isDragging)
+            if (!_isDragging) return;
+
+            var properties = e.GetCurrentPoint(MainBorder).Properties;
+            bool shouldContinueDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
+                                     (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+
+            if (shouldContinueDrag)
             {
-                var properties = e.GetCurrentPoint(MainBorder).Properties;
-                bool shouldContinueDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
-                                         (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+                var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
+                var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
 
-                if (shouldContinueDrag)
+                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
                 {
-                    var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
-                    var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+                    GetCursorPos(out POINT cursorPos);
+                    var currentPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
 
-                    if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
-                    {
-                        GetCursorPos(out POINT cursorPos);
-                        var currentPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
+                    int deltaX = currentPosition.X - _lastPointerPosition.X;
+                    int deltaY = currentPosition.Y - _lastPointerPosition.Y;
 
-                        int deltaX = currentPosition.X - _lastPointerPosition.X;
-                        int deltaY = currentPosition.Y - _lastPointerPosition.Y;
+                    var currentPos = appWindow.Position;
+                    appWindow.Move(new Windows.Graphics.PointInt32(currentPos.X + deltaX, currentPos.Y + deltaY));
 
-                        var currentPos = appWindow.Position;
-                        appWindow.Move(new Windows.Graphics.PointInt32(currentPos.X + deltaX, currentPos.Y + deltaY));
-
-                        _lastPointerPosition = currentPosition;
-                    }
-                    else // Touch
-                    {
-                        if (_touchDragStarted)
-                        {
-                            var currentTouchPoint = e.GetCurrentPoint(MainBorder);
-                            var windowPos = appWindow.Position;
-
-                            var currentScreenTouch = new Windows.Foundation.Point(
-                                windowPos.X + currentTouchPoint.Position.X,
-                                windowPos.Y + currentTouchPoint.Position.Y);
-
-                            double deltaX = currentScreenTouch.X - _lastTouchPosition.X;
-                            double deltaY = currentScreenTouch.Y - _lastTouchPosition.Y;
-
-                            var newX = windowPos.X + (int)deltaX;
-                            var newY = windowPos.Y + (int)deltaY;
-
-                            appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-                            _lastTouchPosition = currentScreenTouch;
-                        }
-                    }
+                    _lastPointerPosition = currentPosition;
                 }
                 else
                 {
-                    _isDragging = false;
-                    _touchDragStarted = false;
+                    if (_touchDragStarted)
+                    {
+                        var currentTouchPoint = e.GetCurrentPoint(MainBorder);
+                        var windowPos = appWindow.Position;
+
+                        var currentScreenTouch = new Windows.Foundation.Point(
+                            windowPos.X + currentTouchPoint.Position.X,
+                            windowPos.Y + currentTouchPoint.Position.Y);
+
+                        double deltaX = currentScreenTouch.X - _lastTouchPosition.X;
+                        double deltaY = currentScreenTouch.Y - _lastTouchPosition.Y;
+
+                        var newX = windowPos.X + (int)deltaX;
+                        var newY = windowPos.Y + (int)deltaY;
+
+                        appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+                        _lastTouchPosition = currentScreenTouch;
+                    }
                 }
             }
+            else
+            {
+                _isDragging = false;
+                _touchDragStarted = false;
+            }
         }
+
         private void OnMainBorderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             _isDragging = false;
@@ -479,87 +570,21 @@ namespace HUDRA
             MainBorder.ReleasePointerCapture(e.Pointer);
         }
 
-        // ADD the P/Invoke if it's missing:
-        [DllImport("user32.dll")]
-        private static extern bool GetCursorPos(out POINT lpPoint);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct POINT
+        // Helper method to check if a point is within an element's bounds
+        private bool CheckElementBounds(FrameworkElement element, Windows.Foundation.Point point, FrameworkElement? relativeTo = null)
         {
-            public int X;
-            public int Y;
-        }
+            if (element == null) return false;
 
-        public void SetTdpMonitor(TdpMonitorService tdpMonitor)
-        {
-            System.Diagnostics.Debug.WriteLine("=== SetTdpMonitor called ===");
-            _tdpMonitor = tdpMonitor;
-
-            // If MainPage is already loaded, set up the monitor immediately
-            if (_mainPage != null)
+            try
             {
-                System.Diagnostics.Debug.WriteLine("=== MainPage already loaded, setting up TDP monitor ===");
-                SetupTdpMonitor();
+                var transform = element.TransformToVisual(relativeTo ?? MainBorder);
+                var bounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
+                return bounds.Contains(point);
             }
-            else
+            catch
             {
-                System.Diagnostics.Debug.WriteLine("=== MainPage not loaded yet, will setup TDP monitor later ===");
+                return false;
             }
-        }
-
-        private void SetupTdpMonitor()
-        {
-            if (_tdpMonitor == null || _mainPage == null) return;
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Starting ===");
-            System.Diagnostics.Debug.WriteLine($"TDP Correction Enabled: {SettingsService.GetTdpCorrectionEnabled()}");
-            System.Diagnostics.Debug.WriteLine($"Initial TDP Picker Value: {_mainPage.TdpPicker.SelectedTdp}W");
-
-            bool tdpMonitorStarted = false;
-
-            _mainPage.TdpPicker.TdpChanged += (s, value) => {
-                System.Diagnostics.Debug.WriteLine($"TDP Changed Event: {value}W");
-                _tdpMonitor.UpdateTargetTdp(value);
-
-                if (!tdpMonitorStarted && SettingsService.GetTdpCorrectionEnabled() && value > 0)
-                {
-                    _tdpMonitor.Start();
-                    tdpMonitorStarted = true;
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with initial target: {value}W");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor NOT started - Started: {tdpMonitorStarted}, Enabled: {SettingsService.GetTdpCorrectionEnabled()}, Value: {value}");
-                }
-            };
-
-            if (_mainPage.TdpPicker.SelectedTdp > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"TDP Picker already has value: {_mainPage.TdpPicker.SelectedTdp}W");
-                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
-
-                if (SettingsService.GetTdpCorrectionEnabled())
-                {
-                    _tdpMonitor.Start();
-                    tdpMonitorStarted = true;
-                    System.Diagnostics.Debug.WriteLine($"TDP Monitor started with existing target: {_mainPage.TdpPicker.SelectedTdp}W");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("TDP Monitor NOT started - correction disabled in settings");
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine("TDP Picker has no initial value");
-            }
-
-            _tdpMonitor.TdpDriftDetected += (s, args) =>
-            {
-                System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
-            };
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
         }
 
         private void OnBatteryInfoUpdated(object? sender, BatteryInfo info)
@@ -567,10 +592,10 @@ namespace HUDRA
             BatteryPercentageText = $"{info.Percent}%";
             BatteryIcon.Glyph = GetBatteryGlyph(info.Percent, info.IsCharging);
             BatteryIcon.Foreground = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.DarkGreen : Microsoft.UI.Colors.White);
-            BatteryTextBrush = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.Black);
+            BatteryTextBrush = new SolidColorBrush(info.IsCharging ? Microsoft.UI.Colors.White : Microsoft.UI.Colors.White);
 
             string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
-            BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";             
+            BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
         }
 
         private static string GetBatteryGlyph(int percent, bool charging)
@@ -587,7 +612,41 @@ namespace HUDRA
                 return char.ConvertFromUtf32(0xE850 + index);
             }
         }
+
+        private void Cleanup()
+        {
+            _mainPage?.TdpPicker?.Dispose();
+            _windowManager?.Dispose();
+            _turboService?.Dispose();
+            _micaController?.Dispose();
+            _tdpMonitor?.Dispose();
+            _batteryService?.Dispose();
+            _navigationService?.Dispose();
+        }
+
+        public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        // P/Invoke declarations
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        [DllImport("user32.dll")]
+        private static extern bool GetCursorPos(out POINT lpPoint);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        private const byte VK_MENU = 0x12;
+        private const byte VK_TAB = 0x09;
+        private const uint KEYEVENTF_KEYUP = 0x0002;
     }
-
-
 }

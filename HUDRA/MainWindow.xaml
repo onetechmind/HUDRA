@@ -8,80 +8,159 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <Border x:Name="MainBorder" CornerRadius="20" Background="Transparent" >
+    <Border x:Name="MainBorder" CornerRadius="20" Background="Transparent">
         <Grid x:Name="LayoutRoot">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <!-- Navigation bar column -->
+                <ColumnDefinition Width="60"/>
+                <!-- Content column -->
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
 
-            <Button x:Name="SettingsButton"
-                Width="50"
-                Height="50"
-                Foreground="White"
-                CornerRadius="16"
-                BorderThickness="0"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Top"
-                Grid.Row="0"
-                Margin="0,10,0,0">
-                                <Image Source="/Assets/performance-settings-icon.png"
-                   Width="25"
-                   Height="25"/>
-                            </Button>
-            <!-- Alt+Tab button in top-left corner -->
-            <Button x:Name="AltTabButton"
-                Click="AltTabButton_Click"
-                Width="50"
-                Height="50"
-                Foreground="White"
-                CornerRadius="16"
-                BorderThickness="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,10,70,0"
-                Grid.Row="0"
-                Grid.RowSpan="2"
-                ToolTipService.ToolTip="Previous App &amp; Hide">
-                <FontIcon x:Name="AltTabButtonIcon"
-                  FontFamily="Segoe MDL2 Assets"
-                  Glyph="&#xE8AB;"
-                  FontSize="20"/>
-            </Button>
+            <!-- Vertical Navigation Bar -->
+            <Border Grid.Column="0"
+                    Background="#1A1A1A"
+                    CornerRadius="20,0,0,20"
+                    Margin="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <!-- Top section for battery and main nav items -->
+                        <RowDefinition Height="*"/>
+                        <!-- Bottom section for settings and close buttons -->
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-            <!-- Battery status -->
-            <Grid x:Name="BatteryPanel"
-                  HorizontalAlignment="Left"
-                  VerticalAlignment="Top"
-                  Margin="20,15,0,0"
-                  Background="Transparent"
-                  Padding="0"
-                  Grid.Row="0"
-                  ToolTipService.ToolTip="{x:Bind BatteryToolTip, Mode=OneWay}">
-                <FontIcon x:Name="BatteryIcon" FontFamily="Segoe MDL2 Assets" Glyph="&#xE850;" FontSize="40" Foreground="DarkGray"/>
-                <TextBlock x:Name="BatteryText" Text="{x:Bind BatteryPercentageText, Mode=OneWay}" FontSize="12" Foreground="{x:Bind BatteryTextBrush, Mode=OneWay}" Margin="0,4,0,0" FontFamily="Cascadia Code" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <!-- Navigation Items -->
+                    <StackPanel Grid.Row="0" 
+                                Orientation="Vertical" 
+                                Spacing="8" 
+                                Margin="0,10,0,0"
+                                HorizontalAlignment="Center">
+
+                        <!-- Battery status - moved to nav bar -->
+                        <StackPanel x:Name="BatteryPanel"
+                                    Orientation="Vertical"
+                                    Width="50"
+                                    Height="60"
+                                    Background="Transparent"
+                                    Margin="0"
+                                    HorizontalAlignment="Center"
+                                    ToolTipService.ToolTip="{x:Bind BatteryToolTip, Mode=OneWay}">
+                            <FontIcon x:Name="BatteryIcon" 
+                                      FontFamily="Segoe MDL2 Assets" 
+                                      Glyph="&#xE850;" 
+                                      FontSize="35" 
+                                      Foreground="DarkGray"
+                                      HorizontalAlignment="Center"
+                                      Margin="0"/>
+                            <TextBlock x:Name="BatteryText" 
+                                       Text="{x:Bind BatteryPercentageText, Mode=OneWay}" 
+                                       FontSize="12" 
+                                       Foreground="{x:Bind BatteryTextBrush, Mode=OneWay}" 
+                                       FontFamily="Cascadia Code" 
+                                       HorizontalAlignment="Center"
+                                       FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <!-- Main Page Navigation Item (Home icon) -->
+                        <Button x:Name="MainPageNavButton"
+                        Width="50"
+                        Height="50"
+                        Style="{StaticResource NavigationButtonStyle}"
+                        Click="MainPageNavButton_Click"
+                        ToolTipService.ToolTip="Performance Controls"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                            <FontIcon FontFamily="Segoe MDL2 Assets"
+                              Glyph="&#xE80F;"
+                              FontSize="20"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"/>
+                        </Button>
+
+                        <!-- Settings Navigation Item (Custom image) -->
+                        <Button x:Name="SettingsNavButton"
+                        Width="50"
+                        Height="50"
+                        Style="{StaticResource NavigationButtonStyle}"
+                        Click="SettingsNavButton_Click"
+                        ToolTipService.ToolTip="Settings"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Center"
+                        VerticalContentAlignment="Center">
+                            <Image Source="/Assets/performance-settings-icon.png"
+                           Width="20"
+                           Height="20"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+                        </Button>
+                        <!-- Add more navigation items here as needed -->
+                        <!-- 
+                        <Button x:Name="AboutNavButton"
+                                Width="50"
+                                Height="50"
+                                Click="AboutNavButton_Click"
+                                ToolTipService.ToolTip="About"
+                                HorizontalAlignment="Center">
+                            <FontIcon FontFamily="Segoe MDL2 Assets"
+                                      Glyph="&#xE946;"
+                                      FontSize="20"/>
+                        </Button>
+                        -->
+
+                    </StackPanel>
+
+                    <!-- Bottom section with Alt+Tab and Close buttons -->
+                    <StackPanel Grid.Row="1" 
+                                Orientation="Vertical" 
+                                Spacing="8" 
+                                Margin="0,0,0,20"
+                                HorizontalAlignment="Center">
+
+                        <!-- Alt+Tab button -->
+                        <Button x:Name="AltTabButton"
+                                Click="AltTabButton_Click"
+                                Width="50"
+                                Height="50"
+                                ToolTipService.ToolTip="Previous App &amp; Hide"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center">
+                            <FontIcon x:Name="AltTabButtonIcon"
+                                      FontFamily="Segoe MDL2 Assets"
+                                      Glyph="&#xE8AB;"
+                                      FontSize="20"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Button>
+
+                        <!-- Close button -->
+                        <Button x:Name="CloseButton"
+                                Click="CloseButton_Click"
+                                Width="50"
+                                Height="50"
+                                ToolTipService.ToolTip="Hide"
+                                HorizontalAlignment="Center"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center">
+                            <FontIcon FontFamily="Segoe MDL2 Assets"
+                                      Glyph="&#xE70D;"
+                                      FontSize="20"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                        </Button>
+
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Content Area -->
+            <Grid Grid.Column="1" Margin="0,0,0,0">
+                <Frame x:Name="ContentFrame" 
+                       HorizontalAlignment="Center"
+                       MaxWidth="320"/>
             </Grid>
 
-            <Button x:Name="CloseButton"
-                Click="CloseButton_Click"
-                Width="50"
-                Height="50"
-                Foreground="White"
-                CornerRadius="16"
-                BorderThickness="0"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,10,10,0"
-                Grid.Row="0"
-                Grid.RowSpan="2">
-                <Button.Content>
-                    <FontIcon FontFamily="Segoe MDL2 Assets"
-                  Glyph="&#xE70D;"
-                  FontSize="20"/>
-                </Button.Content>
-            </Button>
-
-            <Frame x:Name="ContentFrame" Grid.Row="0" />
-        </Grid>    
+        </Grid>
     </Border>
 </Window>

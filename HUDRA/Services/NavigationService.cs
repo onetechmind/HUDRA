@@ -1,53 +1,97 @@
-// Update your NavigationService.cs to use manual content setting:
+using HUDRA.Pages;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using System;
 using System.Collections.Generic;
 
 namespace HUDRA.Services
 {
-    public class NavigationService
+    public class NavigationService : IDisposable
     {
         private readonly Frame _frame;
-        private readonly Stack<UserControl> _navigationStack = new();
+        private readonly Stack<Type> _navigationStack = new();
+        private Type? _currentPageType;
+        private bool _isNavigating = false;
+
+        public event EventHandler<Type>? PageChanged;
+        public bool IsNavigating => _isNavigating;
+        public Type? CurrentPageType => _currentPageType;
 
         public NavigationService(Frame frame)
         {
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
         }
 
+        public void NavigateToMain()
+        {
+            Navigate(typeof(MainPage));
+        }
+
+        public void NavigateToSettings()
+        {
+            Navigate(typeof(SettingsPage));
+        }
+
         public void Navigate(Type pageType)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));
+            if (_isNavigating) return; // Prevent concurrent navigation
 
             try
             {
-                // Save current content to navigation stack
-                if (_frame.Content is UserControl currentPage)
+                _isNavigating = true;
+                System.Diagnostics.Debug.WriteLine($"Navigation starting to {pageType.Name}");
+
+                // Save current page type to stack if different
+                if (_currentPageType != null && _currentPageType != pageType)
                 {
-                    _navigationStack.Push(currentPage);
+                    _navigationStack.Push(_currentPageType);
                 }
 
-                // Create new page instance manually instead of using Frame.Navigate()
-                var newPage = Activator.CreateInstance(pageType) as UserControl;
+                // Create new page instance
+                var newPage = Activator.CreateInstance(pageType) as FrameworkElement;
                 if (newPage != null)
                 {
                     _frame.Content = newPage;
-                    System.Diagnostics.Debug.WriteLine($"Manually navigated to {pageType.Name}");
+                    _currentPageType = pageType;
+
+                    System.Diagnostics.Debug.WriteLine($"Navigation completed to {pageType.Name}");
+
+                    // Notify after content is set
+                    PageChanged?.Invoke(this, pageType);
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Manual navigation failed: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Navigation failed: {ex.Message}");
+            }
+            finally
+            {
+                // Clear navigation flag after a small delay to ensure page transition completes
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                timer.Tick += (s, e) =>
+                {
+                    timer.Stop();
+                    _isNavigating = false;
+                    System.Diagnostics.Debug.WriteLine($"Navigation flag cleared");
+                };
+                timer.Start();
             }
         }
 
         public void GoBack()
         {
-            if (_navigationStack.Count > 0)
+            if (_navigationStack.Count > 0 && !_isNavigating)
             {
-                var previousPage = _navigationStack.Pop();
-                _frame.Content = previousPage;
+                var previousPageType = _navigationStack.Pop();
+                Navigate(previousPageType);
             }
+        }
+
+        public void Dispose()
+        {
+            PageChanged = null;
+            _navigationStack.Clear();
         }
     }
 }
