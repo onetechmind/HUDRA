@@ -126,10 +126,15 @@ namespace HUDRA
                 // Wait for navigation to complete then initialize
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
+                    System.Diagnostics.Debug.WriteLine("=== MainPage HandlePageSpecificInitialization ===");
                     if (ContentFrame.Content is MainPage mainPage)
                     {
                         _mainPage = mainPage;
                         InitializeMainPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("ERROR: ContentFrame.Content is not MainPage!");
                     }
                 });
             }
@@ -137,10 +142,16 @@ namespace HUDRA
             {
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
+                    System.Diagnostics.Debug.WriteLine("=== SettingsPage HandlePageSpecificInitialization ===");
                     if (ContentFrame.Content is SettingsPage settingsPage)
                     {
+                        System.Diagnostics.Debug.WriteLine("SettingsPage found in ContentFrame, calling Initialize");
                         _settingsPage = settingsPage;
                         InitializeSettingsPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not SettingsPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
                     }
                 });
             }
@@ -232,10 +243,18 @@ namespace HUDRA
         {
             if (_settingsPage == null) return;
 
-            System.Diagnostics.Debug.WriteLine("=== Initializing SettingsPage ===");
-            _settingsPage.Initialize(_dpiService);
+            System.Diagnostics.Debug.WriteLine("=== InitializeSettingsPage called ===");
 
-            System.Diagnostics.Debug.WriteLine("=== SettingsPage initialization complete ===");
+            try
+            {
+                _settingsPage.Initialize(_dpiService);
+                System.Diagnostics.Debug.WriteLine("=== SettingsPage initialization complete ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeSettingsPage: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            }
         }
 
         private void UpdateNavigationButtonStates()
@@ -255,33 +274,28 @@ namespace HUDRA
 
             System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} - isActive: {isActive}");
 
-            // Apply visual state for active/inactive navigation items
-            var foregroundBrush = isActive
-                ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet)
-                : new SolidColorBrush(Microsoft.UI.Colors.Gray);
+            // Better background colors that actually match the content area
+            //var activeBackground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(80, 255, 255, 255)); // More opaque white
+            //var inactiveBackground = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
-            var newBackground = isActive
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(40, 148, 0, 211)) // Semi-transparent DarkViolet
-                : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            var activeForeground = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+            var inactiveForeground = new SolidColorBrush(Microsoft.UI.Colors.White);
 
-            System.Diagnostics.Debug.WriteLine($"Setting {button.Name} background to: {(isActive ? "Purple" : "Transparent")}");
+            System.Diagnostics.Debug.WriteLine($"Setting {button.Name} background to: {(isActive ? "Semi-opaque white" : "Transparent")}");
 
-            button.Background = newBackground;
+            //button.Background = isActive ? activeBackground : inactiveBackground;
 
-            // Handle both FontIcon and Image content
+            // Handle FontIcon content (both buttons should now use FontIcon)
             if (button.Content is FontIcon icon)
             {
                 System.Diagnostics.Debug.WriteLine($"{button.Name} has FontIcon content");
-                icon.Foreground = foregroundBrush;
-            }
-            else if (button.Content is Image image)
-            {
-                System.Diagnostics.Debug.WriteLine($"{button.Name} has Image content");
-                image.Opacity = isActive ? 1.0 : 0.6;
+                icon.Foreground = isActive ? activeForeground : inactiveForeground;
             }
             else
             {
                 System.Diagnostics.Debug.WriteLine($"{button.Name} has unknown content type: {button.Content?.GetType().Name}");
+                // Fallback for other content types
+                button.Foreground = isActive ? activeForeground : inactiveForeground;
             }
         }
 

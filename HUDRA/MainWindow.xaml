@@ -63,8 +63,8 @@
                         </StackPanel>
                         <!-- Main Page Navigation Item (Home icon) -->
                         <Button x:Name="MainPageNavButton"
-                        Width="50"
-                        Height="50"
+                        Width="60"
+                        Height="45"
                         Style="{StaticResource NavigationButtonStyle}"
                         Click="MainPageNavButton_Click"
                         ToolTipService.ToolTip="Performance Controls"
@@ -80,20 +80,22 @@
 
                         <!-- Settings Navigation Item (Custom image) -->
                         <Button x:Name="SettingsNavButton"
-                        Width="50"
-                        Height="50"
-                        Style="{StaticResource NavigationButtonStyle}"
-                        Click="SettingsNavButton_Click"
-                        ToolTipService.ToolTip="Settings"
-                        HorizontalAlignment="Center"
-                        HorizontalContentAlignment="Center"
-                        VerticalContentAlignment="Center">
-                            <Image Source="/Assets/performance-settings-icon.png"
-                           Width="20"
-                           Height="20"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
+                                
+        Width="60"
+        Height="45"
+        Style="{StaticResource NavigationButtonStyle}"
+        Click="SettingsNavButton_Click"
+        ToolTipService.ToolTip="Settings"
+        HorizontalAlignment="Center"
+        HorizontalContentAlignment="Center"
+        VerticalContentAlignment="Center">
+                            <FontIcon FontFamily="Segoe MDL2 Assets"
+              Glyph="&#xE713;"
+              FontSize="20"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center"/>
                         </Button>
+                        
                         <!-- Add more navigation items here as needed -->
                         <!-- 
                         <Button x:Name="AboutNavButton"
