@@ -2,23 +2,24 @@ using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
+using System;
 
 namespace HUDRA.Pages
 {
     public sealed partial class SettingsPage : Page
     {
         private DpiScalingService? _dpiService;
-        private bool _hasScrollPositioned = false;
+        private bool _isInitialized = false;
 
         public SettingsPage()
         {
             this.InitializeComponent();
-            this.Loaded += SettingsPage_Loaded;
             LoadSettings();
         }
 
         private void LoadSettings()
         {
+            
             TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
             UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
             UpdateStartupTdpEnabledState();
@@ -26,57 +27,53 @@ namespace HUDRA.Pages
 
         public void Initialize(DpiScalingService dpiService)
         {
+            
             _dpiService = dpiService;
+
+            // Initialize the TDP picker with autoSetEnabled=false (settings mode)
             StartupTdpPicker.Initialize(dpiService, autoSetEnabled: false);
-            StartupTdpPicker.SelectedTdp = SettingsService.GetStartupTdp();
+
+            // Set up change handler
             StartupTdpPicker.TdpChanged += StartupTdpPicker_TdpChanged;
-        }
 
-        private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            // Handle scroll positioning when page becomes visible
-            if (!_hasScrollPositioned)
-            {
-                _hasScrollPositioned = true;
+            _isInitialized = true;
 
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-                {
-                    // Check if navigation service indicates we're still navigating
-                    if (Application.Current is App app && app.MainWindow?.NavigationService.IsNavigating == false)
-                    {
-                        StartupTdpPicker.EnsureScrollPositionAfterLayout();
-                    }
-                });
-            }
+            // Use the new method to set value when layout is ready
+            int startupTdp = SettingsService.GetStartupTdp();
+                        StartupTdpPicker.SetSelectedTdpWhenReady(startupTdp);
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            System.Diagnostics.Debug.WriteLine("SettingsPage: OnNavigatedTo");
-        }
+                    }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            System.Diagnostics.Debug.WriteLine("SettingsPage: OnNavigatedFrom");
-
+            
             // Cleanup
-            StartupTdpPicker.TdpChanged -= StartupTdpPicker_TdpChanged;
-            StartupTdpPicker.Dispose();
+            if (_isInitialized)
+            {
+                StartupTdpPicker.TdpChanged -= StartupTdpPicker_TdpChanged;
+                StartupTdpPicker.Dispose();
+                _isInitialized = false;
+            }
         }
 
         private void StartupTdpPicker_TdpChanged(object? sender, int value)
         {
-            if (UseStartupTdpToggle.IsOn)
-            {
-                SettingsService.SetStartupTdp(value);
-            }
-        }
+            
+            // Always save the startup TDP when it changes, regardless of toggle state
+            // The toggle controls whether it's used on startup, not whether changes are saved
+            SettingsService.SetStartupTdp(value);
+
+                    }
 
         private void TdpCorrectionToggle_Toggled(object sender, RoutedEventArgs e)
         {
             var isOn = TdpCorrectionToggle.IsOn;
+            
             SettingsService.SetTdpCorrectionEnabled(isOn);
 
             var monitor = (App.Current as App)?.TdpMonitor;
@@ -92,6 +89,7 @@ namespace HUDRA.Pages
         private void UseStartupTdpToggle_Toggled(object sender, RoutedEventArgs e)
         {
             var isOn = UseStartupTdpToggle.IsOn;
+            
             SettingsService.SetUseStartupTdp(isOn);
             UpdateStartupTdpEnabledState();
         }
@@ -99,6 +97,7 @@ namespace HUDRA.Pages
         private void UpdateStartupTdpEnabledState()
         {
             bool enable = UseStartupTdpToggle.IsOn;
+            
             StartupTdpPicker.IsEnabled = enable;
             StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
         }

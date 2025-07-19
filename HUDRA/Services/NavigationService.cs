@@ -40,8 +40,7 @@ namespace HUDRA.Services
             try
             {
                 _isNavigating = true;
-                System.Diagnostics.Debug.WriteLine($"Navigation starting to {pageType.Name}");
-
+                
                 // Save current page type to stack if different
                 if (_currentPageType != null && _currentPageType != pageType)
                 {
@@ -52,19 +51,20 @@ namespace HUDRA.Services
                 var newPage = Activator.CreateInstance(pageType) as FrameworkElement;
                 if (newPage != null)
                 {
-                    _frame.Content = newPage;
+                                        _frame.Content = newPage;
                     _currentPageType = pageType;
 
-                    System.Diagnostics.Debug.WriteLine($"Navigation completed to {pageType.Name}");
-
+                                        
                     // Notify after content is set
                     PageChanged?.Invoke(this, pageType);
                 }
+                else
+                {
+                                    }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Navigation failed: {ex.Message}");
-            }
+                                            }
             finally
             {
                 // Clear navigation flag after a small delay to ensure page transition completes
@@ -73,8 +73,7 @@ namespace HUDRA.Services
                 {
                     timer.Stop();
                     _isNavigating = false;
-                    System.Diagnostics.Debug.WriteLine($"Navigation flag cleared");
-                };
+                                    };
                 timer.Start();
             }
         }

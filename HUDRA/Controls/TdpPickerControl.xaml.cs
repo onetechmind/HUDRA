@@ -66,8 +66,7 @@ namespace HUDRA.Controls
             {
                 if (_selectedTdp != value && value >= HudraSettings.MIN_TDP && value <= HudraSettings.MAX_TDP)
                 {
-                    System.Diagnostics.Debug.WriteLine($"TDP Picker: SelectedTdp changing from {_selectedTdp} to {value}");
-
+                    
                     _selectedTdp = value;
 
                     if (_isInitialized && !_suppressTdpChangeEvents)
@@ -100,8 +99,7 @@ namespace HUDRA.Controls
 
         public void Initialize(DpiScalingService dpiService, bool autoSetEnabled = true, bool preserveCurrentValue = false)
         {
-            System.Diagnostics.Debug.WriteLine($"TDP Picker Initialize: autoSetEnabled={autoSetEnabled}, preserveCurrentValue={preserveCurrentValue}");
-
+            
             _dpiService = dpiService ?? throw new ArgumentNullException(nameof(dpiService));
             _autoSetEnabled = autoSetEnabled;
             _autoSetManager = autoSetEnabled ? new TdpAutoSetManager(SetTdpAsync, status => StatusText = status) : null;
@@ -116,8 +114,7 @@ namespace HUDRA.Controls
 
             // Set initialized flag BEFORE loading TDP so visual updates work
             _isInitialized = true;
-            System.Diagnostics.Debug.WriteLine("TDP Picker: Set _isInitialized = true");
-
+            
             if (!preserveCurrentValue)
             {
                 LoadCurrentTdp();
@@ -125,8 +122,7 @@ namespace HUDRA.Controls
             else
             {
                 // For preserved value, just update visuals without changing the selected value
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: Preserving current value {_selectedTdp} - skipping LoadCurrentTdp");
-
+                
                 // Just update the visual appearance without changing any values
                 UpdateNumberOpacity();
                 StatusText = $"Current TDP: {_selectedTdp}W (preserved)";
@@ -136,8 +132,7 @@ namespace HUDRA.Controls
                 {
                     if (!IsNavigating())
                     {
-                        System.Diagnostics.Debug.WriteLine($"TDP Picker: Positioning scroll to preserved value: {_selectedTdp}");
-                        ScrollToTdpSilently(_selectedTdp);
+                                                ScrollToTdpSilently(_selectedTdp);
                     }
                 });
             }
@@ -147,8 +142,7 @@ namespace HUDRA.Controls
         {
             if (_dpiService == null) return;
 
-            System.Diagnostics.Debug.WriteLine("TDP Picker: InitializePicker called");
-
+            
             NumbersPanel.Children.Clear();
             NumbersPanel.Spacing = _dpiService.SpacingWidth;
 
@@ -190,22 +184,19 @@ namespace HUDRA.Controls
 
         private void OnTdpPickerLoaded(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("TDP Picker: OnTdpPickerLoaded");
-            SetupPaddingAndScroll();
+                        SetupPaddingAndScroll();
         }
 
         private void OnScrollViewerSizeChanged(object sender, SizeChangedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("TDP Picker: OnScrollViewerSizeChanged");
-            SetupPaddingAndScroll();
+                        SetupPaddingAndScroll();
         }
 
         private void SetupPaddingAndScroll()
         {
             if (TdpScrollViewer.ActualWidth <= 0 || _dpiService == null || IsNavigating()) return;
 
-            System.Diagnostics.Debug.WriteLine($"TDP Picker: SetupPaddingAndScroll - Width: {TdpScrollViewer.ActualWidth}");
-
+            
             var startPaddingWidth = (TdpScrollViewer.ActualWidth - _dpiService.ItemWidth) / 2;
 
             if (_startPadding != null) _startPadding.Width = startPaddingWidth;
@@ -220,8 +211,7 @@ namespace HUDRA.Controls
                 timer.Stop();
                 if (!IsNavigating())
                 {
-                    System.Diagnostics.Debug.WriteLine($"TDP Picker: Positioning scroll to TDP {_selectedTdp}");
-                    ScrollToTdpSilently(_selectedTdp);
+                                        ScrollToTdpSilently(_selectedTdp);
 
                     // Force visual update after scroll positioning
                     UpdateNumberOpacity();
@@ -268,8 +258,7 @@ namespace HUDRA.Controls
             var maxScroll = Math.Max(0, TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth);
             targetScrollPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
 
-            System.Diagnostics.Debug.WriteLine($"TDP Picker: ScrollToTdp({tdpValue}) - target position: {targetScrollPosition}");
-            TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+                        TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
         }
 
         private int GetCenteredTdp()
@@ -295,8 +284,7 @@ namespace HUDRA.Controls
             var centeredTdp = GetCenteredTdp();
             if (centeredTdp != _selectedTdp)
             {
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: ViewChanged - updating TDP from {_selectedTdp} to {centeredTdp}");
-
+                
                 _suppressTdpChangeEvents = true;
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
@@ -336,12 +324,10 @@ namespace HUDRA.Controls
 
         private void UpdateNumberOpacity()
         {
-            System.Diagnostics.Debug.WriteLine($"TDP Picker: UpdateNumberOpacity called - selected TDP: {_selectedTdp}");
-
+            
             if (!_isInitialized)
             {
-                System.Diagnostics.Debug.WriteLine("TDP Picker: UpdateNumberOpacity - not initialized, skipping");
-                return;
+                                return;
             }
 
             for (int i = 1; i <= HudraSettings.TotalTdpCount; i++)
@@ -356,36 +342,35 @@ namespace HUDRA.Controls
 
                     if (isSelected)
                     {
-                        System.Diagnostics.Debug.WriteLine($"TDP Picker: Highlighting TDP {tdpValue} (opacity: 1.0, fontSize: 28)");
-                    }
+                                            }
                 }
             }
         }
 
         private async void LoadCurrentTdp()
         {
-            System.Diagnostics.Debug.WriteLine($"TDP Picker: LoadCurrentTdp - autoSetEnabled: {_autoSetEnabled}");
-
+            
             if (!_autoSetEnabled)
             {
                 // Settings mode - always use startup TDP from settings
                 int startupTdp = SettingsService.GetStartupTdp();
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: Settings mode - using startup TDP: {startupTdp}");
-                SelectedTdp = startupTdp;
+                                SelectedTdp = startupTdp;
                 StatusText = $"Default TDP: {startupTdp}W";
 
                 // Force visual update immediately for settings mode
                 UpdateNumberOpacity();
 
-                // Schedule scroll positioning after layout
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                // CRITICAL: Force scroll positioning for settings mode
+                                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                 {
                     if (!IsNavigating())
                     {
-                        System.Diagnostics.Debug.WriteLine($"TDP Picker: Settings mode - positioning scroll to {startupTdp}");
-                        ScrollToTdpSilently(startupTdp);
+                                                ScrollToTdpSilently(startupTdp);
                         UpdateNumberOpacity(); // Force highlighting after scroll
                     }
+                    else
+                    {
+                                            }
                 });
 
                 return;
@@ -402,8 +387,7 @@ namespace HUDRA.Controls
                 {
                     targetTdp = SettingsService.GetStartupTdp();
                     statusReason = "using default TDP from settings";
-                    System.Diagnostics.Debug.WriteLine($"TDP Picker: Priority 1 - Default TDP enabled, using: {targetTdp}W");
-                }
+                                    }
                 else
                 {
                     // Priority 2: Last-Used TDP if default is disabled
@@ -414,13 +398,11 @@ namespace HUDRA.Controls
                     {
                         targetTdp = HudraSettings.DEFAULT_STARTUP_TDP; // 10W
                         statusReason = "using fallback (10W) - invalid last-used TDP";
-                        System.Diagnostics.Debug.WriteLine($"TDP Picker: Priority 3 - Invalid last-used TDP, fallback to: {targetTdp}W");
-                    }
+                                            }
                     else
                     {
                         statusReason = "using last-used TDP";
-                        System.Diagnostics.Debug.WriteLine($"TDP Picker: Priority 2 - Last-used TDP: {targetTdp}W");
-                    }
+                                            }
                 }
 
                 // Try to read current hardware TDP for status display
@@ -438,8 +420,7 @@ namespace HUDRA.Controls
                 }
 
                 // Set the UI value FIRST before hardware operations
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: LoadCurrentTdp - setting SelectedTdp to {targetTdp}");
-                SelectedTdp = targetTdp;
+                                SelectedTdp = targetTdp;
 
                 // Force visual update immediately
                 UpdateNumberOpacity();
@@ -472,8 +453,7 @@ namespace HUDRA.Controls
                 SelectedTdp = fallbackTdp;
                 UpdateNumberOpacity(); // Force visual update on fallback too
                 StatusText = $"TDP: {fallbackTdp}W (fallback due to error): {ex.Message}";
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: LoadCurrentTdp - exception, using fallback: {fallbackTdp}W");
-            }
+                            }
         }
 
         private async Task<bool> SetTdpAsync(int tdpValue)
@@ -630,8 +610,7 @@ namespace HUDRA.Controls
 
             if (sender is TextBlock tb && int.TryParse(tb.Text, out int tdp))
             {
-                System.Diagnostics.Debug.WriteLine($"TDP Picker: Number {tdp} tapped");
-                SelectedTdp = tdp;
+                                SelectedTdp = tdp;
 
                 if (_autoSetEnabled)
                 {
@@ -648,8 +627,7 @@ namespace HUDRA.Controls
         {
             if (IsNavigating()) return;
 
-            System.Diagnostics.Debug.WriteLine($"TDP Picker: EnsureScrollPositionAfterLayout called for TDP {_selectedTdp}");
-
+            
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
                 if (!IsNavigating() && TdpScrollViewer.ActualWidth > 0)
@@ -680,8 +658,7 @@ namespace HUDRA.Controls
         // Reset positioning flag when reinitializing
         public void ResetScrollPositioning()
         {
-            System.Diagnostics.Debug.WriteLine("TDP Picker: ResetScrollPositioning called");
-            _suppressScrollEvents = false;
+                        _suppressScrollEvents = false;
             _suppressTdpChangeEvents = false;
         }
 
@@ -697,6 +674,125 @@ namespace HUDRA.Controls
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        // Add this method to your TdpPickerControl.xaml.cs class
+
+        public void SetSelectedTdpWhenReady(int tdpValue)
+        {
+            
+            // Check if we can set the value immediately
+            if (IsFullyLayouted())
+            {
+                                SetValueAndForceScroll(tdpValue);
+                return;
+            }
+
+            
+            // Wait for layout to be ready
+            var pendingValue = tdpValue;
+            EventHandler<object> layoutHandler = null;
+
+            layoutHandler = (sender, e) =>
+            {
+                
+                if (IsFullyLayouted())
+                {
+                                        LayoutUpdated -= layoutHandler;
+
+                    // Use dispatcher to ensure we're not in the middle of layout
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        SetValueAndForceScroll(pendingValue);
+                    });
+                }
+            };
+
+            LayoutUpdated += layoutHandler;
+
+            // Safety fallback timer
+            var fallbackTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
+            fallbackTimer.Tick += (s, args) =>
+            {
+                fallbackTimer.Stop();
+                                LayoutUpdated -= layoutHandler;
+                SetValueAndForceScroll(pendingValue);
+            };
+            fallbackTimer.Start();
+        }
+
+        private void SetValueAndForceScroll(int tdpValue)
+        {
+            // Set the internal value
+            _selectedTdp = tdpValue;
+            UpdateNumberOpacity();
+            OnPropertyChanged(nameof(SelectedTdp));
+
+            // Only do the delayed scroll (since it gets the right position)
+            var scrollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            scrollTimer.Tick += (s, args) =>
+            {
+                scrollTimer.Stop();
+                ForceScrollToTdp(tdpValue);
+            };
+            scrollTimer.Start();
+
+            TdpChanged?.Invoke(this, _selectedTdp);
+        }
+
+        private void ForceScrollToTdp(int tdpValue)
+        {
+            
+            if (_dpiService == null || TdpScrollViewer == null)
+            {
+                                return;
+            }
+
+            try
+            {
+                var tdpIndex = tdpValue - HudraSettings.MIN_TDP;
+                var scrollViewerCenter = TdpScrollViewer.ActualWidth / 2;
+                var startPadding = _startPadding?.Width ?? ((TdpScrollViewer.ActualWidth - _dpiService.ItemWidth) / 2);
+
+                var numberLeftEdge = startPadding + (tdpIndex * _dpiService.ItemWidth);
+                var numberCenter = numberLeftEdge + (_dpiService.ItemWidth / 2);
+                var targetScrollPosition = numberCenter - scrollViewerCenter;
+
+                var maxScroll = Math.Max(0, TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth);
+                targetScrollPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
+
+                
+                // Force the scroll, bypassing any navigation checks
+                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                // Update the internal scroll state to prevent conflicts
+                _isScrolling = true;
+
+                // Clear the scrolling flag after a short delay
+                var clearScrollFlag = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+                clearScrollFlag.Tick += (s, args) =>
+                {
+                    clearScrollFlag.Stop();
+                    _isScrolling = false;
+                };
+                clearScrollFlag.Start();
+            }
+            catch (Exception ex)
+            {
+                            }
+        }
+
+        private bool IsFullyLayouted()
+        {
+            // Check if the control and its internal ScrollViewer are properly sized
+            bool basicLayout = ActualWidth > 0 && ActualHeight > 0;
+            bool scrollViewerReady = TdpScrollViewer?.ActualWidth > 0;
+            bool numbersReady = NumbersPanel?.Children.Count > 0;
+
+            bool isReady = basicLayout && scrollViewerReady && numbersReady;
+
+            
+            return isReady;
         }
     }
 }
