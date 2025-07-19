@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Input;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace HUDRA.Controls
@@ -29,6 +30,15 @@ namespace HUDRA.Controls
         private bool _suppressScrollEvents = false;
         private bool _suppressTdpChangeEvents = false;
         private string _statusText = "Current TDP: Not Set";
+
+        // Path to tick sound used for scroll feedback
+        private static readonly string TickSoundPath = System.IO.Path.Combine(AppContext.BaseDirectory, "Assets", "tick.wav");
+
+        private const uint SND_ASYNC = 0x0001;
+        private const uint SND_FILENAME = 0x00020000;
+
+        [DllImport("winmm.dll", SetLastError = true)]
+        private static extern bool PlaySound(string pszSound, IntPtr hmod, uint fdwSound);
 
         private bool _showLabel = true;
         public bool ShowLabel
@@ -284,20 +294,25 @@ namespace HUDRA.Controls
             var centeredTdp = GetCenteredTdp();
             if (centeredTdp != _selectedTdp)
             {
-                
+                bool playTick = e.IsIntermediate;
+
                 _suppressTdpChangeEvents = true;
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
                 OnPropertyChanged(nameof(SelectedTdp));
                 _suppressTdpChangeEvents = false;
 
-                // Only schedule hardware changes if auto-set is enabled
                 if (_autoSetEnabled)
                 {
                     _autoSetManager?.ScheduleUpdate(_selectedTdp);
                 }
 
                 TdpChanged?.Invoke(this, _selectedTdp);
+
+                if (playTick)
+                {
+                    PlayTickSound();
+                }
             }
 
             if (!e.IsIntermediate)
@@ -793,6 +808,18 @@ namespace HUDRA.Controls
 
             
             return isReady;
+        }
+
+        private static void PlayTickSound()
+        {
+            try
+            {
+                PlaySound(TickSoundPath, IntPtr.Zero, SND_ASYNC | SND_FILENAME);
+            }
+            catch
+            {
+                // Ignore any playback errors
+            }
         }
     }
 }
