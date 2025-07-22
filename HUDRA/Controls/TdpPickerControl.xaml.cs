@@ -31,6 +31,10 @@ namespace HUDRA.Controls
         private string _statusText = "Current TDP: Not Set";
 
         private bool _showLabel = true;
+
+        private AudioHelper? _audioHelper;
+        private int _lastCenteredTdp = -1; // Track the last centered TDP to detect changes
+        private bool _enableAudioFeedback = true; // Allow disabling audio if needed
         public bool ShowLabel
         {
             get => _showLabel;
@@ -135,6 +139,16 @@ namespace HUDRA.Controls
                                                 ScrollToTdpSilently(_selectedTdp);
                     }
                 });
+            }
+
+            // Initialize audio helper
+            try
+            {
+                _audioHelper = new AudioHelper();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize audio helper: {ex.Message}");
             }
         }
 
@@ -282,9 +296,19 @@ namespace HUDRA.Controls
             if (_isScrolling || IsNavigating() || _suppressScrollEvents) return;
 
             var centeredTdp = GetCenteredTdp();
+
+            // Play tick sound when the centered TDP changes during scrolling
+            if (_enableAudioFeedback && _audioHelper != null &&
+                centeredTdp != _lastCenteredTdp && _lastCenteredTdp != -1)
+            {
+                _audioHelper.PlayTick();
+                System.Diagnostics.Debug.WriteLine($"Audio tick: TDP changed from {_lastCenteredTdp} to {centeredTdp}");
+            }
+
+            _lastCenteredTdp = centeredTdp;
+
             if (centeredTdp != _selectedTdp)
             {
-                
                 _suppressTdpChangeEvents = true;
                 _selectedTdp = centeredTdp;
                 UpdateNumberOpacity();
@@ -454,6 +478,8 @@ namespace HUDRA.Controls
                 UpdateNumberOpacity(); // Force visual update on fallback too
                 StatusText = $"TDP: {fallbackTdp}W (fallback due to error): {ex.Message}";
                             }
+
+            _lastCenteredTdp = _selectedTdp;
         }
 
         private async Task<bool> SetTdpAsync(int tdpValue)
@@ -535,6 +561,30 @@ namespace HUDRA.Controls
                     newScrollPosition = Math.Max(0, Math.Min(maxScroll, newScrollPosition));
 
                     TdpScrollViewer.ScrollToHorizontalOffset(newScrollPosition);
+
+                    // ADD THIS: Check for TDP changes during mouse drag and update visuals + audio
+                    var centeredTdp = GetCenteredTdp();
+                    if (centeredTdp != _lastCenteredTdp && _lastCenteredTdp != -1)
+                    {
+                        // Play audio feedback
+                        if (_enableAudioFeedback && _audioHelper != null)
+                        {
+                            _audioHelper.PlayTick();
+                            System.Diagnostics.Debug.WriteLine($"Audio tick (mouse drag): TDP changed from {_lastCenteredTdp} to {centeredTdp}");
+                        }
+
+                        // Update visual highlighting
+                        _lastCenteredTdp = centeredTdp;
+                        _suppressTdpChangeEvents = true;
+                        _selectedTdp = centeredTdp;
+                        UpdateNumberOpacity();
+                        OnPropertyChanged(nameof(SelectedTdp));
+                        _suppressTdpChangeEvents = false;
+
+                        // Fire TDP changed event
+                        TdpChanged?.Invoke(this, _selectedTdp);
+                    }
+
                     lastPointerX = currentX;
                 }
             };
@@ -586,6 +636,17 @@ namespace HUDRA.Controls
             if (IsNavigating() || _suppressScrollEvents) return;
 
             var centeredTdp = GetCenteredTdp();
+
+            // Play tick sound when the centered TDP changes during manual scrolling
+            if (_enableAudioFeedback && _audioHelper != null &&
+                centeredTdp != _lastCenteredTdp && _lastCenteredTdp != -1)
+            {
+                _audioHelper.PlayTick();
+                System.Diagnostics.Debug.WriteLine($"Audio tick (scroll end): TDP changed from {_lastCenteredTdp} to {centeredTdp}");
+            }
+
+            _lastCenteredTdp = centeredTdp;
+
             if (centeredTdp != _selectedTdp)
             {
                 _suppressTdpChangeEvents = true;
@@ -665,6 +726,7 @@ namespace HUDRA.Controls
         public void Dispose()
         {
             _autoSetManager?.Dispose();
+            _audioHelper?.Dispose();
 
             // Clean up event handlers
             Loaded -= OnTdpPickerLoaded;
@@ -725,6 +787,7 @@ namespace HUDRA.Controls
         {
             // Set the internal value
             _selectedTdp = tdpValue;
+            _lastCenteredTdp = tdpValue;
             UpdateNumberOpacity();
             OnPropertyChanged(nameof(SelectedTdp));
 
@@ -793,6 +856,18 @@ namespace HUDRA.Controls
 
             
             return isReady;
+        }
+
+        // Add method to enable/disable audio feedback:
+        public void SetAudioFeedbackEnabled(bool enabled)
+        {
+            _enableAudioFeedback = enabled;
+        }
+
+        // Add method to adjust audio volume:
+        public void SetAudioVolume(double volume)
+        {
+            _audioHelper?.SetVolume(volume);
         }
     }
 }
