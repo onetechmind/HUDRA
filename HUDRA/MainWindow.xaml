@@ -171,10 +171,19 @@
 
             <!--  Content Area  -->
             <Grid Grid.Column="1" Margin="0,0,0,0">
-                <Frame
-                    x:Name="ContentFrame"
-                    MaxWidth="320"
-                    HorizontalAlignment="Center" />
+                <ScrollViewer
+                    x:Name="ContentScrollViewer"
+                    Padding="0,10,0,10"
+                    HorizontalScrollBarVisibility="Disabled"
+                    HorizontalScrollMode="Disabled"
+                    VerticalScrollBarVisibility="Auto"
+                    VerticalScrollMode="Auto"
+                    ZoomMode="Disabled">
+                    <Frame
+                        x:Name="ContentFrame"
+                        MaxWidth="320"
+                        HorizontalAlignment="Center" />
+                </ScrollViewer>
             </Grid>
 
         </Grid>

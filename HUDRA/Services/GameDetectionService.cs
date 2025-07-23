@@ -94,7 +94,7 @@ namespace HUDRA.Services
             "discord", "slack", "teams", "zoom", "skype", "whatsapp",
     
             // Media/Productivity
-            "spotify", "vlc", "photoshop", "word", "excel", "powerpoint", "obs",
+            "spotify", "vlc", "photoshop", "word", "excel", "powerpoint", "obs", "chatgpt",
     
             // Gaming platforms/launchers (not games themselves)
             "steam", "steamwebhelper", "steamservice",
@@ -426,29 +426,38 @@ namespace HUDRA.Services
             try
             {
                 float score = 0;
-
-                // Check memory usage (games typically use more)
                 var memoryMB = process.WorkingSet64 / 1024 / 1024;
-
-                // Check if fullscreen
                 bool isFullscreen = IsLikelyFullscreenApp(process.MainWindowHandle);
 
-                // Simplified scoring without DLL loading checks
-                if (isFullscreen && memoryMB > 300)
+                // Check for graphics libraries (simpler version)
+                bool hasGraphicsDLLs = HasGraphicsLibraries(process);
+
+                // Enhanced scoring with graphics DLL detection
+                if (hasGraphicsDLLs && isFullscreen && memoryMB > 200)
                 {
-                    score = 25; // Fullscreen + high memory = likely game
+                    score = 30; // Graphics + fullscreen + memory = very likely game
+                    System.Diagnostics.Debug.WriteLine($"Graphics DLLs detected");
+
+                }
+                else if (isFullscreen && memoryMB > 300)
+                {
+                    score = 25;
+                }
+                else if (hasGraphicsDLLs && memoryMB > 400)
+                {
+                    score = 22; // Graphics + high memory without fullscreen
                 }
                 else if (memoryMB > 500)
                 {
-                    score = 20; // Very high memory usage
+                    score = 20;
                 }
                 else if (isFullscreen)
                 {
-                    score = 15; // Fullscreen alone
+                    score = 15;
                 }
                 else if (memoryMB > 200)
                 {
-                    score = 10; // Moderate memory usage
+                    score = 10;
                 }
 
                 return score;
@@ -459,6 +468,22 @@ namespace HUDRA.Services
             }
         }
 
+        private bool HasGraphicsLibraries(Process process)
+        {
+            try
+            {
+                var modules = process.Modules.Cast<ProcessModule>();
+                var gameLibraries = new[] { "d3d", "opengl", "vulkan", "dxgi" };
+
+                return modules.Any(m =>
+                    gameLibraries.Any(lib =>
+                        m.ModuleName.Contains(lib, StringComparison.OrdinalIgnoreCase)));
+            }
+            catch
+            {
+                return false;
+            }
+        }
         private bool IsInGameDirectory(Process process)
         {
             try

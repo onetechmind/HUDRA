@@ -2,57 +2,74 @@
     x:Class="HUDRA.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:controls="using:HUDRA.Controls"
     mc:Ignorable="d">
 
     <Grid Margin="0">
-        <StackPanel Spacing="15" MaxWidth="280" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,50,0,0">
+        <StackPanel
+            MaxWidth="280"
+            Margin="0,50,0,0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Spacing="15">
 
-            <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,5">
+            <Border
+                Padding="20,5"
+                Background="#22FFFFFF"
+                CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="4*" />
                         <ColumnDefinition Width="1*" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Text="Use Default TDP"
-                               Style="{StaticResource SettingsLabelStyle}"
-                               Grid.Column="0"
-                               Grid.Row="0" />
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="Use Default TDP" />
 
-                    <ToggleSwitch x:Name="UseStartupTdpToggle"
-                                  x:FieldModifier="public"
-                                  Grid.Column="1"
-                                  VerticalAlignment="Center"
-                                  HorizontalAlignment="Right"
-                                  Toggled="UseStartupTdpToggle_Toggled"/>
+                    <ToggleSwitch
+                        x:Name="UseStartupTdpToggle"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        x:FieldModifier="public"
+                        Toggled="UseStartupTdpToggle_Toggled" />
 
-                    <TextBlock Text="When on, HUDRA will start with TDP selected below."
-                       Style="{StaticResource SettingsDescriptionStyle}"
-                       Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2"/>
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="When on, HUDRA will start with TDP selected below." />
                 </Grid>
             </Border>
 
             <StackPanel>
-                <controls:TdpPickerControl x:Name="StartupTdpPicker" x:FieldModifier="public" ShowLabel="False"/>
+                <controls:TdpPickerControl
+                    x:Name="StartupTdpPicker"
+                    x:FieldModifier="public"
+                    ShowLabel="False" />
             </StackPanel>
 
-            <Rectangle Style="{StaticResource HudraHorizontalRule}"/>
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
 
-            <!-- Sticky TDP setting -->
-            <Border Background="#22FFFFFF"
-            CornerRadius="12"
-            Padding="20,5">
+            <!--  Sticky TDP setting  -->
+            <Border
+                Padding="20,5"
+                Background="#22FFFFFF"
+                CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="3*" />
@@ -60,22 +77,27 @@
                     </Grid.ColumnDefinitions>
 
 
-                    <TextBlock Text="Sticky TDP" 
-                       Style="{StaticResource SettingsLabelStyle}"
-                       Grid.Column="0"
-                       Grid.Row="0"/>
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="Sticky TDP" />
 
-                    <ToggleSwitch x:Name="TdpCorrectionToggle"
-                                  x:FieldModifier="public"
-                          Grid.Column="1"
-                          VerticalAlignment="Center"
-                          HorizontalAlignment="Right"
-                          Margin="10,0,0,0"
-                          Toggled="TdpCorrectionToggle_Toggled"/>
+                    <ToggleSwitch
+                        x:Name="TdpCorrectionToggle"
+                        Grid.Column="1"
+                        Margin="10,0,0,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        x:FieldModifier="public"
+                        Toggled="TdpCorrectionToggle_Toggled" />
 
-                    <TextBlock Text="Custom TDP will be less affected by external forces."
-                           Style="{StaticResource SettingsDescriptionStyle}"
-                           Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2"/>
+                    <TextBlock
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="2"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Custom TDP will be less affected by external forces." />
                 </Grid>
 
             </Border>
