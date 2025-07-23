@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <Application
     x:Class="HUDRA.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -6,71 +6,71 @@
     xmlns:local="using:HUDRA">
     <Application.Resources>
         <ResourceDictionary>
-   
+
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-                <!-- Other merged dictionaries here -->
+                <!--  Other merged dictionaries here  -->
             </ResourceDictionary.MergedDictionaries>
 
-            <!-- Horizontal Rule Style -->
+            <!--  Horizontal Rule Style  -->
             <Style x:Key="HudraHorizontalRule" TargetType="Rectangle">
-                <Setter Property="Height" Value="1"/>
-                <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                <Setter Property="Margin" Value="0"/>
-                <Setter Property="Opacity" Value="0.5"/>
+                <Setter Property="Height" Value="1" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="Opacity" Value="0.5" />
                 <Setter Property="Fill">
                     <Setter.Value>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                            <GradientStop Color="Transparent" Offset="0"/>
-                            <GradientStop Color="DarkViolet" Offset="0.5"/>
-                            <GradientStop Color="Transparent" Offset="1"/>
+                            <GradientStop Offset="0" Color="Transparent" />
+                            <GradientStop Offset="0.5" Color="DarkViolet" />
+                            <GradientStop Offset="1" Color="Transparent" />
                         </LinearGradientBrush>
                     </Setter.Value>
                 </Setter>
             </Style>
 
-            <!-- Settings Description Style -->
+            <!--  Settings Description Style  -->
             <Style x:Key="SettingsDescriptionStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="#99FFFFFF"/>
-                <Setter Property="FontFamily" Value="Calibri"/>
-                <Setter Property="TextWrapping" Value="Wrap"/>
-                <Setter Property="LineHeight" Value="15"/>
-                <Setter Property="Margin" Value="0,0,0,10"/>
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="#99FFFFFF" />
+                <Setter Property="FontFamily" Value="Calibri" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="LineHeight" Value="15" />
+                <Setter Property="Margin" Value="0,0,0,10" />
             </Style>
 
-            <!-- Slider and Thumb overrides -->
+            <!--  Slider and Thumb overrides  -->
             <x:Double x:Key="SliderTrackThemeHeight">15</x:Double>
             <x:Double x:Key="SliderThumbHeight">15</x:Double>
             <x:Double x:Key="SliderThumbWidth">15</x:Double>
             <x:Double x:Key="SliderHorizontalThumbHeight">25</x:Double>
             <x:Double x:Key="SliderHorizontalThumbWidth">25</x:Double>
 
-            <SolidColorBrush x:Key="SliderThumbBackground" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="SliderThumbBorderBrush" Color="LightSlateGray"/>
+            <SolidColorBrush x:Key="SliderThumbBackground" Color="DarkViolet" />
+            <SolidColorBrush x:Key="SliderThumbBackgroundPointerOver" Color="DarkViolet" />
+            <SolidColorBrush x:Key="SliderThumbBackgroundPressed" Color="DarkViolet" />
+            <SolidColorBrush x:Key="SliderThumbBorderBrush" Color="LightSlateGray" />
 
-            <!-- Track background colors (unfilled portion) -->
-            <SolidColorBrush x:Key="SliderTrackFill" Color="#666666"/>
-            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#777777"/>
-            <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#555555"/>
-            <SolidColorBrush x:Key="SliderTrackFillDisabled" Color="#333333"/>
-            
+            <!--  Track background colors (unfilled portion)  -->
+            <SolidColorBrush x:Key="SliderTrackFill" Color="#666666" />
+            <SolidColorBrush x:Key="SliderTrackFillPointerOver" Color="#777777" />
+            <SolidColorBrush x:Key="SliderTrackFillPressed" Color="#555555" />
+            <SolidColorBrush x:Key="SliderTrackFillDisabled" Color="#333333" />
 
-            <!-- Track value colors (filled portion) -->
-            <SolidColorBrush x:Key="SliderTrackValueFill" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#AA00FF"/>
-            <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#8B00A0"/>
-            <SolidColorBrush x:Key="SliderTrackValueFillDisabled" Color="#666666"/>
 
-            <!-- Global theme overrides for ComboBox dropdown styling -->
+            <!--  Track value colors (filled portion)  -->
+            <SolidColorBrush x:Key="SliderTrackValueFill" Color="DarkViolet" />
+            <SolidColorBrush x:Key="SliderTrackValueFillPointerOver" Color="#AA00FF" />
+            <SolidColorBrush x:Key="SliderTrackValueFillPressed" Color="#8B00A0" />
+            <SolidColorBrush x:Key="SliderTrackValueFillDisabled" Color="#666666" />
+
+            <!--  Global theme overrides for ComboBox dropdown styling  -->
             <SolidColorBrush x:Key="ComboBoxDropDownBackground">#333333</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush">#555555</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxDropDownForeground">White</SolidColorBrush>
             <Thickness x:Key="ComboBoxDropdownBorderThickness">1</Thickness>
 
-            <!-- ComboBox item styling - comprehensive override to eliminate red -->
+            <!--  ComboBox item styling - comprehensive override to eliminate red  -->
             <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver">#4C4C4C</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed">#666666</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected">#4C4C4C</SolidColorBrush>
@@ -84,7 +84,7 @@
             <SolidColorBrush x:Key="ComboBoxItemForegroundPointerOver">White</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxItemForegroundPressed">White</SolidColorBrush>
 
-            <!-- Nuclear option: Override ALL possible accent color variants -->
+            <!--  Nuclear option: Override ALL possible accent color variants  -->
             <SolidColorBrush x:Key="SystemAccentColor">DarkViolet</SolidColorBrush>
             <SolidColorBrush x:Key="SystemAccentColorLight1">DarkViolet</SolidColorBrush>
             <SolidColorBrush x:Key="SystemAccentColorLight2">DarkViolet</SolidColorBrush>
@@ -93,128 +93,129 @@
             <SolidColorBrush x:Key="SystemAccentColorDark2">DarkViolet</SolidColorBrush>
             <SolidColorBrush x:Key="SystemAccentColorDark3">DarkViolet</SolidColorBrush>
 
-            <!-- Target ComboBox-specific accent usage -->
+            <!--  Target ComboBox-specific accent usage  -->
             <SolidColorBrush x:Key="ComboBoxSelectionIndicatorForeground">DarkViolet</SolidColorBrush>
             <SolidColorBrush x:Key="ComboBoxItemPillFillBrush">DarkViolet</SolidColorBrush>
 
-            <!-- Other app resources here -->
+            <!--  Other app resources here  -->
             <SolidColorBrush x:Key="MicaBackground" Color="{StaticResource SystemBaseLowColor}" />
 
             <Style TargetType="TextBlock">
-                <Setter Property="FontFamily" Value="Calibri"/>
+                <Setter Property="FontFamily" Value="Calibri" />
             </Style>
 
-            <!-- Simple ComboBox Style - clean and reliable -->
+            <!--  Simple ComboBox Style - clean and reliable  -->
             <Style x:Key="HudraComboBoxStyle" TargetType="ComboBox">
-                <Setter Property="Background" Value="#22FFFFFF"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="BorderBrush" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="FontFamily" Value="Cascadia Code"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="CornerRadius" Value="12"/>
-                <Setter Property="Padding" Value="8,12"/>
-                <Setter Property="MinHeight" Value="48"/>
-                <Setter Property="Height" Value="48"/>
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
+                <Setter Property="Background" Value="#22FFFFFF" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="FontFamily" Value="Cascadia Code" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="CornerRadius" Value="12" />
+                <Setter Property="Padding" Value="8,12" />
+                <Setter Property="MinHeight" Value="48" />
+                <Setter Property="Height" Value="48" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
             </Style>
-            <!-- Simple ComboBoxItem Style -->
+            <!--  Simple ComboBoxItem Style  -->
             <Style x:Key="HudraComboBoxItemStyle" TargetType="ComboBoxItem">
-                <Setter Property="FontFamily" Value="Cascadia Code"/>
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="HorizontalContentAlignment" Value="Left"/>
-                <Setter Property="VerticalContentAlignment" Value="Center"/>
-                <Setter Property="Padding" Value="8,6"/>
+                <Setter Property="FontFamily" Value="Cascadia Code" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="VerticalContentAlignment" Value="Center" />
+                <Setter Property="Padding" Value="8,6" />
             </Style>
 
-            <!-- Custom ToggleSwitch Style -->
+            <!--  Custom ToggleSwitch Style  -->
             <Style TargetType="ToggleSwitch">
-                <Setter Property="FontFamily" Value="Cascadia Code"/>
-                <Setter Property="FontSize" Value="12"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="OnContent" Value=""/>
-                <Setter Property="OffContent" Value=""/>
+                <Setter Property="FontFamily" Value="Cascadia Code" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="OnContent" Value="" />
+                <Setter Property="OffContent" Value="" />
             </Style>
 
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#777777"/>
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#AA00FF"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="#444444"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#AA00FF"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="White"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="White"/>
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#777777" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPointerOver" Color="#AA00FF" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPointerOver" Color="#444444" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#AA00FF" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPointerOver" Color="White" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPointerOver" Color="White" />
 
-            <!-- ToggleSwitch pressed colors -->
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="#555555"/>
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#8B00A0"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="#222222"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#8B00A0"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#DDDDDD"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#DDDDDD"/>
+            <!--  ToggleSwitch pressed colors  -->
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOffPressed" Color="#555555" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOnPressed" Color="#8B00A0" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOffPressed" Color="#222222" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#8B00A0" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOffPressed" Color="#DDDDDD" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOnPressed" Color="#DDDDDD" />
 
-            <!-- Override toggle switch colors -->
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#666666"/>
-            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#333333"/>
-            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="DarkViolet"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#CCFFFFFF"/>
-            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="White"/>
-            <SolidColorBrush x:Key="ToggleSwitchContentForeground" Color="White"/>
-            <SolidColorBrush x:Key="ToggleSwitchContentForegroundDisabled" Color="#666666"/>
+            <!--  Override toggle switch colors  -->
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOff" Color="#666666" />
+            <SolidColorBrush x:Key="ToggleSwitchStrokeOn" Color="DarkViolet" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOff" Color="#333333" />
+            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="DarkViolet" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOff" Color="#CCFFFFFF" />
+            <SolidColorBrush x:Key="ToggleSwitchKnobFillOn" Color="White" />
+            <SolidColorBrush x:Key="ToggleSwitchContentForeground" Color="White" />
+            <SolidColorBrush x:Key="ToggleSwitchContentForegroundDisabled" Color="#666666" />
 
             <Style x:Key="SettingsLabelStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="14"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="FontFamily" Value="Cascadia Code"/>
-                <Setter Property="VerticalAlignment" Value="Center"/>
-                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="FontFamily" Value="Cascadia Code" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
             </Style>
 
-            <!-- Navigation Button Style - exempt from global button style -->
-            <!-- Replace the NavigationButtonStyle in your App.xaml with this: -->
-
-            <!-- Navigation Button Style - square with custom active state -->
+            <!--  Navigation Button Style - square with custom active state  -->
             <Style x:Key="NavigationButtonStyle" TargetType="Button">
-                <Setter Property="Background" Value="Transparent"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="BorderBrush" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="CornerRadius" Value="0"/>
-                <Setter Property="Padding" Value="0"/>
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="0" />
+                <Setter Property="Padding" Value="0" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="ButtonBorder"
-                        Background="{TemplateBinding Background}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
-                                <ContentPresenter x:Name="ContentPresenter"
-                                      HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"
-                                      Content="{TemplateBinding Content}"
-                                      Foreground="{TemplateBinding Foreground}"/>
+                            <Border
+                                x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <ContentPresenter
+                                    x:Name="ContentPresenter"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Content="{TemplateBinding Content}"
+                                    Foreground="{TemplateBinding Foreground}" />
 
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal"/>
+                                        <VisualState x:Name="Normal" />
 
                                         <VisualState x:Name="PointerOver">
                                             <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="ButtonBorder"
+                                                <ColorAnimation
+                                                    Storyboard.TargetName="ButtonBorder"
                                                     Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
                                                     To="#454545"
-                                                    Duration="0:0:0.1"/>
+                                                    Duration="0:0:0.1" />
                                             </Storyboard>
                                         </VisualState>
 
                                         <VisualState x:Name="Pressed">
                                             <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="ButtonBorder"
+                                                <ColorAnimation
+                                                    Storyboard.TargetName="ButtonBorder"
                                                     Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
                                                     To="#0A0A0A"
-                                                    Duration="0:0:0.05"/>
+                                                    Duration="0:0:0.05" />
                                             </Storyboard>
                                         </VisualState>
                                     </VisualStateGroup>
@@ -226,46 +227,116 @@
             </Style>
 
             <Style TargetType="Button">
-                <Setter Property="Background" Value="#2d2d2d"/>
-                <Setter Property="Foreground" Value="White"/>
-                <Setter Property="BorderBrush" Value="Transparent"/>
-                <Setter Property="BorderThickness" Value="0"/>
-                <Setter Property="CornerRadius" Value="16"/>
+                <Setter Property="Background" Value="#2d2d2d" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="16" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="ButtonBorder"
-                        Background="{TemplateBinding Background}"
-                        CornerRadius="{TemplateBinding CornerRadius}">
-                                <ContentPresenter HorizontalAlignment="Center"
+                            <Border
+                                x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="{TemplateBinding CornerRadius}">
+                                <ContentPresenter
+                                    HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
                                     Content="{TemplateBinding Content}"
-                                    Foreground="{TemplateBinding Foreground}"/>
+                                    Foreground="{TemplateBinding Foreground}" />
 
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
-                                        <VisualState x:Name="Normal"/>
+                                        <VisualState x:Name="Normal" />
 
                                         <VisualState x:Name="PointerOver">
                                             <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="ButtonBorder"
-                                                  Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                  To="#454545"
-                                                  Duration="0:0:0.1"/>
+                                                <ColorAnimation
+                                                    Storyboard.TargetName="ButtonBorder"
+                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                    To="#454545"
+                                                    Duration="0:0:0.1" />
                                             </Storyboard>
                                         </VisualState>
 
                                         <VisualState x:Name="Pressed">
                                             <Storyboard>
-                                                <ColorAnimation Storyboard.TargetName="ButtonBorder"
-                                                  Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                  To="#0A0A0A"
-                                                  Duration="0:0:0.05"/>
+                                                <ColorAnimation
+                                                    Storyboard.TargetName="ButtonBorder"
+                                                    Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                    To="#0A0A0A"
+                                                    Duration="0:0:0.05" />
                                             </Storyboard>
                                         </VisualState>
                                     </VisualStateGroup>
                                 </VisualStateManager.VisualStateGroups>
                             </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="GlowingGameButtonStyle" TargetType="Button">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="White" />
+                <Setter Property="BorderThickness" Value="0" />
+                <!--  Reduced from 4 to 1  -->
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid>
+                                <!--  Smaller glow layer to prevent clipping  -->
+                                <Border
+                                    x:Name="GlowLayer"
+                                    Height="50"
+                                    Background="DarkViolet"
+                                    CornerRadius="16"
+                                    Opacity="0.2"
+                                    RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="1" ScaleY="1" />
+                                    </Border.RenderTransform>
+                                </Border>
+                                <!--  Main button  -->
+                                <Border
+                                    x:Name="ButtonBorder"
+                                    Width="50"
+                                    Height="50"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="{TemplateBinding CornerRadius}">
+                                    <ContentPresenter
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Content="{TemplateBinding Content}"
+                                        Foreground="{TemplateBinding Foreground}" />
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <Storyboard>
+                                                    <ColorAnimation
+                                                        Storyboard.TargetName="ButtonBorder"
+                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#454545"
+                                                        Duration="0:0:0.1" />
+                                                </Storyboard>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <Storyboard>
+                                                    <ColorAnimation
+                                                        Storyboard.TargetName="ButtonBorder"
+                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                        To="#0A0A0A"
+                                                        Duration="0:0:0.05" />
+                                                </Storyboard>
+                                            </VisualState>
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                </Border>
+                            </Grid>
                         </ControlTemplate>
                     </Setter.Value>
                 </Setter>

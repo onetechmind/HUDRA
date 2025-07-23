@@ -17,6 +17,7 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <Nullable>enable</Nullable>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <None Remove="Assets\HUDRA_Logo.ico" />
@@ -88,9 +89,7 @@
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.5.240428000" />
     <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.3233" />
 	<PackageReference Include="MouseKeyHook" Version="5.7.1" />
-
     <Manifest Include="$(ApplicationManifest)" />
-
     <PackageReference Include="System.Management" Version="9.0.6" />
   </ItemGroup>
 

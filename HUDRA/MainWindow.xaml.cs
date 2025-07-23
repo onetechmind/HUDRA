@@ -7,6 +7,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
@@ -31,6 +32,8 @@ namespace HUDRA
         private TurboService? _turboService;
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
+        private GameDetectionService? _gameDetectionService;
+        private Storyboard? _glowPulseStoryboard;
 
         // Public navigation service access for TDP picker
         public NavigationService NavigationService => _navigationService;
@@ -108,6 +111,7 @@ namespace HUDRA
         {
             TrySetMicaBackdrop();
             _windowManager.Initialize();
+            InitializeGameDetection();
         }
 
         private void OnPageChanged(object sender, Type pageType)
@@ -321,8 +325,18 @@ namespace HUDRA
         private void AltTabButton_Click(object sender, RoutedEventArgs e)
         {
             _windowManager.ToggleVisibility();
-            SimulateAltTab();
+
+            if (_gameDetectionService?.SwitchToGame() == true)
+            {
+                System.Diagnostics.Debug.WriteLine("Successfully switched to game");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Game switching failed, using generic Alt+Tab");
+                SimulateAltTab();
+            }
         }
+
 
         private void SetupEventHandlers()
         {
@@ -636,6 +650,7 @@ namespace HUDRA
             _tdpMonitor?.Dispose();
             _batteryService?.Dispose();
             _navigationService?.Dispose();
+            _gameDetectionService?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
@@ -662,5 +677,174 @@ namespace HUDRA
         private const byte VK_MENU = 0x12;
         private const byte VK_TAB = 0x09;
         private const uint KEYEVENTF_KEYUP = 0x0002;
+
+        private void InitializeGameDetection()
+        {
+            try
+            {
+                _gameDetectionService = new GameDetectionService(DispatcherQueue);
+                _gameDetectionService.GameDetected += OnGameDetected;
+                _gameDetectionService.GameStopped += OnGameStopped;
+
+                // Initially hide the Alt+Tab button until a game is detected
+                AltTabButton.Visibility = Visibility.Collapsed;
+
+                System.Diagnostics.Debug.WriteLine("Game detection service initialized");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize game detection: {ex.Message}");
+                AltTabButton.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void OnGameDetected(object? sender, GameInfo? gameInfo)
+        {
+            if (gameInfo == null) return;
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Game detected: {gameInfo.WindowTitle} ({gameInfo.ProcessName})");
+
+                // Show the Alt+Tab button with game controller icon
+                AltTabButton.Visibility = Visibility.Visible;
+                UpdateAltTabButtonToGameIcon();
+
+                // Update tooltip
+                string gameName = !string.IsNullOrWhiteSpace(gameInfo.WindowTitle)
+                    ? gameInfo.WindowTitle
+                    : gameInfo.ProcessName;
+                ToolTipService.SetToolTip(AltTabButton, $"Return to {gameName}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling game detection: {ex.Message}");
+            }
+
+            StartGlowPulseAnimation();
+        }
+
+        private void OnGameStopped(object? sender, EventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Game stopped - hiding Alt+Tab button");
+                AltTabButton.Visibility = Visibility.Collapsed;
+                ToolTipService.SetToolTip(AltTabButton, "Return to Game");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error handling game stopped: {ex.Message}");
+            }
+
+            StopGlowPulseAnimation();
+        }
+
+        private void UpdateAltTabButtonToGameIcon()
+        {
+            // Use a game controller icon when a game is detected
+            var gameIcon = new FontIcon
+            {
+                FontFamily = new Microsoft.UI.Xaml.Media.FontFamily("Segoe MDL2 Assets"),
+                Glyph = "\uE7FC", // Game controller icon
+                FontSize = 20,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            AltTabButton.Content = gameIcon;
+        }
+private void StartGlowPulseAnimation()
+{
+    try
+    {
+        // Apply the custom style first
+        AltTabButton.Style = (Style)Application.Current.Resources["GlowingGameButtonStyle"];
+        
+        // Wait for the template to be applied
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+        {
+            // Wait a bit more for template application
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                
+                // Find the GlowLayer in the button's template
+                var glowLayer = FindChildByName<Border>(AltTabButton, "GlowLayer");
+                if (glowLayer == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Could not find GlowLayer in button template");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine("Found GlowLayer, starting animation");
+
+                // Create opacity pulsing animation with smaller range
+                var opacityAnimation = new DoubleAnimation
+                {
+                    From = 0.75,
+                    To = 0.25,
+                    Duration = new Duration(TimeSpan.FromSeconds(1.25)),
+                    AutoReverse = true,
+                    RepeatBehavior = RepeatBehavior.Forever
+                };
+
+                // Create storyboard
+                _glowPulseStoryboard = new Storyboard();
+                _glowPulseStoryboard.Children.Add(opacityAnimation);
+
+                // Set target for opacity
+                Storyboard.SetTarget(opacityAnimation, glowLayer);
+                Storyboard.SetTargetProperty(opacityAnimation, "Opacity");
+
+                // Start animation
+                _glowPulseStoryboard.Begin();
+                System.Diagnostics.Debug.WriteLine("Started glow pulse animation");
+            };
+            timer.Start();
+        });
+    }
+    catch (Exception ex)
+    {
+        System.Diagnostics.Debug.WriteLine($"Error starting glow animation: {ex.Message}");
+    }
+}
+
+        private void StopGlowPulseAnimation()
+        {
+            try
+            {
+                _glowPulseStoryboard?.Stop();
+                _glowPulseStoryboard = null;
+
+                // Reset button to original style - use the existing global button style
+                AltTabButton.ClearValue(FrameworkElement.StyleProperty);
+
+                System.Diagnostics.Debug.WriteLine("Stopped glow pulse animation");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error stopping glow animation: {ex.Message}");
+            }
+        }
+
+        // Helper method to find child elements by name
+        private T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
+        {
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+
+                if (child is T element && element.Name == name)
+                    return element;
+
+                var result = FindChildByName<T>(child, name);
+                if (result != null)
+                    return result;
+            }
+            return null;
+        }
+
     }
 }
