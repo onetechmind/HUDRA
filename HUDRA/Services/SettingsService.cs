@@ -3,15 +3,23 @@ using System.IO;
 using System.Text.Json;
 using System.Collections.Generic;
 using HUDRA.Configuration;
+using HUDRA.Controls; // For FanCurve and FanCurvePoint classes
+using HUDRA.Services.FanControl;
 
 namespace HUDRA.Services
 {
     public static class SettingsService
     {
+        // Existing keys
         private const string TdpCorrectionKey = "TdpCorrectionEnabled";
         private const string StartupTdpKey = "StartupTdp";
         private const string UseStartupTdpKey = "UseStartupTdp";
         private const string LastUsedTdpKey = "LastUsedTdp";
+
+        // New fan curve keys
+        private const string FanCurveEnabledKey = "FanCurveEnabled";
+        private const string FanCurvePointsKey = "FanCurvePoints";
+
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "HUDRA",
@@ -25,6 +33,7 @@ namespace HUDRA.Services
             LoadSettings();
         }
 
+        // Existing TDP methods...
         public static bool GetTdpCorrectionEnabled()
         {
             lock (_lock)
@@ -156,6 +165,180 @@ namespace HUDRA.Services
             }
         }
 
+        // NEW: Fan Curve Settings
+        public static bool GetFanCurveEnabled()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(FanCurveEnabledKey, out var value))
+                {
+                    if (value is JsonElement jsonElement)
+                    {
+                        if (jsonElement.ValueKind == JsonValueKind.True || jsonElement.ValueKind == JsonValueKind.False)
+                        {
+                            return jsonElement.GetBoolean();
+                        }
+                    }
+                    else if (value is bool boolValue)
+                    {
+                        return boolValue;
+                    }
+                }
+                return false; // Default to disabled
+            }
+        }
+
+        public static void SetFanCurveEnabled(bool enabled)
+        {
+            lock (_lock)
+            {
+                if (_settings == null)
+                    _settings = new Dictionary<string, object>();
+
+                _settings[FanCurveEnabledKey] = enabled;
+                SaveSettings();
+            }
+        }
+
+        public static FanCurve GetFanCurve()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var isEnabled = GetBooleanSetting(FanCurveEnabledKey, false);
+                    var pointsJson = GetStringSetting(FanCurvePointsKey, "");
+
+                    FanCurvePoint[] points;
+
+                    if (!string.IsNullOrEmpty(pointsJson))
+                    {
+                        points = JsonSerializer.Deserialize<FanCurvePoint[]>(pointsJson) ?? GetDefaultFanCurvePoints();
+                    }
+                    else
+                    {
+                        points = GetDefaultFanCurvePoints();
+                    }
+
+                    return new FanCurve
+                    {
+                        IsEnabled = isEnabled,
+                        Points = points
+                    };
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading fan curve: {ex.Message}");
+                    return new FanCurve
+                    {
+                        IsEnabled = false,
+                        Points = GetDefaultFanCurvePoints()
+                    };
+                }
+            }
+        }
+
+        public static void SetFanCurve(FanCurve fanCurve)
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    SetBooleanSetting(FanCurveEnabledKey, fanCurve.IsEnabled);
+
+                    var pointsJson = JsonSerializer.Serialize(fanCurve.Points);
+                    SetStringSetting(FanCurvePointsKey, pointsJson);
+
+                    System.Diagnostics.Debug.WriteLine($"Fan curve saved: Enabled={fanCurve.IsEnabled}, Points={fanCurve.Points.Length}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error saving fan curve: {ex.Message}");
+                }
+            }
+        }
+
+        private static FanCurvePoint[] GetDefaultFanCurvePoints()
+        {
+            return new FanCurvePoint[]
+            {
+            new() { Temperature = 30, FanSpeed = 20 },
+            new() { Temperature = 40, FanSpeed = 30 },
+            new() { Temperature = 55, FanSpeed = 50 },
+            new() { Temperature = 70, FanSpeed = 75 },
+            new() { Temperature = 85, FanSpeed = 100 }
+            };
+        }
+
+        private static bool GetBooleanSetting(string key, bool defaultValue)
+        {
+            if (_settings != null && _settings.TryGetValue(key, out var value))
+            {
+                if (value is JsonElement jsonElement &&
+                    (jsonElement.ValueKind == JsonValueKind.True || jsonElement.ValueKind == JsonValueKind.False))
+                {
+                    return jsonElement.GetBoolean();
+                }
+                else if (value is bool boolValue)
+                {
+                    return boolValue;
+                }
+            }
+            return defaultValue;
+        }
+
+        private static void SetBooleanSetting(string key, bool value)
+        {
+            if (_settings == null)
+                _settings = new Dictionary<string, object>();
+
+            _settings[key] = value;
+            SaveSettings();
+        }
+
+        private static string GetStringSetting(string key, string defaultValue)
+        {
+            if (_settings != null && _settings.TryGetValue(key, out var value))
+            {
+                if (value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.String)
+                {
+                    return jsonElement.GetString() ?? defaultValue;
+                }
+                else if (value is string stringValue)
+                {
+                    return stringValue;
+                }
+            }
+            return defaultValue;
+        }
+
+        private static void SetStringSetting(string key, string value)
+        {
+            if (_settings == null)
+                _settings = new Dictionary<string, object>();
+
+            _settings[key] = value;
+            SaveSettings();
+        }
+
+        private static FanCurve GetDefaultFanCurve()
+        {
+            // Return sensible default curve if no saved curve exists
+            return new FanCurve
+            {
+                IsEnabled = false,
+                Points = new FanCurvePoint[]
+                {
+                    new FanCurvePoint { Temperature = 30, FanSpeed = 20 },  // Low temp, quiet
+                    new FanCurvePoint { Temperature = 40, FanSpeed = 30 },  // Gentle ramp
+                    new FanCurvePoint { Temperature = 55, FanSpeed = 50 },  // Mid point
+                    new FanCurvePoint { Temperature = 70, FanSpeed = 75 },  // Higher temps
+                    new FanCurvePoint { Temperature = 85, FanSpeed = 100 }  // Max protection
+                }
+            };
+        }
+
+        // Existing private methods...
         private static void LoadSettings()
         {
             try

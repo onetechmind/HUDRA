@@ -102,6 +102,10 @@
 
             </Border>
 
+            <!--  Advanced Fan Curve Control (new)  -->
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+            <controls:FanCurveControl x:Name="FanCurveControl" x:FieldModifier="public" />
+
         </StackPanel>
     </Grid>
 </Page>

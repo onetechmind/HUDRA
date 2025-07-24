@@ -1,8 +1,10 @@
-﻿using HUDRA.Services.FanControl;
+﻿using HUDRA.Controls;
+using HUDRA.Services.FanControl;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using System;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,6 +17,8 @@ namespace HUDRA.Services
         private Timer? _statusTimer;
         private bool _disposed = false;
         private bool _isInitialized = false;
+        private TemperatureMonitorService? _temperatureMonitor;
+        private bool _temperatureControlEnabled = false;
 
         public event EventHandler<FanStatusChangedEventArgs>? FanStatusChanged;
         public event EventHandler<string>? DeviceStatusChanged;
@@ -183,11 +187,112 @@ namespace HUDRA.Services
         {
             if (!_disposed)
             {
+                DisableTemperatureControl();
                 _statusTimer?.Dispose();
                 _device?.Dispose();
                 _disposed = true;
                 Debug.WriteLine("Fan control service disposed");
             }
+        }
+
+        public void EnableTemperatureControl(TemperatureMonitorService temperatureMonitor)
+        {
+            try
+            {
+                _temperatureMonitor = temperatureMonitor;
+                _temperatureMonitor.TemperatureChanged += OnTemperatureChanged;
+                _temperatureControlEnabled = true;
+
+                System.Diagnostics.Debug.WriteLine("🌡️ Temperature-based fan control enabled");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error enabling temperature control: {ex.Message}");
+            }
+        }
+
+        public void DisableTemperatureControl()
+        {
+            try
+            {
+                if (_temperatureMonitor != null)
+                {
+                    _temperatureMonitor.TemperatureChanged -= OnTemperatureChanged;
+                }
+                _temperatureControlEnabled = false;
+
+                System.Diagnostics.Debug.WriteLine("🌡️ Temperature-based fan control disabled");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error disabling temperature control: {ex.Message}");
+            }
+        }
+
+        private void OnTemperatureChanged(object? sender, TemperatureChangedEventArgs e)
+        {
+            if (!_temperatureControlEnabled) return;
+
+            try
+            {
+                // Get the current fan curve from settings
+                var fanCurve = SettingsService.GetFanCurve();
+                if (!fanCurve.IsEnabled) return;
+
+                // Use the maximum temperature for fan control decision
+                var currentTemp = e.TemperatureData.MaxTemperature;
+
+                // Interpolate fan speed from curve
+                var targetFanSpeed = InterpolateFanSpeedFromCurve(currentTemp, fanCurve.Points);
+
+                // Apply the calculated fan speed
+                SetFanSpeed(targetFanSpeed);
+
+                System.Diagnostics.Debug.WriteLine($"Temperature: {currentTemp:F1}°C → Fan Speed: {targetFanSpeed:F1}%");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying temperature-based fan control: {ex.Message}");
+            }
+        }
+
+        private double InterpolateFanSpeedFromCurve(double temperature, FanCurvePoint[] points)
+        {
+            // Sort points by temperature (should already be sorted, but safety first)
+            var sortedPoints = points.OrderBy(p => p.Temperature).ToArray();
+
+            // If temperature is below the first point, use the first point's fan speed
+            if (temperature <= sortedPoints[0].Temperature)
+            {
+                return sortedPoints[0].FanSpeed;
+            }
+
+            // If temperature is above the last point, use the last point's fan speed
+            if (temperature >= sortedPoints[^1].Temperature)
+            {
+                return sortedPoints[^1].FanSpeed;
+            }
+
+            // Find the two points to interpolate between
+            for (int i = 0; i < sortedPoints.Length - 1; i++)
+            {
+                var point1 = sortedPoints[i];
+                var point2 = sortedPoints[i + 1];
+
+                if (temperature >= point1.Temperature && temperature <= point2.Temperature)
+                {
+                    // Linear interpolation
+                    var tempRange = point2.Temperature - point1.Temperature;
+                    var speedRange = point2.FanSpeed - point1.FanSpeed;
+                    var tempOffset = temperature - point1.Temperature;
+
+                    var interpolatedSpeed = point1.FanSpeed + (speedRange * (tempOffset / tempRange));
+                    return Math.Clamp(interpolatedSpeed, 0, 100);
+                }
+            }
+
+            // Fallback (should never reach here)
+            return 50.0;
         }
     }
 
@@ -200,4 +305,5 @@ namespace HUDRA.Services
             Status = status;
         }
     }
+
 }

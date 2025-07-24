@@ -8,6 +8,8 @@ namespace HUDRA
     {
         private TrayIconService? _trayIcon;
         public TdpMonitorService? TdpMonitor { get; private set; }
+        public TemperatureMonitorService? TemperatureMonitor { get; private set; }
+        public FanControlService? FanControlService { get; private set; }
         public MainWindow? MainWindow { get; private set; }
 
         public App()
@@ -22,6 +24,29 @@ namespace HUDRA
 
             // Create TdpMonitor IMMEDIATELY after MainWindow creation
             TdpMonitor = new TdpMonitorService(MainWindow.DispatcherQueue);
+
+            TemperatureMonitor = new TemperatureMonitorService(MainWindow.DispatcherQueue);
+            FanControlService = new FanControlService(MainWindow.DispatcherQueue);
+
+            // Enable fan control if fan curve is enabled in settings
+            try
+            {
+                var fanCurve = SettingsService.GetFanCurve();
+                if (fanCurve.IsEnabled)
+                {
+                    FanControlService.EnableTemperatureControl(TemperatureMonitor);
+                    System.Diagnostics.Debug.WriteLine("🌡️ Global fan control service enabled at startup");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("🌡️ Fan curve disabled - no automatic fan control");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Fan control initialization warning: {ex.Message}");
+                // Continue app startup even if fan control fails
+            }
 
             // Set the TdpMonitor in MainWindow so it can use it
             MainWindow.SetTdpMonitor(TdpMonitor);
@@ -57,6 +82,9 @@ namespace HUDRA
             {
                 _trayIcon?.Dispose();
                 TdpMonitor?.Dispose();
+                TemperatureMonitor?.Dispose();
+                FanControlService?.Dispose();
+                System.Diagnostics.Debug.WriteLine("All services disposed cleanly");
             }
             catch (Exception ex)
             {

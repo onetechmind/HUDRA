@@ -17,6 +17,17 @@ namespace HUDRA.Services.FanControl
         TemperatureSensors,
         RPMReporting
     }
+    public class FanCurvePoint
+    {
+        public double Temperature { get; set; }  // 0-90°C
+        public double FanSpeed { get; set; }     // 0-100%
+    }
+
+    public class FanCurve
+    {
+        public FanCurvePoint[] Points { get; set; } = new FanCurvePoint[5];
+        public bool IsEnabled { get; set; }
+    }
 
     public class DeviceCapabilities
     {

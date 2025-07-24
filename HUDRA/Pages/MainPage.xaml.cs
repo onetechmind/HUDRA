@@ -53,7 +53,6 @@ namespace HUDRA.Pages
                                BrightnessService brightnessService)
         {
             TdpPicker.Initialize(dpiService);
-            FanControl.Initialize();
             ResolutionPicker.Initialize();
             AudioControls.Initialize();
             BrightnessControls.Initialize();

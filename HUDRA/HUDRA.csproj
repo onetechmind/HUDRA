@@ -27,6 +27,7 @@
     <None Remove="Controls\AudioControlsControl.xaml" />
     <None Remove="Controls\BrightnessControlControl.xaml" />
     <None Remove="Controls\FanControlControl.xaml" />
+    <None Remove="Controls\FanCurveControl.xaml" />
     <None Remove="Controls\TdpPickerControl.xaml" />
     <None Remove="Tools\ryzenadj\demo.bat" />
     <None Remove="Tools\ryzenadj\inpoutx64.dll" />
@@ -92,6 +93,7 @@
 	<PackageReference Include="MouseKeyHook" Version="5.7.1" />
     <Manifest Include="$(ApplicationManifest)" />
     <PackageReference Include="System.Management" Version="9.0.6" />
+	<PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
   </ItemGroup>
 
   <ItemGroup>
@@ -113,6 +115,12 @@
     <Content Update="Tools\text.txt">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Page Update="Controls\FanCurveControl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
 
   <ItemGroup>
