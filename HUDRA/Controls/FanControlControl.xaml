@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="HUDRA.Controls.FanControlControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:HUDRA.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="8">
+        <!--  Fan Control Mode Toggle  -->
+        <Grid Width="280">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!--  Fan Icon  -->
+            <Border
+                Grid.Column="0"
+                Width="50"
+                Height="50"
+                Background="#22FFFFFF"
+                CornerRadius="12">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="24"
+                    FontWeight="Normal"
+                    Foreground="#CCFFFFFF"
+                    Text="&#xE7F8;" />
+            </Border>
+
+            <!--  Manual/Auto Toggle  -->
+            <Border
+                Grid.Column="2"
+                Padding="12,8"
+                Background="#22FFFFFF"
+                CornerRadius="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="#CCFFFFFF"
+                        Text="Manual Fan Control" />
+
+                    <ToggleSwitch
+                        x:Name="ManualModeToggle"
+                        Grid.Column="1"
+                        MinWidth="0"
+                        Toggled="ManualModeToggle_Toggled" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!--  Fan Speed Slider (only visible in manual mode)  -->
+        <Grid
+            x:Name="FanSpeedPanel"
+            Width="280"
+            Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="50" />
+                <ColumnDefinition Width="8" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!--  Speed Icon  -->
+            <TextBlock
+                Grid.Column="0"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                FontFamily="Segoe MDL2 Assets"
+                FontSize="20"
+                FontWeight="Normal"
+                Foreground="#CCFFFFFF"
+                Text="&#xE7F8;" />
+
+            <!--  Speed Slider  -->
+            <Slider
+                x:Name="FanSpeedSlider"
+                Grid.Column="2"
+                Maximum="100"
+                Minimum="0"
+                ValueChanged="FanSpeedSlider_ValueChanged"
+                Value="50" />
+        </Grid>
+
+        <!--  Status Display  -->
+        <Border
+            Width="280"
+            Padding="12,8"
+            Background="#22FFFFFF"
+            CornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock
+                    x:Name="FanStatusText"
+                    Grid.Row="0"
+                    HorizontalAlignment="Left"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="Fan: Auto Mode" />
+
+                <TextBlock
+                    x:Name="DeviceStatusText"
+                    Grid.Row="1"
+                    HorizontalAlignment="Left"
+                    FontFamily="Cascadia Code"
+                    FontSize="12"
+                    Foreground="#99FFFFFF"
+                    Text="Device: Not Detected"
+                    Visibility="Collapsed" />
+            </Grid>
+        </Border>
+    </StackPanel>
+</UserControl>

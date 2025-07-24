@@ -8,15 +8,21 @@
     mc:Ignorable="d">
 
     <Grid Margin="0">
-        <StackPanel x:Name="RootPanel"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Spacing="20"
-                Margin="0,0,0,0">
+        <StackPanel
+            x:Name="RootPanel"
+            Margin="0,0,0,0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Spacing="20">
             <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}"/>
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+
+            <controls:FanControlControl x:Name="FanControl" x:FieldModifier="public" />
+
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+
             <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}"/>
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />
             <controls:BrightnessControlControl x:Name="BrightnessControls" x:FieldModifier="public" />
         </StackPanel>
