@@ -18,7 +18,7 @@
 
             <!--  Curve Enable Toggle  -->
             <Border
-                Grid.Column="2"
+                Grid.Column="1"
                 Padding="12,8"
                 Background="#22FFFFFF"
                 CornerRadius="12">
@@ -46,47 +46,43 @@
             </Border>
         </Grid>
 
-        <!--  Live Temperature Status (only visible when enabled)  -->
+        <!--  Status Display  -->
         <Border
-            x:Name="TemperatureStatusBorder"
-            Width="280"
-            Padding="12,8"
-            Background="#1A4A2A"
-            CornerRadius="8"
-            Visibility="Collapsed">
+    Width="280"
+    Padding="12,8"
+    CornerRadius="0">
             <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <FontIcon
-                    Grid.Column="0"
-                    Margin="0,0,8,0"
-                    FontFamily="Segoe MDL2 Assets"
-                    FontSize="16"
-                    Foreground="LightGreen"
-                    Glyph="&#xE7A6;" />
+                <Grid
+            x:Name="TemperatureStatusPanel"
+            HorizontalAlignment="Center"
+            Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="20" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
 
-                <TextBlock
-                    x:Name="LiveTemperatureText"
-                    Grid.Column="1"
-                    VerticalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Foreground="LightGreen"
-                    Text="Temperature: --°C → Fan: --%" />
+                    <TextBlock
+                x:Name="TempStatusText"
+                Grid.Column="0"
+                FontSize="14"
+                FontWeight="SemiBold"
+                Foreground="#CCFFFFFF"
+                Text="Temp: --°C" />
 
-                <TextBlock
-                    x:Name="TemperatureSourceText"
-                    Grid.Column="2"
-                    VerticalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="11"
-                    Foreground="#AAFFAA"
-                    Text="Source: --" />
+                    <TextBlock
+                x:Name="FanSpeedStatusText"
+                Grid.Column="2"
+                FontSize="14"
+                FontWeight="SemiBold"
+                Foreground="#CCFFFFFF"
+                Text="Fan Speed: --%" />
+                </Grid>
             </Grid>
         </Border>
 
@@ -94,57 +90,94 @@
         <Border
             x:Name="CurvePanel"
             Width="280"
-            Height="200"
+            Height="225"
             Padding="0"
             Background="#22FFFFFF"
             CornerRadius="12"
             Visibility="Collapsed">
 
-            <Grid>
+            <Grid x:Name="MainChartGrid">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="35" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="10" />
                 </Grid.ColumnDefinitions>
 
                 <!--  Y-Axis Label (Fan Speed %)  -->
                 <TextBlock
                     Grid.Row="1"
                     Grid.Column="0"
-                    Margin="0,0,0,0"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     FontFamily="Cascadia Code"
                     FontSize="12"
                     FontWeight="SemiBold"
                     Foreground="#99FFFFFF"
-                    RenderTransformOrigin=".5,1"
+                    RenderTransformOrigin=".5,.5"
                     Text="Fan %">
                     <TextBlock.RenderTransform>
                         <RotateTransform Angle="-90" />
                     </TextBlock.RenderTransform>
                 </TextBlock>
 
-                <!--  Main Canvas Area  -->
-                <Canvas
-                    x:Name="FanCurveCanvas"
+                <!--  Canvas Container  -->
+                <Border
+                    x:Name="CanvasContainer"
                     Grid.Row="1"
                     Grid.Column="1"
-                    Background="Transparent"
-                    PointerMoved="Canvas_PointerMoved"
-                    PointerPressed="Canvas_PointerPressed"
-                    PointerReleased="Canvas_PointerReleased" />
+                    Width="190"
+                    Height="140"
+                    Background="Transparent">
+
+                    <Canvas
+                        x:Name="FanCurveCanvas"
+                        Width="190"
+                        Height="140"
+                        Background="Transparent"
+                        PointerMoved="Canvas_PointerMoved"
+                        PointerPressed="Canvas_PointerPressed"
+                        PointerReleased="Canvas_PointerReleased" />
+                </Border>
+
+                <!--  Floating Tooltip - Now positioned relative to the main grid  -->
+                <Border
+                    x:Name="DragTooltip"
+                    Grid.Row="0"
+                    Grid.RowSpan="3"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
+                    Width="80"
+                    Height="25"
+                    Padding="4,2"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Background="#DD000000"
+                    BorderBrush="DarkViolet"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Visibility="Collapsed">
+                    <TextBlock
+                        x:Name="TooltipText"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="65°C → 75%"
+                        TextAlignment="Center"
+                        TextWrapping="NoWrap" />
+                </Border>
 
                 <!--  X-Axis Label (Temperature Celsius)  -->
                 <TextBlock
                     Grid.Row="2"
                     Grid.Column="1"
-                    Margin="50,10,0,10"
+                    Margin="0,10,0,15"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     FontFamily="Cascadia Code"
@@ -155,44 +188,6 @@
             </Grid>
         </Border>
 
-        <!--  Status Display  -->
-        <Border
-            Width="280"
-            Padding="12,8"
-            CornerRadius="0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <Grid
-                    x:Name="TemperatureStatusPanel"
-                    HorizontalAlignment="Center"
-                    Visibility="Collapsed">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="20" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock
-                        x:Name="TempStatusText"
-                        Grid.Column="0"
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Foreground="#CCFFFFFF"
-                        Text="Temp: --°C" />
-
-                    <TextBlock
-                        x:Name="FanSpeedStatusText"
-                        Grid.Column="2"
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Foreground="#CCFFFFFF"
-                        Text="Fan Speed: --%" />
-                </Grid>
-            </Grid>
-        </Border>
+        
     </StackPanel>
 </UserControl>

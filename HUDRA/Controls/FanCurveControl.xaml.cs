@@ -29,9 +29,8 @@ namespace HUDRA.Controls
         private bool _temperatureControlEnabled = false;
 
         // Canvas dimensions and layout
-        private const double CANVAS_WIDTH = 240;
         private const double CANVAS_HEIGHT = 140;
-        private const double POINT_RADIUS = 6;
+        private const double POINT_RADIUS = 10;
         private const double GRID_STROKE = 0.5;
 
         // Curve data
@@ -40,6 +39,10 @@ namespace HUDRA.Controls
         private Polyline? _curveVisualization;
         private readonly List<Line> _gridLines = new();
         private readonly List<TextBlock> _axisLabels = new();
+
+        //touch handling
+        private bool _isTouchDragging = false;
+        private uint _touchPointerId = 0;
 
         public FanCurveControl()
         {
@@ -162,6 +165,7 @@ namespace HUDRA.Controls
             {
 
             }
+
         }
 
         // ADD: Temperature monitoring methods
@@ -317,13 +321,15 @@ namespace HUDRA.Controls
 
             // No visual indicators to manage anymore
         }
-
-        // Keep all your existing methods unchanged:
-
         private void SetupCanvas()
         {
-            FanCurveCanvas.Width = CANVAS_WIDTH - 50;
-            FanCurveCanvas.Height = CANVAS_HEIGHT;
+            // Essential for touch hit testing
+            FanCurveCanvas.Background = new SolidColorBrush(Colors.Transparent);
+            FanCurveCanvas.IsHitTestVisible = true;
+
+            // CRITICAL: Prevent parent scroll viewers from stealing touch events
+            FanCurveCanvas.ManipulationMode = Microsoft.UI.Xaml.Input.ManipulationModes.None;
+
         }
 
         private void RenderCurveCanvas()
@@ -359,7 +365,7 @@ namespace HUDRA.Controls
                     X1 = x,
                     Y1 = 0,
                     X2 = x,
-                    Y2 = CANVAS_HEIGHT,
+                    Y2 = 140, // Use fixed canvas height
                     Stroke = gridBrush,
                     StrokeThickness = GRID_STROKE
                 };
@@ -379,7 +385,7 @@ namespace HUDRA.Controls
                     };
 
                     Canvas.SetLeft(label, x - 8);
-                    Canvas.SetTop(label, CANVAS_HEIGHT + 2);
+                    Canvas.SetTop(label, 140 + 2); // Use fixed canvas height
                     FanCurveCanvas.Children.Add(label);
                     _axisLabels.Add(label);
                 }
@@ -394,7 +400,7 @@ namespace HUDRA.Controls
                 {
                     X1 = 0,
                     Y1 = y,
-                    X2 = CANVAS_WIDTH,
+                    X2 = 190, // Use fixed canvas width
                     Y2 = y,
                     Stroke = gridBrush,
                     StrokeThickness = GRID_STROKE
@@ -473,26 +479,7 @@ namespace HUDRA.Controls
             }
         }
 
-        // Keep all your existing coordinate conversion helpers:
-        private double TemperatureToX(double temperature)
-        {
-            return (temperature / 90.0) * CANVAS_WIDTH;
-        }
 
-        private double FanSpeedToY(double fanSpeed)
-        {
-            return CANVAS_HEIGHT - (fanSpeed / 100.0) * CANVAS_HEIGHT;
-        }
-
-        private double XToTemperature(double x)
-        {
-            return Math.Clamp((x / CANVAS_WIDTH) * 90.0, 0, 90);
-        }
-
-        private double YToFanSpeed(double y)
-        {
-            return Math.Clamp(((CANVAS_HEIGHT - y) / CANVAS_HEIGHT) * 100.0, 0, 100);
-        }
 
         // Keep your existing curve interpolation method:
         private double InterpolateFanSpeed(double temperature)
@@ -519,14 +506,16 @@ namespace HUDRA.Controls
             return 50; // Fallback
         }
 
-        // Keep all your existing pointer event handlers unchanged:
         private void Canvas_PointerPressed(object sender, PointerRoutedEventArgs e)
         {
             if (!_currentCurve.IsEnabled) return;
 
             var position = e.GetCurrentPoint(FanCurveCanvas).Position;
+            var pointer = e.Pointer;
 
-            // Check if we clicked on a control point
+            System.Diagnostics.Debug.WriteLine($"Pointer pressed: Type={pointer.PointerDeviceType}, Position={position.X:F1},{position.Y:F1}");
+
+            // Check if we clicked/touched on a control point
             for (int i = 0; i < _controlPoints.Count; i++)
             {
                 var point = _controlPoints[i];
@@ -538,20 +527,65 @@ namespace HUDRA.Controls
                     Math.Pow(position.X - pointCenter.X, 2) +
                     Math.Pow(position.Y - pointCenter.Y, 2));
 
-                if (distance <= POINT_RADIUS + 4) // Hit tolerance
+                // Larger hit tolerance for touch
+                var hitTolerance = pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch ?
+                    POINT_RADIUS + 15 : POINT_RADIUS + 8;
+
+                if (distance <= hitTolerance)
                 {
+                    System.Diagnostics.Debug.WriteLine($"Point {i} hit! Starting drag with {pointer.PointerDeviceType}");
+
+                    // CRITICAL: Prevent scrolling by handling the event FIRST
+                    e.Handled = true;
+
                     _isDragging = true;
                     _dragPointIndex = i;
-                    FanCurveCanvas.CapturePointer(e.Pointer);
-                    e.Handled = true;
+
+                    // Track touch-specific state
+                    if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+                    {
+                        _isTouchDragging = true;
+                        _touchPointerId = pointer.PointerId;
+                    }
+
+                    // Capture the pointer to prevent parent controls from handling it
+                    FanCurveCanvas.CapturePointer(pointer);
+
+                    // Show tooltip at the point position
+                    var currentPoint = _currentCurve.Points[i];
+                    var pointPosition = new Point(
+                        TemperatureToX(currentPoint.Temperature),
+                        FanSpeedToY(currentPoint.FanSpeed)
+                    );
+
+                    UpdateTooltip(currentPoint.Temperature, currentPoint.FanSpeed, pointPosition);
+                    ShowTooltip();
+
                     return;
                 }
             }
+
+            System.Diagnostics.Debug.WriteLine("No point hit");
+
+            // If no point was hit, allow normal scrolling behavior
+            // Don't set e.Handled = true here
         }
 
         private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging || _dragPointIndex < 0) return;
+
+            // CRITICAL: Always handle the event during dragging to prevent scrolling
+            e.Handled = true;
+
+            var pointer = e.Pointer;
+
+            // For touch, make sure we're tracking the same touch point
+            if (_isTouchDragging && pointer.PointerId != _touchPointerId)
+            {
+                System.Diagnostics.Debug.WriteLine($"Touch ID mismatch: expected {_touchPointerId}, got {pointer.PointerId}");
+                return;
+            }
 
             var position = e.GetCurrentPoint(FanCurveCanvas).Position;
 
@@ -569,23 +603,54 @@ namespace HUDRA.Controls
             _currentCurve.Points[_dragPointIndex].Temperature = newTemp;
             _currentCurve.Points[_dragPointIndex].FanSpeed = newSpeed;
 
-            // Re-render the canvas
-            RenderCurveCanvas();
+            // Calculate the NEW point position (where the point actually is)
+            var newPointPosition = new Point(
+                TemperatureToX(newTemp),
+                FanSpeedToY(newSpeed)
+            );
 
-            e.Handled = true;
+            // Update tooltip to follow the point
+            UpdateTooltip(newTemp, newSpeed, newPointPosition);
+
+            // Only update the dragged point position, not full re-render
+            UpdateDraggedPointPosition(_dragPointIndex, newPointPosition);
+            UpdateCurveLineOnly();
         }
 
+        // 4. ENHANCED Canvas_PointerReleased (no changes needed, but for completeness)
         private void Canvas_PointerReleased(object sender, PointerRoutedEventArgs e)
         {
+            var pointer = e.Pointer;
+
+            // For touch, make sure we're releasing the same touch point
+            if (_isTouchDragging && pointer.PointerId != _touchPointerId)
+            {
+                System.Diagnostics.Debug.WriteLine($"Touch release ID mismatch: expected {_touchPointerId}, got {pointer.PointerId}");
+                return;
+            }
+
             if (_isDragging)
             {
+                System.Diagnostics.Debug.WriteLine($"Pointer released: {pointer.PointerDeviceType}");
+
+                // Handle the event to prevent any residual scroll behavior
+                e.Handled = true;
+
                 _isDragging = false;
                 _dragPointIndex = -1;
-                FanCurveCanvas.ReleasePointerCapture(e.Pointer);
+                _isTouchDragging = false;
+                _touchPointerId = 0;
+
+                FanCurveCanvas.ReleasePointerCapture(pointer);
+
+                // Hide tooltip
+                HideTooltip();
+
+                // Full re-render only when dragging is complete
+                RenderCurveCanvas();
 
                 // Save the updated curve to settings
                 SettingsService.SetFanCurve(_currentCurve);
-                System.Diagnostics.Debug.WriteLine("Fan curve saved to settings");
 
                 // Notify of curve change
                 FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
@@ -594,18 +659,40 @@ namespace HUDRA.Controls
                 // Apply new curve if enabled
                 if (_currentCurve.IsEnabled && _fanControlService != null)
                 {
-                    // If temperature control is enabled, immediately apply based on current temperature
                     if (_temperatureControlEnabled && _currentTemperature != null)
                     {
                         ApplyTemperatureBasedFanControl(_currentTemperature.MaxTemperature);
                     }
                     else
                     {
-                        ApplyFanCurve(); // Fallback to average speed
+                        ApplyFanCurve();
                     }
                 }
+            }
+        }
+        private void UpdateDraggedPointPosition(int pointIndex, Point newPosition)
+        {
+            if (pointIndex >= 0 && pointIndex < _controlPoints.Count)
+            {
+                var ellipse = _controlPoints[pointIndex];
+                Canvas.SetLeft(ellipse, newPosition.X - POINT_RADIUS);
+                Canvas.SetTop(ellipse, newPosition.Y - POINT_RADIUS);
+            }
+        }
 
-                e.Handled = true;
+        private void UpdateCurveLineOnly()
+        {
+            if (_curveVisualization == null) return;
+
+            _curveVisualization.Points.Clear();
+
+            // Generate smooth curve points
+            for (int temp = 0; temp <= 90; temp += 2)
+            {
+                double fanSpeed = InterpolateFanSpeed(temp);
+                double x = TemperatureToX(temp);
+                double y = FanSpeedToY(fanSpeed);
+                _curveVisualization.Points.Add(new Point(x, y));
             }
         }
 
@@ -655,6 +742,8 @@ namespace HUDRA.Controls
             catch (Exception ex)
             {
             }
+
+
         }
 
         // Keep your existing methods unchanged:
@@ -734,6 +823,141 @@ namespace HUDRA.Controls
             }
             catch (Exception ex)
             {
+            }
+        }
+
+        private double TemperatureToX(double temperature)
+        {
+            return (temperature / 90.0) * 190;
+        }
+
+        private double FanSpeedToY(double fanSpeed)
+        {
+            return 140 - (fanSpeed / 100.0) * 140;
+        }
+
+        private double XToTemperature(double x)
+        {
+            return Math.Clamp((x / 190) * 90.0, 0, 90);
+        }
+
+        private double YToFanSpeed(double y)
+        {
+            return Math.Clamp(((140 - y) / 140) * 100.0, 0, 100);
+        }
+
+
+        private void UpdateTooltip(double temperature, double fanSpeed, Point pointPosition)
+        {
+            if (DragTooltip == null || TooltipText == null || CanvasContainer == null)
+                return;
+
+            // Update tooltip text
+            TooltipText.Text = $"{temperature:F0}°C → {fanSpeed:F0}%";
+
+            // Get the canvas container's position within the main grid
+            var canvasContainerTransform = CanvasContainer.TransformToVisual(MainChartGrid);
+            var canvasContainerPosition = canvasContainerTransform.TransformPoint(new Point(0, 0));
+
+            // Calculate tooltip position relative to the main grid
+            var gridPointX = canvasContainerPosition.X + pointPosition.X;
+            var gridPointY = canvasContainerPosition.Y + pointPosition.Y;
+
+            // Tooltip dimensions
+            var tooltipWidth = 80.0;
+            var tooltipHeight = 25.0;
+
+            // FINGER-FRIENDLY: Much higher offset to clear finger area
+            // Different offsets for touch vs mouse
+            var verticalOffset = _isTouchDragging ? -45 : -15; // 45px above for touch, 15px for mouse
+            var horizontalOffset = _isTouchDragging ? 0 : 0;    // Could offset horizontally too if needed
+
+            // Position tooltip well above the point for touch, closer for mouse
+            double tooltipX = gridPointX - (tooltipWidth / 2) + horizontalOffset; // Center horizontally
+            double tooltipY = gridPointY + verticalOffset - tooltipHeight;        // Way above for touch
+
+            // Get main grid bounds for edge detection
+            var gridWidth = MainChartGrid.ActualWidth > 0 ? MainChartGrid.ActualWidth : 280;
+            var gridHeight = MainChartGrid.ActualHeight > 0 ? MainChartGrid.ActualHeight : 200;
+
+            // Adjust horizontal position if tooltip would go off-screen
+            if (tooltipX < 5)
+            {
+                tooltipX = 5;
+            }
+            else if (tooltipX + tooltipWidth > gridWidth - 5)
+            {
+                tooltipX = gridWidth - tooltipWidth - 5;
+            }
+
+            // For touch: if tooltip would go off the top, try positioning to the side instead
+            if (tooltipY < 5)
+            {
+                if (_isTouchDragging)
+                {
+                    // For touch: try positioning to the right side of the finger
+                    tooltipX = gridPointX + 35; // To the right of the finger
+                    tooltipY = gridPointY - (tooltipHeight / 2); // Vertically centered on point
+
+                    // If that goes off the right edge, try the left side
+                    if (tooltipX + tooltipWidth > gridWidth - 5)
+                    {
+                        tooltipX = gridPointX - tooltipWidth - 35; // To the left of the finger
+                    }
+
+                    // If still problems, fall back to below the finger
+                    if (tooltipX < 5)
+                    {
+                        tooltipX = gridPointX - (tooltipWidth / 2); // Center horizontally
+                        tooltipY = gridPointY + 35; // Below the finger
+                    }
+                }
+                else
+                {
+                    // For mouse: just put it below the point
+                    tooltipY = gridPointY + 15;
+                }
+            }
+
+            // Final bounds check
+            tooltipX = Math.Max(5, Math.Min(tooltipX, gridWidth - tooltipWidth - 5));
+            tooltipY = Math.Max(5, Math.Min(tooltipY, gridHeight - tooltipHeight - 5));
+
+            // Set tooltip position
+            DragTooltip.Margin = new Thickness(tooltipX, tooltipY, 0, 0);
+        }
+
+        // Optional: Add visual feedback to show the difference between touch and mouse
+        private void ShowTooltip()
+        {
+            if (DragTooltip == null) return;
+
+            // Different visual styles for touch vs mouse
+            if (_isTouchDragging)
+            {
+                // Slightly larger and more visible for touch
+                DragTooltip.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(240, 0, 0, 0)); // More opaque
+                DragTooltip.BorderThickness = new Thickness(2); // Thicker border
+            }
+            else
+            {
+                // Standard style for mouse
+                DragTooltip.Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(221, 0, 0, 0)); // Original opacity
+                DragTooltip.BorderThickness = new Thickness(1); // Original border
+            }
+
+            DragTooltip.Visibility = Visibility.Visible;
+            DragTooltip.Opacity = 1.0;
+        }
+
+        private void HideTooltip()
+        {
+            System.Diagnostics.Debug.WriteLine("=== HideTooltip ===");
+
+            if (DragTooltip != null)
+            {
+                DragTooltip.Visibility = Visibility.Collapsed;
+                System.Diagnostics.Debug.WriteLine("Tooltip hidden");
             }
         }
 

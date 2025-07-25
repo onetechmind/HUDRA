@@ -42,6 +42,22 @@
                         Orientation="Vertical"
                         Spacing="8">
 
+                        <Border
+                            Width="50"
+                            Height="50"
+                            Margin="0,0,0,8"
+                            HorizontalAlignment="Center"
+                            Background="Transparent"
+                            CornerRadius="8">
+                            <Image
+                                Width="40"
+                                Height="40"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Source="Assets/HUDRA_Logo_64x64.ico"
+                                Stretch="Uniform" />
+                        </Border>
+
                         <!--  Battery status - moved to nav bar  -->
                         <StackPanel
                             x:Name="BatteryPanel"
