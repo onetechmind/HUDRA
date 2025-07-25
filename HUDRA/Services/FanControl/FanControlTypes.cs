@@ -27,6 +27,58 @@ namespace HUDRA.Services.FanControl
     {
         public FanCurvePoint[] Points { get; set; } = new FanCurvePoint[5];
         public bool IsEnabled { get; set; }
+        public string ActivePreset { get; set; } = string.Empty; // NEW: Track active preset
+    }
+
+    public class FanCurvePreset
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public FanCurvePoint[] Points { get; set; } = Array.Empty<FanCurvePoint>();
+
+        public static readonly FanCurvePreset Stealth = new()
+        {
+            Name = "Stealth",
+            Description = "Ultra-quiet mode for light gaming, passive use, or low ambient temps. Prioritizes silence over temps.",
+            Points = new FanCurvePoint[]
+            {
+                new() { Temperature = 35, FanSpeed = 5 },
+                new() { Temperature = 50, FanSpeed = 15 },
+                new() { Temperature = 60, FanSpeed = 35 },
+                new() { Temperature = 65, FanSpeed = 65 },
+                new() { Temperature = 80, FanSpeed = 100 }
+            }
+        };
+
+        public static readonly FanCurvePreset Cruise = new()
+        {
+            Name = "Cruise",
+            Description = "Balanced all-purpose mode for general gaming and multitasking. Keeps noise moderate while holding temps in check.",
+            Points = new FanCurvePoint[]
+            {
+                new() { Temperature = 35, FanSpeed = 5 },
+                new() { Temperature = 45, FanSpeed = 10 },
+                new() { Temperature = 55, FanSpeed = 30 },
+                new() { Temperature = 65, FanSpeed = 65 },
+                new() { Temperature = 80, FanSpeed = 100 }
+            }
+        };
+
+        public static readonly FanCurvePreset Warp = new()
+        {
+            Name = "Warp",
+            Description = "Performance-first mode for heavy gaming or high TDP loads. Ramps early to maintain max clocks and cool headroom.",
+            Points = new FanCurvePoint[]
+            {
+                new() { Temperature = 35, FanSpeed = 10 },
+                new() { Temperature = 45, FanSpeed = 30 },
+                new() { Temperature = 60, FanSpeed = 55 },
+                new() { Temperature = 65, FanSpeed = 65 },
+                new() { Temperature = 75, FanSpeed = 100 }
+            }
+        };
+
+        public static readonly FanCurvePreset[] AllPresets = { Stealth, Cruise, Warp };
     }
 
     public class DeviceCapabilities

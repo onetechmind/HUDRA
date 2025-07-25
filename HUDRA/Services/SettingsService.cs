@@ -19,6 +19,8 @@ namespace HUDRA.Services
         // New fan curve keys
         private const string FanCurveEnabledKey = "FanCurveEnabled";
         private const string FanCurvePointsKey = "FanCurvePoints";
+        private const string FanCurveActivePresetKey = "FanCurveActivePreset";
+        private const string CustomFanCurvePointsKey = "CustomFanCurvePoints";
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -208,6 +210,7 @@ namespace HUDRA.Services
                 {
                     var isEnabled = GetBooleanSetting(FanCurveEnabledKey, false);
                     var pointsJson = GetStringSetting(FanCurvePointsKey, "");
+                    var activePreset = GetStringSetting(FanCurveActivePresetKey, "");
 
                     FanCurvePoint[] points;
 
@@ -223,7 +226,8 @@ namespace HUDRA.Services
                     return new FanCurve
                     {
                         IsEnabled = isEnabled,
-                        Points = points
+                        Points = points,
+                        ActivePreset = activePreset
                     };
                 }
                 catch (Exception ex)
@@ -232,7 +236,8 @@ namespace HUDRA.Services
                     return new FanCurve
                     {
                         IsEnabled = false,
-                        Points = GetDefaultFanCurvePoints()
+                        Points = GetDefaultFanCurvePoints(),
+                        ActivePreset = ""
                     };
                 }
             }
@@ -245,6 +250,7 @@ namespace HUDRA.Services
                 try
                 {
                     SetBooleanSetting(FanCurveEnabledKey, fanCurve.IsEnabled);
+                    SetStringSetting(FanCurveActivePresetKey, fanCurve.ActivePreset ?? "");
 
                     var pointsJson = JsonSerializer.Serialize(fanCurve.Points);
                     SetStringSetting(FanCurvePointsKey, pointsJson);
@@ -270,6 +276,47 @@ namespace HUDRA.Services
             };
         }
 
+        public static FanCurvePoint[] GetCustomFanCurve()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var pointsJson = GetStringSetting(CustomFanCurvePointsKey, "");
+
+                    if (!string.IsNullOrEmpty(pointsJson))
+                    {
+                        return JsonSerializer.Deserialize<FanCurvePoint[]>(pointsJson) ?? GetDefaultFanCurvePoints();
+                    }
+                    else
+                    {
+                        return GetDefaultFanCurvePoints();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading custom fan curve: {ex.Message}");
+                    return GetDefaultFanCurvePoints();
+                }
+            }
+        }
+
+        public static void SetCustomFanCurve(FanCurvePoint[] points)
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    var pointsJson = JsonSerializer.Serialize(points);
+                    SetStringSetting(CustomFanCurvePointsKey, pointsJson);
+                    System.Diagnostics.Debug.WriteLine($"Custom fan curve saved: {points.Length} points");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error saving custom fan curve: {ex.Message}");
+                }
+            }
+        }
         private static bool GetBooleanSetting(string key, bool defaultValue)
         {
             if (_settings != null && _settings.TryGetValue(key, out var value))

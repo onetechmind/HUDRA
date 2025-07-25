@@ -48,9 +48,9 @@
 
         <!--  Status Display  -->
         <Border
-    Width="280"
-    Padding="12,8"
-    CornerRadius="0">
+            Width="280"
+            Padding="12,8"
+            CornerRadius="0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -58,9 +58,9 @@
                 </Grid.RowDefinitions>
 
                 <Grid
-            x:Name="TemperatureStatusPanel"
-            HorizontalAlignment="Center"
-            Visibility="Collapsed">
+                    x:Name="TemperatureStatusPanel"
+                    HorizontalAlignment="Center"
+                    Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="20" />
@@ -68,23 +68,92 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock
-                x:Name="TempStatusText"
-                Grid.Column="0"
-                FontSize="14"
-                FontWeight="SemiBold"
-                Foreground="#CCFFFFFF"
-                Text="Temp: --°C" />
+                        x:Name="TempStatusText"
+                        Grid.Column="0"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="#CCFFFFFF"
+                        Text="Temp: --°C" />
 
                     <TextBlock
-                x:Name="FanSpeedStatusText"
-                Grid.Column="2"
-                FontSize="14"
-                FontWeight="SemiBold"
-                Foreground="#CCFFFFFF"
-                Text="Fan Speed: --%" />
+                        x:Name="FanSpeedStatusText"
+                        Grid.Column="2"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="#CCFFFFFF"
+                        Text="Fan Speed: --%" />
                 </Grid>
             </Grid>
         </Border>
+
+        <!--  Fan Curve Preset Buttons (only visible when enabled)  -->
+        <Grid
+            x:Name="PresetButtonsPanel"
+            Width="280"
+            Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button
+                x:Name="StealthPresetButton"
+                Grid.Column="0"
+                Width="65"
+                Height="35"
+                HorizontalAlignment="Center"
+                Click="StealthPreset_Click"
+                Content="Stealth"
+                FontFamily="Cascadia Code"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Style="{StaticResource PresetButtonStyle}"
+                ToolTipService.ToolTip="Ultra-quiet mode - prioritizes silence" />
+
+            <Button
+                x:Name="CruisePresetButton"
+                Grid.Column="1"
+                Width="65"
+                Height="35"
+                HorizontalAlignment="Center"
+                Click="CruisePreset_Click"
+                Content="Cruise"
+                FontFamily="Cascadia Code"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Style="{StaticResource PresetButtonStyle}"
+                ToolTipService.ToolTip="Balanced mode - moderate noise and temps" />
+
+            <Button
+                x:Name="WarpPresetButton"
+                Grid.Column="2"
+                Width="65"
+                Height="35"
+                HorizontalAlignment="Center"
+                Click="WarpPreset_Click"
+                Content="Warp"
+                FontFamily="Cascadia Code"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Style="{StaticResource PresetButtonStyle}"
+                ToolTipService.ToolTip="Performance mode - early ramp for max cooling" />
+
+            <Button
+                x:Name="CustomPresetButton"
+                Grid.Column="3"
+                Width="65"
+                Height="35"
+                HorizontalAlignment="Center"
+                Click="CustomPresetButton_Click"
+                Content="Custom"
+                FontFamily="Cascadia Code"
+                FontSize="13"
+                FontWeight="SemiBold"
+                Style="{StaticResource PresetButtonStyle}"
+                ToolTipService.ToolTip="Create and edit your own custom fan curve" />
+        </Grid>
 
         <!--  Fan Curve Canvas (only visible when enabled)  -->
         <Border
@@ -188,6 +257,6 @@
             </Grid>
         </Border>
 
-        
+
     </StackPanel>
 </UserControl>

@@ -23,6 +23,8 @@ namespace HUDRA.Controls
         private bool _isInitialized = false;
         private bool _isDragging = false;
         private int _dragPointIndex = -1;
+        private string _activePresetName = string.Empty;
+        private readonly List<Button> _presetButtons = new();
 
         // ADD: Temperature monitoring fields
         private TemperatureData? _currentTemperature;
@@ -102,6 +104,8 @@ namespace HUDRA.Controls
                     // Set up canvas rendering
                     SetupCanvas();
                     RenderCurveCanvas();
+                    InitializePresetButtons();
+                    DetectActivePreset();
 
                     // Load saved curve state
                     System.Diagnostics.Debug.WriteLine($"=== Setting UI State ===");
@@ -116,6 +120,7 @@ namespace HUDRA.Controls
 
                     CurvePanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
                     TemperatureStatusPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+                    PresetButtonsPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
                     System.Diagnostics.Debug.WriteLine($"Panel visibility: {CurvePanel.Visibility}");
                     _isUpdatingControls = false;
 
@@ -332,6 +337,16 @@ namespace HUDRA.Controls
 
         }
 
+        private void InitializePresetButtons()
+        {
+            _presetButtons.Clear();
+            _presetButtons.AddRange(new[] { StealthPresetButton, CruisePresetButton, WarpPresetButton });
+
+            // Load active preset from saved curve
+            _activePresetName = _currentCurve.ActivePreset ?? string.Empty;
+            UpdatePresetButtonStates();
+        }
+
         private void RenderCurveCanvas()
         {
             FanCurveCanvas.Children.Clear();
@@ -510,6 +525,13 @@ namespace HUDRA.Controls
         {
             if (!_currentCurve.IsEnabled) return;
 
+            if (_currentCurve.ActivePreset != "Custom")
+            {
+                // Show a subtle hint that they need to click Custom first
+                System.Diagnostics.Debug.WriteLine("Canvas editing disabled - click Custom button to edit curve");
+                return;
+            }
+
             var position = e.GetCurrentPoint(FanCurveCanvas).Position;
             var pointer = e.Pointer;
 
@@ -571,6 +593,37 @@ namespace HUDRA.Controls
             // Don't set e.Handled = true here
         }
 
+        private void CustomPresetButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Load the saved custom curve points
+            var customPoints = SettingsService.GetCustomFanCurve();
+            _currentCurve.Points = customPoints;
+            _currentCurve.ActivePreset = "Custom";
+
+            System.Diagnostics.Debug.WriteLine($"Loaded custom curve with {customPoints.Length} points");
+
+            // Re-render the canvas with the custom curve
+            RenderCurveCanvas();
+
+            UpdatePresetButtonStates();
+            SettingsService.SetFanCurve(_currentCurve);
+
+            // Apply the custom curve if enabled
+            if (_currentCurve.IsEnabled && _fanControlService != null)
+            {
+                if (_temperatureControlEnabled && _currentTemperature != null)
+                {
+                    ApplyTemperatureBasedFanControl(_currentTemperature.MaxTemperature);
+                }
+                else
+                {
+                    ApplyFanCurve();
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine("Switched to Custom mode - curve is now editable");
+        }
+
         private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs e)
         {
             if (!_isDragging || _dragPointIndex < 0) return;
@@ -622,18 +675,13 @@ namespace HUDRA.Controls
         {
             var pointer = e.Pointer;
 
-            // For touch, make sure we're releasing the same touch point
             if (_isTouchDragging && pointer.PointerId != _touchPointerId)
             {
-                System.Diagnostics.Debug.WriteLine($"Touch release ID mismatch: expected {_touchPointerId}, got {pointer.PointerId}");
                 return;
             }
 
             if (_isDragging)
             {
-                System.Diagnostics.Debug.WriteLine($"Pointer released: {pointer.PointerDeviceType}");
-
-                // Handle the event to prevent any residual scroll behavior
                 e.Handled = true;
 
                 _isDragging = false;
@@ -642,21 +690,17 @@ namespace HUDRA.Controls
                 _touchPointerId = 0;
 
                 FanCurveCanvas.ReleasePointerCapture(pointer);
-
-                // Hide tooltip
                 HideTooltip();
-
-                // Full re-render only when dragging is complete
                 RenderCurveCanvas();
 
-                // Save the updated curve to settings
+                if (_currentCurve.ActivePreset == "Custom")
+                {
+                    SettingsService.SetCustomFanCurve(_currentCurve.Points);
+                    System.Diagnostics.Debug.WriteLine("Saved modified custom curve");
+                }
+
                 SettingsService.SetFanCurve(_currentCurve);
-
-                // Notify of curve change
-                FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
-                    _currentCurve, "Fan curve updated"));
-
-                // Apply new curve if enabled
+                FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(_currentCurve, "Fan curve updated"));
                 if (_currentCurve.IsEnabled && _fanControlService != null)
                 {
                     if (_temperatureControlEnabled && _currentTemperature != null)
@@ -668,6 +712,7 @@ namespace HUDRA.Controls
                         ApplyFanCurve();
                     }
                 }
+
             }
         }
         private void UpdateDraggedPointPosition(int pointIndex, Point newPosition)
@@ -706,44 +751,37 @@ namespace HUDRA.Controls
                 bool isEnabled = FanCurveToggle.IsOn;
                 _currentCurve.IsEnabled = isEnabled;
 
-                // Save enabled state to settings
                 SettingsService.SetFanCurveEnabled(isEnabled);
-                System.Diagnostics.Debug.WriteLine($"Fan curve enabled state saved: {isEnabled}");
 
-                // Show/hide curve panel
+                // Show/hide all curve-related panels
                 CurvePanel.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
                 TemperatureStatusPanel.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
+                PresetButtonsPanel.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed; // NEW
 
                 if (isEnabled)
                 {
                     if (_fanControlService != null)
                     {
                         ApplyFanCurve();
-                        EnableTemperatureBasedControl(); // NEW: Enable temperature control
+                        EnableTemperatureBasedControl();
                     }
                 }
                 else
                 {
-                    DisableTemperatureBasedControl(); // NEW: Disable temperature control
-
+                    DisableTemperatureBasedControl();
                     if (_fanControlService != null)
                     {
-                        // Return to hardware mode
                         _fanControlService.SetAutoMode();
                     }
                 }
 
-                // Update temperature monitoring state
                 UpdateTemperatureMonitoringState();
-
-                FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
-                    _currentCurve, $"Fan curve {(isEnabled ? "enabled" : "disabled")}"));
+                FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(_currentCurve, $"Fan curve {(isEnabled ? "enabled" : "disabled")}"));
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Error toggling fan curve: {ex.Message}");
             }
-
-
         }
 
         // Keep your existing methods unchanged:
@@ -844,6 +882,151 @@ namespace HUDRA.Controls
         private double YToFanSpeed(double y)
         {
             return Math.Clamp(((140 - y) / 140) * 100.0, 0, 100);
+        }
+
+        private void StealthPreset_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyPreset(FanCurvePreset.Stealth);
+        }
+
+        private void CruisePreset_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyPreset(FanCurvePreset.Cruise);
+        }
+
+        private void WarpPreset_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyPreset(FanCurvePreset.Warp);
+        }
+
+        private void ApplyPreset(FanCurvePreset preset)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying preset: {preset.Name}");
+
+                // Update curve points
+                _currentCurve.Points = preset.Points.Select(p => new FanCurvePoint
+                {
+                    Temperature = p.Temperature,
+                    FanSpeed = p.FanSpeed
+                }).ToArray();
+
+                // Track active preset
+                _activePresetName = preset.Name;
+                _currentCurve.ActivePreset = preset.Name;
+
+                // Update UI
+                UpdatePresetButtonStates();
+                RenderCurveCanvas();
+
+                // Save to settings
+                SettingsService.SetFanCurve(_currentCurve);
+
+                // Apply immediately if enabled
+                if (_currentCurve.IsEnabled && _fanControlService != null)
+                {
+                    if (_temperatureControlEnabled && _currentTemperature != null)
+                    {
+                        ApplyTemperatureBasedFanControl(_currentTemperature.MaxTemperature);
+                    }
+                    else
+                    {
+                        ApplyFanCurve();
+                    }
+                }
+
+                // Notify of change
+                FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
+                    _currentCurve, $"Applied {preset.Name} preset"));
+
+                System.Diagnostics.Debug.WriteLine($"Successfully applied {preset.Name} preset");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying preset {preset.Name}: {ex.Message}");
+            }
+        }
+
+        private void UpdateButtonState(Button button, bool isActive)
+        {
+            System.Diagnostics.Debug.WriteLine($"UpdateButtonState called for button: {button?.Name ?? "NULL"}, isActive: {isActive}");
+
+            if (button == null)
+            {
+                System.Diagnostics.Debug.WriteLine("UpdateButtonState: button is null!");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} -> {(isActive ? "ACTIVE" : "inactive")}");
+
+            if (isActive)
+            {
+                // Active button style
+                button.Background = new SolidColorBrush(Colors.DarkViolet);
+                button.Foreground = new SolidColorBrush(Colors.White);
+            }
+            else
+            {
+                // Inactive button style  
+                button.Background = new SolidColorBrush(ColorHelper.FromArgb(60, 128, 128, 128)); // Semi-transparent gray
+                button.Foreground = new SolidColorBrush(ColorHelper.FromArgb(180, 255, 255, 255)); // Muted white
+            }
+        }
+
+        // NEW: Update button visual states
+        private void UpdatePresetButtonStates()
+        {
+            System.Diagnostics.Debug.WriteLine($"UpdatePresetButtonStates called - ActivePreset: '{_currentCurve.ActivePreset}'");
+            // Update all 4 buttons using the helper method
+            UpdateButtonState(StealthPresetButton, _currentCurve.ActivePreset == "Stealth");
+            UpdateButtonState(CruisePresetButton, _currentCurve.ActivePreset == "Cruise");
+            UpdateButtonState(WarpPresetButton, _currentCurve.ActivePreset == "Warp");
+            UpdateButtonState(CustomPresetButton, _currentCurve.ActivePreset == "Custom");
+
+            System.Diagnostics.Debug.WriteLine($"Custom button should be active: {_currentCurve.ActivePreset == "Custom"}");
+        }
+
+        private void DetectActivePreset()
+        {
+            if (string.IsNullOrEmpty(_currentCurve.ActivePreset))
+            {
+                // Try to detect if current curve matches a preset
+                foreach (var preset in FanCurvePreset.AllPresets)
+                {
+                    if (CurveMatchesPreset(_currentCurve, preset))
+                    {
+                        _activePresetName = preset.Name;
+                        _currentCurve.ActivePreset = preset.Name;
+                        System.Diagnostics.Debug.WriteLine($"Detected matching preset: {preset.Name}");
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                _activePresetName = _currentCurve.ActivePreset;
+            }
+        }
+
+        private bool CurveMatchesPreset(FanCurve curve, FanCurvePreset preset)
+        {
+            if (curve.Points.Length != preset.Points.Length) return false;
+
+            for (int i = 0; i < curve.Points.Length; i++)
+            {
+                var curvePoint = curve.Points[i];
+                var presetPoint = preset.Points[i];
+
+                // Allow small tolerance for floating point comparison
+                if (Math.Abs(curvePoint.Temperature - presetPoint.Temperature) > 0.5 ||
+                    Math.Abs(curvePoint.FanSpeed - presetPoint.FanSpeed) > 0.5)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
 
