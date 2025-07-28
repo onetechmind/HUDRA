@@ -3,6 +3,7 @@
 <div align="center">
 
 ![HUDRA Logo](Assets/HUDRA-logo-large-png.png)
+[img]Assets/HUDRA-logo-large-png.png[/img]
 
 **A sleek, modern performance control overlay for AMD Ryzen handheld gaming devices**
 
