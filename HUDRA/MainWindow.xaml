@@ -35,6 +35,7 @@
                     </Grid.RowDefinitions>
 
                     <!--  Navigation Items  -->
+                    <!--  Navigation Items  -->
                     <StackPanel
                         Grid.Row="0"
                         Margin="0,10,0,0"
@@ -42,13 +43,16 @@
                         Orientation="Vertical"
                         Spacing="0">
 
+                        <!--  HUDRA Logo - Now the dedicated drag handle  -->
                         <Border
+                            x:Name="LogoDragHandle"
                             Width="50"
                             Height="50"
                             Margin="0"
                             HorizontalAlignment="Center"
                             Background="Transparent"
-                            CornerRadius="8">
+                            CornerRadius="8"
+                            ToolTipService.ToolTip="Drag me!">
                             <Image
                                 Width="50"
                                 Height="50"
@@ -56,6 +60,24 @@
                                 VerticalAlignment="Center"
                                 Source="/Assets/HUDRA-logo-large-png.png"
                                 Stretch="Uniform" />
+
+                            <!--  Add a subtle visual hint that this is draggable  -->
+                            <Border.Resources>
+                                <Storyboard x:Key="HoverStoryboard">
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="LogoDragHandle"
+                                        Storyboard.TargetProperty="Opacity"
+                                        To="0.8"
+                                        Duration="0:0:0.1" />
+                                </Storyboard>
+                                <Storyboard x:Key="NormalStoryboard">
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="LogoDragHandle"
+                                        Storyboard.TargetProperty="Opacity"
+                                        To="1.0"
+                                        Duration="0:0:0.1" />
+                                </Storyboard>
+                            </Border.Resources>
                         </Border>
 
                         <!--  Battery status - moved to nav bar  -->
@@ -89,7 +111,7 @@
                         <Button
                             x:Name="MainPageNavButton"
                             Width="60"
-                            Height="45"
+                            Height="60"
                             HorizontalAlignment="Center"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
@@ -100,7 +122,7 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe MDL2 Assets"
-                                FontSize="20"
+                                FontSize="25"
                                 Glyph="&#xE80F;" />
                         </Button>
 
@@ -108,7 +130,7 @@
                         <Button
                             x:Name="SettingsNavButton"
                             Width="60"
-                            Height="45"
+                            Height="60"
                             HorizontalAlignment="Center"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
@@ -119,7 +141,7 @@
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe MDL2 Assets"
-                                FontSize="20"
+                                FontSize="25"
                                 Glyph="&#xE713;" />
                         </Button>
 

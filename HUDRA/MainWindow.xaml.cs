@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -278,10 +279,6 @@ namespace HUDRA
 
             System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} - isActive: {isActive}");
 
-            // Better background colors that actually match the content area
-            //var activeBackground = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(80, 255, 255, 255)); // More opaque white
-            //var inactiveBackground = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-
             var activeForeground = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
             var inactiveForeground = new SolidColorBrush(Microsoft.UI.Colors.White);
 
@@ -345,10 +342,79 @@ namespace HUDRA
 
         private void SetupDragHandling()
         {
-            // Set up drag handling on the main border itself for better coverage
-            MainBorder.PointerPressed += OnMainBorderPointerPressed;
-            MainBorder.PointerMoved += OnMainBorderPointerMoved;
-            MainBorder.PointerReleased += OnMainBorderPointerReleased;
+            // Set up the logo as the dedicated drag handle
+            LogoDragHandle.PointerPressed += OnLogoDragHandlePointerPressed;
+            LogoDragHandle.PointerMoved += OnLogoDragHandlePointerMoved;
+            LogoDragHandle.PointerReleased += OnLogoDragHandlePointerReleased;
+
+            // Add hover effects for visual feedback
+            LogoDragHandle.PointerEntered += OnLogoPointerEntered;
+            LogoDragHandle.PointerExited += OnLogoPointerExited;
+
+            System.Diagnostics.Debug.WriteLine("Logo drag handle initialized");
+        }
+
+        private void OnLogoDragHandlePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var pointer = e.Pointer;
+            System.Diagnostics.Debug.WriteLine($"Logo drag started: {pointer.PointerDeviceType}");
+
+            // Start drag for both mouse and touch
+            if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
+                pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+            {
+                var properties = e.GetCurrentPoint(LogoDragHandle).Properties;
+                bool shouldStartDrag = (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
+                                      (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+
+                if (shouldStartDrag)
+                {
+                    StartWindowDrag(e, sender as FrameworkElement);
+                }
+            }
+        }
+        private void OnLogoDragHandlePointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (!_isDragging) return;
+
+            if (_isDragging)
+            {
+                var properties = e.GetCurrentPoint(LogoDragHandle).Properties;
+                bool shouldContinueDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
+                                         (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
+
+                if (shouldContinueDrag)
+                {
+                    MoveWindow(e); // Remove the second parameter
+                }
+                else
+                {
+                    EndWindowDrag(e);
+                }
+            }
+        }
+        private void OnLogoDragHandlePointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            if (_isDragging)
+            {
+                System.Diagnostics.Debug.WriteLine($"Logo drag ended: {e.Pointer.PointerDeviceType}");
+                EndWindowDrag(e);
+            }
+        }
+
+        private void OnLogoPointerEntered(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            // Visual feedback - slightly dim the logo on hover
+            LogoDragHandle.Opacity = 0.8;
+        }
+
+        private void OnLogoPointerExited(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            // Return to normal opacity
+            if (!_isDragging)
+            {
+                LogoDragHandle.Opacity = 1.0;
+            }
         }
 
         private void SetupTurboService()
@@ -458,163 +524,87 @@ namespace HUDRA
         }
 
         // Main border drag handling for window movement
-        private void OnMainBorderPointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void StartWindowDrag(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e, FrameworkElement dragHandle)
         {
-            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
-                e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
+            _isDragging = true;
+            _touchDragStarted = false;
+
+            // Capture the pointer on the drag handle
+            dragHandle.CapturePointer(e.Pointer);
+
+            System.Diagnostics.Debug.WriteLine("Window drag started from logo");
+
+            if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
             {
-                var properties = e.GetCurrentPoint(MainBorder).Properties;
-                bool shouldStartDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
-                                      (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
-
-                if (shouldStartDrag)
-                {
-                    var position = e.GetCurrentPoint(MainBorder);
-
-                    // Check if click is over interactive controls - if so, don't drag
-                    try
-                    {
-                        // Check navigation bar controls
-                        if (CheckElementBounds(BatteryPanel, position.Position)) return;
-                        if (CheckElementBounds(MainPageNavButton, position.Position)) return;
-                        if (CheckElementBounds(SettingsNavButton, position.Position)) return;
-                        if (CheckElementBounds(AltTabButton, position.Position)) return;
-                        if (CheckElementBounds(CloseButton, position.Position)) return;
-
-                        // Check if clicking on the content frame (where interactive controls are)
-                        if (ContentFrame.Content != null)
-                        {
-                            var frameTransform = ContentFrame.TransformToVisual(MainBorder);
-                            var frameBounds = frameTransform.TransformBounds(new Windows.Foundation.Rect(0, 0, ContentFrame.ActualWidth, ContentFrame.ActualHeight));
-
-                            // Allow dragging on content frame, but let individual controls handle their own interactions
-                            if (frameBounds.Contains(position.Position))
-                            {
-                                // Check if we're clicking on specific interactive controls within the frame
-                                if (ContentFrame.Content is MainPage mainPage)
-                                {
-                                    if (CheckElementBounds(mainPage.TdpPicker, position.Position, MainBorder)) return;
-                                    if (CheckElementBounds(mainPage.ResolutionPicker, position.Position, MainBorder)) return;
-                                    if (CheckElementBounds(mainPage.AudioControls, position.Position, MainBorder)) return;
-                                    if (CheckElementBounds(mainPage.BrightnessControls, position.Position, MainBorder)) return;
-                                }
-                                else if (ContentFrame.Content is SettingsPage settingsPage)
-                                {
-                                    if (CheckElementBounds(settingsPage.StartupTdpPicker, position.Position, MainBorder)) return;
-                                    if (CheckElementBounds(settingsPage.TdpCorrectionToggle, position.Position, MainBorder)) return;
-                                    if (CheckElementBounds(settingsPage.UseStartupTdpToggle, position.Position, MainBorder)) return;
-                                }
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // If bounds detection fails, allow dragging
-                    }
-
-                    // Start window dragging
-                    _isDragging = true;
-                    MainBorder.CapturePointer(e.Pointer);
-
-                    if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
-                    {
-                        GetCursorPos(out POINT cursorPos);
-                        _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
-                    }
-                    else
-                    {
-                        var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
-                        var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
-                        var windowPos = appWindow.Position;
-
-                        _lastTouchPosition = new Windows.Foundation.Point(
-                            windowPos.X + position.Position.X,
-                            windowPos.Y + position.Position.Y);
-                        _touchDragStarted = true;
-                    }
-                }
+                GetCursorPos(out POINT cursorPos);
+                _lastPointerPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
             }
-        }
-
-        private void OnMainBorderPointerMoved(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
-        {
-            if (!_isDragging) return;
-
-            var properties = e.GetCurrentPoint(MainBorder).Properties;
-            bool shouldContinueDrag = (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse && properties.IsLeftButtonPressed) ||
-                                     (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch);
-
-            if (shouldContinueDrag)
+            else if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch)
             {
                 var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
                 var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+                var windowPos = appWindow.Position;
+                var touchPoint = e.GetCurrentPoint(LogoDragHandle);
 
-                if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
-                {
-                    GetCursorPos(out POINT cursorPos);
-                    var currentPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
-
-                    int deltaX = currentPosition.X - _lastPointerPosition.X;
-                    int deltaY = currentPosition.Y - _lastPointerPosition.Y;
-
-                    var currentPos = appWindow.Position;
-                    appWindow.Move(new Windows.Graphics.PointInt32(currentPos.X + deltaX, currentPos.Y + deltaY));
-
-                    _lastPointerPosition = currentPosition;
-                }
-                else
-                {
-                    if (_touchDragStarted)
-                    {
-                        var currentTouchPoint = e.GetCurrentPoint(MainBorder);
-                        var windowPos = appWindow.Position;
-
-                        var currentScreenTouch = new Windows.Foundation.Point(
-                            windowPos.X + currentTouchPoint.Position.X,
-                            windowPos.Y + currentTouchPoint.Position.Y);
-
-                        double deltaX = currentScreenTouch.X - _lastTouchPosition.X;
-                        double deltaY = currentScreenTouch.Y - _lastTouchPosition.Y;
-
-                        var newX = windowPos.X + (int)deltaX;
-                        var newY = windowPos.Y + (int)deltaY;
-
-                        appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
-                        _lastTouchPosition = currentScreenTouch;
-                    }
-                }
-            }
-            else
-            {
-                _isDragging = false;
-                _touchDragStarted = false;
+                _lastTouchPosition = new Windows.Foundation.Point(
+                    windowPos.X + touchPoint.Position.X,
+                    windowPos.Y + touchPoint.Position.Y);
+                _touchDragStarted = true;
             }
         }
 
-        private void OnMainBorderPointerReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        private void MoveWindow(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            var windowId = Win32Interop.GetWindowIdFromWindow(WindowNative.GetWindowHandle(this));
+            var appWindow = Microsoft.UI.Windowing.AppWindow.GetFromWindowId(windowId);
+            var pointer = e.Pointer;
+
+            if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
+            {
+                // Mouse logic stays the same
+                GetCursorPos(out POINT cursorPos);
+                var currentPosition = new Windows.Graphics.PointInt32(cursorPos.X, cursorPos.Y);
+
+                int deltaX = currentPosition.X - _lastPointerPosition.X;
+                int deltaY = currentPosition.Y - _lastPointerPosition.Y;
+
+                var currentPos = appWindow.Position;
+                appWindow.Move(new Windows.Graphics.PointInt32(currentPos.X + deltaX, currentPos.Y + deltaY));
+
+                _lastPointerPosition = currentPosition;
+            }
+            else if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Touch && _touchDragStarted)
+            {
+                // Touch logic stays the same
+                var currentTouchPoint = e.GetCurrentPoint(LogoDragHandle);
+                var windowPos = appWindow.Position;
+
+                var currentScreenTouch = new Windows.Foundation.Point(
+                    windowPos.X + currentTouchPoint.Position.X,
+                    windowPos.Y + currentTouchPoint.Position.Y);
+
+                double deltaX = currentScreenTouch.X - _lastTouchPosition.X;
+                double deltaY = currentScreenTouch.Y - _lastTouchPosition.Y;
+
+                var newX = windowPos.X + (int)deltaX;
+                var newY = windowPos.Y + (int)deltaY;
+
+                appWindow.Move(new Windows.Graphics.PointInt32(newX, newY));
+                _lastTouchPosition = currentScreenTouch;
+            }
+        }
+        private void EndWindowDrag(Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             _isDragging = false;
             _touchDragStarted = false;
-            MainBorder.ReleasePointerCapture(e.Pointer);
+
+            LogoDragHandle.ReleasePointerCapture(e.Pointer);
+
+            // Return logo to normal opacity
+            LogoDragHandle.Opacity = 1.0;
+
+            System.Diagnostics.Debug.WriteLine("Window drag ended");
         }
-
-        // Helper method to check if a point is within an element's bounds
-        private bool CheckElementBounds(FrameworkElement element, Windows.Foundation.Point point, FrameworkElement? relativeTo = null)
-        {
-            if (element == null) return false;
-
-            try
-            {
-                var transform = element.TransformToVisual(relativeTo ?? MainBorder);
-                var bounds = transform.TransformBounds(new Windows.Foundation.Rect(0, 0, element.ActualWidth, element.ActualHeight));
-                return bounds.Contains(point);
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         private void OnBatteryInfoUpdated(object? sender, BatteryInfo info)
         {
             BatteryPercentageText = $"{info.Percent}%";
@@ -754,62 +744,62 @@ namespace HUDRA
 
             AltTabButton.Content = gameIcon;
         }
-private void StartGlowPulseAnimation()
-{
-    try
-    {
-        // Apply the custom style first
-        AltTabButton.Style = (Style)Application.Current.Resources["GlowingGameButtonStyle"];
-        
-        // Wait for the template to be applied
-        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
+        private void StartGlowPulseAnimation()
         {
-            // Wait a bit more for template application
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-            timer.Tick += (s, e) =>
+            try
             {
-                timer.Stop();
-                
-                // Find the GlowLayer in the button's template
-                var glowLayer = FindChildByName<Border>(AltTabButton, "GlowLayer");
-                if (glowLayer == null)
+                // Apply the custom style first
+                AltTabButton.Style = (Style)Application.Current.Resources["GlowingGameButtonStyle"];
+
+                // Wait for the template to be applied
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                 {
-                    System.Diagnostics.Debug.WriteLine("Could not find GlowLayer in button template");
-                    return;
-                }
+                    // Wait a bit more for template application
+                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                    timer.Tick += (s, e) =>
+                    {
+                        timer.Stop();
 
-                System.Diagnostics.Debug.WriteLine("Found GlowLayer, starting animation");
+                        // Find the GlowLayer in the button's template
+                        var glowLayer = FindChildByName<Border>(AltTabButton, "GlowLayer");
+                        if (glowLayer == null)
+                        {
+                            System.Diagnostics.Debug.WriteLine("Could not find GlowLayer in button template");
+                            return;
+                        }
 
-                // Create opacity pulsing animation with smaller range
-                var opacityAnimation = new DoubleAnimation
-                {
-                    From = 0.75,
-                    To = 0.25,
-                    Duration = new Duration(TimeSpan.FromSeconds(1.25)),
-                    AutoReverse = true,
-                    RepeatBehavior = RepeatBehavior.Forever
-                };
+                        System.Diagnostics.Debug.WriteLine("Found GlowLayer, starting animation");
 
-                // Create storyboard
-                _glowPulseStoryboard = new Storyboard();
-                _glowPulseStoryboard.Children.Add(opacityAnimation);
+                        // Create opacity pulsing animation with smaller range
+                        var opacityAnimation = new DoubleAnimation
+                        {
+                            From = 0.75,
+                            To = 0.25,
+                            Duration = new Duration(TimeSpan.FromSeconds(1.25)),
+                            AutoReverse = true,
+                            RepeatBehavior = RepeatBehavior.Forever
+                        };
 
-                // Set target for opacity
-                Storyboard.SetTarget(opacityAnimation, glowLayer);
-                Storyboard.SetTargetProperty(opacityAnimation, "Opacity");
+                        // Create storyboard
+                        _glowPulseStoryboard = new Storyboard();
+                        _glowPulseStoryboard.Children.Add(opacityAnimation);
 
-                // Start animation
-                _glowPulseStoryboard.Begin();
-                System.Diagnostics.Debug.WriteLine("Started glow pulse animation");
-            };
-            timer.Start();
-        });
-    }
-    catch (Exception ex)
-    {
-        System.Diagnostics.Debug.WriteLine($"Error starting glow animation: {ex.Message}");
-    }
-}
+                        // Set target for opacity
+                        Storyboard.SetTarget(opacityAnimation, glowLayer);
+                        Storyboard.SetTargetProperty(opacityAnimation, "Opacity");
+
+                        // Start animation
+                        _glowPulseStoryboard.Begin();
+                        System.Diagnostics.Debug.WriteLine("Started glow pulse animation");
+                    };
+                    timer.Start();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error starting glow animation: {ex.Message}");
+            }
+        }
 
         private void StopGlowPulseAnimation()
         {

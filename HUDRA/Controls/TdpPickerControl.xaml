@@ -2,37 +2,79 @@
     x:Class="HUDRA.Controls.TdpPickerControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:HUDRA.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <StackPanel Spacing="8">
-        <TextBlock Text="TDP" 
-                   FontSize="14" 
-                   Foreground="#CCFFFFFF"
-                   FontWeight="SemiBold"
-                   HorizontalAlignment="Center"
-                   Padding="0"
-                   Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
+    <UserControl.Resources>
+        <!--  TDP Item Template  -->
+        <DataTemplate x:Key="TdpItemTemplate" x:DataType="local:TdpItem">
+            <Border
+                x:Name="ItemBorder"
+                Width="60"
+                Height="40"
+                MinWidth="60"
+                Margin="6,0"
+                Background="Transparent"
+                Tag="{x:Bind}">
+                <!--  REMOVED: IsTapEnabled="True" and Tapped="ItemBorder_Tapped"  -->
+                <TextBlock
+                    x:Name="NumberText"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="{x:Bind FontSize, Mode=OneWay}"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    IsHitTestVisible="False"
+                    Opacity="{x:Bind Opacity, Mode=OneWay}"
+                    Text="{x:Bind DisplayText}"
+                    TextAlignment="Center" />
+            </Border>
+        </DataTemplate>
 
-        <Border x:Name="TdpPickerBorder"
-                Background="#22FFFFFF" 
-                CornerRadius="12" 
-                Padding="5,0"
-                Width="280">
+        <!--  ItemsRepeater Layout  -->
+        <StackLayout
+            x:Key="HorizontalStackLayout"
+            Orientation="Horizontal"
+            Spacing="0" />
+    </UserControl.Resources>
+
+    <StackPanel Spacing="8">
+        <TextBlock
+            Padding="0"
+            HorizontalAlignment="Center"
+            FontSize="14"
+            FontWeight="SemiBold"
+            Foreground="#CCFFFFFF"
+            Text="TDP"
+            Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
+
+        <Border
+            x:Name="TdpPickerBorder"
+            Width="280"
+            Padding="5,0"
+            Background="#22FFFFFF"
+            CornerRadius="12">
             <Grid Height="60">
-                <ScrollViewer x:Name="TdpScrollViewer"
-                              HorizontalScrollBarVisibility="Hidden"
-                              VerticalScrollBarVisibility="Disabled"
-                              HorizontalScrollMode="Enabled"
-                              VerticalScrollMode="Disabled"
-                              ZoomMode="Disabled"
-                              ManipulationMode="TranslateX"
-                              ViewChanged="TdpScrollViewer_ViewChanged"
-                              Padding="0,10">
-                    <StackPanel x:Name="NumbersPanel" 
-                                Orientation="Horizontal"/>
+                <ScrollViewer
+                    x:Name="TdpScrollViewer"
+                    Padding="0,10"
+                    HorizontalScrollBarVisibility="Hidden"
+                    HorizontalScrollMode="Enabled"
+                    ManipulationMode="All"
+                    Tapped="TdpScrollViewer_Tapped"
+                    VerticalScrollBarVisibility="Disabled"
+                    VerticalScrollMode="Disabled"
+                    ViewChanged="TdpScrollViewer_ViewChanged"
+                    ZoomMode="Disabled">
+
+                    <ItemsRepeater
+                        x:Name="TdpItemsRepeater"
+                        Margin="110,0,110,0"
+                        ItemTemplate="{StaticResource TdpItemTemplate}"
+                        Layout="{StaticResource HorizontalStackLayout}" />
                 </ScrollViewer>
             </Grid>
         </Border>
