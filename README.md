@@ -1,4 +1,4 @@
-# HUDRA - Handheld Ultimate Dynamic Resource Adjuster
+# HUDRA - Heads-Up Display Runtime Assistant
 
 <div align="center">
 
