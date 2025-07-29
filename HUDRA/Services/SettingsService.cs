@@ -15,6 +15,7 @@ namespace HUDRA.Services
         private const string StartupTdpKey = "StartupTdp";
         private const string UseStartupTdpKey = "UseStartupTdp";
         private const string LastUsedTdpKey = "LastUsedTdp";
+        private const string LaunchAtStartupKey = "LaunchAtStartup";
 
         // New fan curve keys
         private const string FanCurveEnabledKey = "FanCurveEnabled";
@@ -163,6 +164,40 @@ namespace HUDRA.Services
                     _settings = new Dictionary<string, object>();
 
                 _settings[LastUsedTdpKey] = tdp;
+                SaveSettings();
+            }
+        }
+
+        public static bool GetLaunchAtStartup()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(LaunchAtStartupKey, out var value))
+                {
+                    if (value is JsonElement jsonElement)
+                    {
+                        if (jsonElement.ValueKind == JsonValueKind.True || jsonElement.ValueKind == JsonValueKind.False)
+                        {
+                            return jsonElement.GetBoolean();
+                        }
+                    }
+                    else if (value is bool boolValue)
+                    {
+                        return boolValue;
+                    }
+                }
+                return false;
+            }
+        }
+
+        public static void SetLaunchAtStartup(bool enabled)
+        {
+            lock (_lock)
+            {
+                if (_settings == null)
+                    _settings = new Dictionary<string, object>();
+
+                _settings[LaunchAtStartupKey] = enabled;
                 SaveSettings();
             }
         }

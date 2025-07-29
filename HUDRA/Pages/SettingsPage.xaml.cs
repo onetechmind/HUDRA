@@ -19,9 +19,10 @@ namespace HUDRA.Pages
 
         private void LoadSettings()
         {
-            
+
             TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
             UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
+            LaunchAtStartupToggle.IsOn = SettingsService.GetLaunchAtStartup();
             UpdateStartupTdpEnabledState();
         }
 
@@ -93,9 +94,20 @@ namespace HUDRA.Pages
         private void UseStartupTdpToggle_Toggled(object sender, RoutedEventArgs e)
         {
             var isOn = UseStartupTdpToggle.IsOn;
-            
+
             SettingsService.SetUseStartupTdp(isOn);
             UpdateStartupTdpEnabledState();
+        }
+
+        private void LaunchAtStartupToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var isOn = LaunchAtStartupToggle.IsOn;
+            SettingsService.SetLaunchAtStartup(isOn);
+
+            if (isOn)
+                StartupService.EnableLaunchAtStartup();
+            else
+                StartupService.DisableLaunchAtStartup();
         }
 
         private void UpdateStartupTdpEnabledState()
