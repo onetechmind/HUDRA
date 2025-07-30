@@ -48,11 +48,20 @@ namespace HUDRA.Services
 
                 if (_isWindowVisible)
                 {
+                    // Hide window
                     appWindow.Hide();
+                    _isWindowVisible = false;
                 }
                 else
                 {
+                    // Show window
                     appWindow.Show();
+                    _isWindowVisible = true;
+
+                    // CRITICAL: Activate the window to bring it to foreground
+                    _window.Activate();
+
+                    // Ensure proper positioning and topmost behavior
                     PositionAboveSystemTray();
 
                     if (_forceTopmost)
@@ -60,14 +69,17 @@ namespace HUDRA.Services
                         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                     }
-                }
 
-                _isWindowVisible = !_isWindowVisible;
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to toggle window visibility: {ex.Message}");
             }
+        }
+        public void SetInitialVisibilityState(bool isVisible)
+        {
+            _isWindowVisible = isVisible;
         }
 
         private void SetInitialSize()

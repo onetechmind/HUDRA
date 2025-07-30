@@ -77,8 +77,6 @@ namespace HUDRA.Services
                 _computer.Open();
                 _useLibreHardwareMonitor = true;
 
-                System.Diagnostics.Debug.WriteLine("✅ LibreHardwareMonitor initialized successfully");
-
                 // Debug: List available sensors
                 LogAvailableSensors();
             }

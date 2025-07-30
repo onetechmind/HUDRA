@@ -25,7 +25,6 @@ namespace HUDRA.Services
         public void NavigateToMain()
         {
             Navigate(typeof(MainPage));
-            System.Diagnostics.Debug.WriteLine("NavigateToMain() called");
         }
 
         public void NavigateToSettings()

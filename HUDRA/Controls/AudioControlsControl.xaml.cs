@@ -158,7 +158,6 @@ namespace HUDRA.Controls
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     MuteButtonIcon.Glyph = isMuted ? "\uE74F" : "\uE767"; // Mute : Volume
-                    System.Diagnostics.Debug.WriteLine($"Mute button icon updated: {(isMuted ? "MUTED" : "UNMUTED")} - Glyph: {MuteButtonIcon.Glyph}");
                 });
             }
             catch (Exception ex)

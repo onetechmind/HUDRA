@@ -114,7 +114,6 @@ namespace HUDRA.Controls
 
         private void InitializeData()
         {
-            System.Diagnostics.Debug.WriteLine($"InitializeData called. Current _selectedTdp: {_selectedTdp}");
 
             _tdpItems.Clear();
 
@@ -124,14 +123,11 @@ namespace HUDRA.Controls
                 if (tdp == _selectedTdp)
                 {
                     item.IsSelected = true;
-                    System.Diagnostics.Debug.WriteLine($"Set TDP {tdp} as selected");
                 }
                 _tdpItems.Add(item);
             }
 
-            System.Diagnostics.Debug.WriteLine($"Created {_tdpItems.Count} TDP items");
             TdpItemsRepeater.ItemsSource = _tdpItems;
-            System.Diagnostics.Debug.WriteLine("Set ItemsSource on TdpItemsRepeater");
         }
 
         public void Initialize(DpiScalingService dpiService, bool autoSetEnabled = true, bool preserveCurrentValue = false)
@@ -188,6 +184,39 @@ namespace HUDRA.Controls
                 SelectedTdp = startupTdp;
                 StatusText = $"Default TDP: {startupTdp}W";
                 ScrollToSelectedItem();
+                return;
+            }
+
+            if (Application.Current is App app && app.StartupTdpAlreadyApplied)
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ Startup TDP already applied during minimized launch - skipping duplicate application");
+
+                // Still need to determine and show the correct TDP value in UI
+                int currentTdp;
+                string statusReason;
+
+                if (SettingsService.GetUseStartupTdp())
+                {
+                    currentTdp = SettingsService.GetStartupTdp();
+                    statusReason = "startup TDP (already applied)";
+                }
+                else
+                {
+                    currentTdp = SettingsService.GetLastUsedTdp();
+                    if (currentTdp < HudraSettings.MIN_TDP || currentTdp > HudraSettings.MAX_TDP)
+                    {
+                        currentTdp = HudraSettings.DEFAULT_STARTUP_TDP;
+                        statusReason = "fallback TDP (already applied)";
+                    }
+                    else
+                    {
+                        statusReason = "last-used TDP (already applied)";
+                    }
+                }
+
+                SelectedTdp = currentTdp;
+                StatusText = $"TDP: {currentTdp}W ({statusReason})";
+                _lastCenteredTdp = _selectedTdp;
                 return;
             }
 
@@ -420,15 +449,10 @@ namespace HUDRA.Controls
 
         private void TdpScrollViewer_Tapped(object sender, TappedRoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("TdpScrollViewer_Tapped called");
-
             var tapPosition = e.GetPosition(TdpScrollViewer);
-            System.Diagnostics.Debug.WriteLine($"Tap position: {tapPosition.X}, {tapPosition.Y}");
 
             // Calculate which TDP item was tapped based on position
             var tappedTdp = GetTdpFromPosition(tapPosition.X);
-
-            System.Diagnostics.Debug.WriteLine($"Calculated tapped TDP: {tappedTdp}");
 
             if (tappedTdp >= HudraSettings.MIN_TDP && tappedTdp <= HudraSettings.MAX_TDP)
             {
@@ -585,8 +609,6 @@ namespace HUDRA.Controls
                     _dragStartScrollOffset = TdpScrollViewer.HorizontalOffset;
                     _isMouseDragging = false; // Will be set to true only after threshold
                     _hasPointerCapture = TdpScrollViewer.CapturePointer(e.Pointer);
-
-                    System.Diagnostics.Debug.WriteLine($"Mouse pressed - captured: {_hasPointerCapture}");
                 }
             }
         }
@@ -602,7 +624,6 @@ namespace HUDRA.Controls
                 if (!_isMouseDragging && Math.Abs(deltaX) > DRAG_THRESHOLD)
                 {
                     _isMouseDragging = true;
-                    System.Diagnostics.Debug.WriteLine("Started mouse dragging");
                 }
 
                 if (_isMouseDragging)
@@ -611,8 +632,6 @@ namespace HUDRA.Controls
                     // Use ChangeView with disableAnimation=true for smooth, immediate response
                     TdpScrollViewer.ChangeView(newOffset, null, null, true);
                     e.Handled = true; // Prevent other handlers from interfering
-
-                    System.Diagnostics.Debug.WriteLine($"Mouse drag - deltaX: {deltaX:F1}, newOffset: {newOffset:F1}");
                 }
             }
         }
@@ -623,8 +642,6 @@ namespace HUDRA.Controls
             {
                 TdpScrollViewer.ReleasePointerCapture(e.Pointer);
                 _hasPointerCapture = false;
-
-                System.Diagnostics.Debug.WriteLine($"Mouse released - was dragging: {_isMouseDragging}");
 
                 // If we were dragging, don't allow the tap to go through
                 if (_isMouseDragging)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Text.Json;
 using System.Collections.Generic;
@@ -21,6 +21,10 @@ namespace HUDRA.Services
         private const string FanCurvePointsKey = "FanCurvePoints";
         private const string FanCurveActivePresetKey = "FanCurveActivePreset";
         private const string CustomFanCurvePointsKey = "CustomFanCurvePoints";
+
+        //Startup
+        private const string STARTUP_ENABLED_KEY = "StartupEnabled";
+        private const string MINIMIZE_TO_TRAY_ON_STARTUP_KEY = "MinimizeToTrayOnStartup";
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -406,7 +410,6 @@ namespace HUDRA.Services
                 _settings = new Dictionary<string, object>();
             }
         }
-
         private static void SaveSettings()
         {
             try
@@ -428,6 +431,85 @@ namespace HUDRA.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to save settings: {ex.Message}");
+            }
+        }
+
+        // <summary>
+        /// Gets whether HUDRA should start with Windows
+        /// </summary>
+        public static bool GetStartupEnabled()
+        {
+            return GetBooleanSetting(STARTUP_ENABLED_KEY, false);
+        }
+
+        /// <summary>
+        /// Sets whether HUDRA should start with Windows using Task Scheduler
+        /// </summary>
+        public static bool SetStartupEnabled(bool enabled)
+        {
+            try
+            {
+                // Apply to system using Task Scheduler first
+                var success = StartupService.SetStartupEnabled(enabled);
+
+                if (success)
+                {
+                    // Only save the setting if system operation succeeded
+                    SetBooleanSetting(STARTUP_ENABLED_KEY, enabled);
+                    System.Diagnostics.Debug.WriteLine($"🚀 Startup {(enabled ? "enabled" : "disabled")} via Task Scheduler");
+                    return true;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Failed to {(enabled ? "enable" : "disable")} startup");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Exception setting startup: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Gets whether HUDRA should minimize to tray when starting at boot
+        /// </summary>
+        public static bool GetMinimizeToTrayOnStartup()
+        {
+            return GetBooleanSetting(MINIMIZE_TO_TRAY_ON_STARTUP_KEY, true); // Default to minimized for startup
+        }
+
+        /// <summary>
+        /// Sets whether HUDRA should minimize to tray when starting at boot
+        /// </summary>
+        public static void SetMinimizeToTrayOnStartup(bool minimize)
+        {
+            SetBooleanSetting(MINIMIZE_TO_TRAY_ON_STARTUP_KEY, minimize);
+        }
+
+        /// <summary>
+        /// Synchronizes saved settings with actual system state
+        /// Called on app startup to ensure consistency
+        /// </summary>
+        public static void SyncStartupState()
+        {
+            try
+            {
+                var settingEnabled = GetStartupEnabled();
+                var systemEnabled = StartupService.IsStartupEnabled();
+
+                if (settingEnabled != systemEnabled)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🔄 Syncing startup state: Setting={settingEnabled}, System={systemEnabled}");
+
+                    // Update system to match saved setting
+                    StartupService.SetStartupEnabled(settingEnabled);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Error syncing startup state: {ex.Message}");
             }
         }
     }

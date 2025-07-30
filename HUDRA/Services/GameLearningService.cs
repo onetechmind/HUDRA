@@ -44,7 +44,6 @@ namespace HUDRA.Services
                     if (inclusionArray != null)
                     {
                         _inclusionList = new HashSet<string>(inclusionArray, StringComparer.OrdinalIgnoreCase);
-                        System.Diagnostics.Debug.WriteLine($"Loaded {_inclusionList.Count} games from inclusion list");
                     }
                 }
 
@@ -56,7 +55,6 @@ namespace HUDRA.Services
                     if (exclusionArray != null)
                     {
                         _exclusionList = new HashSet<string>(exclusionArray, StringComparer.OrdinalIgnoreCase);
-                        System.Diagnostics.Debug.WriteLine($"Loaded {_exclusionList.Count} processes from exclusion list");
                     }
                 }
             }

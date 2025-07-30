@@ -38,13 +38,11 @@ namespace HUDRA.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            System.Diagnostics.Debug.WriteLine("MainPage: OnNavigatedTo");
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            System.Diagnostics.Debug.WriteLine("MainPage: OnNavigatedFrom");
         }
 
         public void Initialize(DpiScalingService dpiService,

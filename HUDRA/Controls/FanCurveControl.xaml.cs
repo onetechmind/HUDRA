@@ -113,7 +113,6 @@ namespace HUDRA.Controls
 
                     _isUpdatingControls = true;
                     FanCurveToggle.IsOn = _currentCurve.IsEnabled; // CHANGED: Use FanCurveToggle instead of CurveEnabledToggle
-                    System.Diagnostics.Debug.WriteLine($"Toggle set to: {FanCurveToggle.IsOn}");
 
                     // ADD: Update temperature monitoring state
                     UpdateTemperatureMonitoringState();
@@ -121,7 +120,6 @@ namespace HUDRA.Controls
                     CurvePanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
                     TemperatureStatusPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
                     PresetButtonsPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
-                    System.Diagnostics.Debug.WriteLine($"Panel visibility: {CurvePanel.Visibility}");
                     _isUpdatingControls = false;
 
                     // Apply saved curve if it was enabled (with delay to ensure service is ready)
@@ -134,7 +132,6 @@ namespace HUDRA.Controls
                             // Small delay to ensure service is completely initialized
                             await Task.Delay(500);
 
-                            System.Diagnostics.Debug.WriteLine("Applying saved fan curve on startup");
                             if (ApplyFanCurveOnStartup())
                             {
 
@@ -241,8 +238,6 @@ namespace HUDRA.Controls
             _currentTemperature = temperatureData;
 
             if (!_currentCurve.IsEnabled) return;
-
-            System.Diagnostics.Debug.WriteLine($"UpdateTemperatureDisplay called: {temperatureData.MaxTemperature:F1}°C, Curve enabled: {_currentCurve.IsEnabled}");
 
             try
             {
@@ -527,15 +522,11 @@ namespace HUDRA.Controls
 
             if (_currentCurve.ActivePreset != "Custom")
             {
-                // Show a subtle hint that they need to click Custom first
-                System.Diagnostics.Debug.WriteLine("Canvas editing disabled - click Custom button to edit curve");
                 return;
             }
 
             var position = e.GetCurrentPoint(FanCurveCanvas).Position;
             var pointer = e.Pointer;
-
-            System.Diagnostics.Debug.WriteLine($"Pointer pressed: Type={pointer.PointerDeviceType}, Position={position.X:F1},{position.Y:F1}");
 
             // Check if we clicked/touched on a control point
             for (int i = 0; i < _controlPoints.Count; i++)
@@ -555,8 +546,6 @@ namespace HUDRA.Controls
 
                 if (distance <= hitTolerance)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Point {i} hit! Starting drag with {pointer.PointerDeviceType}");
-
                     // CRITICAL: Prevent scrolling by handling the event FIRST
                     e.Handled = true;
 
@@ -587,10 +576,6 @@ namespace HUDRA.Controls
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine("No point hit");
-
-            // If no point was hit, allow normal scrolling behavior
-            // Don't set e.Handled = true here
         }
 
         private void CustomPresetButton_Click(object sender, RoutedEventArgs e)
@@ -621,7 +606,6 @@ namespace HUDRA.Controls
                 }
             }
 
-            System.Diagnostics.Debug.WriteLine("Switched to Custom mode - curve is now editable");
         }
 
         private void Canvas_PointerMoved(object sender, PointerRoutedEventArgs e)
@@ -636,7 +620,6 @@ namespace HUDRA.Controls
             // For touch, make sure we're tracking the same touch point
             if (_isTouchDragging && pointer.PointerId != _touchPointerId)
             {
-                System.Diagnostics.Debug.WriteLine($"Touch ID mismatch: expected {_touchPointerId}, got {pointer.PointerId}");
                 return;
             }
 
@@ -696,7 +679,6 @@ namespace HUDRA.Controls
                 if (_currentCurve.ActivePreset == "Custom")
                 {
                     SettingsService.SetCustomFanCurve(_currentCurve.Points);
-                    System.Diagnostics.Debug.WriteLine("Saved modified custom curve");
                 }
 
                 SettingsService.SetFanCurve(_currentCurve);
@@ -950,15 +932,11 @@ namespace HUDRA.Controls
 
         private void UpdateButtonState(Button button, bool isActive)
         {
-            System.Diagnostics.Debug.WriteLine($"UpdateButtonState called for button: {button?.Name ?? "NULL"}, isActive: {isActive}");
 
             if (button == null)
             {
-                System.Diagnostics.Debug.WriteLine("UpdateButtonState: button is null!");
                 return;
             }
-
-            System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} -> {(isActive ? "ACTIVE" : "inactive")}");
 
             if (isActive)
             {
@@ -977,14 +955,11 @@ namespace HUDRA.Controls
         // NEW: Update button visual states
         private void UpdatePresetButtonStates()
         {
-            System.Diagnostics.Debug.WriteLine($"UpdatePresetButtonStates called - ActivePreset: '{_currentCurve.ActivePreset}'");
             // Update all 4 buttons using the helper method
             UpdateButtonState(StealthPresetButton, _currentCurve.ActivePreset == "Stealth");
             UpdateButtonState(CruisePresetButton, _currentCurve.ActivePreset == "Cruise");
             UpdateButtonState(WarpPresetButton, _currentCurve.ActivePreset == "Warp");
             UpdateButtonState(CustomPresetButton, _currentCurve.ActivePreset == "Custom");
-
-            System.Diagnostics.Debug.WriteLine($"Custom button should be active: {_currentCurve.ActivePreset == "Custom"}");
         }
 
         private void DetectActivePreset()
@@ -998,7 +973,6 @@ namespace HUDRA.Controls
                     {
                         _activePresetName = preset.Name;
                         _currentCurve.ActivePreset = preset.Name;
-                        System.Diagnostics.Debug.WriteLine($"Detected matching preset: {preset.Name}");
                         break;
                     }
                 }
@@ -1135,12 +1109,10 @@ namespace HUDRA.Controls
 
         private void HideTooltip()
         {
-            System.Diagnostics.Debug.WriteLine("=== HideTooltip ===");
 
             if (DragTooltip != null)
             {
                 DragTooltip.Visibility = Visibility.Collapsed;
-                System.Diagnostics.Debug.WriteLine("Tooltip hidden");
             }
         }
 

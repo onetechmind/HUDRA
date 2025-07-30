@@ -39,6 +39,9 @@ namespace HUDRA
         // Public navigation service access for TDP picker
         public NavigationService NavigationService => _navigationService;
 
+        // Public window manager access for App.xaml.c
+        public WindowManagementService WindowManager => _windowManager;
+
         //Navigation events
         private bool _mainPageInitialized = false;
 
@@ -117,8 +120,6 @@ namespace HUDRA
 
         private void OnPageChanged(object sender, Type pageType)
         {
-            System.Diagnostics.Debug.WriteLine($"=== Page Changed to: {pageType.Name} ===");
-
             _currentPageType = pageType;
             UpdateNavigationButtonStates();
             HandlePageSpecificInitialization(pageType);
@@ -131,7 +132,6 @@ namespace HUDRA
                 // Wait for navigation to complete then initialize
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
-                    System.Diagnostics.Debug.WriteLine("=== MainPage HandlePageSpecificInitialization ===");
                     if (ContentFrame.Content is MainPage mainPage)
                     {
                         _mainPage = mainPage;
@@ -147,10 +147,8 @@ namespace HUDRA
             {
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
-                    System.Diagnostics.Debug.WriteLine("=== SettingsPage HandlePageSpecificInitialization ===");
                     if (ContentFrame.Content is SettingsPage settingsPage)
                     {
-                        System.Diagnostics.Debug.WriteLine("SettingsPage found in ContentFrame, calling Initialize");
                         _settingsPage = settingsPage;
                         InitializeSettingsPage();
                     }
@@ -165,8 +163,6 @@ namespace HUDRA
         private void InitializeMainPage()
         {
             if (_mainPage == null) return;
-
-            System.Diagnostics.Debug.WriteLine("=== Initializing MainPage ===");
 
             if (!_mainPageInitialized)
             {
@@ -191,7 +187,6 @@ namespace HUDRA
             else
             {
                 // Subsequent visits - preserve current TDP value
-                System.Diagnostics.Debug.WriteLine($"Returning to MainPage - preserving TDP: {_currentTdpValue}");
 
                 // Ensure we have a valid TDP value to preserve
                 if (_currentTdpValue < HudraSettings.MIN_TDP || _currentTdpValue > HudraSettings.MAX_TDP)
@@ -217,7 +212,6 @@ namespace HUDRA
                 _mainPage.TdpPicker.Initialize(_dpiService, autoSetEnabled: true, preserveCurrentValue: true);
 
                 // CRITICAL: Set the TDP value AFTER initialization but BEFORE other controls
-                System.Diagnostics.Debug.WriteLine($"Setting preserved TDP value: {_currentTdpValue}");
                 _mainPage.TdpPicker.SelectedTdp = _currentTdpValue;
 
                 // Initialize other controls
@@ -235,25 +229,20 @@ namespace HUDRA
                 // Ensure scroll positioning to the correct value
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
-                    System.Diagnostics.Debug.WriteLine($"Ensuring scroll position for preserved TDP: {_currentTdpValue}");
                     _mainPage.TdpPicker.EnsureScrollPositionAfterLayout();
                 });
             }
 
             SetupTdpMonitor();
-            System.Diagnostics.Debug.WriteLine("=== MainPage initialization complete ===");
         }
 
         private void InitializeSettingsPage()
         {
             if (_settingsPage == null) return;
 
-            System.Diagnostics.Debug.WriteLine("=== InitializeSettingsPage called ===");
-
             try
             {
                 _settingsPage.Initialize(_dpiService);
-                System.Diagnostics.Debug.WriteLine("=== SettingsPage initialization complete ===");
             }
             catch (Exception ex)
             {
@@ -277,19 +266,12 @@ namespace HUDRA
                 return;
             }
 
-            System.Diagnostics.Debug.WriteLine($"UpdateButtonState: {button.Name} - isActive: {isActive}");
-
             var activeForeground = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
             var inactiveForeground = new SolidColorBrush(Microsoft.UI.Colors.White);
-
-            System.Diagnostics.Debug.WriteLine($"Setting {button.Name} background to: {(isActive ? "Semi-opaque white" : "Transparent")}");
-
-            //button.Background = isActive ? activeBackground : inactiveBackground;
 
             // Handle FontIcon content (both buttons should now use FontIcon)
             if (button.Content is FontIcon icon)
             {
-                System.Diagnostics.Debug.WriteLine($"{button.Name} has FontIcon content");
                 icon.Foreground = isActive ? activeForeground : inactiveForeground;
             }
             else
@@ -303,13 +285,11 @@ namespace HUDRA
         // Navigation event handlers
         private void MainPageNavButton_Click(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("MainPage navigation button clicked");
             _navigationService.NavigateToMain();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("Settings navigation button clicked");
             _navigationService.NavigateToSettings();
         }
 
@@ -350,14 +330,11 @@ namespace HUDRA
             // Add hover effects for visual feedback
             LogoDragHandle.PointerEntered += OnLogoPointerEntered;
             LogoDragHandle.PointerExited += OnLogoPointerExited;
-
-            System.Diagnostics.Debug.WriteLine("Logo drag handle initialized");
         }
 
         private void OnLogoDragHandlePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             var pointer = e.Pointer;
-            System.Diagnostics.Debug.WriteLine($"Logo drag started: {pointer.PointerDeviceType}");
 
             // Start drag for both mouse and touch
             if (pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse ||
@@ -397,7 +374,6 @@ namespace HUDRA
         {
             if (_isDragging)
             {
-                System.Diagnostics.Debug.WriteLine($"Logo drag ended: {e.Pointer.PointerDeviceType}");
                 EndWindowDrag(e);
             }
         }
@@ -474,12 +450,10 @@ namespace HUDRA
 
         public void SetTdpMonitor(TdpMonitorService tdpMonitor)
         {
-            System.Diagnostics.Debug.WriteLine("=== SetTdpMonitor called ===");
             _tdpMonitor = tdpMonitor;
 
             if (_mainPage != null)
             {
-                System.Diagnostics.Debug.WriteLine("=== MainPage already loaded, setting up TDP monitor ===");
                 SetupTdpMonitor();
             }
         }
@@ -487,8 +461,6 @@ namespace HUDRA
         private void SetupTdpMonitor()
         {
             if (_tdpMonitor == null || _mainPage == null) return;
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Starting ===");
 
             bool tdpMonitorStarted = false;
 
@@ -519,8 +491,6 @@ namespace HUDRA
             {
                 System.Diagnostics.Debug.WriteLine($"TDP drift {args.CurrentTdp}W -> {args.TargetTdp}W (corrected: {args.CorrectionApplied})");
             };
-
-            System.Diagnostics.Debug.WriteLine("=== TDP Monitor Setup Complete ===");
         }
 
         // Main border drag handling for window movement
@@ -531,8 +501,6 @@ namespace HUDRA
 
             // Capture the pointer on the drag handle
             dragHandle.CapturePointer(e.Pointer);
-
-            System.Diagnostics.Debug.WriteLine("Window drag started from logo");
 
             if (e.Pointer.PointerDeviceType == Microsoft.UI.Input.PointerDeviceType.Mouse)
             {
@@ -602,8 +570,6 @@ namespace HUDRA
 
             // Return logo to normal opacity
             LogoDragHandle.Opacity = 1.0;
-
-            System.Diagnostics.Debug.WriteLine("Window drag ended");
         }
         private void OnBatteryInfoUpdated(object? sender, BatteryInfo info)
         {
@@ -678,8 +644,6 @@ namespace HUDRA
 
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;
-
-                System.Diagnostics.Debug.WriteLine("Game detection service initialized");
             }
             catch (Exception ex)
             {
@@ -764,11 +728,8 @@ namespace HUDRA
                         var glowLayer = FindChildByName<Border>(AltTabButton, "GlowLayer");
                         if (glowLayer == null)
                         {
-                            System.Diagnostics.Debug.WriteLine("Could not find GlowLayer in button template");
                             return;
                         }
-
-                        System.Diagnostics.Debug.WriteLine("Found GlowLayer, starting animation");
 
                         // Create opacity pulsing animation with smaller range
                         var opacityAnimation = new DoubleAnimation
@@ -790,14 +751,12 @@ namespace HUDRA
 
                         // Start animation
                         _glowPulseStoryboard.Begin();
-                        System.Diagnostics.Debug.WriteLine("Started glow pulse animation");
                     };
                     timer.Start();
                 });
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error starting glow animation: {ex.Message}");
             }
         }
 
@@ -810,12 +769,9 @@ namespace HUDRA
 
                 // Reset button to original style - use the existing global button style
                 AltTabButton.ClearValue(FrameworkElement.StyleProperty);
-
-                System.Diagnostics.Debug.WriteLine("Stopped glow pulse animation");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error stopping glow animation: {ex.Message}");
             }
         }
 
