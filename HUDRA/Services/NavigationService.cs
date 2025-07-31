@@ -32,6 +32,11 @@ namespace HUDRA.Services
             Navigate(typeof(SettingsPage));
         }
 
+        public void NavigateToFanCurve()
+        {
+            Navigate(typeof(FanCurvePage));
+        }
+
         public void Navigate(Type pageType)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));

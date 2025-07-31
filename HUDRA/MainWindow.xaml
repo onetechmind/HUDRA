@@ -126,6 +126,25 @@
                                 Glyph="&#xE80F;" />
                         </Button>
 
+                        <!--  Fan Curve Navigation Item  -->
+                        <Button
+                            x:Name="FanCurveNavButton"
+                            Width="60"
+                            Height="60"
+                            HorizontalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Click="FanCurveNavButton_Click"
+                            Style="{StaticResource NavigationButtonStyle}"
+                            ToolTipService.ToolTip="Fan Curve Configuration">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="25"
+                                Glyph="&#xEC49;" />
+                        </Button>
+
                         <!--  Settings Navigation Item (Custom image)  -->
                         <Button
                             x:Name="SettingsNavButton"

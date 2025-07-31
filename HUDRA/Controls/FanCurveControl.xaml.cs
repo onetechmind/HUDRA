@@ -160,6 +160,10 @@ namespace HUDRA.Controls
                 }
 
                 _isInitialized = true;
+                
+                // Update status text after initialization
+                UpdateStatusText();
+                
                 FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
                     _currentCurve, result.Message));
             }
@@ -321,6 +325,33 @@ namespace HUDRA.Controls
 
             // No visual indicators to manage anymore
         }
+
+        private void UpdateStatusText()
+        {
+            try
+            {
+                if (FanCurveStatusText != null)
+                {
+                    if (_currentCurve.IsEnabled)
+                    {
+                        FanCurveStatusText.Text = "Using HUDRA software fan curve.";
+                    }
+                    else
+                    {
+                        FanCurveStatusText.Text = "Using built-in hardware fan curve.";
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR updating fan curve status text: {ex.Message}");
+                if (FanCurveStatusText != null)
+                {
+                    FanCurveStatusText.Text = "Fan curve status unknown.";
+                }
+            }
+        }
+
         private void SetupCanvas()
         {
             // Essential for touch hit testing
@@ -758,6 +789,7 @@ namespace HUDRA.Controls
                 }
 
                 UpdateTemperatureMonitoringState();
+                UpdateStatusText();
                 FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(_currentCurve, $"Fan curve {(isEnabled ? "enabled" : "disabled")}"));
             }
             catch (Exception ex)

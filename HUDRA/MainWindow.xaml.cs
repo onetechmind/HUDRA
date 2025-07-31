@@ -48,6 +48,7 @@ namespace HUDRA
         // Current page references
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
+        private FanCurvePage? _fanCurvePage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -158,6 +159,21 @@ namespace HUDRA
                     }
                 });
             }
+            else if (pageType == typeof(FanCurvePage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is FanCurvePage fanCurvePage)
+                    {
+                        _fanCurvePage = fanCurvePage;
+                        InitializeFanCurvePage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not FanCurvePage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
+                    }
+                });
+            }
         }
 
         private void InitializeMainPage()
@@ -251,10 +267,28 @@ namespace HUDRA
             }
         }
 
+        private void InitializeFanCurvePage()
+        {
+            if (_fanCurvePage == null) return;
+            
+            System.Diagnostics.Debug.WriteLine("=== InitializeFanCurvePage called ===");
+            
+            try
+            {
+                _fanCurvePage.Initialize();
+                System.Diagnostics.Debug.WriteLine("=== FanCurvePage initialization complete ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeFanCurvePage: {ex.Message}");
+            }
+        }
+
         private void UpdateNavigationButtonStates()
         {
             // Update visual states of navigation buttons based on current page
             UpdateButtonState(MainPageNavButton, _currentPageType == typeof(MainPage));
+            UpdateButtonState(FanCurveNavButton, _currentPageType == typeof(FanCurvePage));
             UpdateButtonState(SettingsNavButton, _currentPageType == typeof(SettingsPage));
         }
 
@@ -286,6 +320,11 @@ namespace HUDRA
         private void MainPageNavButton_Click(object sender, RoutedEventArgs e)
         {
             _navigationService.NavigateToMain();
+        }
+
+        private void FanCurveNavButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.NavigateToFanCurve();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)

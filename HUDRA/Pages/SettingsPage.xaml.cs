@@ -111,9 +111,6 @@ namespace HUDRA.Pages
             int startupTdp = SettingsService.GetStartupTdp();
             StartupTdpPicker.SetSelectedTdpWhenReady(startupTdp);
 
-            //Fan Control
-            FanCurveControl.Initialize();
-            SetupFanCurveEventHandling();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -175,24 +172,6 @@ namespace HUDRA.Pages
             StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
         }
 
-        private void SetupFanCurveEventHandling()
-        {
-            // Handle fan curve control events
-            FanCurveControl.FanCurveChanged += (s, e) =>
-            {
-                if (e.Curve.IsEnabled)
-                {
-                    System.Diagnostics.Debug.WriteLine("Fan curve control active - custom curve applied");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("Fan curve control disabled - hardware mode active");
-                }
-
-                // Could add additional logging or status updates here
-                // e.g., update main window status, log to file, etc.
-            };
-        }
 
         // Add this temporary method to your SettingsPage.xaml.cs for debugging
         // Make sure you have: using System.IO; at the top of your file
