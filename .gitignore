@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 /CLAUDE.md
 /claude_code_spec_fan_page.md
+
+# Specs folder - ignore all specification files
+/Specs/
