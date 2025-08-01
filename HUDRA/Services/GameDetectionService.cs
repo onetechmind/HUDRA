@@ -26,10 +26,6 @@ namespace HUDRA.Services
         private GameInfo? _currentGame;
         private bool _disposed = false;
         private readonly HashSet<string> _knownGameProcesses = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<int, float> _processGpuUsage = new();
-        private DateTime _lastGpuCheck = DateTime.MinValue;
-        private const int SM_CXSCREEN = 0;
-        private const int SM_CYSCREEN = 1;
         private DateTime _lastGameLostTime = DateTime.MinValue;
         private GameInfo? _recentlyLostGame;
         private const int GAME_LOSS_GRACE_PERIOD_MS = 8000;
@@ -60,8 +56,6 @@ namespace HUDRA.Services
         [DllImport("user32.dll", SetLastError = true)]
         private static extern bool IsIconic(IntPtr hWnd);
 
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern int GetSystemMetrics(int nIndex);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct RECT
@@ -74,12 +68,6 @@ namespace HUDRA.Services
 
         private const int SW_RESTORE = 9;
 
-        private float GetProcessGpuUsage(int processId)
-        {
-            // Skip complex GPU detection that might cause DLL issues
-            // Just return 0 and rely on the simple estimation
-            return 0;
-        }
 
         private readonly HashSet<string> _definitelyNotGames = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -354,31 +342,6 @@ namespace HUDRA.Services
         }
 
 
-        private bool IsLikelyFullscreenApp(IntPtr windowHandle)
-        {
-            try
-            {
-                if (windowHandle == IntPtr.Zero) return false;
-
-                // Get window rect
-                if (!GetWindowRect(windowHandle, out RECT windowRect)) return false;
-
-                // Get screen dimensions
-                int screenWidth = GetSystemMetrics(SM_CXSCREEN);
-                int screenHeight = GetSystemMetrics(SM_CYSCREEN);
-
-                // Check if window covers most of the screen
-                int windowWidth = windowRect.right - windowRect.left;
-                int windowHeight = windowRect.bottom - windowRect.top;
-
-                double screenCoverage = (double)(windowWidth * windowHeight) / (screenWidth * screenHeight);
-                return screenCoverage > 0.8; // Covers more than 80% of screen
-            }
-            catch
-            {
-                return false;
-            }
-        }
 
         private bool IsLikelyGame(Process process, string windowTitle)
         {
@@ -396,94 +359,18 @@ namespace HUDRA.Services
                 return false;
             }
 
-            // Method 1: Check if it's in a game directory (very reliable)
+            // ONLY METHOD: Check if it's in a game directory
             if (IsInGameDirectory(process))
             {
                 System.Diagnostics.Debug.WriteLine($"Game detected by directory: {process.ProcessName}");
                 return true;
             }
 
-            // Method 2: Check GPU usage + game characteristics (reliable for active games)
-            float gpuUsage = GetProcessGpuUsage(process.Id);
-            if (gpuUsage == 0)
-            {
-                // Fallback to simple estimation
-                gpuUsage = GetSimpleGpuEstimate(process);
-            }
-
-            if (gpuUsage > 15.0f) // Raised threshold slightly since we're not using known list
-            {
-                System.Diagnostics.Debug.WriteLine($"Game detected by GPU/characteristics ({gpuUsage:F1}%): {process.ProcessName}");
-                return true;
-            }
-
-            System.Diagnostics.Debug.WriteLine($"Not detected as game: {process.ProcessName} (GPU: {gpuUsage:F1}%)");
+            System.Diagnostics.Debug.WriteLine($"Not detected as game: {process.ProcessName} (not in game directory)");
             return false;
         }
 
-        private float GetSimpleGpuEstimate(Process process)
-        {
-            try
-            {
-                float score = 0;
-                var memoryMB = process.WorkingSet64 / 1024 / 1024;
-                bool isFullscreen = IsLikelyFullscreenApp(process.MainWindowHandle);
 
-                // Check for graphics libraries (simpler version)
-                bool hasGraphicsDLLs = HasGraphicsLibraries(process);
-
-                // Enhanced scoring with graphics DLL detection
-                if (hasGraphicsDLLs && isFullscreen && memoryMB > 200)
-                {
-                    score = 30; // Graphics + fullscreen + memory = very likely game
-                    System.Diagnostics.Debug.WriteLine($"Graphics DLLs detected");
-
-                }
-                else if (isFullscreen && memoryMB > 300)
-                {
-                    score = 25;
-                }
-                else if (hasGraphicsDLLs && memoryMB > 400)
-                {
-                    score = 22; // Graphics + high memory without fullscreen
-                }
-                else if (memoryMB > 500)
-                {
-                    score = 20;
-                }
-                else if (isFullscreen)
-                {
-                    score = 15;
-                }
-                else if (memoryMB > 200)
-                {
-                    score = 10;
-                }
-
-                return score;
-            }
-            catch
-            {
-                return 0;
-            }
-        }
-
-        private bool HasGraphicsLibraries(Process process)
-        {
-            try
-            {
-                var modules = process.Modules.Cast<ProcessModule>();
-                var gameLibraries = new[] { "d3d", "opengl", "vulkan", "dxgi" };
-
-                return modules.Any(m =>
-                    gameLibraries.Any(lib =>
-                        m.ModuleName.Contains(lib, StringComparison.OrdinalIgnoreCase)));
-            }
-            catch
-            {
-                return false;
-            }
-        }
         private bool IsInGameDirectory(Process process)
         {
             try
@@ -493,34 +380,60 @@ namespace HUDRA.Services
 
                 var gameDirectories = new[]
                 {
-            // Steam
-            @"\Steam\steamapps\common\",
-            @"\Program Files (x86)\Steam\steamapps\common\",
-            
-            // Epic Games
-            @"\Epic Games\",
-            @"\Program Files\Epic Games\",
-            
-            // Origin/EA
-            @"\Origin Games\",
-            @"\EA Games\",
-            
-            // Ubisoft
-            @"\Ubisoft\Ubisoft Game Launcher\games\",
-            
-            // GOG
-            @"\GOG Galaxy\Games\",
-            
-            // Xbox/Microsoft Store games
-            @"\XboxGames\",
-            @"\Xbox Games\",
-            @"\WindowsApps\",
-            @"\Microsoft.Gaming\",
-            @"\Program Files\WindowsApps\",
-            
-            // Generic game folders
-            @"\Games\"
-        };
+                    // Steam
+                    @"\Steam\steamapps\common\",
+                    @"\Program Files (x86)\Steam\steamapps\common\",
+                    @"\Program Files\Steam\steamapps\common\",
+                    
+                    // Epic Games
+                    @"\Epic Games\",
+                    @"\Program Files\Epic Games\",
+                    @"\Program Files (x86)\Epic Games\",
+                    
+                    // Origin/EA
+                    @"\Origin Games\",
+                    @"\EA Games\",
+                    @"\Program Files\Origin Games\",
+                    @"\Program Files (x86)\Origin Games\",
+                    
+                    // Ubisoft
+                    @"\Ubisoft\Ubisoft Game Launcher\games\",
+                    @"\Program Files\Ubisoft\Ubisoft Game Launcher\games\",
+                    @"\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\",
+                    
+                    // GOG
+                    @"\GOG Galaxy\Games\",
+                    @"\Program Files\GOG Galaxy\Games\",
+                    @"\Program Files (x86)\GOG Galaxy\Games\",
+                    
+                    // Xbox/Microsoft Store games
+                    @"\XboxGames\",
+                    @"\Xbox Games\",
+                    @"\WindowsApps\",
+                    @"\Microsoft.Gaming\",
+                    @"\Program Files\WindowsApps\",
+                    @"\Program Files (x86)\WindowsApps\",
+                    
+                    // Generic game folders
+                    @"\Games\",
+                    @"\Program Files\Games\",
+                    @"\Program Files (x86)\Games\",
+                    
+                    // Additional common game directories
+                    @"\Riot Games\",
+                    @"\Battle.net\",
+                    @"\Blizzard Entertainment\",
+                    @"\Rockstar Games\",
+                    @"\Take-Two Interactive\",
+                    @"\Square Enix\",
+                    @"\Activision\",
+                    @"\SEGA\",
+                    @"\Capcom\",
+                    @"\Valve\",
+                    @"\2K Games\",
+                    @"\Bethesda Game Studios\",
+                    @"\CD Projekt RED\"
+                };
 
                 bool inGameDirectory = gameDirectories.Any(dir =>
                     executablePath.Contains(dir, StringComparison.OrdinalIgnoreCase));
@@ -682,24 +595,6 @@ namespace HUDRA.Services
             return false;
         }
 
-        private bool HasGameCharacteristics(Process process, string windowTitle)
-        {
-            try
-            {
-                // Check memory usage (games typically use more)
-                var memoryMB = process.WorkingSet64 / 1024 / 1024;
-
-                // Check if fullscreen
-                bool isFullscreen = IsLikelyFullscreenApp(process.MainWindowHandle);
-
-                // UWP games typically have high memory usage OR are fullscreen
-                return memoryMB > 200 || isFullscreen;
-            }
-            catch
-            {
-                return false;
-            }
-        }
         private bool IsGameStillRunning(GameInfo gameInfo)
         {
             try
