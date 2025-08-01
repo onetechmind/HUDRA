@@ -11,39 +11,13 @@
 
     <StackPanel Spacing="8">
 
-        <!--  Intelligent Switching Toggle  -->
-        <Border
-            Padding="10,5,10,5"
-            Background="#22FFFFFF"
-            CornerRadius="12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="4*" />
-                    <ColumnDefinition Width="1*" />
-                </Grid.ColumnDefinitions>
-
-                <TextBlock
-                    Grid.Column="0"
-                    VerticalAlignment="Center"
-                    Style="{StaticResource SettingsLabelStyle}"
-                    Text="Smart Power Switching" />
-
-                <ToggleSwitch
-                    x:Name="IntelligentSwitchingToggle"
-                    Grid.Column="1"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Center"
-                    Toggled="OnIntelligentSwitchingToggled" />
-            </Grid>
-        </Border>
-
         <!--  Default Power Profile  -->
         <TextBlock
             Margin="0,8,0,4"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
-            Text="Default (Non-Gaming) Power Profile" />
-        
+            Text="Default Profile" />
+
         <ComboBox
             x:Name="DefaultProfileComboBox"
             HorizontalAlignment="Stretch"
@@ -73,8 +47,8 @@
             Margin="0,8,0,4"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
-            Text="Gaming Power Profile" />
-        
+            Text="Gaming Profile" />
+
         <ComboBox
             x:Name="GamingProfileComboBox"
             HorizontalAlignment="Stretch"
@@ -99,9 +73,39 @@
             </ComboBox.ItemTemplate>
         </ComboBox>
 
+        <!--  Intelligent Switching Toggle  -->
+        <Border
+            Margin="0,10,0,10"
+            Padding="10,5,10,5"
+            Background="#22FFFFFF"
+            CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Auto Switch Profile" />
+
+                <ToggleSwitch
+                    x:Name="IntelligentSwitchingToggle"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Toggled="OnIntelligentSwitchingToggled" />
+            </Grid>
+        </Border>
+
+        <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+
+
         <!--  CPU Boost Toggle  -->
         <Border
-            Margin="0"
+            Margin="0,10,0,0"
             Padding="10,5,10,5"
             Background="#22FFFFFF"
             CornerRadius="12">
