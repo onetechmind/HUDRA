@@ -23,6 +23,7 @@ namespace HUDRA.Controls
         private PowerProfile? _selectedProfile;
         private bool _isUpdatingSelection = false;
         private bool _isUpdatingCpuBoost = false;
+        private bool _isUpdatingIntelligentSwitching = false;
 
         public ObservableCollection<PowerProfile> AvailableProfiles
         {
@@ -78,19 +79,49 @@ namespace HUDRA.Controls
                 var profiles = await _powerProfileService.GetAvailableProfilesAsync();
                 AvailableProfiles = new ObservableCollection<PowerProfile>(profiles);
 
-                if (ProfileComboBox != null)
+                // Set up both combo boxes
+                if (DefaultProfileComboBox != null)
                 {
-                    ProfileComboBox.ItemsSource = AvailableProfiles;
+                    DefaultProfileComboBox.ItemsSource = AvailableProfiles;
                     
-                    // Set current active profile as selected
-                    var activeProfile = profiles.FirstOrDefault(p => p.IsActive);
-                    if (activeProfile != null)
+                    // Load saved default profile
+                    var defaultProfileId = SettingsService.GetDefaultPowerProfile();
+                    if (defaultProfileId.HasValue)
                     {
-                        _isUpdatingSelection = true;
-                        SelectedProfile = activeProfile;
-                        ProfileComboBox.SelectedItem = activeProfile;
-                        _isUpdatingSelection = false;
+                        var defaultProfile = profiles.FirstOrDefault(p => p.Id == defaultProfileId.Value);
+                        if (defaultProfile != null)
+                        {
+                            _isUpdatingSelection = true;
+                            DefaultProfileComboBox.SelectedItem = defaultProfile;
+                            _isUpdatingSelection = false;
+                        }
                     }
+                }
+
+                if (GamingProfileComboBox != null)
+                {
+                    GamingProfileComboBox.ItemsSource = AvailableProfiles;
+                    
+                    // Load saved gaming profile
+                    var gamingProfileId = SettingsService.GetGamingPowerProfile();
+                    if (gamingProfileId.HasValue)
+                    {
+                        var gamingProfile = profiles.FirstOrDefault(p => p.Id == gamingProfileId.Value);
+                        if (gamingProfile != null)
+                        {
+                            _isUpdatingSelection = true;
+                            GamingProfileComboBox.SelectedItem = gamingProfile;
+                            _isUpdatingSelection = false;
+                        }
+                    }
+                }
+
+                // Load intelligent switching state
+                if (IntelligentSwitchingToggle != null)
+                {
+                    _isUpdatingIntelligentSwitching = true;
+                    IntelligentSwitchingToggle.IsOn = SettingsService.GetIntelligentPowerSwitchingEnabled();
+                    _isUpdatingIntelligentSwitching = false;
                 }
 
                 // Load and restore CPU boost state
@@ -102,17 +133,22 @@ namespace HUDRA.Controls
             }
         }
 
-        private async void OnProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void OnDefaultProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (_isUpdatingSelection || ProfileComboBox?.SelectedItem is not PowerProfile selectedProfile)
+            if (_isUpdatingSelection || DefaultProfileComboBox?.SelectedItem is not PowerProfile selectedProfile)
                 return;
 
             try
             {
                 _isUpdatingSelection = true;
-                SelectedProfile = selectedProfile;
+                
+                // Save the default profile setting
+                SettingsService.SetDefaultPowerProfile(selectedProfile.Id);
+                System.Diagnostics.Debug.WriteLine($"Default power profile set to: {selectedProfile.Name}");
 
-                if (_powerProfileService != null)
+                // If intelligent switching is disabled or no game is active, apply this profile immediately
+                if (_powerProfileService != null && 
+                    (!_powerProfileService.IsIntelligentSwitchingEnabled || !_powerProfileService.IsGameActive))
                 {
                     var success = await _powerProfileService.SetActiveProfileAsync(selectedProfile.Id);
                     if (success)
@@ -123,36 +159,83 @@ namespace HUDRA.Controls
                             profile.IsActive = profile.Id == selectedProfile.Id;
                         }
 
-                        // Trigger property change notifications for UI updates
                         OnPropertyChanged(nameof(AvailableProfiles));
-
                         PowerProfileChanged?.Invoke(this, new PowerProfileChangedEventArgs(selectedProfile, true));
-
-                        // Load CPU boost state for the new profile
-                        await LoadCpuBoostStateAsync();
-                    }
-                    else
-                    {
-                        // Reset selection on failure
-                        var activeProfile = AvailableProfiles.FirstOrDefault(p => p.IsActive);
-                        if (activeProfile != null)
-                        {
-                            SelectedProfile = activeProfile;
-                            ProfileComboBox.SelectedItem = activeProfile;
-                        }
-
-                        PowerProfileChanged?.Invoke(this, new PowerProfileChangedEventArgs(selectedProfile, false));
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to change power profile: {ex.Message}");
-                PowerProfileChanged?.Invoke(this, new PowerProfileChangedEventArgs(selectedProfile, false));
+                System.Diagnostics.Debug.WriteLine($"Failed to set default power profile: {ex.Message}");
             }
             finally
             {
                 _isUpdatingSelection = false;
+            }
+        }
+
+        private async void OnGamingProfileSelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isUpdatingSelection || GamingProfileComboBox?.SelectedItem is not PowerProfile selectedProfile)
+                return;
+
+            try
+            {
+                _isUpdatingSelection = true;
+                
+                // Save the gaming profile setting
+                SettingsService.SetGamingPowerProfile(selectedProfile.Id);
+                System.Diagnostics.Debug.WriteLine($"Gaming power profile set to: {selectedProfile.Name}");
+
+                // If intelligent switching is enabled and a game is active, apply this profile immediately
+                if (_powerProfileService != null && 
+                    _powerProfileService.IsIntelligentSwitchingEnabled && _powerProfileService.IsGameActive)
+                {
+                    var success = await _powerProfileService.SetActiveProfileAsync(selectedProfile.Id);
+                    if (success)
+                    {
+                        // Update active state for all profiles
+                        foreach (var profile in AvailableProfiles)
+                        {
+                            profile.IsActive = profile.Id == selectedProfile.Id;
+                        }
+
+                        OnPropertyChanged(nameof(AvailableProfiles));
+                        PowerProfileChanged?.Invoke(this, new PowerProfileChangedEventArgs(selectedProfile, true));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set gaming power profile: {ex.Message}");
+            }
+            finally
+            {
+                _isUpdatingSelection = false;
+            }
+        }
+
+        private void OnIntelligentSwitchingToggled(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingIntelligentSwitching || _powerProfileService == null || IntelligentSwitchingToggle == null)
+                return;
+
+            try
+            {
+                var enabled = IntelligentSwitchingToggle.IsOn;
+                _powerProfileService.SetIntelligentSwitchingEnabled(enabled);
+                
+                var status = enabled ? "enabled" : "disabled";
+                System.Diagnostics.Debug.WriteLine($"Intelligent power switching {status}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to toggle intelligent switching: {ex.Message}");
+                
+                // Revert toggle state on error
+                _isUpdatingIntelligentSwitching = true;
+                IntelligentSwitchingToggle.IsOn = !IntelligentSwitchingToggle.IsOn;
+                _isUpdatingIntelligentSwitching = false;
             }
         }
 

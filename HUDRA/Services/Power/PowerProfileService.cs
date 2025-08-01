@@ -5,11 +5,15 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HUDRA.Services;
 
 namespace HUDRA.Services.Power
 {
     public class PowerProfileService
     {
+        private GameDetectionService? _gameDetectionService;
+        private bool _isIntelligentSwitchingEnabled;
+        private bool _isGameActive = false;
         private readonly List<string> _builtInProfileNames = new()
         {
             "Balanced",
@@ -262,6 +266,141 @@ namespace HUDRA.Services.Power
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to set CPU boost: {ex.Message}");
                 return false;
+            }
+        }
+
+        // Intelligent Power Switching Methods
+        public void InitializeIntelligentSwitching(GameDetectionService gameDetectionService)
+        {
+            _gameDetectionService = gameDetectionService;
+            _isIntelligentSwitchingEnabled = SettingsService.GetIntelligentPowerSwitchingEnabled();
+            
+            if (_isIntelligentSwitchingEnabled)
+            {
+                _gameDetectionService.GameDetected += OnGameDetected;
+                _gameDetectionService.GameStopped += OnGameStopped;
+                System.Diagnostics.Debug.WriteLine("Intelligent power switching initialized and enabled");
+            }
+        }
+
+        public void SetIntelligentSwitchingEnabled(bool enabled)
+        {
+            _isIntelligentSwitchingEnabled = enabled;
+            SettingsService.SetIntelligentPowerSwitchingEnabled(enabled);
+            
+            if (_gameDetectionService != null)
+            {
+                if (enabled)
+                {
+                    _gameDetectionService.GameDetected -= OnGameDetected;
+                    _gameDetectionService.GameStopped -= OnGameStopped;
+                    _gameDetectionService.GameDetected += OnGameDetected;
+                    _gameDetectionService.GameStopped += OnGameStopped;
+                    System.Diagnostics.Debug.WriteLine("Intelligent power switching enabled");
+                    
+                    // Apply current game state immediately
+                    if (_gameDetectionService.CurrentGame != null)
+                    {
+                        _ = Task.Run(async () => await SwitchToGamingProfileAsync());
+                    }
+                    else
+                    {
+                        _ = Task.Run(async () => await SwitchToDefaultProfileAsync());
+                    }
+                }
+                else
+                {
+                    _gameDetectionService.GameDetected -= OnGameDetected;
+                    _gameDetectionService.GameStopped -= OnGameStopped;
+                    System.Diagnostics.Debug.WriteLine("Intelligent power switching disabled");
+                }
+            }
+        }
+
+        private async void OnGameDetected(object? sender, GameInfo? gameInfo)
+        {
+            if (!_isIntelligentSwitchingEnabled || gameInfo == null) return;
+
+            _isGameActive = true;
+            System.Diagnostics.Debug.WriteLine($"Game detected: {gameInfo.WindowTitle} - switching to gaming power profile");
+            await SwitchToGamingProfileAsync();
+        }
+
+        private async void OnGameStopped(object? sender, EventArgs e)
+        {
+            if (!_isIntelligentSwitchingEnabled) return;
+
+            _isGameActive = false;
+            System.Diagnostics.Debug.WriteLine("Game stopped - switching to default power profile");
+            await SwitchToDefaultProfileAsync();
+        }
+
+        private async Task SwitchToGamingProfileAsync()
+        {
+            try
+            {
+                var gamingProfileId = SettingsService.GetGamingPowerProfile();
+                if (gamingProfileId.HasValue)
+                {
+                    var success = await SetActiveProfileAsync(gamingProfileId.Value);
+                    if (success)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Successfully switched to gaming power profile: {gamingProfileId.Value}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Failed to switch to gaming power profile");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No gaming power profile configured - skipping switch");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error switching to gaming profile: {ex.Message}");
+            }
+        }
+
+        private async Task SwitchToDefaultProfileAsync()
+        {
+            try
+            {
+                var defaultProfileId = SettingsService.GetDefaultPowerProfile();
+                if (defaultProfileId.HasValue)
+                {
+                    var success = await SetActiveProfileAsync(defaultProfileId.Value);
+                    if (success)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Successfully switched to default power profile: {defaultProfileId.Value}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Failed to switch to default power profile");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("No default power profile configured - skipping switch");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error switching to default profile: {ex.Message}");
+            }
+        }
+
+        public bool IsGameActive => _isGameActive;
+        
+        public bool IsIntelligentSwitchingEnabled => _isIntelligentSwitchingEnabled;
+
+        public void Dispose()
+        {
+            if (_gameDetectionService != null)
+            {
+                _gameDetectionService.GameDetected -= OnGameDetected;
+                _gameDetectionService.GameStopped -= OnGameStopped;
             }
         }
     }

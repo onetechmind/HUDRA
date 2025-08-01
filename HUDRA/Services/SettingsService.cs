@@ -27,6 +27,11 @@ namespace HUDRA.Services
         private const string RestorePowerProfileOnStartupKey = "RestorePowerProfileOnStartup";
         private const string CpuBoostEnabledKey = "CpuBoostEnabled";
         private const string RestoreCpuBoostOnStartupKey = "RestoreCpuBoostOnStartup";
+        
+        // New intelligent power switching keys
+        private const string DefaultPowerProfileKey = "DefaultPowerProfile";
+        private const string GamingPowerProfileKey = "GamingPowerProfile";
+        private const string IntelligentPowerSwitchingKey = "IntelligentPowerSwitchingEnabled";
 
         //Startup
         private const string STARTUP_ENABLED_KEY = "StartupEnabled";
@@ -570,6 +575,59 @@ namespace HUDRA.Services
         public static void SetRestoreCpuBoostOnStartup(bool restore)
         {
             SetBooleanSetting(RestoreCpuBoostOnStartupKey, restore);
+        }
+
+        // Intelligent Power Switching Settings
+        public static Guid? GetDefaultPowerProfile()
+        {
+            lock (_lock)
+            {
+                var guidString = GetStringSetting(DefaultPowerProfileKey, "");
+                if (!string.IsNullOrEmpty(guidString) && Guid.TryParse(guidString, out var guid))
+                {
+                    return guid;
+                }
+                return null;
+            }
+        }
+
+        public static void SetDefaultPowerProfile(Guid profileId)
+        {
+            lock (_lock)
+            {
+                SetStringSetting(DefaultPowerProfileKey, profileId.ToString("D"));
+            }
+        }
+
+        public static Guid? GetGamingPowerProfile()
+        {
+            lock (_lock)
+            {
+                var guidString = GetStringSetting(GamingPowerProfileKey, "");
+                if (!string.IsNullOrEmpty(guidString) && Guid.TryParse(guidString, out var guid))
+                {
+                    return guid;
+                }
+                return null;
+            }
+        }
+
+        public static void SetGamingPowerProfile(Guid profileId)
+        {
+            lock (_lock)
+            {
+                SetStringSetting(GamingPowerProfileKey, profileId.ToString("D"));
+            }
+        }
+
+        public static bool GetIntelligentPowerSwitchingEnabled()
+        {
+            return GetBooleanSetting(IntelligentPowerSwitchingKey, true); // Default to enabled
+        }
+
+        public static void SetIntelligentPowerSwitchingEnabled(bool enabled)
+        {
+            SetBooleanSetting(IntelligentPowerSwitchingKey, enabled);
         }
     }
 }

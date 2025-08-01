@@ -676,6 +676,7 @@ namespace HUDRA
             _batteryService?.Dispose();
             _navigationService?.Dispose();
             _gameDetectionService?.Dispose();
+            _powerProfileService?.Dispose();
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
@@ -698,6 +699,12 @@ namespace HUDRA
                     
                     // Set up event handler for power profile changes
                     _settingsPage.PowerProfileControl.PowerProfileChanged += OnPowerProfileControlChanged;
+                }
+
+                // Initialize intelligent power switching with game detection service
+                if (_gameDetectionService != null)
+                {
+                    _powerProfileService.InitializeIntelligentSwitching(_gameDetectionService);
                 }
             }
             catch (Exception ex)
