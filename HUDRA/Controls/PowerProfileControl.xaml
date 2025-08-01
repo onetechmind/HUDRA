@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="HUDRA.Controls.PowerProfileControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:HUDRA.Controls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:power="using:HUDRA.Services.Power"
+    mc:Ignorable="d">
+
+    <StackPanel Spacing="8">
+
+        <ComboBox
+            x:Name="ProfileComboBox"
+            HorizontalAlignment="Stretch"
+            ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+            SelectionChanged="OnProfileSelectionChanged"
+            Style="{StaticResource HudraComboBoxStyle}">
+            <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="power:PowerProfile">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon
+                            FontSize="14"
+                            Foreground="#CCFFFFFF"
+                            Glyph="{x:Bind TypeIcon}" />
+                        <TextBlock Foreground="#CCFFFFFF" Text="{x:Bind Name}" />
+                        <TextBlock
+                            FontSize="12"
+                            Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                            Text="(Active)"
+                            Visibility="{x:Bind IsActiveVisibility}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ComboBox.ItemTemplate>
+        </ComboBox>
+
+        <!--  CPU Boost Toggle  -->
+        <Border
+            Margin="0"
+            Padding="10,5,10,5"
+            CornerRadius="12"
+            Background="#5A575A">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="CPU Boost" />
+
+                <ToggleSwitch
+                    x:Name="CpuBoostToggle"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    Toggled="OnCpuBoostToggled" />
+            </Grid>
+        </Border>
+
+        <HyperlinkButton
+            x:Name="PowerOptionsLink"
+            Padding="0,4,0,0"
+            HorizontalAlignment="Center"
+            Click="OnPowerOptionsLinkClick"
+            Content="Advanced power settings..."
+            FontSize="12"
+            Foreground="#99FFFFFF">
+            <HyperlinkButton.Resources>
+                <Style TargetType="HyperlinkButton">
+                    <Setter Property="Foreground" Value="#99FFFFFF" />
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="HyperlinkButton">
+                                <ContentPresenter
+                                    x:Name="ContentPresenter"
+                                    Padding="{TemplateBinding Padding}"
+                                    HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                    AutomationProperties.AccessibilityView="Raw"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Content="{TemplateBinding Content}"
+                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                    ContentTransitions="{TemplateBinding ContentTransitions}"
+                                    Foreground="#99FFFFFF">
+                                    <VisualStateManager.VisualStateGroups>
+                                        <VisualStateGroup x:Name="CommonStates">
+                                            <VisualState x:Name="Normal" />
+                                            <VisualState x:Name="PointerOver">
+                                                <Storyboard>
+                                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
+                                                        <DiscreteObjectKeyFrame KeyTime="0" Value="#CCFFFFFF" />
+                                                    </ObjectAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </VisualState>
+                                            <VisualState x:Name="Pressed">
+                                                <Storyboard>
+                                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ContentPresenter" Storyboard.TargetProperty="Foreground">
+                                                        <DiscreteObjectKeyFrame KeyTime="0" Value="#FFFFFF" />
+                                                    </ObjectAnimationUsingKeyFrames>
+                                                </Storyboard>
+                                            </VisualState>
+                                        </VisualStateGroup>
+                                    </VisualStateManager.VisualStateGroups>
+                                </ContentPresenter>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </HyperlinkButton.Resources>
+        </HyperlinkButton>
+    </StackPanel>
+
+</UserControl>

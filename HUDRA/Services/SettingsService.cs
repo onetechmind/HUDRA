@@ -22,6 +22,12 @@ namespace HUDRA.Services
         private const string FanCurveActivePresetKey = "FanCurveActivePreset";
         private const string CustomFanCurvePointsKey = "CustomFanCurvePoints";
 
+        // Power profile keys
+        private const string PreferredPowerProfileKey = "PreferredPowerProfile";
+        private const string RestorePowerProfileOnStartupKey = "RestorePowerProfileOnStartup";
+        private const string CpuBoostEnabledKey = "CpuBoostEnabled";
+        private const string RestoreCpuBoostOnStartupKey = "RestoreCpuBoostOnStartup";
+
         //Startup
         private const string STARTUP_ENABLED_KEY = "StartupEnabled";
         private const string MINIMIZE_TO_TRAY_ON_STARTUP_KEY = "MinimizeToTrayOnStartup";
@@ -511,6 +517,59 @@ namespace HUDRA.Services
             {
                 System.Diagnostics.Debug.WriteLine($"⚠️ Error syncing startup state: {ex.Message}");
             }
+        }
+
+        // Power Profile Settings
+        public static Guid? GetPreferredPowerProfile()
+        {
+            lock (_lock)
+            {
+                var guidString = GetStringSetting(PreferredPowerProfileKey, "");
+                if (!string.IsNullOrEmpty(guidString) && Guid.TryParse(guidString, out var guid))
+                {
+                    return guid;
+                }
+                return null;
+            }
+        }
+
+        public static void SetPreferredPowerProfile(Guid profileId)
+        {
+            lock (_lock)
+            {
+                SetStringSetting(PreferredPowerProfileKey, profileId.ToString("D"));
+            }
+        }
+
+        public static bool GetRestorePowerProfileOnStartup()
+        {
+            return GetBooleanSetting(RestorePowerProfileOnStartupKey, false);
+        }
+
+        public static void SetRestorePowerProfileOnStartup(bool restore)
+        {
+            SetBooleanSetting(RestorePowerProfileOnStartupKey, restore);
+        }
+
+        // CPU Boost Settings
+        public static bool GetCpuBoostEnabled()
+        {
+            return GetBooleanSetting(CpuBoostEnabledKey, false); // Default to disabled
+        }
+
+        public static void SetCpuBoostEnabled(bool enabled)
+        {
+            SetBooleanSetting(CpuBoostEnabledKey, enabled);
+        }
+
+        public static bool GetRestoreCpuBoostOnStartup()
+        {
+            return GetBooleanSetting(RestoreCpuBoostOnStartupKey, true); // Default to restore
+        }
+
+        public static void SetRestoreCpuBoostOnStartup(bool restore)
+        {
+            SetBooleanSetting(RestoreCpuBoostOnStartupKey, restore);
         }
     }
 }

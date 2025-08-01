@@ -16,7 +16,6 @@
             Spacing="20">
             <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
-
             <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />

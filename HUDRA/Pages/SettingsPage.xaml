@@ -114,6 +114,20 @@
 
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
 
+            <!--  Power Profile Control  -->
+            <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,10">
+                <StackPanel Spacing="8">
+                    <TextBlock
+                        Padding="10"
+                        HorizontalAlignment="Center"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="Windows Power Profile" />
+                    <controls:PowerProfileControl x:Name="PowerProfileControl" x:FieldModifier="public" />
+                </StackPanel>
+            </Border>
+
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+
             <!--  Clean Settings UI for Startup - Task Scheduler Only  -->
             <Border
                 Padding="20,5"

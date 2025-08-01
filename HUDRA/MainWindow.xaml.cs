@@ -2,6 +2,7 @@ using HUDRA.Configuration;
 using HUDRA.Controls;
 using HUDRA.Pages;
 using HUDRA.Services;
+using HUDRA.Services.Power;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
@@ -10,9 +11,12 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using WinRT;
 using WinRT.Interop;
 
@@ -29,6 +33,7 @@ namespace HUDRA
         private readonly ResolutionService _resolutionService;
         private readonly NavigationService _navigationService;
         private readonly BatteryService _batteryService;
+        private readonly PowerProfileService _powerProfileService;
         private TdpMonitorService? _tdpMonitor;
         private TurboService? _turboService;
         private MicaController? _micaController;
@@ -83,6 +88,29 @@ namespace HUDRA
             set { _batteryTextBrush = value; OnPropertyChanged(); }
         }
 
+        // Power Profile properties
+        private ObservableCollection<PowerProfile> _availablePowerProfiles = new();
+        public ObservableCollection<PowerProfile> AvailablePowerProfiles
+        {
+            get => _availablePowerProfiles;
+            set { _availablePowerProfiles = value; OnPropertyChanged(); }
+        }
+
+        private PowerProfile? _selectedPowerProfile;
+        public PowerProfile? SelectedPowerProfile
+        {
+            get => _selectedPowerProfile;
+            set
+            {
+                if (_selectedPowerProfile != value)
+                {
+                    _selectedPowerProfile = value;
+                    OnPropertyChanged();
+                    _ = OnPowerProfileSelectionChanged(value);
+                }
+            }
+        }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -97,6 +125,7 @@ namespace HUDRA
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
             _batteryService = new BatteryService(DispatcherQueue);
+            _powerProfileService = new PowerProfileService();
 
             // Subscribe to navigation events
             _navigationService.PageChanged += OnPageChanged;
@@ -259,6 +288,7 @@ namespace HUDRA
             try
             {
                 _settingsPage.Initialize(_dpiService);
+                _ = LoadPowerProfilesAsync();
             }
             catch (Exception ex)
             {
@@ -649,6 +679,75 @@ namespace HUDRA
         }
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
+
+        // Power Profile Methods
+        private async Task LoadPowerProfilesAsync()
+        {
+            try
+            {
+                var profiles = await _powerProfileService.GetAvailableProfilesAsync();
+                AvailablePowerProfiles = new ObservableCollection<PowerProfile>(profiles);
+
+                // Set current active profile as selected
+                SelectedPowerProfile = profiles.FirstOrDefault(p => p.IsActive);
+
+                // Initialize power profile control in settings page if available
+                if (_settingsPage?.PowerProfileControl != null)
+                {
+                    await _settingsPage.PowerProfileControl.InitializeAsync();
+                    
+                    // Set up event handler for power profile changes
+                    _settingsPage.PowerProfileControl.PowerProfileChanged += OnPowerProfileControlChanged;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load power profiles: {ex.Message}");
+            }
+        }
+
+        private async Task OnPowerProfileSelectionChanged(PowerProfile? profile)
+        {
+            if (profile == null) return;
+
+            try
+            {
+                var success = await _powerProfileService.SetActiveProfileAsync(profile.Id);
+                if (success)
+                {
+                    // Update active state for all profiles
+                    foreach (var p in AvailablePowerProfiles)
+                        p.IsActive = p.Id == profile.Id;
+
+                    // Save preference
+                    SettingsService.SetPreferredPowerProfile(profile.Id);
+
+                    System.Diagnostics.Debug.WriteLine($"Power profile changed to: {profile.Name}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to change power profile to: {profile.Name}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to change power profile: {ex.Message}");
+            }
+        }
+
+        private void OnPowerProfileControlChanged(object? sender, PowerProfileChangedEventArgs e)
+        {
+            if (e.IsApplied)
+            {
+                // Update the main window's selected profile
+                SelectedPowerProfile = e.Profile;
+                System.Diagnostics.Debug.WriteLine($"Power profile control changed to: {e.Profile.Name}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to apply power profile: {e.Profile.Name}");
+            }
+        }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
