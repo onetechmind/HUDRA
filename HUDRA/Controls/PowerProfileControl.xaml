@@ -39,8 +39,8 @@
         <Border
             Margin="0"
             Padding="10,5,10,5"
-            CornerRadius="12"
-            Background="#5A575A">
+            Background="#22FFFFFF"
+            CornerRadius="12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="4*" />
