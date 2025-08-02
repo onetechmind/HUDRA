@@ -485,7 +485,7 @@ namespace HUDRA
 
             if (_dpiService.HasScaleChanged(oldScaleFactor))
             {
-                _windowManager.PositionAboveSystemTray();
+                _windowManager.PositionWindow();
             }
         }
 

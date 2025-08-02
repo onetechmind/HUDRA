@@ -32,6 +32,11 @@ namespace HUDRA.Services
             (int)Math.Round(HudraSettings.BASE_WINDOW_HEIGHT * _currentScaleFactor)
         );
 
+        public Windows.Graphics.SizeInt32 FullHeightWindowSize => new(
+            (int)Math.Round(HudraSettings.BASE_WINDOW_WIDTH * _currentScaleFactor),
+            GetScreenHeight()
+        );
+
         public int ScaledWindowPadding => (int)(HudraSettings.WINDOW_PADDING * _currentScaleFactor);
 
         public void UpdateScaleFactor()
@@ -53,7 +58,57 @@ namespace HUDRA.Services
             return Math.Abs(_currentScaleFactor - previousScale) > 0.01;
         }
 
+        private int GetScreenHeight()
+        {
+            try
+            {
+                var hwnd = WindowNative.GetWindowHandle(_window);
+                var monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTOPRIMARY);
+                
+                var monitorInfo = new MONITORINFO();
+                monitorInfo.cbSize = Marshal.SizeOf(monitorInfo);
+                
+                if (GetMonitorInfo(monitor, ref monitorInfo))
+                {
+                    return monitorInfo.rcMonitor.Bottom - monitorInfo.rcMonitor.Top;
+                }
+            }
+            catch
+            {
+                // Fallback to system metrics
+            }
+
+            return GetSystemMetrics(SM_CYSCREEN);
+        }
+
         [DllImport("user32.dll")]
         private static extern uint GetDpiForWindow(IntPtr hwnd);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+        [DllImport("user32.dll")]
+        private static extern int GetSystemMetrics(int nIndex);
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+        public struct MONITORINFO
+        {
+            public int cbSize;
+            public RECT rcMonitor;
+            public RECT rcWork;
+            public uint dwFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left, Top, Right, Bottom;
+        }
+
+        private const uint MONITOR_DEFAULTTOPRIMARY = 1;
+        private const int SM_CYSCREEN = 1;
     }
 }

@@ -10,10 +10,20 @@
     <Grid Margin="0">
         <StackPanel
             x:Name="RootPanel"
-            Margin="0,0,0,0"
+            Margin="0,15,0,0"
             HorizontalAlignment="Center"
-            VerticalAlignment="Center"
+            VerticalAlignment="Top"
             Spacing="20">
+            <!--  Header Section  -->
+            <Border>
+                <TextBlock
+                    Padding="0,15,0,0"
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Text="HOME" />
+            </Border>
             <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />

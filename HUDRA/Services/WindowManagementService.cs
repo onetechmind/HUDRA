@@ -34,7 +34,7 @@ namespace HUDRA.Services
             SetInitialSize();
             MakeBorderlessWithRoundedCorners();
             ApplyRoundedCorners();
-            PositionAboveSystemTray();
+            PositionWindow();
             SetWindowIcon();
             StartTopmostBehavior();
         }
@@ -62,7 +62,7 @@ namespace HUDRA.Services
                     _window.Activate();
 
                     // Ensure proper positioning and topmost behavior
-                    PositionAboveSystemTray();
+                    PositionWindow();
 
                     if (_forceTopmost)
                     {
@@ -86,8 +86,8 @@ namespace HUDRA.Services
         {
             var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
             var appWindow = AppWindow.GetFromWindowId(windowId);
-            var scaledSize = _dpiService.ScaledWindowSize;
-            appWindow.Resize(scaledSize);
+            var fullHeightSize = _dpiService.FullHeightWindowSize;
+            appWindow.Resize(fullHeightSize);
         }
 
         private void MakeBorderlessWithRoundedCorners()
@@ -121,21 +121,22 @@ namespace HUDRA.Services
             }
         }
 
-        public void PositionAboveSystemTray()
+        public void PositionWindow()
         {
             try
             {
                 var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
                 var appWindow = AppWindow.GetFromWindowId(windowId);
 
-                var workArea = new RECT();
-                SystemParametersInfo(SPI_GETWORKAREA, 0, ref workArea, 0);
+                // Get screen dimensions for full-height positioning
+                var screenArea = new RECT();
+                GetWindowRect(GetDesktopWindow(), ref screenArea);
 
-                var padding = _dpiService.ScaledWindowPadding;
                 var windowSize = appWindow.Size;
 
-                var x = workArea.Right - windowSize.Width - padding;
-                var y = workArea.Bottom - windowSize.Height - padding;
+                // Position flush with right edge (no padding) and at top of screen
+                var x = screenArea.Right - windowSize.Width;
+                var y = 0;
 
                 appWindow.Move(new PointInt32(x, y));
             }
@@ -196,6 +197,12 @@ namespace HUDRA.Services
 
         [DllImport("user32.dll")]
         private static extern bool SystemParametersInfo(int uAction, int uParam, ref RECT lpvParam, int fuWinIni);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetDesktopWindow();
+
+        [DllImport("user32.dll")]
+        private static extern bool GetWindowRect(IntPtr hWnd, ref RECT lpRect);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
