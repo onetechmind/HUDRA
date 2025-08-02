@@ -86,8 +86,8 @@ namespace HUDRA.Pages
 
         private void UpdateMinimizeOnStartupState()
         {
-            // Enable/disable based on startup toggle and admin status
-            bool enable = StartupToggle.IsOn && StartupService.IsRunningAsAdmin();
+            // Enable/disable based on admin status only - independent of startup toggle
+            bool enable = StartupService.IsRunningAsAdmin();
 
             MinimizeOnStartupToggle.IsEnabled = enable;
             MinimizeOnStartupToggle.Opacity = enable ? 1.0 : 0.5;
