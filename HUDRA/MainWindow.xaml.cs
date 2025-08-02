@@ -39,7 +39,8 @@ namespace HUDRA
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
         private GameDetectionService? _gameDetectionService;
-        private Storyboard? _glowPulseStoryboard;
+        private LosslessScalingService? _losslessScalingService;
+        
 
         // Public navigation service access for TDP picker
         public NavigationService NavigationService => _navigationService;
@@ -109,6 +110,13 @@ namespace HUDRA
                     _ = OnPowerProfileSelectionChanged(value);
                 }
             }
+        }
+
+        private bool _losslessScalingButtonVisible = false;
+        public bool LosslessScalingButtonVisible
+        {
+            get => _losslessScalingButtonVisible;
+            set { _losslessScalingButtonVisible = value; OnPropertyChanged(); }
         }
 
         public MainWindow()
@@ -382,6 +390,54 @@ namespace HUDRA
                 SimulateAltTab();
             }
         }
+
+        private async void LosslessScalingButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_losslessScalingService == null || _gameDetectionService == null)
+                return;
+
+            try
+            {
+                // 1. Hide HUDRA
+                _windowManager.ToggleVisibility();
+
+                // 2. Switch to game
+                if (_gameDetectionService.SwitchToGame() != true)
+                {
+                    // Game switching failed - show error and abort
+                    System.Diagnostics.Debug.WriteLine("Game switching failed - aborting Lossless Scaling activation");
+                    await ShowLosslessScalingError("Failed to switch to game window");
+                    return;
+                }
+
+                // 3. Wait 200ms
+                await Task.Delay(200);
+
+                // 4. Execute Lossless Scaling shortcut
+                var (hotkey, modifiers) = _losslessScalingService.ParseHotkeyFromSettings();
+                bool success = await _losslessScalingService.ExecuteHotkeyAsync(hotkey, modifiers);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to execute Lossless Scaling hotkey");
+                    await ShowLosslessScalingError("Failed to execute Lossless Scaling shortcut");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully executed Lossless Scaling hotkey: {modifiers}+{hotkey}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in Lossless Scaling activation: {ex.Message}");
+                await ShowLosslessScalingError("An unexpected error occurred");
+            }
+        }
+
+
+
+
+
 
 
         private void SetupEventHandlers()
@@ -676,6 +732,7 @@ namespace HUDRA
             _batteryService?.Dispose();
             _navigationService?.Dispose();
             _gameDetectionService?.Dispose();
+            _losslessScalingService?.Dispose();
             _powerProfileService?.Dispose();
         }
 
@@ -789,6 +846,13 @@ namespace HUDRA
 
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;
+
+                // Initialize Lossless Scaling service
+                _losslessScalingService = new LosslessScalingService();
+                _losslessScalingService.LosslessScalingStatusChanged += OnLosslessScalingStatusChanged;
+
+                // Initially hide the Lossless Scaling button
+                LosslessScalingButtonVisible = false;
             }
             catch (Exception ex)
             {
@@ -809,18 +873,23 @@ namespace HUDRA
                 AltTabButton.Visibility = Visibility.Visible;
                 UpdateAltTabButtonToGameIcon();
 
-                // Update tooltip
+                // Update Lossless Scaling button visibility
+                UpdateLosslessScalingButtonVisibility();
+
+                // Update Alt+Tab tooltip
                 string gameName = !string.IsNullOrWhiteSpace(gameInfo.WindowTitle)
                     ? gameInfo.WindowTitle
                     : gameInfo.ProcessName;
                 ToolTipService.SetToolTip(AltTabButton, $"Return to {gameName}");
+
+                // Update Lossless Scaling tooltip with game name
+                UpdateLosslessScalingTooltip();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error handling game detection: {ex.Message}");
             }
 
-            StartGlowPulseAnimation();
         }
 
         private void OnGameStopped(object? sender, EventArgs e)
@@ -830,13 +899,15 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("Game stopped - hiding Alt+Tab button");
                 AltTabButton.Visibility = Visibility.Collapsed;
                 ToolTipService.SetToolTip(AltTabButton, "Return to Game");
+
+                // Update Lossless Scaling button visibility
+                UpdateLosslessScalingButtonVisibility();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error handling game stopped: {ex.Message}");
             }
 
-            StopGlowPulseAnimation();
         }
 
         private void UpdateAltTabButtonToGameIcon()
@@ -853,89 +924,90 @@ namespace HUDRA
 
             AltTabButton.Content = gameIcon;
         }
-        private void StartGlowPulseAnimation()
+
+        private void OnLosslessScalingStatusChanged(object? sender, bool isRunning)
         {
             try
             {
-                // Apply the custom style first
-                AltTabButton.Style = (Style)Application.Current.Resources["GlowingGameButtonStyle"];
-
-                // Wait for the template to be applied
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, () =>
                 {
-                    // Wait a bit more for template application
-                    var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                    timer.Tick += (s, e) =>
-                    {
-                        timer.Stop();
-
-                        // Find the GlowLayer in the button's template
-                        var glowLayer = FindChildByName<Border>(AltTabButton, "GlowLayer");
-                        if (glowLayer == null)
-                        {
-                            return;
-                        }
-
-                        // Create opacity pulsing animation with smaller range
-                        var opacityAnimation = new DoubleAnimation
-                        {
-                            From = 0.75,
-                            To = 0.25,
-                            Duration = new Duration(TimeSpan.FromSeconds(1.25)),
-                            AutoReverse = true,
-                            RepeatBehavior = RepeatBehavior.Forever
-                        };
-
-                        // Create storyboard
-                        _glowPulseStoryboard = new Storyboard();
-                        _glowPulseStoryboard.Children.Add(opacityAnimation);
-
-                        // Set target for opacity
-                        Storyboard.SetTarget(opacityAnimation, glowLayer);
-                        Storyboard.SetTargetProperty(opacityAnimation, "Opacity");
-
-                        // Start animation
-                        _glowPulseStoryboard.Begin();
-                    };
-                    timer.Start();
+                    UpdateLosslessScalingButtonVisibility();
                 });
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Error handling Lossless Scaling status change: {ex.Message}");
             }
         }
 
-        private void StopGlowPulseAnimation()
+        private void UpdateLosslessScalingButtonVisibility()
+        {
+            bool hasGame = _gameDetectionService?.CurrentGame != null;
+            bool lsRunning = _losslessScalingService?.IsLosslessScalingRunning() ?? false;
+
+            LosslessScalingButtonVisible = hasGame && lsRunning;
+
+            // Update tooltip when visibility changes
+            if (LosslessScalingButtonVisible)
+            {
+                UpdateLosslessScalingTooltip();
+            }
+        }
+
+        private async Task ShowLosslessScalingError(string message)
         {
             try
             {
-                _glowPulseStoryboard?.Stop();
-                _glowPulseStoryboard = null;
+                var dialog = new ContentDialog()
+                {
+                    Title = "Lossless Scaling Error",
+                    Content = message,
+                    CloseButtonText = "OK",
+                    XamlRoot = this.Content.XamlRoot
+                };
 
-                // Reset button to original style - use the existing global button style
-                AltTabButton.ClearValue(FrameworkElement.StyleProperty);
+                await dialog.ShowAsync();
             }
             catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Failed to show error dialog: {ex.Message}");
             }
         }
 
-        // Helper method to find child elements by name
-        private T? FindChildByName<T>(DependencyObject parent, string name) where T : FrameworkElement
+        private void UpdateLosslessScalingTooltip()
         {
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            try
             {
-                var child = VisualTreeHelper.GetChild(parent, i);
-
-                if (child is T element && element.Name == name)
-                    return element;
-
-                var result = FindChildByName<T>(child, name);
-                if (result != null)
-                    return result;
+                string gameName = GetCurrentGameName();
+                string tooltip = $"Scale {gameName}";
+                ToolTipService.SetToolTip(LosslessScalingButton, tooltip);
             }
-            return null;
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error updating Lossless Scaling tooltip: {ex.Message}");
+                // Fallback to generic tooltip
+                ToolTipService.SetToolTip(LosslessScalingButton, "Activate Lossless Scaling");
+            }
         }
+
+        private string GetCurrentGameName()
+        {
+            if (_gameDetectionService?.CurrentGame != null)
+            {
+                // Prefer window title if available and meaningful
+                if (!string.IsNullOrWhiteSpace(_gameDetectionService.CurrentGame.WindowTitle))
+                {
+                    return _gameDetectionService.CurrentGame.WindowTitle;
+                }
+                
+                // Fallback to process name
+                return _gameDetectionService.CurrentGame.ProcessName;
+            }
+
+            return "Game";
+        }
+
+
 
     }
 }

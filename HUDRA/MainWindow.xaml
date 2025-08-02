@@ -204,6 +204,21 @@
                                 Glyph="&#xE8AB;" />
                         </Button>
 
+                        <!--  Lossless Scaling button  -->
+                        <Button
+                            x:Name="LosslessScalingButton"
+                            Width="50"
+                            Height="50"
+                            HorizontalAlignment="Center"
+                            Click="LosslessScalingButton_Click"
+                            Style="{StaticResource GlowingGameButtonStyle}"
+                            Visibility="{x:Bind LosslessScalingButtonVisible, Mode=OneWay}">
+                            <Image
+                                Width="25"
+                                Height="25"
+                                Source="/Assets/ls-icon.png" />
+                        </Button>
+
                         <!--  Close button  -->
                         <Button
                             x:Name="CloseButton"

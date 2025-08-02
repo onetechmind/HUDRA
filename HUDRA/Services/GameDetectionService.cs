@@ -92,6 +92,9 @@ namespace HUDRA.Services
             "gog galaxy", "gog",
             "xbox", "xboxapp", "xbox app", "xboxgamebar", "gamebar", "gamebarftserver", "gamingservicesui",
             "microsoft store", "winstore.app", "ms-windows-store",
+
+            // Steam Tools (not games)
+            "lossless scaling", "losslessscaling",
     
             // UWP App Containers (these host other apps)
             "applicationframehost", "wwahostnowindow", "runtimebroker",
