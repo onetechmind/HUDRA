@@ -115,7 +115,10 @@
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
 
             <!--  Power Profile Control  -->
-            <Border Background="#22FFFFFF" CornerRadius="12" Padding="20,10">
+            <Border
+                Padding="20,10"
+                Background="#22FFFFFF"
+                CornerRadius="12">
                 <StackPanel Spacing="8">
                     <TextBlock
                         Padding="10"
@@ -135,6 +138,9 @@
                 CornerRadius="12">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -183,6 +189,35 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
                         Toggled="MinimizeOnStartupToggle_Toggled" />
+
+                    <TextBlock
+                        Grid.Row="3"
+                        Grid.ColumnSpan="2"
+                        Margin="0,5,0,15"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Enable to start HUDRA minimized to tray." />
+
+                    <!--  RTSS Auto-Start Toggle  -->
+                    <TextBlock
+                        Grid.Row="5"
+                        Grid.Column="0"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="Start RTSS with HUDRA" />
+
+                    <ToggleSwitch
+                        x:Name="StartRtssWithHudraToggle"
+                        Grid.Row="5"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Toggled="StartRtssWithHudraToggle_Toggled" />
+
+                    <TextBlock
+                        Grid.Row="6"
+                        Grid.ColumnSpan="2"
+                        Margin="0,5,0,15"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Automatically start RivaTuner Statistics Server with HUDRA for FPS limiting." />
                 </Grid>
             </Border>
         </StackPanel>

@@ -35,9 +35,12 @@ namespace HUDRA.Pages
             }
         }
 
-        protected override void OnNavigatedTo(NavigationEventArgs e)
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            
+            // Refresh RTSS status when navigating back to MainPage
+            await FpsLimiter.RefreshRtssStatus();
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -48,12 +51,14 @@ namespace HUDRA.Pages
         public void Initialize(DpiScalingService dpiService,
                                ResolutionService resolutionService,
                                AudioService audioService,
-                               BrightnessService brightnessService)
+                               BrightnessService brightnessService,
+                               RtssFpsLimiterService fpsLimiterService)
         {
             TdpPicker.Initialize(dpiService);
             ResolutionPicker.Initialize();
             AudioControls.Initialize();
             BrightnessControls.Initialize();
+            FpsLimiter.Initialize(fpsLimiterService);
 
             ResolutionPicker.PropertyChanged += (s, e) =>
             {

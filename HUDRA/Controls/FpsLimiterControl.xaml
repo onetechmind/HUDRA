@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="HUDRA.Controls.FpsLimiterControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:HUDRA.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    
+    <StackPanel Spacing="8">
+        <!-- Label -->
+        <TextBlock Text="FPS Limit" 
+                   FontSize="14" 
+                   Foreground="#CCFFFFFF"
+                   FontWeight="SemiBold"
+                   HorizontalAlignment="Center"/>
+
+        <!-- Main Content (when RTSS is available) -->
+        <StackPanel Spacing="8" Visibility="{x:Bind IsRtssSupported, Mode=OneWay}">
+            <!-- ComboBox -->
+            <ComboBox x:Name="FpsLimitComboBox"
+                      Width="136"
+                      Style="{StaticResource HudraComboBoxStyle}"
+                      ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                      HorizontalAlignment="Center"
+                      SelectionChanged="OnFpsLimitChanged" />
+        </StackPanel>
+
+        <!-- RTSS Not Found Message -->
+        <StackPanel Spacing="8" Visibility="{x:Bind IsRtssNotFound, Mode=OneWay}">
+            <TextBlock Text="RTSS Required" 
+                       FontSize="12" 
+                       Foreground="#FFCC7722"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"/>
+            <TextBlock Text="Install MSI Afterburner or RTSS for frame rate limiting"
+                       FontSize="11"
+                       Foreground="#99FFFFFF"
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"/>
+        </StackPanel>
+    </StackPanel>
+    
+</UserControl>

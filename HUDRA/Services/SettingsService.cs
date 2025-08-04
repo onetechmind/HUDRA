@@ -33,6 +33,10 @@ namespace HUDRA.Services
         private const string GamingPowerProfileKey = "GamingPowerProfile";
         private const string IntelligentPowerSwitchingKey = "IntelligentPowerSwitchingEnabled";
 
+        // FPS Limiter keys
+        private const string SelectedFpsLimitKey = "SelectedFpsLimit";
+        private const string StartRtssWithHudraKey = "StartRtssWithHudra";
+
         //Startup
         private const string STARTUP_ENABLED_KEY = "StartupEnabled";
         private const string MINIMIZE_TO_TRAY_ON_STARTUP_KEY = "MinimizeToTrayOnStartup";
@@ -383,6 +387,31 @@ namespace HUDRA.Services
             SaveSettings();
         }
 
+        private static int GetIntegerSetting(string key, int defaultValue)
+        {
+            if (_settings != null && _settings.TryGetValue(key, out var value))
+            {
+                if (value is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Number)
+                {
+                    return jsonElement.GetInt32();
+                }
+                else if (value is int intValue)
+                {
+                    return intValue;
+                }
+            }
+            return defaultValue;
+        }
+
+        private static void SetIntegerSetting(string key, int value)
+        {
+            if (_settings == null)
+                _settings = new Dictionary<string, object>();
+
+            _settings[key] = value;
+            SaveSettings();
+        }
+
         private static FanCurve GetDefaultFanCurve()
         {
             // Return sensible default curve if no saved curve exists
@@ -628,6 +657,27 @@ namespace HUDRA.Services
         public static void SetIntelligentPowerSwitchingEnabled(bool enabled)
         {
             SetBooleanSetting(IntelligentPowerSwitchingKey, enabled);
+        }
+
+        // FPS Limiter Settings
+        public static int GetSelectedFpsLimit()
+        {
+            return GetIntegerSetting(SelectedFpsLimitKey, 60);
+        }
+
+        public static void SetSelectedFpsLimit(int fpsLimit)
+        {
+            SetIntegerSetting(SelectedFpsLimitKey, fpsLimit);
+        }
+
+        public static bool GetStartRtssWithHudra()
+        {
+            return GetBooleanSetting(StartRtssWithHudraKey, false);
+        }
+
+        public static void SetStartRtssWithHudra(bool enabled)
+        {
+            SetBooleanSetting(StartRtssWithHudraKey, enabled);
         }
     }
 }

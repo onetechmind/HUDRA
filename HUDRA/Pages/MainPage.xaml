@@ -27,6 +27,7 @@
             <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
+            <controls:FpsLimiterControl x:Name="FpsLimiter" x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />
             <controls:BrightnessControlControl x:Name="BrightnessControls" x:FieldModifier="public" />

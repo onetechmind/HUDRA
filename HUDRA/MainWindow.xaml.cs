@@ -1,5 +1,6 @@
 using HUDRA.Configuration;
 using HUDRA.Controls;
+using HUDRA.Models;
 using HUDRA.Pages;
 using HUDRA.Services;
 using HUDRA.Services.Power;
@@ -34,13 +35,14 @@ namespace HUDRA
         private readonly NavigationService _navigationService;
         private readonly BatteryService _batteryService;
         private readonly PowerProfileService _powerProfileService;
+        private readonly RtssFpsLimiterService _fpsLimiterService;
         private TdpMonitorService? _tdpMonitor;
         private TurboService? _turboService;
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
         private GameDetectionService? _gameDetectionService;
         private LosslessScalingService? _losslessScalingService;
-        
+
 
         // Public navigation service access for TDP picker
         public NavigationService NavigationService => _navigationService;
@@ -67,6 +69,7 @@ namespace HUDRA
 
         // Store the actual TDP value across navigation
         private int _currentTdpValue = -1; // Initialize to -1 to indicate not set
+        private bool _isFirstFpsInitialization = true;
 
         private string _batteryPercentageText = "0%";
         public string BatteryPercentageText
@@ -119,6 +122,21 @@ namespace HUDRA
             set { _losslessScalingButtonVisible = value; OnPropertyChanged(); }
         }
 
+        // FPS Limiter properties
+        private FpsLimitSettings _fpsSettings = new();
+        public FpsLimitSettings FpsSettings
+        {
+            get => _fpsSettings;
+            set { _fpsSettings = value; OnPropertyChanged(); }
+        }
+
+        private bool _isRtssSupported = false;
+        public bool IsRtssSupported
+        {
+            get => _isRtssSupported;
+            set { _isRtssSupported = value; OnPropertyChanged(); }
+        }
+
         public MainWindow()
         {
             this.InitializeComponent();
@@ -134,6 +152,7 @@ namespace HUDRA
             _navigationService = new NavigationService(ContentFrame);
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
+            _fpsLimiterService = new RtssFpsLimiterService();
 
             // Subscribe to navigation events
             _navigationService.PageChanged += OnPageChanged;
@@ -220,7 +239,7 @@ namespace HUDRA
             if (!_mainPageInitialized)
             {
                 // First visit - full initialization
-                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService);
+                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService);
                 _mainPageInitialized = true;
 
                 // Set up TDP change tracking for the first time
@@ -235,6 +254,12 @@ namespace HUDRA
                 {
                     _currentTdpValue = _mainPage.TdpPicker.SelectedTdp;
                     System.Diagnostics.Debug.WriteLine($"Initial TDP value stored: {_currentTdpValue}");
+
+                    // Initialize FPS limiter after MainPage is fully loaded
+                    _ = InitializeFpsLimiterAsync();
+
+                    // Auto-start RTSS if enabled
+                    _ = StartRtssIfEnabledAsync();
                 });
             }
             else
@@ -272,6 +297,9 @@ namespace HUDRA
                 _mainPage.AudioControls.Initialize();
                 _mainPage.BrightnessControls.Initialize();
 
+                // Refresh FPS limiter on subsequent visits
+                _ = InitializeFpsLimiterAsync();
+
                 // Re-establish TDP change tracking
                 _mainPage.TdpPicker.TdpChanged += (s, value) =>
                 {
@@ -308,9 +336,9 @@ namespace HUDRA
         private void InitializeFanCurvePage()
         {
             if (_fanCurvePage == null) return;
-            
+
             System.Diagnostics.Debug.WriteLine("=== InitializeFanCurvePage called ===");
-            
+
             try
             {
                 _fanCurvePage.Initialize();
@@ -753,7 +781,7 @@ namespace HUDRA
                 if (_settingsPage?.PowerProfileControl != null)
                 {
                     await _settingsPage.PowerProfileControl.InitializeAsync();
-                    
+
                     // Set up event handler for power profile changes
                     _settingsPage.PowerProfileControl.PowerProfileChanged += OnPowerProfileControlChanged;
                 }
@@ -876,6 +904,13 @@ namespace HUDRA
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
 
+                // Update FPS limiter for game detection
+                if (_mainPage?.FpsLimiter != null)
+                {
+                    _mainPage.FpsLimiter.IsGameRunning = true;
+
+                }
+
                 // Update Alt+Tab tooltip
                 string gameName = !string.IsNullOrWhiteSpace(gameInfo.WindowTitle)
                     ? gameInfo.WindowTitle
@@ -902,6 +937,13 @@ namespace HUDRA
 
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
+
+                // Update FPS limiter for game stopped
+                if (_mainPage?.FpsLimiter != null)
+                {
+                    _mainPage.FpsLimiter.IsGameRunning = false;
+
+                }
             }
             catch (Exception ex)
             {
@@ -999,7 +1041,7 @@ namespace HUDRA
                 {
                     return _gameDetectionService.CurrentGame.WindowTitle;
                 }
-                
+
                 // Fallback to process name
                 return _gameDetectionService.CurrentGame.ProcessName;
             }
@@ -1007,7 +1049,178 @@ namespace HUDRA
             return "Game";
         }
 
+        private async Task InitializeFpsLimiterAsync()
+        {
+            try
+            {
+                var rtssDetection = await _fpsLimiterService.DetectRtssInstallationAsync();
+                IsRtssSupported = rtssDetection.IsInstalled;
 
+                if (IsRtssSupported)
+                {
+                    // Get current refresh rate from resolution service
+                    var currentRefreshRateResult = _resolutionService.GetCurrentRefreshRate();
+                    int currentRefreshRate = currentRefreshRateResult.Success ? currentRefreshRateResult.RefreshRate : 120;
+
+                    // Generate FPS options based on refresh rate
+                    FpsSettings.AvailableFpsOptions = _fpsLimiterService.CalculateFpsOptionsFromRefreshRate(currentRefreshRate);
+                    FpsSettings.IsRtssAvailable = true;
+                    FpsSettings.RtssInstallPath = rtssDetection.InstallPath;
+                    FpsSettings.RtssVersion = rtssDetection.Version;
+
+                    // Load saved settings
+                    var savedFpsLimit = SettingsService.GetSelectedFpsLimit();
+
+                    // Set selected option (default to "Unlimited" (0) for new users)
+                    FpsSettings.SelectedFpsLimit = FpsSettings.AvailableFpsOptions.Contains(savedFpsLimit)
+                        ? savedFpsLimit
+                        : 0; // Default to "Unlimited" for new users
+
+                    // Update the UI control if MainPage is initialized
+                    if (_mainPage?.FpsLimiter != null)
+                    {
+                        _mainPage.FpsLimiter.FpsSettings = FpsSettings;
+                        _mainPage.FpsLimiter.IsRtssSupported = IsRtssSupported;
+                        _mainPage.FpsLimiter.UpdateFpsOptions(FpsSettings.AvailableFpsOptions);
+
+                        // Set up event handler for FPS changes
+                        _mainPage.FpsLimiter.FpsLimitChanged += OnFpsLimitChanged;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"RTSS detected: {rtssDetection.InstallPath}");
+                    System.Diagnostics.Debug.WriteLine($"FPS options available: {string.Join(", ", FpsSettings.AvailableFpsOptions)}");
+
+                    // Only apply saved FPS limit on first initialization (app startup), not on navigation
+                    if (_isFirstFpsInitialization)
+                    {
+                        _isFirstFpsInitialization = false; // Ensure this only runs once
+                        
+                        System.Diagnostics.Debug.WriteLine($"Applying previously selected FPS limit on startup: {FpsSettings.SelectedFpsLimit}");
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                // Wait for RTSS to fully initialize if it was just started
+                                System.Diagnostics.Debug.WriteLine("Waiting 3 seconds for RTSS to fully initialize...");
+                                await Task.Delay(3000);
+                                
+                                bool success;
+                                if (FpsSettings.SelectedFpsLimit > 0)
+                                {
+                                    success = await _fpsLimiterService.SetGlobalFpsLimitAsync(FpsSettings.SelectedFpsLimit);
+                                    if (success)
+                                    {
+                                        FpsSettings.IsCurrentlyLimited = true;
+                                        System.Diagnostics.Debug.WriteLine($"✅ Applied saved FPS limit on startup: {FpsSettings.SelectedFpsLimit}");
+                                    }
+                                }
+                                else
+                                {
+                                    // "Unlimited" selected - disable FPS limiting
+                                    success = await _fpsLimiterService.DisableGlobalFpsLimitAsync();
+                                    if (success)
+                                    {
+                                        FpsSettings.IsCurrentlyLimited = false;
+                                        System.Diagnostics.Debug.WriteLine($"✅ Disabled FPS limiting on startup (Unlimited selected)");
+                                    }
+                                }
+                                
+                                if (!success)
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"❌ Failed to apply saved FPS setting on startup: {FpsSettings.SelectedFpsLimit}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"❌ Exception applying saved FPS setting on startup: {ex.Message}");
+                            }
+                        });
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Skipping FPS limit application - not first initialization");
+                    }
+                }
+                else
+                {
+                    FpsSettings.IsRtssAvailable = false;
+                    System.Diagnostics.Debug.WriteLine("RTSS not detected - FPS limiting not available");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to initialize FPS limiter: {ex.Message}");
+                IsRtssSupported = false;
+                FpsSettings.IsRtssAvailable = false;
+            }
+        }
+
+        private async void OnFpsLimitChanged(object? sender, FpsLimitChangedEventArgs e)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"FPS limit changed: {e.FpsLimit}");
+
+                // Always save the user's selection
+                FpsSettings.SelectedFpsLimit = e.FpsLimit;
+                SettingsService.SetSelectedFpsLimit(e.FpsLimit);
+
+                System.Diagnostics.Debug.WriteLine($"Saved FPS settings: SelectedFpsLimit now = {FpsSettings.SelectedFpsLimit}");
+
+                // Apply FPS limiting immediately regardless of game state
+                bool success;
+                if (e.FpsLimit > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Applying FPS limit immediately: {e.FpsLimit}");
+                    success = await _fpsLimiterService.SetGlobalFpsLimitAsync(e.FpsLimit);
+                    if (success)
+                    {
+                        FpsSettings.IsCurrentlyLimited = true;
+                        System.Diagnostics.Debug.WriteLine($"✅ Applied RTSS FPS limit: {e.FpsLimit}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"❌ Failed to apply RTSS FPS limit: {e.FpsLimit}");
+                    }
+                }
+                else
+                {
+                    // User selected "Unlimited" - disable FPS limiting
+                    System.Diagnostics.Debug.WriteLine("Disabling FPS limit (Unlimited selected)");
+                    success = await _fpsLimiterService.DisableGlobalFpsLimitAsync();
+                    if (success)
+                    {
+                        FpsSettings.IsCurrentlyLimited = false;
+                        System.Diagnostics.Debug.WriteLine("✅ Disabled RTSS FPS limit (Unlimited)");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("❌ Failed to disable RTSS FPS limit");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ Failed to handle FPS change: {ex.Message}");
+            }
+        }
+
+
+        private async Task StartRtssIfEnabledAsync()
+        {
+            try
+            {
+                if (SettingsService.GetStartRtssWithHudra())
+                {
+                    System.Diagnostics.Debug.WriteLine("Auto-starting RTSS as per user settings");
+                    await _fpsLimiterService.StartRtssIfNeededAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to auto-start RTSS: {ex.Message}");
+            }
+        }
 
     }
 }

@@ -18,6 +18,7 @@ namespace HUDRA.Pages
             this.InitializeComponent();
             LoadSettings();
             LoadStartupSettings();
+            LoadRtssSettings();
         }
 
         private void LoadSettings()
@@ -82,6 +83,17 @@ namespace HUDRA.Pages
         {
             var isOn = MinimizeOnStartupToggle.IsOn;
             SettingsService.SetMinimizeToTrayOnStartup(isOn);
+        }
+
+        private void StartRtssWithHudraToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var isOn = StartRtssWithHudraToggle.IsOn;
+            SettingsService.SetStartRtssWithHudra(isOn);
+        }
+
+        private void LoadRtssSettings()
+        {
+            StartRtssWithHudraToggle.IsOn = SettingsService.GetStartRtssWithHudra();
         }
 
         private void UpdateMinimizeOnStartupState()
