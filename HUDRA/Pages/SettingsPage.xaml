@@ -202,7 +202,7 @@
                         Grid.Row="5"
                         Grid.Column="0"
                         Style="{StaticResource SettingsLabelStyle}"
-                        Text="Start RTSS with HUDRA" />
+                        Text="Auto-Start RTSS" />
 
                     <ToggleSwitch
                         x:Name="StartRtssWithHudraToggle"
@@ -217,7 +217,7 @@
                         Grid.ColumnSpan="2"
                         Margin="0,5,0,15"
                         Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Automatically start RivaTuner Statistics Server with HUDRA for FPS limiting." />
+                        Text="Automatically start RivaTuner Statistics Server with HUDRA for FPS Limiting." />
                 </Grid>
             </Border>
         </StackPanel>
