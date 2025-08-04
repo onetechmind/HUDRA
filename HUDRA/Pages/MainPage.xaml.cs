@@ -35,12 +35,12 @@ namespace HUDRA.Pages
             }
         }
 
-        protected override async void OnNavigatedTo(NavigationEventArgs e)
+        protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
             
-            // Refresh RTSS status when navigating back to MainPage
-            await FpsLimiter.RefreshRtssStatus();
+            // No RTSS refresh needed - installation status is cached and set in constructor
+            // Running status is handled by FpsLimiterControl internally when needed
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)

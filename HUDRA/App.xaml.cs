@@ -23,11 +23,14 @@ namespace HUDRA
             this.UnhandledException += OnUnhandledException;
         }
 
-        protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+        protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             // Check if launched at startup
             var commandLineArgs = Environment.GetCommandLineArgs();
             bool wasLaunchedAtStartup = StartupService.WasLaunchedAtStartup(commandLineArgs);
+
+            // Preload RTSS installation status BEFORE creating any UI to prevent flashing
+            await RtssFpsLimiterService.PreloadInstallationStatusAsync();
 
             MainWindow = new MainWindow();
 

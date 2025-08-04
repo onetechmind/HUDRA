@@ -21,6 +21,7 @@ namespace HUDRA.Services
 
     public class RtssFpsLimiterService
     {
+        private static bool? _cachedInstallationStatus = null;
         private RtssDetectionResult? _cachedDetection = null;
         private int _currentFpsLimit = 0;
 
@@ -73,6 +74,51 @@ namespace HUDRA.Services
                     return result;
                 }
             });
+        }
+
+        public async Task<RtssDetectionResult> SmartRefreshRtssStatusAsync()
+        {
+            // If no cached detection exists, do full detection
+            if (_cachedDetection == null)
+            {
+                return await DetectRtssInstallationAsync(forceRefresh: true);
+            }
+
+            // Fast check: Is RTSS process still running?
+            bool isCurrentlyRunning = IsRtssProcessRunning();
+            
+            // If running status hasn't changed, return cached result with updated running status
+            if (_cachedDetection.IsRunning == isCurrentlyRunning)
+            {
+                _cachedDetection.IsRunning = isCurrentlyRunning;
+                return _cachedDetection;
+            }
+
+            // Running status changed - need to validate installation if process stopped
+            if (!isCurrentlyRunning && _cachedDetection.IsInstalled)
+            {
+                // Quick validation: does the installation still exist?
+                if (!string.IsNullOrEmpty(_cachedDetection.InstallPath) && 
+                    Directory.Exists(_cachedDetection.InstallPath) &&
+                    File.Exists(Path.Combine(_cachedDetection.InstallPath, "RTSS.exe")))
+                {
+                    // Installation still exists, just process stopped
+                    _cachedDetection.IsRunning = false;
+                    System.Diagnostics.Debug.WriteLine("RTSS installation exists but process stopped");
+                    return _cachedDetection;
+                }
+                else
+                {
+                    // Installation no longer exists, force full refresh
+                    System.Diagnostics.Debug.WriteLine("RTSS installation no longer exists, forcing full refresh");
+                    return await DetectRtssInstallationAsync(forceRefresh: true);
+                }
+            }
+
+            // Process started when it wasn't running before, update status
+            _cachedDetection.IsRunning = isCurrentlyRunning;
+            System.Diagnostics.Debug.WriteLine($"RTSS process status changed to: {isCurrentlyRunning}");
+            return _cachedDetection;
         }
 
         public async Task<bool> SetGlobalFpsLimitAsync(int fps)
@@ -484,6 +530,34 @@ namespace HUDRA.Services
             }
 
             return true; // Already running
+        }
+
+        public static async Task PreloadInstallationStatusAsync()
+        {
+            if (_cachedInstallationStatus.HasValue)
+                return; // Already cached
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Preloading RTSS installation status...");
+                
+                // Create temporary service instance for detection
+                var tempService = new RtssFpsLimiterService();
+                var detection = await tempService.DetectRtssInstallationAsync(forceRefresh: true);
+                
+                _cachedInstallationStatus = detection.IsInstalled;
+                System.Diagnostics.Debug.WriteLine($"RTSS installation status cached: {_cachedInstallationStatus}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to preload RTSS installation status: {ex.Message}");
+                _cachedInstallationStatus = false; // Default to not installed on error
+            }
+        }
+
+        public static bool GetCachedInstallationStatus()
+        {
+            return _cachedInstallationStatus ?? false; // Return false if not cached yet (shouldn't happen after preload)
         }
 
         #endregion
