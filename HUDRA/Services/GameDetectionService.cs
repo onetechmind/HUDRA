@@ -31,6 +31,7 @@ namespace HUDRA.Services
         private const int GAME_LOSS_GRACE_PERIOD_MS = 8000;
         private readonly GameLearningService _learningService;
         private readonly HashSet<string> _scannedThisSession = new(StringComparer.OrdinalIgnoreCase);
+        private readonly GameLauncherConfigService _launcherConfigService;
         // Win32 APIs
         [DllImport("user32.dll", SetLastError = true)]
         private static extern IntPtr GetForegroundWindow();
@@ -79,7 +80,7 @@ namespace HUDRA.Services
             "chrome", "firefox", "edge", "msedge", "safari", "opera", "brave",
     
             // Communication
-            "discord", "slack", "teams", "zoom", "skype", "whatsapp",
+            "discord", "slack", "teams", "ms-teams", "msteams", "zoom", "skype", "whatsapp",
     
             // Media/Productivity
             "spotify", "vlc", "photoshop", "word", "excel", "powerpoint", "obs", "chatgpt",
@@ -90,17 +91,20 @@ namespace HUDRA.Services
             "battle.net", "battlenet",
             "origin", "originwebhelperservice",
             "gog galaxy", "gog",
-            "xbox", "xboxapp", "xbox app", "xboxgamebar", "gamebar", "gamebarftserver", "gamingservicesui",
+            "xbox", "xboxapp", "xbox app", "xboxgamebar", "gamebar", "gamebarftserver", "gamingservicesui", "XboxPcApp",
+            "edgegameassist", "gamingservices", "gamingservicesnet", "xboxgamingoverlay",
             "microsoft store", "winstore.app", "ms-windows-store",
 
             // Steam Tools (not games)
             "lossless scaling", "losslessscaling",
     
-            // UWP App Containers (these host other apps)
+            // UWP App Containers and common UWP apps
             "applicationframehost", "wwahostnowindow", "runtimebroker",
+            "applemobiledeviceprocess", "itunes", "microsoftedge", "microsoftedgecp", "microsoftedgewebview2",
     
             // System
-            "explorer", "dwm", "taskmgr", "svchost", "hudra"
+            "explorer", "dwm", "taskmgr", "svchost", "hudra",
+            "windowspackagemanagerserver", "winget", "msixvc", "packagemanager"
         };
 
         public event EventHandler<GameInfo?>? GameDetected;
@@ -111,6 +115,25 @@ namespace HUDRA.Services
         {
             _dispatcher = dispatcher;
             _learningService = new GameLearningService();
+            _launcherConfigService = new GameLauncherConfigService();
+
+            // Initialize launcher paths on startup (cached for session)
+            var dynamicPaths = _launcherConfigService.GetAllGameLibraryPaths();
+            System.Diagnostics.Debug.WriteLine($"GameDetectionService initialized with {dynamicPaths.Count} dynamic game library paths");
+
+            // Perform initial background scan for already-running games
+            var backgroundGame = ScanBackgroundGames();
+            if (backgroundGame != null)
+            {
+                _currentGame = backgroundGame;
+                System.Diagnostics.Debug.WriteLine($"Initial background scan detected game: {backgroundGame.WindowTitle}");
+                
+                // Notify UI immediately about the detected game
+                _dispatcher.TryEnqueue(() =>
+                {
+                    GameDetected?.Invoke(this, backgroundGame);
+                });
+            }
 
             _detectionTimer = new Timer(DetectGamesCallback, null,
                 TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(3));
@@ -344,6 +367,146 @@ namespace HUDRA.Services
             }
         }
 
+        private GameInfo? ScanBackgroundGames()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Scanning background processes for games...");
+                
+                var processes = Process.GetProcesses();
+                
+                foreach (var process in processes)
+                {
+                    try
+                    {
+                        if (process.HasExited) continue;
+                        
+                        var processName = process.ProcessName;
+                        
+                        // Skip processes we definitely know are not games
+                        if (_definitelyNotGames.Contains(processName))
+                            continue;
+                            
+                        // Check if this is a known non-game from learning
+                        if (_learningService.IsKnownNonGame(processName))
+                            continue;
+                            
+                        // Check if this is a known game from learning - immediate return
+                        if (_learningService.IsKnownGame(processName))
+                        {
+                            var knownGameInfo = CreateGameInfoFromProcess(process);
+                            if (knownGameInfo != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Found known background game: {processName}");
+                                return knownGameInfo;
+                            }
+                        }
+                        
+                        // For unknown processes, only check if they could realistically be games
+                        // Skip processes without windows (system services, background processes)
+                        if (process.MainWindowHandle == IntPtr.Zero)
+                            continue;
+                            
+                        // Skip processes with typical system service names
+                        if (IsSystemServiceName(processName))
+                            continue;
+                            
+                        // Now check if they're in game directories
+                        if (IsLikelyGame(process, GetProcessWindowTitle(process)))
+                        {
+                            // LEARN FROM THE RESULT: Add to game inclusion list
+                            _learningService.LearnGame(processName);
+                            System.Diagnostics.Debug.WriteLine($"Discovered and learned new background game: {processName}");
+                            
+                            var gameInfo = CreateGameInfoFromProcess(process);
+                            if (gameInfo != null)
+                            {
+                                return gameInfo;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Skip processes we can't access
+                        System.Diagnostics.Debug.WriteLine($"Skipping process {process.ProcessName}: {ex.Message}");
+                        continue;
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                System.Diagnostics.Debug.WriteLine("No background games found");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error scanning background games: {ex.Message}");
+                return null;
+            }
+        }
+
+        private GameInfo? CreateGameInfoFromProcess(Process process)
+        {
+            try
+            {
+                var windowTitle = GetProcessWindowTitle(process);
+                string executablePath = string.Empty;
+                
+                try
+                {
+                    executablePath = process.MainModule?.FileName ?? string.Empty;
+                }
+                catch { }
+
+                return new GameInfo
+                {
+                    ProcessName = process.ProcessName,
+                    WindowTitle = windowTitle,
+                    ProcessId = process.Id,
+                    WindowHandle = process.MainWindowHandle,
+                    ExecutablePath = executablePath
+                };
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error creating GameInfo for {process.ProcessName}: {ex.Message}");
+                return null;
+            }
+        }
+
+        private string GetProcessWindowTitle(Process process)
+        {
+            try
+            {
+                if (process.MainWindowHandle != IntPtr.Zero)
+                {
+                    return GetWindowTitle(process.MainWindowHandle);
+                }
+                return string.Empty;
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+        private bool IsSystemServiceName(string processName)
+        {
+            // Skip processes that are clearly system services or have Windows/Microsoft service patterns
+            var systemPatterns = new[]
+            {
+                "service", "server", "host", "manager", "helper", "daemon",
+                "runtime", "broker", "proxy", "agent", "monitor", "updater",
+                "installer", "setup", "system", "windows", "microsoft",
+                "msedge", "edge", "package", "store", "uwp", "framework"
+            };
+
+            var lowerProcessName = processName.ToLowerInvariant();
+            return systemPatterns.Any(pattern => lowerProcessName.Contains(pattern));
+        }
+
 
 
         private bool IsLikelyGame(Process process, string windowTitle)
@@ -381,76 +544,35 @@ namespace HUDRA.Services
                 string? executablePath = process.MainModule?.FileName;
                 if (string.IsNullOrEmpty(executablePath)) return false;
 
-                var gameDirectories = new[]
-                {
-                    // Steam
-                    @"\Steam\steamapps\common\",
-                    @"\Program Files (x86)\Steam\steamapps\common\",
-                    @"\Program Files\Steam\steamapps\common\",
-                    
-                    // Epic Games
-                    @"\Epic Games\",
-                    @"\Program Files\Epic Games\",
-                    @"\Program Files (x86)\Epic Games\",
-                    
-                    // Origin/EA
-                    @"\Origin Games\",
-                    @"\EA Games\",
-                    @"\Program Files\Origin Games\",
-                    @"\Program Files (x86)\Origin Games\",
-                    
-                    // Ubisoft
-                    @"\Ubisoft\Ubisoft Game Launcher\games\",
-                    @"\Program Files\Ubisoft\Ubisoft Game Launcher\games\",
-                    @"\Program Files (x86)\Ubisoft\Ubisoft Game Launcher\games\",
-                    
-                    // GOG
-                    @"\GOG Galaxy\Games\",
-                    @"\Program Files\GOG Galaxy\Games\",
-                    @"\Program Files (x86)\GOG Galaxy\Games\",
-                    
-                    // Xbox/Microsoft Store games
-                    @"\XboxGames\",
-                    @"\Xbox Games\",
-                    @"\WindowsApps\",
-                    @"\Microsoft.Gaming\",
-                    @"\Program Files\WindowsApps\",
-                    @"\Program Files (x86)\WindowsApps\",
-                    
-                    // Generic game folders
-                    @"\Games\",
-                    @"\Program Files\Games\",
-                    @"\Program Files (x86)\Games\",
-                    
-                    // Additional common game directories
-                    @"\Riot Games\",
-                    @"\Battle.net\",
-                    @"\Blizzard Entertainment\",
-                    @"\Rockstar Games\",
-                    @"\Take-Two Interactive\",
-                    @"\Square Enix\",
-                    @"\Activision\",
-                    @"\SEGA\",
-                    @"\Capcom\",
-                    @"\Valve\",
-                    @"\2K Games\",
-                    @"\Bethesda Game Studios\",
-                    @"\CD Projekt RED\"
-                };
+                // First, try dynamic launcher paths (cached)
+                var dynamicPaths = _launcherConfigService.GetAllGameLibraryPaths();
+                
+                // Check if executable is within any of the dynamic game library paths
+                bool inDynamicDirectory = dynamicPaths.Any(libraryPath =>
+                    executablePath.StartsWith(libraryPath, StringComparison.OrdinalIgnoreCase));
 
-                bool inGameDirectory = gameDirectories.Any(dir =>
-                    executablePath.Contains(dir, StringComparison.OrdinalIgnoreCase));
-
-                // Additional Xbox-specific detection
-                if (!inGameDirectory && IsXboxGame(executablePath))
+                if (inDynamicDirectory)
                 {
                     return true;
                 }
 
-                return inGameDirectory;
+                // Fallback to hardcoded paths if dynamic detection didn't find anything
+                var fallbackDirectories = _launcherConfigService.GetFallbackGameDirectories();
+                
+                bool inFallbackDirectory = fallbackDirectories.Any(dir =>
+                    executablePath.Contains(dir, StringComparison.OrdinalIgnoreCase));
+
+                // Additional Xbox-specific detection
+                if (!inFallbackDirectory && IsXboxGame(executablePath))
+                {
+                    return true;
+                }
+
+                return inFallbackDirectory;
             }
-            catch
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine($"Error checking game directory for {process.ProcessName}: {ex.Message}");
                 return false;
             }
         }
@@ -459,24 +581,52 @@ namespace HUDRA.Services
         {
             try
             {
-                // Xbox games often have these characteristics:
+                // Xbox/Game Pass games have these specific characteristics:
                 // 1. Located in XboxGames folder (any drive)
-                // 2. Have complex publisher/package folder structure
-                // 3. Often have "Content" folders
-                // 4. May be in WindowsApps (UWP packages)
+                // 2. Located in WindowsApps with Microsoft package identifiers
+                // 3. Microsoft Gaming services and UWP package patterns
+                // 4. Game Pass/Xbox-specific package suffixes
 
                 var xboxIndicators = new[]
                 {
             @"\XboxGames\",
             @"\Xbox Games\",
-            @"\WindowsApps\",
-            @"\Content\",
-            @"\Microsoft.Gaming",
-            @"_8wekyb3d8bbwe\", // Common Xbox package suffix
+            @"\Xbox\",
+            @"\Microsoft.Gaming\",
+            @"\Content\", // Xbox games often have Content subfolder
+            @"_8wekyb3d8bbwe\", // Common Xbox package suffix (Microsoft Corporation)
             @"_xbox_",
-            @"_ms-"
+            @"_ms-", // Microsoft package prefix
+            @".Microsoft.", // Microsoft UWP package pattern
+            @"Microsoft.", // Microsoft package prefix
+            @"MicrosoftCorporation", // Full Microsoft corporation identifier
+            @"_cw5n1h2txyewy\", // Another common Microsoft package suffix
+            @"GamePass", // Explicit Game Pass identifier
+            @"XboxGamePass", // Xbox Game Pass identifier
+            @"Microsoft.XboxGameOverlay" // Xbox overlay services (but filtered by other logic)
         };
 
+                // Special handling for WindowsApps - only detect as Xbox game if it has Xbox/Microsoft identifiers
+                if (executablePath.Contains(@"\WindowsApps\", StringComparison.OrdinalIgnoreCase))
+                {
+                    // For WindowsApps, require Microsoft/Xbox-specific patterns to avoid false positives
+                    var uwpXboxPatterns = new[]
+                    {
+                @"_8wekyb3d8bbwe\",
+                @"_ms-",
+                @".Microsoft.",
+                @"Microsoft.",
+                @"MicrosoftCorporation",
+                @"_cw5n1h2txyewy\",
+                @"GamePass",
+                @"XboxGamePass"
+            };
+
+                    return uwpXboxPatterns.Any(pattern =>
+                        executablePath.Contains(pattern, StringComparison.OrdinalIgnoreCase));
+                }
+
+                // For non-WindowsApps paths, use all indicators
                 return xboxIndicators.Any(indicator =>
                     executablePath.Contains(indicator, StringComparison.OrdinalIgnoreCase));
             }
