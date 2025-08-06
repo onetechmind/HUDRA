@@ -438,8 +438,8 @@ namespace HUDRA
                     return;
                 }
 
-                // 3. Wait 200ms
-                await Task.Delay(200);
+                // 3. Wait 500ms
+                await Task.Delay(500);
 
                 // 4. Execute Lossless Scaling shortcut
                 var (hotkey, modifiers) = _losslessScalingService.ParseHotkeyFromSettings();

@@ -163,21 +163,6 @@
                                 FontSize="25"
                                 Glyph="&#xE713;" />
                         </Button>
-
-                        <!--  Add more navigation items here as needed  -->
-                        <!--
-                        <Button x:Name="AboutNavButton"
-                                Width="50"
-                                Height="50"
-                                Click="AboutNavButton_Click"
-                                ToolTipService.ToolTip="About"
-                                HorizontalAlignment="Center">
-                            <FontIcon FontFamily="Segoe MDL2 Assets"
-                                      Glyph="&#xE946;"
-                                      FontSize="20"/>
-                        </Button>
-                        -->
-
                     </StackPanel>
 
                     <!--  Bottom section with Alt+Tab and Close buttons  -->
