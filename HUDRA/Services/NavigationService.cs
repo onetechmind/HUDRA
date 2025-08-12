@@ -37,6 +37,11 @@ namespace HUDRA.Services
             Navigate(typeof(FanCurvePage));
         }
 
+        public void NavigateToScaling()
+        {
+            Navigate(typeof(ScalingPage));
+        }
+
         public void Navigate(Type pageType)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));

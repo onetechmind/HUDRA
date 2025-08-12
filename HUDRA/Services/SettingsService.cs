@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using HUDRA.Configuration;
 using HUDRA.Controls; // For FanCurve and FanCurvePoint classes
 using HUDRA.Services.FanControl;
+using HUDRA.Models;
 
 namespace HUDRA.Services
 {
@@ -40,6 +41,11 @@ namespace HUDRA.Services
         //Startup
         private const string STARTUP_ENABLED_KEY = "StartupEnabled";
         private const string MINIMIZE_TO_TRAY_ON_STARTUP_KEY = "MinimizeToTrayOnStartup";
+        
+        // Lossless Scaling settings keys
+        private const string LS_UPSCALING_ENABLED_KEY = "LSUpscalingEnabled";
+        private const string LS_FRAME_GEN_MULTIPLIER_KEY = "LSFrameGenMultiplier";
+        private const string LS_FLOW_SCALE_KEY = "LSFlowScale";
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -678,6 +684,30 @@ namespace HUDRA.Services
         public static void SetStartRtssWithHudra(bool enabled)
         {
             SetBooleanSetting(StartRtssWithHudraKey, enabled);
+        }
+
+        // Lossless Scaling Settings
+        public static LosslessScalingSettings GetLosslessScalingSettings()
+        {
+            lock (_lock)
+            {
+                return new LosslessScalingSettings
+                {
+                    UpscalingEnabled = GetBooleanSetting(LS_UPSCALING_ENABLED_KEY, true),
+                    FrameGenMultiplier = (LosslessScalingFrameGen)GetIntegerSetting(LS_FRAME_GEN_MULTIPLIER_KEY, 0),
+                    FlowScale = GetIntegerSetting(LS_FLOW_SCALE_KEY, 70)
+                };
+            }
+        }
+
+        public static void SetLosslessScalingSettings(LosslessScalingSettings settings)
+        {
+            lock (_lock)
+            {
+                SetBooleanSetting(LS_UPSCALING_ENABLED_KEY, settings.UpscalingEnabled);
+                SetIntegerSetting(LS_FRAME_GEN_MULTIPLIER_KEY, (int)settings.FrameGenMultiplier);
+                SetIntegerSetting(LS_FLOW_SCALE_KEY, settings.FlowScale);
+            }
         }
     }
 }

@@ -24,6 +24,7 @@
     <None Remove="Assets\HUDRA_Logo_64x64.ico" />
     <None Remove="Assets\performance-settings-icon.png" />
     <None Remove="Assets\tick.wav" />
+    <None Remove="Configuration\Settings.xml" />
     <None Remove="Controls\AudioControlsControl.xaml" />
     <None Remove="Controls\BrightnessControlControl.xaml" />
     <None Remove="Controls\FanControlControl.xaml" />
@@ -46,6 +47,9 @@
     <None Remove="Tools\ryzenadj\WinRing0x64.sys" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Configuration\Settings.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="Tools\RTSSHooks.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

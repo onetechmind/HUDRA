@@ -145,6 +145,25 @@
                                 Glyph="&#xEC49;" />
                         </Button>
 
+                        <!--  Scaling Navigation Item  -->
+                        <Button
+                            x:Name="ScalingNavButton"
+                            Width="60"
+                            Height="60"
+                            HorizontalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Click="ScalingNavButton_Click"
+                            Style="{StaticResource NavigationButtonStyle}"
+                            ToolTipService.ToolTip="Scaling">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="25"
+                                Glyph="&#xE799;" />
+                        </Button>
+
                         <!--  Settings Navigation Item (Custom image)  -->
                         <Button
                             x:Name="SettingsNavButton"
@@ -227,7 +246,7 @@
             </Border>
 
             <!--  Content Area  -->
-            <Grid Grid.Column="1" Margin="0,0,0,0">
+            <Grid Grid.Column="1" Margin="0">
                 <ScrollViewer
                     x:Name="ContentScrollViewer"
                     Padding="0,10,0,10"

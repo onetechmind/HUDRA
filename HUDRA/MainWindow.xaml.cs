@@ -57,6 +57,7 @@ namespace HUDRA
         private MainPage? _mainPage;
         private SettingsPage? _settingsPage;
         private FanCurvePage? _fanCurvePage;
+        private ScalingPage? _scalingPage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -230,6 +231,21 @@ namespace HUDRA
                     }
                 });
             }
+            else if (pageType == typeof(ScalingPage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is ScalingPage scalingPage)
+                    {
+                        _scalingPage = scalingPage;
+                        InitializeScalingPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not ScalingPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
+                    }
+                });
+            }
         }
 
         private void InitializeMainPage()
@@ -350,11 +366,29 @@ namespace HUDRA
             }
         }
 
+        private void InitializeScalingPage()
+        {
+            if (_scalingPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== InitializeScalingPage called ===");
+
+            try
+            {
+                _scalingPage.Initialize();
+                System.Diagnostics.Debug.WriteLine("=== ScalingPage initialization complete ===");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeScalingPage: {ex.Message}");
+            }
+        }
+
         private void UpdateNavigationButtonStates()
         {
             // Update visual states of navigation buttons based on current page
             UpdateButtonState(MainPageNavButton, _currentPageType == typeof(MainPage));
             UpdateButtonState(FanCurveNavButton, _currentPageType == typeof(FanCurvePage));
+            UpdateButtonState(ScalingNavButton, _currentPageType == typeof(ScalingPage));
             UpdateButtonState(SettingsNavButton, _currentPageType == typeof(SettingsPage));
         }
 
@@ -391,6 +425,11 @@ namespace HUDRA
         private void FanCurveNavButton_Click(object sender, RoutedEventArgs e)
         {
             _navigationService.NavigateToFanCurve();
+        }
+
+        private void ScalingNavButton_Click(object sender, RoutedEventArgs e)
+        {
+            _navigationService.NavigateToScaling();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
