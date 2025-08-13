@@ -47,6 +47,10 @@ namespace HUDRA.Services
         private const string LS_FRAME_GEN_MULTIPLIER_KEY = "LSFrameGenMultiplier";
         private const string LS_FLOW_SCALE_KEY = "LSFlowScale";
 
+        // Hotkey settings keys
+        private const string HIDE_SHOW_HOTKEY_KEY = "HideShowHotkeyKey";
+        private const string HIDE_SHOW_HOTKEY_MODIFIERS = "HideShowHotkeyModifiers";
+
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "HUDRA",
@@ -708,6 +712,27 @@ namespace HUDRA.Services
                 SetIntegerSetting(LS_FRAME_GEN_MULTIPLIER_KEY, (int)settings.FrameGenMultiplier);
                 SetIntegerSetting(LS_FLOW_SCALE_KEY, settings.FlowScale);
             }
+        }
+
+        // Hotkey settings methods
+        public static string GetHideShowHotkeyKey()
+        {
+            return GetStringSetting(HIDE_SHOW_HOTKEY_KEY, ""); // Default to empty, will use fallback in TurboService
+        }
+
+        public static void SetHideShowHotkeyKey(string key)
+        {
+            SetStringSetting(HIDE_SHOW_HOTKEY_KEY, key);
+        }
+
+        public static string GetHideShowHotkeyModifiers()
+        {
+            return GetStringSetting(HIDE_SHOW_HOTKEY_MODIFIERS, "Win+Alt+Ctrl"); // Default to current combination
+        }
+
+        public static void SetHideShowHotkeyModifiers(string modifiers)
+        {
+            SetStringSetting(HIDE_SHOW_HOTKEY_MODIFIERS, modifiers);
         }
     }
 }

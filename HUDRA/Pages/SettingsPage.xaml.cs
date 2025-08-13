@@ -28,6 +28,7 @@ namespace HUDRA.Pages
             UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
             UpdateStartupTdpEnabledState();
             LoadStartupSettings();
+            LoadHotkeySettings();
             DiagnoseStartupTask();
         }
         private void LoadStartupSettings()
@@ -209,6 +210,74 @@ namespace HUDRA.Pages
             // Check admin status
             bool isAdmin = StartupService.IsRunningAsAdmin();
 
+        }
+
+        private void LoadHotkeySettings()
+        {
+            try
+            {
+                string modifiers = SettingsService.GetHideShowHotkeyModifiers();
+                string key = SettingsService.GetHideShowHotkeyKey();
+                
+                HideShowHotkeySelector.SetHotkey(modifiers, key);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading hotkey settings: {ex.Message}");
+            }
+        }
+
+        private void HideShowHotkeySelector_HotkeyChanged(object sender, HUDRA.Controls.HotkeyChangedEventArgs e)
+        {
+            try
+            {
+                // Save the new hotkey settings
+                SettingsService.SetHideShowHotkeyModifiers(e.Modifiers);
+                SettingsService.SetHideShowHotkeyKey(e.Key);
+                
+                System.Diagnostics.Debug.WriteLine($"⚙️ Hotkey updated: {e.Modifiers} + {e.Key}");
+
+                // Reload the hotkey configuration in TurboService
+                ReloadTurboServiceHotkey();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving hotkey settings: {ex.Message}");
+            }
+        }
+
+        private void ReloadTurboServiceHotkey()
+        {
+            try
+            {
+                // Get the MainWindow through the App instance  
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    // Access the TurboService via reflection since it's private
+                    var turboServiceField = typeof(MainWindow).GetField("_turboService", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    
+                    if (turboServiceField?.GetValue(mainWindow) is TurboService turboService)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚙️ Reloading TurboService hotkey configuration");
+                        turboService.ReloadHotkeyConfiguration();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚙️ TurboService not found or not initialized");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚙️ MainWindow not found");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reloading TurboService hotkey: {ex.Message}");
+            }
         }
     }
 }

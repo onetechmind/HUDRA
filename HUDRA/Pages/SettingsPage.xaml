@@ -145,6 +145,8 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="4*" />
@@ -218,6 +220,20 @@
                         Margin="0,5,0,15"
                         Style="{StaticResource SettingsDescriptionStyle}"
                         Text="Automatically start RivaTuner Statistics Server with HUDRA for FPS Limiting." />
+
+                    <!--  Hide/Show Hotkey  -->
+                    <TextBlock
+                        Grid.Row="7"
+                        Grid.Column="0"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="Hide/Show Hotkey" />
+
+                    <controls:HotkeySelector
+                        x:Name="HideShowHotkeySelector"
+                        Grid.Row="8"
+                        Grid.ColumnSpan="2"
+                        Margin="0,5,0,15"
+                        HotkeyChanged="HideShowHotkeySelector_HotkeyChanged" />
                 </Grid>
             </Border>
         </StackPanel>
