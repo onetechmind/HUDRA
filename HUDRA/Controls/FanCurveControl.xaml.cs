@@ -90,16 +90,24 @@ namespace HUDRA.Controls
                     System.Diagnostics.Debug.WriteLine($"  Point {i}: {point.Temperature:F1}°C → {point.FanSpeed:F1}%");
                 }
 
-                _fanControlService = new FanControlService(DispatcherQueue);
+                // Use the global FanControlService instance from App instead of creating a new one
+                _fanControlService = ((App)Application.Current).FanControlService;
+
+                if (_fanControlService == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("❌ Global FanControlService not available");
+                    return;
+                }
 
                 // ADD: Connect to global temperature monitoring
                 ConnectToGlobalTemperatureMonitoring();
 
-                // Initialize the service
-                var result = await _fanControlService.InitializeAsync();
+                // The service should already be initialized by App.xaml.cs, but check status
+                bool serviceReady = _fanControlService.IsDeviceAvailable;
 
-                if (result.Success)
+                if (serviceReady)
                 {
+                    System.Diagnostics.Debug.WriteLine($"✅ Using global FanControlService with device: {_fanControlService.DeviceInfo}");
 
                     // Set up canvas rendering
                     SetupCanvas();
@@ -156,7 +164,40 @@ namespace HUDRA.Controls
                 }
                 else
                 {
-                    FanCurveToggle.IsEnabled = false; // CHANGED: Use FanCurveToggle
+                    // Try to reinitialize the service
+                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Normal, async () =>
+                    {
+                        await Task.Delay(1000); // Wait a bit longer
+                        
+                        var reinitResult = await _fanControlService.InitializeAsync();
+                        
+                        if (reinitResult.Success)
+                        {
+                            // Enable the toggle and set up UI
+                            _isUpdatingControls = true;
+                            FanCurveToggle.IsEnabled = true;
+                            FanCurveToggle.IsOn = _currentCurve.IsEnabled;
+                            
+                            SetupCanvas();
+                            RenderCurveCanvas();
+                            InitializePresetButtons();
+                            DetectActivePreset();
+                            UpdateTemperatureMonitoringState();
+                            
+                            CurvePanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+                            TemperatureStatusPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+                            PresetButtonsPanel.Visibility = _currentCurve.IsEnabled ? Visibility.Visible : Visibility.Collapsed;
+                            _isUpdatingControls = false;
+                            
+                            UpdateStatusText();
+                            FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
+                                _currentCurve, $"Fan control ready: {_fanControlService.DeviceInfo}"));
+                        }
+                        else
+                        {
+                            FanCurveToggle.IsEnabled = false;
+                        }
+                    });
                 }
 
                 _isInitialized = true;
@@ -165,7 +206,7 @@ namespace HUDRA.Controls
                 UpdateStatusText();
                 
                 FanCurveChanged?.Invoke(this, new FanCurveChangedEventArgs(
-                    _currentCurve, result.Message));
+                    _currentCurve, $"Fan control ready: {_fanControlService.DeviceInfo}"));
             }
             catch (Exception ex)
             {

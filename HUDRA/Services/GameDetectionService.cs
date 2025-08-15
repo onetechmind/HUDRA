@@ -103,7 +103,7 @@ namespace HUDRA.Services
             "applemobiledeviceprocess", "itunes", "microsoftedge", "microsoftedgecp", "microsoftedgewebview2",
     
             // System
-            "explorer", "dwm", "taskmgr", "svchost", "hudra",
+            "explorer", "dwm", "taskmgr", "svchost", "hudra", "searchhost", "search host",
             "windowspackagemanagerserver", "winget", "msixvc", "packagemanager"
         };
 

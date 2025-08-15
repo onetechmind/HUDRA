@@ -5,13 +5,12 @@ using System.Management;
 
 namespace HUDRA.Services.FanControl.Devices
 {
-    public class GPDDevice : ECCommunicationBase, IFanControlDevice
+    public class GPDDevice : FanControlDeviceBase
     {
-        public string ManufacturerName => "GPD";
-        public string DeviceName => "Win 4 Series";
-        public bool IsInitialized { get; private set; }
+        public override string ManufacturerName => "GPD";
+        public override string DeviceName => "Win 4 Series";
 
-        public ECRegisterMap RegisterMap { get; } = new ECRegisterMap
+        public override ECRegisterMap RegisterMap { get; } = new ECRegisterMap
         {
             FanControlAddress = 0x275,
             FanDutyAddress = 0x1809,
@@ -33,7 +32,7 @@ namespace HUDRA.Services.FanControl.Devices
             }
         };
 
-        public DeviceCapabilities Capabilities { get; } = new DeviceCapabilities
+        public override DeviceCapabilities Capabilities { get; } = new DeviceCapabilities
         {
             SupportedFeatures = new HashSet<FanControlCapability>
             {
@@ -45,33 +44,7 @@ namespace HUDRA.Services.FanControl.Devices
             SupportedModels = new[] { "G1618-04", "GPD WIN 4", "WIN 4" }
         };
 
-        private FanControlMode _currentMode = FanControlMode.Hardware;
-
-        public bool Initialize()
-        {
-            try
-            {
-
-                if (!InitializeEC())
-                {
-                    return false;
-                }
-
-                if (!IsDeviceSupported())
-                {
-                    return false;
-                }
-
-                IsInitialized = true;
-                return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        public bool IsDeviceSupported()
+        public override bool IsDeviceSupported()
         {
             try
             {
@@ -79,7 +52,6 @@ namespace HUDRA.Services.FanControl.Devices
                 string? model = GetSystemInfo("Model");
                 string? systemFamily = GetSystemInfo("SystemFamily");
                 string? version = GetSystemInfo("Version");
-
 
                 // Check for GPD manufacturer
                 bool manufacturerMatch = manufacturer?.Contains("GPD", StringComparison.OrdinalIgnoreCase) == true;
@@ -130,119 +102,6 @@ namespace HUDRA.Services.FanControl.Devices
             catch (Exception)
             {
                 return false;
-            }
-        }
-
-        public bool SetFanControl(FanControlMode mode)
-        {
-            if (!IsInitialized || !IsOpen)
-                return false;
-
-            try
-            {
-                byte controlValue = mode switch
-                {
-                    FanControlMode.Software => 1,
-                    FanControlMode.Hardware => 0,
-                    _ => 0
-                };
-
-                bool success = WriteECRegister(RegisterMap.FanControlAddress, RegisterMap, controlValue);
-
-                if (success)
-                {
-                    _currentMode = mode;
-                }
-
-                return success;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        public bool SetFanDuty(double percent)
-        {
-            if (!IsInitialized || !IsOpen)
-                return false;
-
-            try
-            {
-                if (_currentMode != FanControlMode.Software)
-                {
-                    if (!SetFanControl(FanControlMode.Software))
-                        return false;
-                }
-
-                percent = Math.Clamp(percent, 0.0, 100.0);
-                byte dutyValue = PercentageToDuty(percent, RegisterMap.FanValueMin, RegisterMap.FanValueMax);
-
-                bool success = WriteECRegister(RegisterMap.FanDutyAddress, RegisterMap, dutyValue);
-
-                return success;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
-
-        public FanStatus GetFanStatus()
-        {
-            var status = new FanStatus();
-
-            if (!IsInitialized || !IsOpen)
-                return status;
-
-            try
-            {
-                if (ReadECRegister(RegisterMap.FanControlAddress, RegisterMap, out byte controlValue))
-                {
-                    status.IsControlEnabled = controlValue != 0;
-                }
-
-                if (ReadECRegister(RegisterMap.FanDutyAddress, RegisterMap, out byte dutyValue))
-                {
-                    status.CurrentDutyPercent = DutyToPercentage(dutyValue, RegisterMap.FanValueMin, RegisterMap.FanValueMax);
-                }
-
-                status.LastUpdated = DateTime.Now;
-                return status;
-            }
-            catch (Exception)
-            {
-                return status;
-            }
-        }
-
-        private static string? GetSystemInfo(string property)
-        {
-            try
-            {
-                using var searcher = new ManagementObjectSearcher($"SELECT {property} FROM Win32_ComputerSystem");
-                using var collection = searcher.Get();
-                var result = collection.Cast<ManagementObject>().FirstOrDefault();
-                return result?[property]?.ToString();
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static string? GetProcessorInfo()
-        {
-            try
-            {
-                using var searcher = new ManagementObjectSearcher("SELECT Name FROM Win32_Processor");
-                using var collection = searcher.Get();
-                var result = collection.Cast<ManagementObject>().FirstOrDefault();
-                return result?["Name"]?.ToString();
-            }
-            catch
-            {
-                return null;
             }
         }
     }

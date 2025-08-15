@@ -40,23 +40,34 @@ namespace HUDRA
             TemperatureMonitor = new TemperatureMonitorService(MainWindow.DispatcherQueue);
             FanControlService = new FanControlService(MainWindow.DispatcherQueue);
 
-            // Enable fan control if fan curve is enabled in settings
+            // CRITICAL: Initialize the FanControlService
             try
             {
-                var fanCurve = SettingsService.GetFanCurve();
-                if (fanCurve.IsEnabled)
+                var initResult = await FanControlService.InitializeAsync();
+                System.Diagnostics.Debug.WriteLine($"Fan control initialization: {initResult.Message}");
+
+                // Enable fan control if fan curve is enabled in settings AND service initialized successfully
+                if (initResult.Success)
                 {
-                    FanControlService.EnableTemperatureControl(TemperatureMonitor);
-                    System.Diagnostics.Debug.WriteLine("🌡️ Global fan control service enabled at startup");
+                    var fanCurve = SettingsService.GetFanCurve();
+                    if (fanCurve.IsEnabled)
+                    {
+                        FanControlService.EnableTemperatureControl(TemperatureMonitor);
+                        System.Diagnostics.Debug.WriteLine("🌡️ Global fan control service enabled at startup");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("🌡️ Fan curve disabled - no automatic fan control");
+                    }
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("🌡️ Fan curve disabled - no automatic fan control");
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Fan control not available: {initResult.Message}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"⚠️ Fan control initialization warning: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"⚠️ Fan control initialization error: {ex.Message}");
                 // Continue app startup even if fan control fails
             }
 

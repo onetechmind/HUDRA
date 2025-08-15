@@ -9,7 +9,8 @@ namespace HUDRA.Services.FanControl
     {
         private static readonly List<Type> SupportedDeviceTypes = new()
         {
-            typeof(OneXPlayerX1Device),
+            typeof(OneXFlyF1Device),    // Check F1 series first (more specific)
+            typeof(OneXPlayerX1Device), // Then check X1 series
             typeof(GPDDevice)
         };
 
