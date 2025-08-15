@@ -12,6 +12,7 @@ namespace HUDRA
         public TdpMonitorService? TdpMonitor { get; private set; }
         public TemperatureMonitorService? TemperatureMonitor { get; private set; }
         public FanControlService? FanControlService { get; private set; }
+        public TurboService? TurboService { get; private set; }
         public MainWindow? MainWindow { get; private set; }
 
         // Track if we've already applied startup TDP during minimized launch
@@ -59,10 +60,38 @@ namespace HUDRA
                     {
                         System.Diagnostics.Debug.WriteLine("🌡️ Fan curve disabled - no automatic fan control");
                     }
+                    
+                    // Initialize TurboService with detected device after FanControlService completes
+                    try
+                    {
+                        TurboService = new TurboService(FanControlService.DetectedDevice);
+                        System.Diagnostics.Debug.WriteLine("🎮 TurboService initialized successfully");
+                        
+                        // Connect MainWindow to TurboService now that it's ready
+                        MainWindow?.ConnectTurboService();
+                    }
+                    catch (Exception turboEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ TurboService initialization failed: {turboEx.Message}");
+                    }
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠️ Fan control not available: {initResult.Message}");
+                    
+                    // Still try to initialize TurboService without device for software hotkeys
+                    try
+                    {
+                        TurboService = new TurboService(null);
+                        System.Diagnostics.Debug.WriteLine("🎮 TurboService initialized in fallback mode (software hotkeys only)");
+                        
+                        // Connect MainWindow to TurboService for software hotkeys
+                        MainWindow?.ConnectTurboService();
+                    }
+                    catch (Exception turboEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ TurboService fallback initialization failed: {turboEx.Message}");
+                    }
                 }
             }
             catch (Exception ex)
@@ -206,6 +235,7 @@ namespace HUDRA
                 TdpMonitor?.Dispose();
                 TemperatureMonitor?.Dispose();
                 FanControlService?.Dispose();
+                TurboService?.Dispose();
             }
             catch (Exception ex)
             {

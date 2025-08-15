@@ -147,6 +147,7 @@ namespace HUDRA.Services.FanControl
         DeviceCapabilities Capabilities { get; }
         ECRegisterMap RegisterMap { get; }
         bool IsInitialized { get; }
+        uint? TurboButtonECAddress { get; }
 
         bool Initialize();
         bool SetFanControl(FanControlMode mode);

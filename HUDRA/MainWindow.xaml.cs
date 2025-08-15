@@ -162,7 +162,6 @@ namespace HUDRA
             InitializeWindow();
             SetupEventHandlers();
             SetupDragHandling();
-            SetupTurboService();
 
             _navigationService.NavigateToMain();
 
@@ -585,15 +584,26 @@ namespace HUDRA
             }
         }
 
-        private void SetupTurboService()
+        public void ConnectTurboService()
         {
             try
             {
-                _turboService = new TurboService();
-                _turboService.TurboButtonPressed += (s, e) =>
+                // Get the global TurboService instance from App
+                var app = (App)Application.Current;
+                _turboService = app.TurboService;
+                
+                if (_turboService != null)
                 {
-                    DispatcherQueue.TryEnqueue(() => _windowManager.ToggleVisibility());
-                };
+                    _turboService.TurboButtonPressed += (s, e) =>
+                    {
+                        DispatcherQueue.TryEnqueue(() => _windowManager.ToggleVisibility());
+                    };
+                    System.Diagnostics.Debug.WriteLine("TurboService connected to MainWindow successfully");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("⚠️ TurboService not available from App");
+                }
             }
             catch (Exception ex)
             {

@@ -46,6 +46,8 @@ namespace HUDRA.Services.FanControl.Devices
             SupportedModels = new[] { "ONEXPLAYER X1", "ONEXPLAYER X1 MINI", "ONEXPLAYER X1 PRO" }
         };
 
+        public override uint? TurboButtonECAddress => 0x4EB;
+
         public override bool IsDeviceSupported()
         {
             try
@@ -128,6 +130,8 @@ namespace HUDRA.Services.FanControl.Devices
             SupportsAutoDetection = true,
             SupportedModels = new[] { "ONEXPLAYER F1", "ONEXPLAYER F1Pro", "OneXFly F1", "OneXFly F1 Pro" }
         };
+
+        public override uint? TurboButtonECAddress => 0x4F1;
 
         public override bool IsDeviceSupported()
         {

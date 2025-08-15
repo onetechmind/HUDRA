@@ -12,6 +12,8 @@ namespace HUDRA.Services.FanControl
         public abstract ECRegisterMap RegisterMap { get; }
         public abstract DeviceCapabilities Capabilities { get; }
         
+        public virtual uint? TurboButtonECAddress => null;
+        
         public bool IsInitialized { get; protected set; }
 
         private FanControlMode _currentMode = FanControlMode.Hardware;

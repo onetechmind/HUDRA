@@ -25,6 +25,7 @@ namespace HUDRA.Services
 
         public bool IsDeviceAvailable => _device?.IsInitialized == true;
         public string DeviceInfo => _device != null ? $"{_device.ManufacturerName} {_device.DeviceName}" : "No device";
+        public IFanControlDevice? DetectedDevice => _device;
         public FanControlMode CurrentMode { get; private set; } = FanControlMode.Hardware;
         public double CurrentFanSpeed { get; private set; } = 0.0;
 

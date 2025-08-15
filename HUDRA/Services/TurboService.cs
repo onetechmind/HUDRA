@@ -1,4 +1,5 @@
 using Gma.System.MouseKeyHook;
+using HUDRA.Services.FanControl;
 using OpenLibSys;
 using System;
 using System.Collections.Generic;
@@ -16,25 +17,57 @@ namespace HUDRA.Services
         private readonly IKeyboardMouseEvents _hook;
         private readonly HashSet<Keys> _pressed = new();
         private readonly OpenLibSys.Ols _ec;
+        private readonly IFanControlDevice? _device;
 
         // Dynamic hotkey configuration
         private HashSet<Keys> _requiredKeys = new();
         private Keys _mainKey = Keys.None;
 
         public event EventHandler? TurboButtonPressed;
-        public TurboService()
+        
+        public TurboService() : this(null)
         {
+        }
+
+        public TurboService(IFanControlDevice? device)
+        {
+            _device = device;
+            
             try
             {
-                byte addr_upper = (byte)((0x4EB >> 8) & byte.MaxValue);
-                byte addr_lower = (byte)(0x4EB & byte.MaxValue);
-
                 _ec = new Ols();
 
                 if (_ec.GetStatus() != (uint)Ols.Status.NO_ERROR)
                 {
                     throw new InvalidOperationException("Failed to initialize OpenLibSys");
                 }
+
+                // Initialize turbo button if device supports it
+                if (_device?.TurboButtonECAddress.HasValue == true)
+                {
+                    InitializeTurboButton(_device.TurboButtonECAddress.Value);
+                }
+
+                // Load hotkey configuration from settings
+                LoadHotkeyConfiguration();
+
+                _hook = Hook.GlobalEvents();
+                _hook.KeyDown += OnKeyDown;
+                _hook.KeyUp += OnKeyUp;
+            }
+            catch (Exception ex)
+            {
+                Dispose(); // Clean up on failure
+                throw;
+            }
+        }
+
+        private void InitializeTurboButton(uint ecAddress)
+        {
+            try
+            {
+                byte addr_upper = (byte)((ecAddress >> 8) & byte.MaxValue);
+                byte addr_lower = (byte)(ecAddress & byte.MaxValue);
 
                 _ec.WriteIoPortByte(0x4E, 0x2E);
                 _ec.WriteIoPortByte(0x4F, 0x11);
@@ -49,16 +82,11 @@ namespace HUDRA.Services
                 _ec.WriteIoPortByte(0x4E, 0x2F);
                 _ec.WriteIoPortByte(0x4F, 0x40);
 
-                // Load hotkey configuration from settings
-                LoadHotkeyConfiguration();
-
-                _hook = Hook.GlobalEvents();
-                _hook.KeyDown += OnKeyDown;
-                _hook.KeyUp += OnKeyUp;
+                System.Diagnostics.Debug.WriteLine($"🎮 Turbo button initialized for device with EC address: 0x{ecAddress:X}");
             }
             catch (Exception ex)
             {
-                Dispose(); // Clean up on failure
+                System.Diagnostics.Debug.WriteLine($"⚠️ Failed to initialize turbo button for EC address 0x{ecAddress:X}: {ex.Message}");
                 throw;
             }
         }
