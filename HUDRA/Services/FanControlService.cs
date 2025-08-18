@@ -184,6 +184,56 @@ namespace HUDRA.Services
             }
         }
 
+        public async Task<(bool Success, string Message)> ReinitializeAfterResumeAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ Reinitializing FanControlService after hibernation resume...");
+
+                // Stop status monitoring temporarily
+                _statusTimer?.Dispose();
+                _statusTimer = null;
+
+                // Dispose the existing device
+                _device?.Dispose();
+                _device = null;
+
+                // Reset state
+                _isInitialized = false;
+                CurrentMode = FanControlMode.Hardware;
+                CurrentFanSpeed = 0.0;
+
+                // Re-detect and initialize device
+                var initResult = await InitializeAsync();
+                
+                if (initResult.Success)
+                {
+                    // Re-enable temperature control if it was previously enabled
+                    if (_temperatureControlEnabled && _temperatureMonitor != null)
+                    {
+                        EnableTemperatureControl(_temperatureMonitor);
+                        System.Diagnostics.Debug.WriteLine("🌡️ Temperature-based fan control re-enabled after hibernation resume");
+                    }
+
+                    var successMessage = "FanControlService successfully reinitialized after hibernation resume";
+                    System.Diagnostics.Debug.WriteLine($"⚡ {successMessage}");
+                    return (true, successMessage);
+                }
+                else
+                {
+                    var errorMessage = $"Failed to reinitialize FanControlService: {initResult.Message}";
+                    System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                    return (false, errorMessage);
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Exception during FanControlService reinitialization: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                return (false, errorMessage);
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed)

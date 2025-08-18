@@ -414,6 +414,52 @@ namespace HUDRA.Services
             }
         }
 
+        public (bool Success, string Message) ReinitializeAfterResume()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ Reinitializing TDPService after hibernation resume...");
+
+                // Clean up existing handles first
+                if (_libHandle != IntPtr.Zero)
+                {
+                    FreeLibrary(_libHandle);
+                    _libHandle = IntPtr.Zero;
+                }
+                _ryzenAdjHandle = IntPtr.Zero;
+
+                // Reset state
+                _useDllMode = false;
+                _initializationStatus = "Reinitializing after resume";
+
+                // Clear all function delegates
+                _initRyzenAdj = null;
+                _setStapmLimit = null;
+                _setFastLimit = null;
+                _setSlowLimit = null;
+                _refreshTable = null;
+                _getStapmLimit = null;
+                _getStapmValue = null;
+
+                // Re-initialize DLL mode
+                InitializeDllMode();
+
+                var success = _useDllMode && _ryzenAdjHandle != IntPtr.Zero;
+                var message = success 
+                    ? "TDPService successfully reinitialized after hibernation resume"
+                    : "TDPService reinitialization failed - falling back to EXE mode";
+
+                System.Diagnostics.Debug.WriteLine($"⚡ {message}");
+                return (success, message);
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Exception during TDPService reinitialization: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                return (false, errorMessage);
+            }
+        }
+
         public void Dispose()
         {
             if (!_disposed)

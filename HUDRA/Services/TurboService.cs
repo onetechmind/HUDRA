@@ -16,7 +16,7 @@ namespace HUDRA.Services
     {
         private readonly IKeyboardMouseEvents _hook;
         private readonly HashSet<Keys> _pressed = new();
-        private readonly OpenLibSys.Ols _ec;
+        private OpenLibSys.Ols? _ec;
         private readonly IFanControlDevice? _device;
 
         // Dynamic hotkey configuration
@@ -62,25 +62,31 @@ namespace HUDRA.Services
             }
         }
 
-        private void InitializeTurboButton(uint ecAddress)
+        private void InitializeTurboButton(uint ecAddress, Ols? ec = null)
         {
             try
             {
+                var ecToUse = ec ?? _ec;
+                if (ecToUse == null)
+                {
+                    throw new InvalidOperationException("No EC connection available");
+                }
+
                 byte addr_upper = (byte)((ecAddress >> 8) & byte.MaxValue);
                 byte addr_lower = (byte)(ecAddress & byte.MaxValue);
 
-                _ec.WriteIoPortByte(0x4E, 0x2E);
-                _ec.WriteIoPortByte(0x4F, 0x11);
-                _ec.WriteIoPortByte(0x4E, 0x2F);
-                _ec.WriteIoPortByte(0x4F, addr_upper);
-                _ec.WriteIoPortByte(0x4E, 0x2E);
-                _ec.WriteIoPortByte(0x4F, 0x10);
-                _ec.WriteIoPortByte(0x4E, 0x2F);
-                _ec.WriteIoPortByte(0x4F, addr_lower);
-                _ec.WriteIoPortByte(0x4E, 0x2E);
-                _ec.WriteIoPortByte(0x4F, 0x12);
-                _ec.WriteIoPortByte(0x4E, 0x2F);
-                _ec.WriteIoPortByte(0x4F, 0x40);
+                ecToUse.WriteIoPortByte(0x4E, 0x2E);
+                ecToUse.WriteIoPortByte(0x4F, 0x11);
+                ecToUse.WriteIoPortByte(0x4E, 0x2F);
+                ecToUse.WriteIoPortByte(0x4F, addr_upper);
+                ecToUse.WriteIoPortByte(0x4E, 0x2E);
+                ecToUse.WriteIoPortByte(0x4F, 0x10);
+                ecToUse.WriteIoPortByte(0x4E, 0x2F);
+                ecToUse.WriteIoPortByte(0x4F, addr_lower);
+                ecToUse.WriteIoPortByte(0x4E, 0x2E);
+                ecToUse.WriteIoPortByte(0x4F, 0x12);
+                ecToUse.WriteIoPortByte(0x4E, 0x2F);
+                ecToUse.WriteIoPortByte(0x4F, 0x40);
 
                 System.Diagnostics.Debug.WriteLine($"🎮 Turbo button initialized for device with EC address: 0x{ecAddress:X}");
             }
@@ -231,6 +237,59 @@ namespace HUDRA.Services
                     (Keys)Enum.Parse(typeof(Keys), keyString.ToUpper()),
                 _ => Keys.None
             };
+        }
+
+        public (bool Success, string Message) ReinitializeAfterResume()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ Reinitializing TurboService after hibernation resume...");
+
+                // Dispose the existing EC connection
+                _ec?.Dispose();
+                _ec = null;
+
+                // Re-create the OpenLibSys connection
+                _ec = new Ols();
+                if (_ec.GetStatus() != (uint)Ols.Status.NO_ERROR)
+                {
+                    _ec.Dispose();
+                    _ec = null;
+                    var errorMessage = "Failed to reinitialize OpenLibSys for turbo button";
+                    System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                    return (false, errorMessage);
+                }
+
+                // Re-initialize turbo button if device supports it
+                if (_device?.TurboButtonECAddress.HasValue == true)
+                {
+                    try
+                    {
+                        InitializeTurboButton(_device.TurboButtonECAddress.Value);
+                        var successMessage = "TurboService successfully reinitialized after hibernation resume";
+                        System.Diagnostics.Debug.WriteLine($"⚡ {successMessage}");
+                        return (true, successMessage);
+                    }
+                    catch (Exception turboEx)
+                    {
+                        var errorMessage = $"Failed to reinitialize turbo button: {turboEx.Message}";
+                        System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                        return (false, errorMessage);
+                    }
+                }
+                else
+                {
+                    var message = "TurboService reinitialized - no turbo button device configured";
+                    System.Diagnostics.Debug.WriteLine($"⚡ {message}");
+                    return (true, message);
+                }
+            }
+            catch (Exception ex)
+            {
+                var errorMessage = $"Exception during TurboService reinitialization: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
+                return (false, errorMessage);
+            }
         }
 
         public void Dispose()

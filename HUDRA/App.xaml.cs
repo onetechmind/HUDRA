@@ -2,6 +2,7 @@
 using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace HUDRA
@@ -9,6 +10,10 @@ namespace HUDRA
     public partial class App : Application
     {
         private TrayIconService? _trayIcon;
+        private PowerEventService? _powerEventService;
+        private readonly object _reinitializationLock = new object();
+        private bool _isReinitializing = false;
+        
         public TdpMonitorService? TdpMonitor { get; private set; }
         public TemperatureMonitorService? TemperatureMonitor { get; private set; }
         public FanControlService? FanControlService { get; private set; }
@@ -151,6 +156,9 @@ namespace HUDRA
                 // Window is visible, so set the state accordingly
                 MainWindow.WindowManager.SetInitialVisibilityState(true);
             }
+
+            // Initialize power event service for hibernation resume detection
+            InitializePowerEventService();
         }
         private void ApplyStartupTdp()
         {
@@ -222,6 +230,142 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine($"⚠️ Error in startup TDP application: {ex.Message}");
             }
         }
+
+        private void InitializePowerEventService()
+        {
+            try
+            {
+                if (MainWindow == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("⚠️ Cannot initialize PowerEventService - MainWindow is null");
+                    return;
+                }
+
+                _powerEventService = new PowerEventService(MainWindow, MainWindow.DispatcherQueue);
+                _powerEventService.HibernationResumeDetected += OnHibernationResumeDetected;
+
+                System.Diagnostics.Debug.WriteLine("⚡ PowerEventService initialized successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Failed to initialize PowerEventService: {ex.Message}");
+            }
+        }
+
+        private async void OnHibernationResumeDetected(object? sender, EventArgs e)
+        {
+            // Use lock to prevent concurrent reinitialization
+            lock (_reinitializationLock)
+            {
+                if (_isReinitializing)
+                {
+                    System.Diagnostics.Debug.WriteLine("⚡ Hibernation resume already in progress - ignoring duplicate event");
+                    return;
+                }
+                _isReinitializing = true;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ Hibernation resume detected - reinitializing services...");
+
+                // Delay briefly to allow Windows to stabilize after resume
+                await Task.Delay(2000);
+
+                var reinitTasks = new List<Task>();
+
+                // Reinitialize hardware-dependent services
+                if (TurboService != null)
+                {
+                    reinitTasks.Add(Task.Run(() =>
+                    {
+                        var result = TurboService.ReinitializeAfterResume();
+                        System.Diagnostics.Debug.WriteLine($"⚡ TurboService reinitialization: {result.Message}");
+                    }));
+                }
+
+                if (FanControlService != null)
+                {
+                    reinitTasks.Add(Task.Run(async () =>
+                    {
+                        var result = await FanControlService.ReinitializeAfterResumeAsync();
+                        System.Diagnostics.Debug.WriteLine($"⚡ FanControlService reinitialization: {result.Message}");
+                    }));
+                }
+
+                // Wait for all reinitializations to complete
+                await Task.WhenAll(reinitTasks);
+
+                // Reinitialize TDP and apply last used settings
+                await ReinitializeTdpAfterResume();
+
+                // Handle UI refresh in MainWindow
+                MainWindow?.HandleHibernationResume();
+
+                System.Diagnostics.Debug.WriteLine("⚡ All services reinitialized after hibernation resume");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Error during hibernation resume handling: {ex.Message}");
+            }
+            finally
+            {
+                lock (_reinitializationLock)
+                {
+                    _isReinitializing = false;
+                }
+                System.Diagnostics.Debug.WriteLine("⚡ Hibernation resume reinitialization completed");
+            }
+        }
+
+        private async Task ReinitializeTdpAfterResume()
+        {
+            try
+            {
+                // Create a new TDPService instance for reinitialization
+                using var tdpService = new TDPService();
+                var reinitResult = tdpService.ReinitializeAfterResume();
+                
+                if (reinitResult.Success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚡ TDPService reinitialization: {reinitResult.Message}");
+
+                    // Get the last used TDP and re-apply it
+                    int lastUsedTdp = SettingsService.GetLastUsedTdp();
+                    
+                    // Validate the TDP value
+                    if (lastUsedTdp >= HudraSettings.MIN_TDP && lastUsedTdp <= HudraSettings.MAX_TDP)
+                    {
+                        var setResult = tdpService.SetTdp(lastUsedTdp * 1000); // Convert to milliwatts
+                        
+                        if (setResult.Success)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"⚡ Successfully re-applied last used TDP: {lastUsedTdp}W");
+                            
+                            // Update TDP monitor target
+                            TdpMonitor?.UpdateTargetTdp(lastUsedTdp);
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine($"⚠️ Failed to re-apply TDP: {setResult.Message}");
+                        }
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Invalid last used TDP value: {lastUsedTdp}W");
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ TDPService reinitialization failed: {reinitResult.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Error reinitializing TDP after resume: {ex.Message}");
+            }
+        }
+
         private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
             System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
@@ -232,6 +376,7 @@ namespace HUDRA
             try
             {
                 _trayIcon?.Dispose();
+                _powerEventService?.Dispose();
                 TdpMonitor?.Dispose();
                 TemperatureMonitor?.Dispose();
                 FanControlService?.Dispose();

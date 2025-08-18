@@ -815,6 +815,38 @@ namespace HUDRA
 
         public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
 
+        public void HandleHibernationResume()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("⚡ MainWindow handling hibernation resume...");
+
+                // Refresh the TDP picker UI to reflect current values
+                if (_mainPage?.TdpPicker != null)
+                {
+                    // Get the current TDP value from settings and ensure the UI reflects it
+                    var currentTdp = SettingsService.GetLastUsedTdp();
+                    if (currentTdp >= HudraSettings.MIN_TDP && currentTdp <= HudraSettings.MAX_TDP)
+                    {
+                        DispatcherQueue.TryEnqueue(() =>
+                        {
+                            _currentTdpValue = currentTdp;
+                            _mainPage.TdpPicker.SelectedTdp = currentTdp;
+                            System.Diagnostics.Debug.WriteLine($"⚡ Updated TDP picker UI to {currentTdp}W after hibernation resume");
+                        });
+                    }
+                }
+
+                // UI will automatically refresh through existing update mechanisms
+
+                System.Diagnostics.Debug.WriteLine("⚡ MainWindow hibernation resume handling completed");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Error in MainWindow hibernation resume handling: {ex.Message}");
+            }
+        }
+
         // Power Profile Methods
         private async Task LoadPowerProfilesAsync()
         {
