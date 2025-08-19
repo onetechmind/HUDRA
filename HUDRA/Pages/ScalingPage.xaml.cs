@@ -61,6 +61,7 @@ namespace HUDRA.Pages
         private string _statusMessage = "Processing...";
         private string _optimalGameResolution = "1280×720";
         private string _nativeResolution = "1920×1080";
+        private bool _losslessScalingSectionExpanded = true;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -180,6 +181,19 @@ namespace HUDRA.Pages
 
         public RelayCommand ApplySettingsCommand { get; }
         public RelayCommand ResetSettingsCommand { get; }
+
+        public bool LosslessScalingSectionExpanded
+        {
+            get => _losslessScalingSectionExpanded;
+            set
+            {
+                if (_losslessScalingSectionExpanded != value)
+                {
+                    _losslessScalingSectionExpanded = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public void Initialize()
         {
