@@ -51,6 +51,10 @@ namespace HUDRA.Services
         private const string HIDE_SHOW_HOTKEY_KEY = "HideShowHotkeyKey";
         private const string HIDE_SHOW_HOTKEY_MODIFIERS = "HideShowHotkeyModifiers";
 
+        // Enhanced game detection keys
+        private const string ENHANCED_LIBRARY_SCANNING_KEY = "EnhancedLibraryScanningEnabled";
+        private const string GAME_DATABASE_REFRESH_INTERVAL_KEY = "GameDatabaseRefreshInterval";
+
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "HUDRA",
@@ -733,6 +737,29 @@ namespace HUDRA.Services
         public static void SetHideShowHotkeyModifiers(string modifiers)
         {
             SetStringSetting(HIDE_SHOW_HOTKEY_MODIFIERS, modifiers);
+        }
+
+        // Enhanced game detection settings methods
+        public static bool IsEnhancedLibraryScanningEnabled()
+        {
+            return GetBooleanSetting(ENHANCED_LIBRARY_SCANNING_KEY, true); // Default to enabled
+        }
+
+        public static void SetEnhancedLibraryScanningEnabled(bool enabled)
+        {
+            SetBooleanSetting(ENHANCED_LIBRARY_SCANNING_KEY, enabled);
+        }
+
+        public static int GetGameDatabaseRefreshInterval()
+        {
+            return GetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, 15); // Default to 15 minutes
+        }
+
+        public static void SetGameDatabaseRefreshInterval(int minutes)
+        {
+            // Clamp to valid range (5-60 minutes)
+            int clampedValue = Math.Max(5, Math.Min(60, minutes));
+            SetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, clampedValue);
         }
     }
 }

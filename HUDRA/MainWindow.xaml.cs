@@ -40,7 +40,7 @@ namespace HUDRA
         private TurboService? _turboService;
         private MicaController? _micaController;
         private SystemBackdropConfiguration? _backdropConfig;
-        private GameDetectionService? _gameDetectionService;
+        private EnhancedGameDetectionService? _enhancedGameDetectionService;
         private LosslessScalingService? _losslessScalingService;
 
 
@@ -91,6 +91,21 @@ namespace HUDRA
         {
             get => _batteryTextBrush;
             set { _batteryTextBrush = value; OnPropertyChanged(); }
+        }
+
+        // Game library scanning progress properties
+        private bool _isGameLibraryScanning = false;
+        public bool IsGameLibraryScanning
+        {
+            get => _isGameLibraryScanning;
+            set { _isGameLibraryScanning = value; OnPropertyChanged(); }
+        }
+
+        private string _scanProgressText = string.Empty;
+        public string ScanProgressText
+        {
+            get => _scanProgressText;
+            set { _scanProgressText = value; OnPropertyChanged(); }
         }
 
         // Power Profile properties
@@ -446,7 +461,7 @@ namespace HUDRA
         {
             _windowManager.ToggleVisibility();
 
-            if (_gameDetectionService?.SwitchToGame() == true)
+            if (_enhancedGameDetectionService?.SwitchToGame() == true)
             {
                 System.Diagnostics.Debug.WriteLine("Successfully switched to game");
             }
@@ -459,7 +474,7 @@ namespace HUDRA
 
         private async void LosslessScalingButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_losslessScalingService == null || _gameDetectionService == null)
+            if (_losslessScalingService == null || _enhancedGameDetectionService == null)
                 return;
 
             try
@@ -468,7 +483,7 @@ namespace HUDRA
                 _windowManager.ToggleVisibility();
 
                 // 2. Switch to game
-                if (_gameDetectionService.SwitchToGame() != true)
+                if (_enhancedGameDetectionService.SwitchToGame() != true)
                 {
                     // Game switching failed - show error and abort
                     System.Diagnostics.Debug.WriteLine("Game switching failed - aborting Lossless Scaling activation");
@@ -808,7 +823,7 @@ namespace HUDRA
             _tdpMonitor?.Dispose();
             _batteryService?.Dispose();
             _navigationService?.Dispose();
-            _gameDetectionService?.Dispose();
+            _enhancedGameDetectionService?.Dispose();
             _losslessScalingService?.Dispose();
             _powerProfileService?.Dispose();
         }
@@ -867,10 +882,10 @@ namespace HUDRA
                     _settingsPage.PowerProfileControl.PowerProfileChanged += OnPowerProfileControlChanged;
                 }
 
-                // Initialize intelligent power switching with game detection service
-                if (_gameDetectionService != null)
+                // Initialize intelligent power switching with enhanced game detection service
+                if (_enhancedGameDetectionService != null)
                 {
-                    _powerProfileService.InitializeIntelligentSwitching(_gameDetectionService);
+                    _powerProfileService.InitializeIntelligentSwitching(_enhancedGameDetectionService);
                 }
             }
             catch (Exception ex)
@@ -949,9 +964,14 @@ namespace HUDRA
         {
             try
             {
-                _gameDetectionService = new GameDetectionService(DispatcherQueue);
-                _gameDetectionService.GameDetected += OnGameDetected;
-                _gameDetectionService.GameStopped += OnGameStopped;
+                _enhancedGameDetectionService = new EnhancedGameDetectionService(DispatcherQueue);
+                _enhancedGameDetectionService.GameDetected += OnGameDetected;
+                _enhancedGameDetectionService.GameStopped += OnGameStopped;
+                
+                // Subscribe to scanning progress events for visual indicator
+                _enhancedGameDetectionService.ScanProgressChanged += OnScanProgressChanged;
+                _enhancedGameDetectionService.ScanningStateChanged += OnScanningStateChanged;
+                _enhancedGameDetectionService.DatabaseReady += OnDatabaseReady;
 
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;
@@ -1065,7 +1085,7 @@ namespace HUDRA
 
         private void UpdateLosslessScalingButtonVisibility()
         {
-            bool hasGame = _gameDetectionService?.CurrentGame != null;
+            bool hasGame = _enhancedGameDetectionService?.CurrentGame != null;
             bool lsRunning = _losslessScalingService?.IsLosslessScalingRunning() ?? false;
 
             LosslessScalingButtonVisible = hasGame && lsRunning;
@@ -1115,19 +1135,35 @@ namespace HUDRA
 
         private string GetCurrentGameName()
         {
-            if (_gameDetectionService?.CurrentGame != null)
+            if (_enhancedGameDetectionService?.CurrentGame != null)
             {
                 // Prefer window title if available and meaningful
-                if (!string.IsNullOrWhiteSpace(_gameDetectionService.CurrentGame.WindowTitle))
+                if (!string.IsNullOrWhiteSpace(_enhancedGameDetectionService.CurrentGame.WindowTitle))
                 {
-                    return _gameDetectionService.CurrentGame.WindowTitle;
+                    return _enhancedGameDetectionService.CurrentGame.WindowTitle;
                 }
 
                 // Fallback to process name
-                return _gameDetectionService.CurrentGame.ProcessName;
+                return _enhancedGameDetectionService.CurrentGame.ProcessName;
             }
 
             return "Game";
+        }
+
+        // Enhanced game detection event handlers
+        private void OnScanProgressChanged(object? sender, string progress)
+        {
+            ScanProgressText = progress;
+        }
+
+        private void OnScanningStateChanged(object? sender, bool isScanning)
+        {
+            IsGameLibraryScanning = isScanning;
+        }
+
+        private void OnDatabaseReady(object? sender, EventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("Enhanced game detection: Database ready");
         }
 
         private async Task InitializeFpsLimiterAsync()

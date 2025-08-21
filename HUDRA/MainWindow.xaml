@@ -107,6 +107,25 @@
                                 Foreground="{x:Bind BatteryTextBrush, Mode=OneWay}"
                                 Text="{x:Bind BatteryPercentageText, Mode=OneWay}" />
                         </StackPanel>
+
+                        <!--  Game Library Scanning Progress Indicator  -->
+                        <StackPanel
+                            x:Name="ScanProgressPanel"
+                            Width="50"
+                            Height="50"
+                            Margin="0,0,0,10"
+                            HorizontalAlignment="Center"
+                            Visibility="{x:Bind IsGameLibraryScanning, Mode=OneWay}">
+                            <ProgressRing
+                                x:Name="ScanProgressRing"
+                                Width="30"
+                                Height="30"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Foreground="DarkViolet"
+                                IsActive="{x:Bind IsGameLibraryScanning, Mode=OneWay}"
+                                ToolTipService.ToolTip="{x:Bind ScanProgressText, Mode=OneWay}" />
+                        </StackPanel>
                         <!--  Main Page Navigation Item (Home icon)  -->
                         <Button
                             x:Name="MainPageNavButton"

@@ -5,13 +5,14 @@ using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using HUDRA.Models;
 using HUDRA.Services;
 
 namespace HUDRA.Services.Power
 {
     public class PowerProfileService
     {
-        private GameDetectionService? _gameDetectionService;
+        private EnhancedGameDetectionService? _enhancedGameDetectionService;
         private bool _isIntelligentSwitchingEnabled;
         private bool _isGameActive = false;
         private readonly List<string> _builtInProfileNames = new()
@@ -270,15 +271,15 @@ namespace HUDRA.Services.Power
         }
 
         // Intelligent Power Switching Methods
-        public void InitializeIntelligentSwitching(GameDetectionService gameDetectionService)
+        public void InitializeIntelligentSwitching(EnhancedGameDetectionService enhancedGameDetectionService)
         {
-            _gameDetectionService = gameDetectionService;
+            _enhancedGameDetectionService = enhancedGameDetectionService;
             _isIntelligentSwitchingEnabled = SettingsService.GetIntelligentPowerSwitchingEnabled();
             
             if (_isIntelligentSwitchingEnabled)
             {
-                _gameDetectionService.GameDetected += OnGameDetected;
-                _gameDetectionService.GameStopped += OnGameStopped;
+                _enhancedGameDetectionService.GameDetected += OnGameDetected;
+                _enhancedGameDetectionService.GameStopped += OnGameStopped;
                 System.Diagnostics.Debug.WriteLine("Intelligent power switching initialized and enabled");
             }
         }
@@ -288,18 +289,18 @@ namespace HUDRA.Services.Power
             _isIntelligentSwitchingEnabled = enabled;
             SettingsService.SetIntelligentPowerSwitchingEnabled(enabled);
             
-            if (_gameDetectionService != null)
+            if (_enhancedGameDetectionService != null)
             {
                 if (enabled)
                 {
-                    _gameDetectionService.GameDetected -= OnGameDetected;
-                    _gameDetectionService.GameStopped -= OnGameStopped;
-                    _gameDetectionService.GameDetected += OnGameDetected;
-                    _gameDetectionService.GameStopped += OnGameStopped;
+                    _enhancedGameDetectionService.GameDetected -= OnGameDetected;
+                    _enhancedGameDetectionService.GameStopped -= OnGameStopped;
+                    _enhancedGameDetectionService.GameDetected += OnGameDetected;
+                    _enhancedGameDetectionService.GameStopped += OnGameStopped;
                     System.Diagnostics.Debug.WriteLine("Intelligent power switching enabled");
                     
                     // Apply current game state immediately
-                    if (_gameDetectionService.CurrentGame != null)
+                    if (_enhancedGameDetectionService.CurrentGame != null)
                     {
                         _ = Task.Run(async () => await SwitchToGamingProfileAsync());
                     }
@@ -310,8 +311,8 @@ namespace HUDRA.Services.Power
                 }
                 else
                 {
-                    _gameDetectionService.GameDetected -= OnGameDetected;
-                    _gameDetectionService.GameStopped -= OnGameStopped;
+                    _enhancedGameDetectionService.GameDetected -= OnGameDetected;
+                    _enhancedGameDetectionService.GameStopped -= OnGameStopped;
                     System.Diagnostics.Debug.WriteLine("Intelligent power switching disabled");
                 }
             }
@@ -397,10 +398,10 @@ namespace HUDRA.Services.Power
 
         public void Dispose()
         {
-            if (_gameDetectionService != null)
+            if (_enhancedGameDetectionService != null)
             {
-                _gameDetectionService.GameDetected -= OnGameDetected;
-                _gameDetectionService.GameStopped -= OnGameStopped;
+                _enhancedGameDetectionService.GameDetected -= OnGameDetected;
+                _enhancedGameDetectionService.GameStopped -= OnGameStopped;
             }
         }
     }

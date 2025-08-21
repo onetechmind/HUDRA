@@ -1,0 +1,1157 @@
+using HUDRA.Models;
+using HUDRA.Services.GameLibraryProviders;
+using Microsoft.UI.Dispatching;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace HUDRA.Services
+{
+    public class EnhancedGameDetectionService : IDisposable
+    {
+        private readonly DispatcherQueue _dispatcher;
+        private readonly List<IGameLibraryProvider> _providers;
+        private Timer? _refreshTimer;
+        private readonly Timer _detectionTimer;
+        private readonly EnhancedGameDatabase _gameDatabase;
+        private readonly GameLearningService _learningService;
+        
+        private Dictionary<string, DetectedGame> _cachedGames = new(StringComparer.OrdinalIgnoreCase);
+        private GameInfo? _currentGame;
+        private bool _disposed = false;
+        private bool _isDatabaseReady = false;
+        private bool _isScanning = false;
+        
+
+        // Enhanced scanning properties and events
+        public event EventHandler<string>? ScanProgressChanged;
+        public event EventHandler<bool>? ScanningStateChanged;
+        public event EventHandler? DatabaseReady;
+
+        // Maintain compatibility with existing GameDetectionService events
+        public event EventHandler<GameInfo?>? GameDetected;
+        public event EventHandler? GameStopped;
+        
+        public GameInfo? CurrentGame => _currentGame;
+        public bool IsGameDatabaseReady => _isDatabaseReady;
+        public bool IsScanning => _isScanning;
+        public int GameDatabaseCount => _cachedGames.Count;
+        public DatabaseStats DatabaseStats => _gameDatabase?.GetDatabaseStats() ?? new DatabaseStats();
+        public bool IsEnhancedScanningActive => IsEnhancedScanningEnabled();
+
+        public EnhancedGameDetectionService(DispatcherQueue dispatcher)
+        {
+            _dispatcher = dispatcher;
+            
+            // Initialize database and learning service
+            _gameDatabase = new EnhancedGameDatabase();
+            _learningService = new GameLearningService();
+            
+            // Create providers
+            _providers = new List<IGameLibraryProvider>
+            {
+                new GameLibNetProvider(),
+                new XboxGameProvider()
+            };
+
+            // Subscribe to provider progress events
+            foreach (var provider in _providers)
+            {
+                provider.ScanProgressChanged += OnProviderProgressChanged;
+            }
+
+
+            // Initialize detection system
+            InitializeDetection();
+
+            // Start main detection timer (5-second polling for efficiency)
+            _detectionTimer = new Timer(DetectGamesCallback, null,
+                TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5));
+        }
+
+        private void OnProviderProgressChanged(object? sender, string progress)
+        {
+            _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, progress));
+        }
+
+        private async Task BuildGameDatabaseAsync()
+        {
+            if (_isScanning) return;
+
+            try
+            {
+                _isScanning = true;
+                _dispatcher.TryEnqueue(() => ScanningStateChanged?.Invoke(this, true));
+                
+                _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, "Loading existing game database..."));
+
+                // Load existing games from persistent database
+                var existingGames = _gameDatabase.GetAllGames().ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                var newGames = new Dictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
+
+                _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Found {existingGames.Count} existing games, scanning for new games..."));
+
+                // Scan providers for new games - each provider runs independently
+                var availableProviders = _providers.Where(p => p.IsAvailable).ToList();
+                
+                var providerTasks = availableProviders.Select(async provider =>
+                {
+                    try
+                    {
+                        var providerGames = await provider.GetGamesAsync();
+                        return (Provider: provider, Games: providerGames, Success: true);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Provider scan failed - continue with other providers
+                        return (Provider: provider, Games: new Dictionary<string, DetectedGame>(), Success: false);
+                    }
+                }).ToArray();
+
+                var providerResults = await Task.WhenAll(providerTasks);
+
+                foreach (var result in providerResults)
+                {
+                    if (result.Success)
+                    {
+                        foreach (var kvp in result.Games)
+                        {
+                            if (!existingGames.ContainsKey(kvp.Key) && !newGames.ContainsKey(kvp.Key))
+                            {
+                                newGames[kvp.Key] = kvp.Value;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Mark provider as unavailable if it failed
+                        result.Provider.GetType().GetProperty("IsAvailable")?.SetValue(result.Provider, false);
+                    }
+                }
+
+                // Save new games to database and add to learning inclusion list
+                if (newGames.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Saving {newGames.Count} new games to database..."));
+                    
+                    foreach (var game in newGames.Values)
+                    {
+                        _gameDatabase.SaveGame(game);
+                        _learningService.LearnGame(game.ProcessName);
+                    }
+                }
+
+                // Build in-memory cache from all games (existing + new)
+                var allGames = _gameDatabase.GetAllGames();
+                _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                
+                _isDatabaseReady = true;
+
+                _dispatcher.TryEnqueue(() =>
+                {
+                    ScanProgressChanged?.Invoke(this, $"Scan complete - {_cachedGames.Count} games in database ({newGames.Count} new)");
+                    DatabaseReady?.Invoke(this, EventArgs.Empty);
+                });
+
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error building game database: {ex.Message}");
+                _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, "Database build failed"));
+            }
+            finally
+            {
+                _isScanning = false;
+                _dispatcher.TryEnqueue(() => ScanningStateChanged?.Invoke(this, false));
+            }
+        }
+
+        private async Task RefreshGameDatabaseAsync()
+        {
+            if (!IsEnhancedScanningEnabled())
+                return;
+
+            await BuildGameDatabaseAsync();
+        }
+
+        /// <summary>
+        /// Initialize the detection system based on current settings
+        /// </summary>
+        private void InitializeDetection()
+        {
+            bool enhancedEnabled = IsEnhancedScanningEnabled();
+            
+
+            if (enhancedEnabled)
+            {
+                StartEnhancedDetection();
+            }
+            else
+            {
+                _isDatabaseReady = true; // Mark as "ready" so UI doesn't wait
+                _dispatcher.TryEnqueue(() => DatabaseReady?.Invoke(this, EventArgs.Empty));
+            }
+        }
+
+        /// <summary>
+        /// Start enhanced detection mode (database-driven with directory fallback)
+        /// </summary>
+        private void StartEnhancedDetection()
+        {
+            
+            // Build database
+            Task.Run(async () => await BuildGameDatabaseAsync());
+
+            // Setup periodic refresh
+            int refreshIntervalMinutes = SettingsService.GetGameDatabaseRefreshInterval();
+            _refreshTimer = new Timer(async _ => await RefreshGameDatabaseAsync(), null,
+                TimeSpan.FromMinutes(refreshIntervalMinutes), TimeSpan.FromMinutes(refreshIntervalMinutes));
+        }
+
+
+        /// <summary>
+        /// Centralized settings check for enhanced scanning
+        /// </summary>
+        private bool IsEnhancedScanningEnabled()
+        {
+            return SettingsService.IsEnhancedLibraryScanningEnabled();
+        }
+
+        /// <summary>
+        /// Public method to check if enhanced scanning is enabled (for UI binding)
+        /// </summary>
+        public bool IsEnhancedScanningConfigured()
+        {
+            return IsEnhancedScanningEnabled();
+        }
+
+        /// <summary>
+        /// Call this when settings change to update detection behavior
+        /// </summary>
+        public void OnSettingsChanged()
+        {
+            bool enhancedEnabled = IsEnhancedScanningEnabled();
+            bool wasEnhanced = _refreshTimer != null; // Was enhanced mode active before?
+            
+            if (enhancedEnabled == wasEnhanced)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Settings changed but enhanced scanning remains {enhancedEnabled}, no action needed");
+                return;
+            }
+            
+            System.Diagnostics.Debug.WriteLine($"Enhanced: Settings changed, enhanced scanning: {wasEnhanced} -> {enhancedEnabled}");
+            
+            // Clean up current state
+            CleanupDetection();
+            
+            // Reinitialize with new settings
+            InitializeDetection();
+        }
+
+        /// <summary>
+        /// Clean up resources from current detection state
+        /// </summary>
+        private void CleanupDetection()
+        {
+            _refreshTimer?.Dispose();
+            _refreshTimer = null;
+            
+            // Reset database state when disabling enhanced scanning
+            _isDatabaseReady = false;
+            _cachedGames.Clear();
+        }
+
+        private void DetectGamesCallback(object? state)
+        {
+            if (_disposed) return;
+
+            try
+            {
+                var detectedGame = DetectActiveGame();
+                
+                // Enhanced game change logic with window handle refresh
+                bool gameChanged = false;
+                bool handleRefreshed = false;
+
+                if (_currentGame == null && detectedGame != null)
+                {
+                    gameChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: New game detected: {detectedGame.WindowTitle}");
+                }
+                else if (_currentGame != null && detectedGame == null)
+                {
+                    gameChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: Game stopped: {_currentGame.WindowTitle}");
+                }
+                else if (_currentGame != null && detectedGame != null &&
+                         _currentGame.ProcessId != detectedGame.ProcessId)
+                {
+                    gameChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: Game changed: {_currentGame.WindowTitle} -> {detectedGame.WindowTitle}");
+                }
+                else if (_currentGame != null && detectedGame != null &&
+                         _currentGame.ProcessId == detectedGame.ProcessId)
+                {
+                    // Same game still running - always refresh properties including window handle
+                    if (_currentGame.WindowHandle != detectedGame.WindowHandle)
+                    {
+                        handleRefreshed = true;
+                    }
+                    
+                    // Always update to get fresh window handle and other properties
+                    _currentGame = detectedGame;
+                }
+
+                if (gameChanged)
+                {
+                    _currentGame = detectedGame;
+
+                    _dispatcher.TryEnqueue(() =>
+                    {
+                        if (_currentGame != null)
+                        {
+                            GameDetected?.Invoke(this, _currentGame);
+                        }
+                        else
+                        {
+                            GameStopped?.Invoke(this, EventArgs.Empty);
+                        }
+                    });
+                }
+                else if (handleRefreshed)
+                {
+                    // Window handle was refreshed - notify UI with updated GameInfo
+                    _dispatcher.TryEnqueue(() =>
+                    {
+                        if (_currentGame != null)
+                        {
+                            GameDetected?.Invoke(this, _currentGame);
+                        }
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced game detection error: {ex.Message}");
+            }
+        }
+
+        private GameInfo? DetectActiveGame()
+        {
+            // Only detect games if enhanced scanning is enabled
+            if (!IsEnhancedScanningEnabled())
+            {
+                return null; // No detection when disabled
+            }
+            
+            // Enhanced detection (database + directory fallback)
+            return DetectEnhancedGame();
+        }
+
+        /// <summary>
+        /// Enhanced detection: First check database, then fall back to directory detection for unknown games
+        /// </summary>
+        private GameInfo? DetectEnhancedGame()
+        {
+            try
+            {
+                // Step 1: Try database-driven detection for known games
+                if (_isDatabaseReady)
+                {
+                    var databaseGame = GetRunningGameFromDatabase();
+                    if (databaseGame != null)
+                    {
+                        return databaseGame;
+                    }
+                    else
+                    {
+                        // Database lookup failed - try directory detection
+                    }
+                }
+                else
+                {
+                }
+
+                // Step 2: Fall back to directory detection for unknown games
+                // This ensures we can still detect games not in the database
+                var directoryGame = GetRunningGameFromDirectory();
+                if (directoryGame != null)
+                {
+                    // Learn the new game and add to database for future detection
+                    if (_isDatabaseReady)
+                    {
+                        try
+                        {
+                            var detectedGame = new DetectedGame
+                            {
+                                ProcessName = directoryGame.ProcessName,
+                                DisplayName = directoryGame.WindowTitle,
+                                ExecutablePath = directoryGame.ExecutablePath,
+                                InstallLocation = Path.GetDirectoryName(directoryGame.ExecutablePath) ?? string.Empty,
+                                Source = GameSource.Directory,
+                                LauncherInfo = "Directory Detection",
+                                PackageInfo = string.Empty,
+                                LastDetected = DateTime.Now
+                            };
+                            
+                            _gameDatabase.SaveGame(detectedGame);
+                            _cachedGames[directoryGame.ProcessName] = detectedGame;
+                            _learningService.LearnGame(directoryGame.ProcessName);
+                            
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Enhanced: Error learning new game: {ex.Message}");
+                        }
+                    }
+                    
+                    return directoryGame;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error in DetectEnhancedGame: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Optimized: Scan running processes and match executable paths against database
+        /// Uses smart filtering to avoid system processes and reduce exceptions
+        /// </summary>
+        private GameInfo? GetRunningGameFromDatabase()
+        {
+            if (!_isDatabaseReady)
+                return null;
+
+            try
+            {
+                // Get all processes and filter out system processes more aggressively
+                var allProcesses = Process.GetProcesses();
+                var candidateProcesses = allProcesses.Where(p => 
+                    ShouldScanProcess(p)).ToList();
+                
+                foreach (var process in candidateProcesses)
+                {
+                    try
+                    {
+                        // Get the executable path of this process
+                        string? processExePath = null;
+                        try
+                        {
+                            processExePath = process.MainModule?.FileName;
+                        }
+                        catch (System.ComponentModel.Win32Exception)
+                        {
+                            // Access denied - skip silently (common for system processes)
+                            continue;
+                        }
+                        catch
+                        {
+                            // Other errors - skip silently
+                            continue;
+                        }
+                        
+                        if (string.IsNullOrEmpty(processExePath))
+                            continue;
+                            
+                        // Check if this executable path matches any game in our database
+                        var matchingGame = _cachedGames.Values.FirstOrDefault(dbGame => 
+                            string.Equals(dbGame.ExecutablePath, processExePath, StringComparison.OrdinalIgnoreCase));
+                            
+                        if (matchingGame != null)
+                        {
+                            // Get a valid window handle for the game
+                            var windowHandle = GetValidWindowHandle(process);
+                            
+                            // Found a running game that matches our database!
+                            var gameInfo = new GameInfo
+                            {
+                                ProcessName = matchingGame.ProcessName,
+                                WindowTitle = matchingGame.DisplayName,
+                                ProcessId = process.Id,
+                                WindowHandle = windowHandle,
+                                ExecutablePath = matchingGame.ExecutablePath
+                            };
+                            
+                            
+                            // Validate window handle is still accessible
+                            if (windowHandle != IntPtr.Zero && !IsWindow(windowHandle))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Warning - Window handle {windowHandle} is no longer valid!");
+                            }
+                            
+                            return gameInfo;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Skip processes that can't be accessed - no logging to reduce noise
+                        continue;
+                    }
+                    finally
+                    {
+                        process.Dispose();
+                    }
+                }
+                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error in GetRunningGameFromDatabase: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Get a valid window handle for the process, trying multiple methods
+        /// </summary>
+        private IntPtr GetValidWindowHandle(Process process)
+        {
+            try
+            {
+                // Method 1: Try the main window handle first
+                var mainHandle = process.MainWindowHandle;
+                if (mainHandle != IntPtr.Zero && IsWindow(mainHandle))
+                {
+                    return mainHandle;
+                }
+                
+                // Method 2: For UWP/Store apps, try to find window by process ID
+                var foundHandle = FindMainWindowByProcessId(process.Id);
+                if (foundHandle != IntPtr.Zero && IsWindow(foundHandle))
+                {
+                    return foundHandle;
+                }
+                
+                // Method 3: Wait a moment and try main window handle again (for slow-starting games)
+                System.Threading.Thread.Sleep(100);
+                process.Refresh();
+                mainHandle = process.MainWindowHandle;
+                if (mainHandle != IntPtr.Zero && IsWindow(mainHandle))
+                {
+                    return mainHandle;
+                }
+                
+                return IntPtr.Zero;
+            }
+            catch
+            {
+                return IntPtr.Zero;
+            }
+        }
+        
+        /// <summary>
+        /// Find the main window handle by enumerating windows for a process ID
+        /// </summary>
+        private IntPtr FindMainWindowByProcessId(int processId)
+        {
+            IntPtr bestHandle = IntPtr.Zero;
+            
+            EnumWindows((hWnd, lParam) =>
+            {
+                GetWindowThreadProcessId(hWnd, out uint windowProcessId);
+                if (windowProcessId == processId)
+                {
+                    // Prefer visible windows
+                    if (IsWindowVisible(hWnd))
+                    {
+                        bestHandle = hWnd;
+                        return false; // Stop enumeration
+                    }
+                    // Keep any window as fallback
+                    else if (bestHandle == IntPtr.Zero)
+                    {
+                        bestHandle = hWnd;
+                    }
+                }
+                return true; // Continue enumeration
+            }, IntPtr.Zero);
+            
+            return bestHandle;
+        }
+        
+        /// <summary>
+        /// Comprehensive check if we should scan this process
+        /// </summary>
+        private bool ShouldScanProcess(Process process)
+        {
+            try
+            {
+                // Skip if process has exited
+                try
+                {
+                    if (process.HasExited)
+                        return false;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // Access denied - skip silently
+                    return false;
+                }
+                    
+                // Skip system processes by name
+                if (IsSystemProcess(process.ProcessName))
+                    return false;
+                    
+                // Skip current process
+                if (process.Id == Environment.ProcessId)
+                    return false;
+                    
+                // Skip processes we can't access (do a quick check)
+                try
+                {
+                    _ = process.ProcessName; // This will throw if we can't access
+                }
+                catch
+                {
+                    return false;
+                }
+                
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        
+        /// <summary>
+        /// Check if a process is a system process that we should skip
+        /// </summary>
+        private bool IsSystemProcess(string processName)
+        {
+            var systemProcesses = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                // Core Windows processes
+                "Idle", "System", "Registry", "smss", "csrss", "wininit", "services", 
+                "lsass", "winlogon", "fontdrvhost", "dwm", "svchost", "dllhost",
+                "WmiPrvSE", "spoolsv", "SearchIndexer", "taskhost", "explorer",
+                "RuntimeBroker", "ApplicationFrameHost", "ShellExperienceHost",
+                "StartMenuExperienceHost", "SearchHost", "SecurityHealthSystray",
+                "ctfmon", "taskhostw", "winstore.app", "PhoneExperienceHost",
+                "sihost", "backgroundTaskHost", "PickerHost", "LockApp",
+                "UserOOBEBroker", "SettingSyncHost", "PresentationFontCache",
+                "MsMpEng", "NisSrv", "SearchFilterHost", "SearchProtocolHost",
+                "audiodg", "conhost", "LogonUI", "userinit", "Secure System",
+                "Memory Compression", "nvcontainer", "NVDisplay.Container",
+                
+                // Additional Windows services and system processes
+                "csrss", "lsm", "lsass", "wininit", "winlogon", "services", "spoolsv",
+                "msdtc", "Ati2evxx", "Ati2evxx", "CCC", "stacsv", "mdm", "alg",
+                "wscntfy", "wuauclt", "cidaemon", "cidaemon", "cftmon", "imapi",
+                "dfsr", "msiexec", "notepad", "calc", "mspaint", "write", "wordpad",
+                "taskmgr", "perfmon", "dxdiag", "msconfig", "regedit", "cmd",
+                "powershell", "PowerShell_ISE", "wt", "WindowsTerminal",
+                
+                // Security and antivirus
+                "MsMpEng", "NisSrv", "SecurityHealthService", "SecurityHealthSystray",
+                "WindowsSecurityService", "MpCmdRun", "MpSigStub",
+                
+                // Windows Update and maintenance
+                "TiWorker", "TrustedInstaller", "wuauclt", "UsoClient", "UpdateOrchestrator",
+                "SIHClient", "CompatTelRunner", "DismHost",
+                
+                // Hardware and drivers
+                "nvcontainer", "nvdisplay.container", "nvidia web helper", "nvbackend",
+                "RtkAudioService", "RtkAudUService64", "igfxpers", "igfxtray",
+                "TeamViewer_Service", "TeamViewer", "tv_w32", "tv_x64",
+                
+                // Common utilities that aren't games
+                "notepad++", "chrome", "firefox", "edge", "iexplore", "opera",
+                "winrar", "7z", "7zfm", "AcroRd32", "Acrobat", "OUTLOOK", "WINWORD",
+                "EXCEL", "POWERPNT", "devenv", "Code", "atom", "sublime_text"
+            };
+            
+            return systemProcesses.Contains(processName);
+        }
+        
+        // Win32 API declarations for window handling
+        [DllImport("user32.dll")]
+        private static extern bool IsWindow(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        private static extern bool EnumWindows(EnumWindowsProc enumProc, IntPtr lParam);
+        
+        [DllImport("user32.dll")]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+        
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        private const int SW_RESTORE = 9;
+        
+        private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+        /// <summary>
+        /// Directory-based detection for unknown games (fallback)
+        /// </summary>
+        private GameInfo? GetRunningGameFromDirectory()
+        {
+            try
+            {
+                // Get foreground process and check if it's a game using directory detection
+                var foregroundProcess = GetForegroundProcess();
+                if (foregroundProcess == null)
+                    return null;
+                    
+                var processName = foregroundProcess.ProcessName;
+                
+                // Skip if we already know this isn't a game
+                if (_learningService.IsKnownNonGame(processName))
+                    return null;
+                
+                // Skip if we already have this in the database
+                if (_cachedGames.ContainsKey(processName))
+                    return null;
+                
+                // Get window title and executable path
+                var windowTitle = GetWindowTitle(foregroundProcess.MainWindowHandle);
+                string executablePath = string.Empty;
+                try
+                {
+                    executablePath = foregroundProcess.MainModule?.FileName ?? string.Empty;
+                }
+                catch { }
+                
+                // Use the same game detection logic as the fallback service
+                if (IsLikelyGameProcess(foregroundProcess, windowTitle, executablePath))
+                {
+                    return new GameInfo
+                    {
+                        ProcessName = processName,
+                        WindowTitle = windowTitle,
+                        ProcessId = foregroundProcess.Id,
+                        WindowHandle = foregroundProcess.MainWindowHandle,
+                        ExecutablePath = executablePath
+                    };
+                }
+                
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in GetRunningGameFromDirectory: {ex.Message}");
+                return null;
+            }
+        }
+        
+        /// <summary>
+        /// Determine if a process is likely a game using directory-based detection
+        /// </summary>
+        private bool IsLikelyGameProcess(Process process, string windowTitle, string executablePath)
+        {
+            try
+            {
+                // Basic checks first
+                if (string.IsNullOrWhiteSpace(windowTitle))
+                    return false;
+                    
+                if (string.IsNullOrEmpty(executablePath))
+                    return false;
+                
+                // Use a simple directory check for common game locations
+                var gameDirectories = new[]
+                {
+                    @"\Steam\steamapps\",
+                    @"\steamapps\",
+                    @"\Epic Games\",
+                    @"\XboxGames\",
+                    @"\Xbox Games\",
+                    @"\WindowsApps\",
+                    @"\GOG Galaxy\",
+                    @"\GOG Games\",
+                    @"\Origin Games\",
+                    @"\Ubisoft Game Launcher\",
+                    @"\Program Files\Steam\",
+                    @"\Program Files (x86)\Steam\",
+                    @"\Games\"
+                };
+                
+                bool inGameDirectory = gameDirectories.Any(dir => 
+                    executablePath.Contains(dir, StringComparison.OrdinalIgnoreCase));
+                    
+                if (inGameDirectory)
+                {
+                    return true;
+                }
+                
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in IsLikelyGameProcess: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Scans all running processes to find any known games, prioritizing foreground game
+        /// </summary>
+        public async Task<GameInfo?> GetRunningGameAsync()
+        {
+            if (!_isDatabaseReady)
+                return null;
+
+            try
+            {
+                GameInfo? foregroundGame = null;
+                var runningGames = new List<GameInfo>();
+
+                // First try to get foreground game (priority)
+                var foregroundProcess = GetForegroundProcess();
+                if (foregroundProcess != null)
+                {
+                    foregroundGame = await GetGameByProcessAsync(foregroundProcess.ProcessName);
+                }
+
+                // Scan all running processes for known games
+                foreach (var cachedGame in _cachedGames.Values)
+                {
+                    try
+                    {
+                        var processes = Process.GetProcessesByName(cachedGame.ProcessName);
+                        foreach (var process in processes)
+                        {
+                            if (!process.HasExited)
+                            {
+                                var gameInfo = new GameInfo
+                                {
+                                    ProcessName = cachedGame.ProcessName,
+                                    WindowTitle = cachedGame.DisplayName,
+                                    ProcessId = process.Id,
+                                    WindowHandle = process.MainWindowHandle,
+                                    ExecutablePath = cachedGame.ExecutablePath
+                                };
+
+                                // If this is the foreground game, prioritize it
+                                if (foregroundProcess != null && process.Id == foregroundProcess.Id)
+                                {
+                                    return gameInfo;
+                                }
+
+                                runningGames.Add(gameInfo);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Skip processes that can't be accessed
+                        System.Diagnostics.Debug.WriteLine($"Error checking process {cachedGame.ProcessName}: {ex.Message}");
+                    }
+                }
+
+                // Return foreground game if found, otherwise first running game
+                return foregroundGame ?? runningGames.FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in GetRunningGameAsync: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Get game by process name from database (kept for backward compatibility with async method)
+        /// </summary>
+        private GameInfo? GetGameByProcess(string? processName = null)
+        {
+            if (!_isDatabaseReady)
+                return null;
+
+            try
+            {
+                // If no process name provided, detect the current foreground process
+                if (string.IsNullOrEmpty(processName))
+                {
+                    var foregroundProcess = GetForegroundProcess();
+                    if (foregroundProcess == null)
+                        return null;
+                    processName = foregroundProcess.ProcessName;
+                }
+
+                // Fast cached database lookup by ProcessName (fallback method)
+                if (_cachedGames.TryGetValue(processName, out var detectedGame))
+                {
+                    // Convert DetectedGame to GameInfo for compatibility
+                    var process = Process.GetProcessesByName(processName).FirstOrDefault();
+                    if (process != null)
+                    {
+                        try
+                        {
+                            if (process.HasExited)
+                                process = null;
+                        }
+                        catch (System.ComponentModel.Win32Exception)
+                        {
+                            // Access denied - skip
+                            process = null;
+                        }
+                    }
+                    
+                    if (process != null)
+                    {
+                        return new GameInfo
+                        {
+                            ProcessName = detectedGame.ProcessName,
+                            WindowTitle = detectedGame.DisplayName,
+                            ProcessId = process.Id,
+                            WindowHandle = process.MainWindowHandle,
+                            ExecutablePath = detectedGame.ExecutablePath
+                        };
+                    }
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in GetGameByProcess: {ex.Message}");
+                return null;
+            }
+        }
+
+        public async Task<GameInfo?> GetGameByProcessAsync(string? processName = null)
+        {
+            if (!_isDatabaseReady)
+                return null;
+
+            try
+            {
+                // If no process name provided, detect the current foreground process
+                if (string.IsNullOrEmpty(processName))
+                {
+                    var foregroundProcess = GetForegroundProcess();
+                    if (foregroundProcess == null)
+                        return null;
+                    processName = foregroundProcess.ProcessName;
+                }
+
+                // Fast cached database lookup
+                if (_cachedGames.TryGetValue(processName, out var detectedGame))
+                {
+                    // Convert DetectedGame to GameInfo for compatibility
+                    var process = Process.GetProcessesByName(processName).FirstOrDefault();
+                    if (process != null)
+                    {
+                        try
+                        {
+                            if (process.HasExited)
+                                process = null;
+                        }
+                        catch (System.ComponentModel.Win32Exception)
+                        {
+                            // Access denied - skip
+                            process = null;
+                        }
+                    }
+                    
+                    if (process != null)
+                    {
+                        return new GameInfo
+                        {
+                            ProcessName = detectedGame.ProcessName,
+                            WindowTitle = detectedGame.DisplayName,
+                            ProcessId = process.Id,
+                            WindowHandle = process.MainWindowHandle,
+                            ExecutablePath = detectedGame.ExecutablePath
+                        };
+                    }
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in GetGameByProcessAsync: {ex.Message}");
+                return null;
+            }
+        }
+
+        private Process? GetForegroundProcess()
+        {
+            try
+            {
+                // Use the same Win32 API logic as the original GameDetectionService
+                var foregroundWindow = GetForegroundWindow();
+                if (foregroundWindow == IntPtr.Zero) return null;
+
+                GetWindowThreadProcessId(foregroundWindow, out uint processId);
+                if (processId == 0) return null;
+
+                return Process.GetProcessById((int)processId);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+
+        // Win32 API imports (same as original GameDetectionService)
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetForegroundWindow();
+
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern int GetWindowText(IntPtr hWnd, [System.Runtime.InteropServices.Out] char[] lpString, int nMaxCount);
+
+        private string GetWindowTitle(IntPtr windowHandle)
+        {
+            try
+            {
+                const int maxLength = 256;
+                var titleBuilder = new char[maxLength];
+                int length = GetWindowText(windowHandle, titleBuilder, maxLength);
+                return new string(titleBuilder, 0, length);
+            }
+            catch
+            {
+                return string.Empty;
+            }
+        }
+
+
+        public bool SwitchToGame()
+        {
+            if (_currentGame?.WindowHandle == null || _currentGame.WindowHandle == IntPtr.Zero)
+            {
+                System.Diagnostics.Debug.WriteLine("Enhanced: SwitchToGame: No current game or window handle");
+                return false;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Attempting to switch to: {_currentGame.WindowTitle} (PID: {_currentGame.ProcessId}, Handle: {_currentGame.WindowHandle})");
+
+                // Check if the window still exists and is valid
+                if (!IsWindow(_currentGame.WindowHandle))
+                {
+                        return false;
+                }
+
+                // Check if the process is still running
+                try
+                {
+                    var process = Process.GetProcessById(_currentGame.ProcessId);
+                    if (process.HasExited)
+                    {
+                        return false;
+                    }
+                }
+                catch (ArgumentException)
+                {
+                    return false;
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // Process access denied - assume it's still running
+                    return false;
+                }
+
+                // Try to restore the window first (works for both minimized and normal windows)
+                ShowWindow(_currentGame.WindowHandle, SW_RESTORE);
+
+                // Small delay to let the window restore
+                System.Threading.Thread.Sleep(50);
+
+                // Bring the game window to the foreground
+                bool success = SetForegroundWindow(_currentGame.WindowHandle);
+
+                if (!success)
+                {
+                    // Alternative approach: try showing the window again
+                    ShowWindow(_currentGame.WindowHandle, SW_RESTORE);
+                    success = SetForegroundWindow(_currentGame.WindowHandle);
+                }
+
+                return success;
+            }
+            catch (Exception ex)
+            {
+                // SwitchToGame failed
+                return false;
+            }
+        }
+
+        public async Task<int> ForceXboxGameRescanAsync()
+        {
+            try
+            {
+                
+                // Clear existing Xbox games from database
+                var deletedCount = _gameDatabase.ClearXboxGames();
+                
+                // Clear Xbox games from in-memory cache
+                var xboxGamesToRemove = _cachedGames.Where(kvp => kvp.Value.Source == GameSource.Xbox).Select(kvp => kvp.Key).ToList();
+                foreach (var gameKey in xboxGamesToRemove)
+                {
+                    _cachedGames.Remove(gameKey);
+                }
+                
+                // Re-scan Xbox games only
+                var xboxProvider = _providers.OfType<XboxGameProvider>().FirstOrDefault();
+                if (xboxProvider != null && xboxProvider.IsAvailable)
+                {
+                    var newXboxGames = await xboxProvider.GetGamesAsync();
+                    
+                    // Save new Xbox games to database
+                    foreach (var game in newXboxGames.Values)
+                    {
+                        _gameDatabase.SaveGame(game);
+                        _cachedGames[game.ProcessName] = game;
+                        _learningService.LearnGame(game.ProcessName);
+                    }
+                    
+                    return newXboxGames.Count;
+                }
+                
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error during Xbox game re-scan: {ex.Message}");
+                return 0;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (!_disposed)
+            {
+                _disposed = true;
+                
+                try
+                {
+                    _refreshTimer?.Dispose();
+                    _detectionTimer?.Dispose();
+                    _gameDatabase?.Dispose();
+                    
+                    foreach (var provider in _providers)
+                    {
+                        provider.ScanProgressChanged -= OnProviderProgressChanged;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: Error during disposal: {ex.Message}");
+                }
+            }
+        }
+    }
+
+}

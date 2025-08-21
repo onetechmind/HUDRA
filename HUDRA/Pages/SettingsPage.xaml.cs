@@ -3,7 +3,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace HUDRA.Pages
@@ -19,6 +21,8 @@ namespace HUDRA.Pages
             LoadSettings();
             LoadStartupSettings();
             LoadRtssSettings();
+            LoadEnhancedScanningSettings();
+            LoadDatabaseStatus();
         }
 
         private void LoadSettings()
@@ -277,6 +281,158 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error reloading TurboService hotkey: {ex.Message}");
+            }
+        }
+
+        private void LoadEnhancedScanningSettings()
+        {
+            // Load enhanced library scanning settings
+            EnhancedLibraryScanningToggle.IsOn = SettingsService.IsEnhancedLibraryScanningEnabled();
+            
+            // Load and set scan interval ComboBox
+            int currentInterval = SettingsService.GetGameDatabaseRefreshInterval();
+            foreach (ComboBoxItem item in ScanIntervalComboBox.Items)
+            {
+                if (item.Tag is string tagValue && int.TryParse(tagValue, out int intervalValue))
+                {
+                    if (intervalValue == currentInterval)
+                    {
+                        ScanIntervalComboBox.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+            
+            // If no match found, default to 15 minutes
+            if (ScanIntervalComboBox.SelectedItem == null)
+            {
+                ScanIntervalComboBox.SelectedIndex = 1; // 15 minutes option
+            }
+        }
+
+        private void EnhancedLibraryScanningToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var isOn = EnhancedLibraryScanningToggle.IsOn;
+            SettingsService.SetEnhancedLibraryScanningEnabled(isOn);
+        }
+
+        private void ScanIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (ScanIntervalComboBox.SelectedItem is ComboBoxItem selectedItem && 
+                selectedItem.Tag is string tagValue && 
+                int.TryParse(tagValue, out int intervalValue))
+            {
+                SettingsService.SetGameDatabaseRefreshInterval(intervalValue);
+            }
+        }
+
+        private void LoadDatabaseStatus()
+        {
+            try
+            {
+                // Access the enhanced game detection service through the main window
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    // Use reflection to access the enhanced game detection service
+                    var enhancedServiceField = typeof(MainWindow).GetField("_enhancedGameDetectionService", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    
+                    if (enhancedServiceField?.GetValue(mainWindow) is EnhancedGameDetectionService enhancedService)
+                    {
+                        UpdateDatabaseStatusDisplay(enhancedService);
+                    }
+                    else
+                    {
+                        DatabaseStatusText.Text = "Enhanced game detection service not available";
+                    }
+                }
+                else
+                {
+                    DatabaseStatusText.Text = "MainWindow not available";
+                }
+            }
+            catch (Exception ex)
+            {
+                DatabaseStatusText.Text = $"Error loading database status: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"Error loading database status: {ex.Message}");
+            }
+        }
+
+        private void UpdateDatabaseStatusDisplay(EnhancedGameDetectionService enhancedService)
+        {
+            try
+            {
+                var stats = enhancedService.DatabaseStats;
+                var statusLines = new List<string>
+                {
+                    $"Total Games: {stats.TotalGames}",
+                    $"Database Size: {stats.GetFormattedSize()}"
+                };
+
+                if (stats.GamesBySource.Any())
+                {
+                    statusLines.Add("Games by Source:");
+                    foreach (var sourceGroup in stats.GamesBySource.OrderByDescending(kvp => kvp.Value))
+                    {
+                        statusLines.Add($"  {sourceGroup.Key}: {sourceGroup.Value}");
+                    }
+                }
+
+                if (stats.LastUpdated != DateTime.MinValue)
+                {
+                    statusLines.Add($"Last Updated: {stats.LastUpdated:g}");
+                }
+
+                DatabaseStatusText.Text = string.Join("\n", statusLines);
+            }
+            catch (Exception ex)
+            {
+                DatabaseStatusText.Text = $"Error updating database status: {ex.Message}";
+                System.Diagnostics.Debug.WriteLine($"Error updating database status: {ex.Message}");
+            }
+        }
+
+        private async void RefreshDatabaseButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                RefreshDatabaseButton.IsEnabled = false;
+                RefreshDatabaseButton.Content = "Scanning...";
+
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var enhancedServiceField = typeof(MainWindow).GetField("_enhancedGameDetectionService", 
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    
+                    if (enhancedServiceField?.GetValue(mainWindow) is EnhancedGameDetectionService enhancedService)
+                    {
+                        // Trigger a manual refresh (this will call RefreshGameDatabaseAsync)
+                        var refreshMethod = typeof(EnhancedGameDetectionService).GetMethod("RefreshGameDatabaseAsync", 
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        
+                        if (refreshMethod != null)
+                        {
+                            await (Task)refreshMethod.Invoke(enhancedService, null);
+                            
+                            // Update the display after refresh
+                            UpdateDatabaseStatusDisplay(enhancedService);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error refreshing database: {ex.Message}");
+                DatabaseStatusText.Text = $"Error refreshing database: {ex.Message}";
+            }
+            finally
+            {
+                RefreshDatabaseButton.IsEnabled = true;
+                RefreshDatabaseButton.Content = "Re-Scan";
             }
         }
     }

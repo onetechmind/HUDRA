@@ -32,48 +32,67 @@
             <!--  Lossless Scaling Settings Section  -->
             <Expander
                 Width="280"
-                Padding="5"
+                Padding="0"
                 CornerRadius="12"
                 IsExpanded="{Binding LosslessScalingSectionExpanded, Mode=TwoWay}">
                 <Expander.Header>
-                    <TextBlock
-                        FontFamily="Cascadia Code"
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Text="Lossless Scaling" />
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Image
+                            Width="25"
+                            Height="25"
+                            Source="/Assets/ls-icon.png" />
+
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="Lossless Scaling" />
+                    </StackPanel>
                 </Expander.Header>
-                <StackPanel Spacing="15">
+                <StackPanel Spacing="0">
                     <!--  Upscaling Toggle  -->
                     <Border
-                        Padding="20,15"
-                        Background="#22FFFFFF"
+                        Margin="0"
+                        Padding="15"
                         CornerRadius="12">
                         <StackPanel Spacing="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="4*" />
-                                    <ColumnDefinition Width="1*" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    Grid.Column="0"
-                                    VerticalAlignment="Center"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="14"
-                                    FontWeight="SemiBold"
-                                    Text="Upscaling" />
-                                <ToggleSwitch
-                                    x:Name="UpscalingToggle"
-                                    Grid.Column="1"
-                                    IsOn="{Binding UpscalingEnabled, Mode=TwoWay}" />
-                            </Grid>
+                            <Border
+                                Padding="10,5,10,5"
+                                Background="#22FFFFFF"
+                                CornerRadius="12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="4*" />
+                                        <ColumnDefinition Width="1*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock
+                                        Grid.Column="0"
+                                        VerticalAlignment="Center"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Text="Upscaling" />
+                                    <ToggleSwitch
+                                        x:Name="UpscalingToggle"
+                                        Grid.Column="1"
+                                        IsOn="{Binding UpscalingEnabled, Mode=TwoWay}" />
+                                </Grid>
+                            </Border>
 
                             <!--  Upscaling Description  -->
-                            <StackPanel Spacing="0">
+                            <StackPanel Padding="5" Spacing="0">
                                 <TextBlock
                                     Style="{StaticResource SettingsDescriptionStyle}"
                                     Text="Enables LS1 scaling for sharper image quality."
                                     TextWrapping="Wrap" />
-                                <TextBlock Style="{StaticResource SettingsDescriptionStyle}" TextWrapping="Wrap">
+                                <TextBlock
+                                    Margin="0"
+                                    Style="{StaticResource SettingsDescriptionStyle}"
+                                    TextWrapping="Wrap">
                                     <Run Text="Run games in Windowed mode at" />
                                     <Run FontWeight="SemiBold" Text="{Binding OptimalGameResolution, Mode=OneWay}" />
                                     <Run Text="for optimal results. This scales perfectly to your" />
@@ -85,39 +104,50 @@
                     </Border>
 
                     <!--  Frame Generation Multiplier  -->
-                    <Border
-                        Padding="20,15"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
+                    <Border Padding="10,5,10,5" CornerRadius="12">
                         <StackPanel Spacing="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    Grid.Column="0"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="14"
-                                    FontWeight="SemiBold"
-                                    Text="Frame Generation" />
-                                <TextBlock
-                                    Grid.Column="1"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="12"
-                                    Text="{Binding FrameGenLabel, Mode=OneWay}" />
-                            </Grid>
-                            <Slider
-                                x:Name="FrameGenSlider"
-                                Maximum="4"
-                                Minimum="1"
-                                StepFrequency="1"
-                                TickFrequency="1"
-                                TickPlacement="BottomRight"
-                                Value="{Binding FrameGenSelectedIndex, Mode=TwoWay}" />
+                            <Border
+                                Margin="5"
+                                Padding="10,20,10,20"
+                                Background="#22FFFFFF"
+                                CornerRadius="12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Grid.Column="0"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Text="Frame Generation" />
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="12"
+                                        Text="{Binding FrameGenLabel, Mode=OneWay}" />
+                                    <Slider
+                                        x:Name="FrameGenSlider"
+                                        Grid.Row="1"
+                                        Maximum="4"
+                                        Minimum="1"
+                                        StepFrequency="1"
+                                        TickFrequency="1"
+                                        TickPlacement="BottomRight"
+                                        Value="{Binding FrameGenSelectedIndex, Mode=TwoWay}" />
+                                </Grid>
+                            </Border>
+
 
                             <!--  Frame Generation Description  -->
-                            <StackPanel Spacing="0">
+                            <StackPanel Padding="5" Spacing="0">
                                 <TextBlock
                                     Style="{StaticResource SettingsDescriptionStyle}"
                                     Text="Generates additional frames between real frames to increase smoothness."
@@ -131,36 +161,49 @@
                     </Border>
 
                     <!--  Flow Scale Slider  -->
-                    <Border
-                        Padding="20,15"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
+                    <Border Padding="10" CornerRadius="12">
                         <StackPanel Spacing="10">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock
-                                    Grid.Column="0"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="14"
-                                    FontWeight="SemiBold"
-                                    Text="Flow Scale" />
-                                <TextBlock
-                                    Grid.Column="1"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="12"
-                                    Text="{Binding FlowScale, Mode=OneWay}" />
-                            </Grid>
-                            <Slider
-                                x:Name="FlowScaleSlider"
-                                Maximum="100"
-                                Minimum="0"
-                                Value="{Binding FlowScale, Mode=TwoWay}" />
+                            <Border
+                                Margin="5"
+                                Padding="10,20,10,20"
+                                Background="#22FFFFFF"
+                                CornerRadius="12">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Grid.Column="0"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="14"
+                                        FontWeight="SemiBold"
+                                        Text="Flow Scale" />
+                                    <TextBlock
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="12"
+                                        Text="{Binding FlowScale, Mode=OneWay}" />
+
+                                    <Slider
+                                        x:Name="FlowScaleSlider"
+                                        Grid.Row="1"
+                                        Grid.ColumnSpan="2"
+                                        Maximum="100"
+                                        Minimum="0"
+                                        Value="{Binding FlowScale, Mode=TwoWay}" />
+                                </Grid>
+                            </Border>
 
                             <!--  Flow Scale Description  -->
-                            <StackPanel Spacing="0">
+                            <StackPanel Padding="5" Spacing="0">
                                 <TextBlock
                                     Style="{StaticResource SettingsDescriptionStyle}"
                                     Text="Fine-tunes frame generation quality vs performance."
@@ -197,6 +240,7 @@
 
                     <!--  Action Buttons  -->
                     <StackPanel
+                        Margin="0,0,0,20"
                         HorizontalAlignment="Center"
                         Orientation="Horizontal"
                         Spacing="15">

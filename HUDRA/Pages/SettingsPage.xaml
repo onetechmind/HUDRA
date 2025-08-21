@@ -69,8 +69,6 @@
                     ShowLabel="False" />
             </StackPanel>
 
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
-
             <!--  Sticky TDP setting  -->
             <Border
                 Padding="20,5"
@@ -129,8 +127,108 @@
                 </StackPanel>
             </Border>
 
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+            <!--  Game Detection Settings  -->
+            <Expander
+                Width="280"
+                Padding="5"
+                CornerRadius="12">
+                <Expander.Header>
+                    <TextBlock
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Text="Game Detection" />
+                </Expander.Header>
+                <Border Margin="0,20,0,20" CornerRadius="12">
 
+                    <StackPanel Spacing="8">
+                        <Border
+                            Margin="0,10,0,10"
+                            Padding="10,5,10,5"
+                            Background="#22FFFFFF"
+                            CornerRadius="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4*" />
+                                    <ColumnDefinition Width="1*" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource SettingsLabelStyle}"
+                                    Text="Library Scanning" />
+
+                                <ToggleSwitch
+                                    x:Name="EnhancedLibraryScanningToggle"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    x:FieldModifier="public"
+                                    Toggled="EnhancedLibraryScanningToggle_Toggled" />
+
+                            </Grid>
+                        </Border>
+
+                        <TextBlock
+                            Margin="0"
+                            HorizontalAlignment="Center"
+                            FontWeight="SemiBold"
+                            Foreground="#CCFFFFFF"
+                            Text="Scan Interval" />
+
+                        <ComboBox
+                            x:Name="ScanIntervalComboBox"
+                            HorizontalAlignment="Stretch"
+                            x:FieldModifier="public"
+                            IsEnabled="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}"
+                            ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                            SelectionChanged="ScanIntervalComboBox_SelectionChanged"
+                            Style="{StaticResource HudraComboBoxStyle}">
+                            <ComboBoxItem Content="5 mins" Tag="5" />
+                            <ComboBoxItem Content="15 mins" Tag="15" />
+                            <ComboBoxItem Content="30 mins" Tag="30" />
+                            <ComboBoxItem Content="60 mins" Tag="60" />
+                        </ComboBox>
+
+                        <TextBlock
+                            Padding="0,10"
+                            Style="{StaticResource SettingsDescriptionStyle}"
+                            Text="Automatically scans installed games from major launchers (Steam, Epic Games, Xbox, GOG, etc.) for faster and more accurate game detection." />
+
+                        <!--  Game Database Status  -->
+
+                        <TextBlock
+                            Padding="0"
+                            HorizontalAlignment="Center"
+                            Style="{StaticResource SettingsLabelStyle}"
+                            Text="Library Stats"
+                            Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}" />
+
+                        <TextBlock
+                            x:Name="DatabaseStatusText"
+                            Style="{StaticResource SettingsDescriptionStyle}"
+                            Text="Loading database information..."
+                            Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}" />
+
+                        <Button
+                            x:Name="RefreshDatabaseButton"
+                            MinWidth="75"
+                            MinHeight="25"
+                            Margin="10,0,0,10"
+                            Padding="10"
+                            HorizontalAlignment="Center"
+                            Background="#4A4A4A"
+                            BorderBrush="#666666"
+                            BorderThickness="1"
+                            Click="RefreshDatabaseButton_Click"
+                            Content="Re-Scan"
+                            CornerRadius="10"
+                            Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}" />
+                    </StackPanel>
+                </Border>
+            </Expander>
             <!--  Clean Settings UI for Startup - Task Scheduler Only  -->
             <Border
                 Padding="20,5"
