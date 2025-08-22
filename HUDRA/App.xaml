@@ -104,6 +104,9 @@
                 <Setter Property="FontFamily" Value="Calibri" />
             </Style>
 
+            <!--  Default Expander Header  -->
+            <SolidColorBrush x:Key="ExpanderHeaderBackground" Color="#670195" />
+
             <!--  Simple ComboBox Style - clean and reliable  -->
             <Style x:Key="HudraComboBoxStyle" TargetType="ComboBox">
                 <Setter Property="Background" Value="#22FFFFFF" />
@@ -352,6 +355,7 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
 
         </ResourceDictionary>
     </Application.Resources>

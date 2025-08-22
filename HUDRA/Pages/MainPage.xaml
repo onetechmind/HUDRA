@@ -24,7 +24,7 @@
                     FontWeight="SemiBold"
                     Text="HOME" />
             </Border>
-            <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" />
+            <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" Width="280" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" />
             <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
             <controls:FpsLimiterControl x:Name="FpsLimiter" x:FieldModifier="public" />

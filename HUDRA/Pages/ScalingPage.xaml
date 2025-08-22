@@ -31,10 +31,10 @@
 
             <!--  Lossless Scaling Settings Section  -->
             <Expander
+                x:Name="LosslessScalingExpander"
                 Width="280"
                 Padding="0"
-                CornerRadius="12"
-                IsExpanded="{Binding LosslessScalingSectionExpanded, Mode=TwoWay}">
+                CornerRadius="12">
                 <Expander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
@@ -108,7 +108,7 @@
                         <StackPanel Spacing="10">
                             <Border
                                 Margin="5"
-                                Padding="10,20,10,20"
+                                Padding="10,20,10,10"
                                 Background="#22FFFFFF"
                                 CornerRadius="12">
                                 <Grid>
@@ -165,7 +165,7 @@
                         <StackPanel Spacing="10">
                             <Border
                                 Margin="5"
-                                Padding="10,20,10,20"
+                                Padding="10,20,10,10"
                                 Background="#22FFFFFF"
                                 CornerRadius="12">
                                 <Grid>

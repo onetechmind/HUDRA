@@ -53,7 +53,6 @@
 
         <Border
             x:Name="TdpPickerBorder"
-            Width="280"
             Padding="5,0"
             Background="#22FFFFFF"
             CornerRadius="12">

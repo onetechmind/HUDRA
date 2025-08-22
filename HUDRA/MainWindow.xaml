@@ -35,7 +35,6 @@
                     </Grid.RowDefinitions>
 
                     <!--  Navigation Items  -->
-                    <!--  Navigation Items  -->
                     <StackPanel
                         Grid.Row="0"
                         Margin="0,10,0,0"
@@ -58,7 +57,7 @@
                                 Height="50"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
-                                Source="/Assets/HUDRA-logo-large-png.png"
+                                Source="/Assets/HUDRA-logo-violet.png"
                                 Stretch="Uniform" />
 
                             <!--  Add a subtle visual hint that this is draggable  -->
@@ -67,7 +66,7 @@
                                     <DoubleAnimation
                                         Storyboard.TargetName="LogoDragHandle"
                                         Storyboard.TargetProperty="Opacity"
-                                        To="0.8"
+                                        To="0.4"
                                         Duration="0:0:0.1" />
                                 </Storyboard>
                                 <Storyboard x:Key="NormalStoryboard">

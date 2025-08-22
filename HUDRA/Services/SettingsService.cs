@@ -761,5 +761,6 @@ namespace HUDRA.Services
             int clampedValue = Math.Max(5, Math.Min(60, minutes));
             SetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, clampedValue);
         }
+
     }
 }

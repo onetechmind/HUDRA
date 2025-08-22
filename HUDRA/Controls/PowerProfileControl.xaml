@@ -9,11 +9,12 @@
     xmlns:power="using:HUDRA.Services.Power"
     mc:Ignorable="d">
 
-    <StackPanel Spacing="8">
+    <StackPanel Padding="5" Spacing="8">
 
         <!--  Default Power Profile  -->
         <TextBlock
             Margin="0,8,0,4"
+            HorizontalAlignment="Center"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
             Text="Default Profile" />
@@ -45,6 +46,7 @@
         <!--  Gaming Power Profile  -->
         <TextBlock
             Margin="0,8,0,4"
+            HorizontalAlignment="Center"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
             Text="Gaming Profile" />
@@ -73,9 +75,11 @@
             </ComboBox.ItemTemplate>
         </ComboBox>
 
+        <Rectangle Margin="15" Style="{StaticResource HudraHorizontalRule}" />
+
         <!--  Intelligent Switching Toggle  -->
         <Border
-            Margin="0,10,0,10"
+            Margin="0"
             Padding="10,5,10,5"
             Background="#22FFFFFF"
             CornerRadius="12">
@@ -84,6 +88,7 @@
                     <ColumnDefinition Width="4*" />
                     <ColumnDefinition Width="1*" />
                 </Grid.ColumnDefinitions>
+
 
                 <TextBlock
                     Grid.Column="0"
@@ -99,9 +104,6 @@
                     Toggled="OnIntelligentSwitchingToggled" />
             </Grid>
         </Border>
-
-        <Rectangle Style="{StaticResource HudraHorizontalRule}" />
-
 
         <!--  CPU Boost Toggle  -->
         <Border

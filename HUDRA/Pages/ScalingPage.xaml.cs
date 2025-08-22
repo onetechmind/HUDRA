@@ -13,10 +13,15 @@ namespace HUDRA.Pages
     public sealed partial class ScalingPage : Page
     {
         public ScalingPageViewModel ViewModel { get; private set; }
+        
+        // Session-only state storage for Lossless Scaling Expander
+        private static bool _losslessScalingExpanderExpanded = false;
 
         public ScalingPage()
         {
             this.InitializeComponent();
+            this.Loaded += ScalingPage_Loaded;
+            this.Unloaded += ScalingPage_Unloaded;
             ViewModel = new ScalingPageViewModel();
             this.DataContext = ViewModel;
         }
@@ -24,6 +29,40 @@ namespace HUDRA.Pages
         public void Initialize()
         {
             ViewModel.Initialize();
+        }
+
+        private void ScalingPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] Page loaded, setting expander state");
+            
+            // Load Lossless Scaling Expander state (session-only) after page UI is loaded
+            if (LosslessScalingExpander != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Loading expander state: {_losslessScalingExpanderExpanded}");
+                LosslessScalingExpander.IsExpanded = _losslessScalingExpanderExpanded;
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Expander IsExpanded set to: {LosslessScalingExpander.IsExpanded}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] LosslessScalingExpander is null!");
+            }
+        }
+
+        private void ScalingPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("[ScalingPage_Unloaded] Page unloaded, saving expander state");
+            
+            // Save expander state when leaving the page (session-only)
+            if (LosslessScalingExpander != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Current expander state: {LosslessScalingExpander.IsExpanded}");
+                _losslessScalingExpanderExpanded = LosslessScalingExpander.IsExpanded;
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Saved state to static field: {_losslessScalingExpanderExpanded}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[ScalingPage_Unloaded] LosslessScalingExpander is null!");
+            }
         }
 
         private async void ApplyButton_Click(object sender, RoutedEventArgs e)
@@ -61,7 +100,6 @@ namespace HUDRA.Pages
         private string _statusMessage = "Processing...";
         private string _optimalGameResolution = "1280×720";
         private string _nativeResolution = "1920×1080";
-        private bool _losslessScalingSectionExpanded = true;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -181,19 +219,6 @@ namespace HUDRA.Pages
 
         public RelayCommand ApplySettingsCommand { get; }
         public RelayCommand ResetSettingsCommand { get; }
-
-        public bool LosslessScalingSectionExpanded
-        {
-            get => _losslessScalingSectionExpanded;
-            set
-            {
-                if (_losslessScalingSectionExpanded != value)
-                {
-                    _losslessScalingSectionExpanded = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
 
         public void Initialize()
         {

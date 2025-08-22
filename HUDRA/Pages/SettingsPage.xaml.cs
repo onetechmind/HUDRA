@@ -14,10 +14,21 @@ namespace HUDRA.Pages
     {
         private DpiScalingService? _dpiService;
         private bool _isInitialized = false;
+        
+        // Property change callback token for TDP Settings Expander
+        private long _tdpExpanderCallbackToken = 0;
+        
+        // Session-only state storage for Expanders
+        private static bool _gameDetectionExpanderExpanded = false;
+        private static bool _tdpSettingsExpanderExpanded = false;
+        private static bool _powerProfileExpanderExpanded = false;
+        private static bool _startupSettingsExpanderExpanded = false;
 
         public SettingsPage()
         {
             this.InitializeComponent();
+            this.Loaded += SettingsPage_Loaded;
+            this.Unloaded += SettingsPage_Unloaded;
             LoadSettings();
             LoadStartupSettings();
             LoadRtssSettings();
@@ -124,10 +135,109 @@ namespace HUDRA.Pages
 
             _isInitialized = true;
 
-            // Use the new method to set value when layout is ready
+        }
+
+        private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
+        {
+            // Load Game Detection Expander state (session-only) after page UI is loaded
+            if (GameDetectionExpander != null)
+            {
+                GameDetectionExpander.IsExpanded = _gameDetectionExpanderExpanded;
+            }
+
+            // Load TDP Settings Expander state
+            if (TdpSettingsExpander != null)
+            {
+                TdpSettingsExpander.IsExpanded = _tdpSettingsExpanderExpanded;
+            }
+
+            // Load Power Profile Expander state
+            if (PowerProfileExpander != null)
+            {
+                PowerProfileExpander.IsExpanded = _powerProfileExpanderExpanded;
+            }
+
+            // Load Startup Settings Expander state
+            if (StartupSettingsExpander != null)
+            {
+                StartupSettingsExpander.IsExpanded = _startupSettingsExpanderExpanded;
+            }
+
+            // Set up property change monitoring for TDP Settings Expander
+            if (TdpSettingsExpander != null)
+            {
+                _tdpExpanderCallbackToken = TdpSettingsExpander.RegisterPropertyChangedCallback(
+                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty,
+                    OnTdpExpanderStateChanged);
+                
+                // Set initial value if expander is already expanded
+                if (TdpSettingsExpander.IsExpanded)
+                {
+                    RefreshTdpPickerDisplay();
+                }
+            }
+        }
+
+        private void SettingsPage_Unloaded(object sender, RoutedEventArgs e)
+        {
+            // Clean up property change callback to prevent memory leaks
+            if (TdpSettingsExpander != null && _tdpExpanderCallbackToken != 0)
+            {
+                TdpSettingsExpander.UnregisterPropertyChangedCallback(
+                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty, 
+                    _tdpExpanderCallbackToken);
+                _tdpExpanderCallbackToken = 0;
+            }
+
+            // Save Game Detection expander state when leaving the page (session-only)
+            if (GameDetectionExpander != null)
+            {
+                _gameDetectionExpanderExpanded = GameDetectionExpander.IsExpanded;
+            }
+
+            // Save TDP Settings expander state
+            if (TdpSettingsExpander != null)
+            {
+                _tdpSettingsExpanderExpanded = TdpSettingsExpander.IsExpanded;
+            }
+
+            // Save Power Profile expander state
+            if (PowerProfileExpander != null)
+            {
+                _powerProfileExpanderExpanded = PowerProfileExpander.IsExpanded;
+            }
+
+            // Save Startup Settings expander state
+            if (StartupSettingsExpander != null)
+            {
+                _startupSettingsExpanderExpanded = StartupSettingsExpander.IsExpanded;
+            }
+        }
+
+        private void OnTdpExpanderStateChanged(Microsoft.UI.Xaml.DependencyObject sender, Microsoft.UI.Xaml.DependencyProperty dp)
+        {
+            // Only update TDP picker when expander is expanded (not when collapsed)
+            if (TdpSettingsExpander != null && TdpSettingsExpander.IsExpanded)
+            {
+                RefreshTdpPickerDisplay();
+            }
+        }
+
+        private void RefreshTdpPickerDisplay()
+        {
+            // Ensure the TDP picker displays correctly after expander expansion
+            // Use a small delay to allow the expander content to fully render
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                // Only refresh scroll position without disrupting selection state
+                StartupTdpPicker.EnsureScrollPositionAfterLayout();
+            });
+        }
+
+        private void SetTdpPickerValue()
+        {
             int startupTdp = SettingsService.GetStartupTdp();
             StartupTdpPicker.SetSelectedTdpWhenReady(startupTdp);
-
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -138,6 +248,39 @@ namespace HUDRA.Pages
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
+            // Clean up property change callback to prevent memory leaks
+            if (TdpSettingsExpander != null && _tdpExpanderCallbackToken != 0)
+            {
+                TdpSettingsExpander.UnregisterPropertyChangedCallback(
+                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty, 
+                    _tdpExpanderCallbackToken);
+                _tdpExpanderCallbackToken = 0;
+            }
+
+            // Save Game Detection expander state when leaving the page (session-only)
+            if (GameDetectionExpander != null)
+            {
+                _gameDetectionExpanderExpanded = GameDetectionExpander.IsExpanded;
+            }
+
+            // Save TDP Settings expander state
+            if (TdpSettingsExpander != null)
+            {
+                _tdpSettingsExpanderExpanded = TdpSettingsExpander.IsExpanded;
+            }
+
+            // Save Power Profile expander state
+            if (PowerProfileExpander != null)
+            {
+                _powerProfileExpanderExpanded = PowerProfileExpander.IsExpanded;
+            }
+
+            // Save Startup Settings expander state
+            if (StartupSettingsExpander != null)
+            {
+                _startupSettingsExpanderExpanded = StartupSettingsExpander.IsExpanded;
+            }
 
             // Cleanup
             if (_isInitialized)
@@ -435,5 +578,6 @@ namespace HUDRA.Pages
                 RefreshDatabaseButton.Content = "Re-Scan";
             }
         }
+
     }
 }
