@@ -331,15 +331,13 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Toggled="StartupToggle_Toggled" />
-
-                            <TextBlock
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="2"
-                                Style="{StaticResource SettingsDescriptionStyle}"
-                                Text="Automatically launch HUDRA with admin privileges when Windows starts." />
                         </Grid>
+
                     </Border>
+                    <TextBlock
+                        Padding="10,0,10,0"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Automatically launches HUDRA with admin privileges when Windows starts." />
 
                     <!--  Start Minimized  -->
                     <Border
@@ -369,15 +367,13 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center"
                                 Toggled="MinimizeOnStartupToggle_Toggled" />
-
-                            <TextBlock
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="2"
-                                Style="{StaticResource SettingsDescriptionStyle}"
-                                Text="Enable to start HUDRA minimized to tray." />
                         </Grid>
                     </Border>
+
+                    <TextBlock
+                        Padding="10,0,10,0"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Starts HUDRA minimized to tray." />
 
                     <!--  Auto-Start RTSS  -->
                     <Border
@@ -386,7 +382,6 @@
                         CornerRadius="12">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
@@ -408,18 +403,16 @@
                                 VerticalAlignment="Center"
                                 Toggled="StartRtssWithHudraToggle_Toggled" />
 
-                            <TextBlock
-                                Grid.Row="1"
-                                Grid.Column="0"
-                                Grid.ColumnSpan="2"
-                                Style="{StaticResource SettingsDescriptionStyle}"
-                                Text="Automatically start RivaTuner Statistics Server with HUDRA for FPS Limiting." />
                         </Grid>
                     </Border>
 
+                    <TextBlock Padding="10,0,10,0"
+     Style="{StaticResource SettingsDescriptionStyle}"
+     Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting." />
+
                     <!--  Hide/Show Hotkey  -->
                     <Border
-                        Padding="20,10"
+                        Padding="10"
                         Background="#22FFFFFF"
                         CornerRadius="12">
                         <StackPanel Spacing="8">

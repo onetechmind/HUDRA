@@ -24,7 +24,7 @@
                 Grid.Column="0"
                 VerticalAlignment="Center"
                 FontFamily="Consolas"
-                FontSize="14"
+                FontSize="13"
                 FontWeight="SemiBold"
                 Foreground="White"
                 Text="Win + Alt + Ctrl" />

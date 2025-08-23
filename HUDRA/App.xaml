@@ -115,7 +115,7 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="FontFamily" Value="Cascadia Code" />
                 <Setter Property="FontWeight" Value="SemiBold" />
-                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="CornerRadius" Value="12" />
                 <Setter Property="Padding" Value="15" />
                 <Setter Property="MinHeight" Value="48" />
@@ -126,7 +126,7 @@
             <!--  Simple ComboBoxItem Style  -->
             <Style x:Key="HudraComboBoxItemStyle" TargetType="ComboBoxItem">
                 <Setter Property="FontFamily" Value="Cascadia Code" />
-                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="HorizontalContentAlignment" Value="Center" />
                 <Setter Property="VerticalContentAlignment" Value="Center" />
                 <Setter Property="Padding" Value="15" />
@@ -168,7 +168,7 @@
             <SolidColorBrush x:Key="ToggleSwitchContentForegroundDisabled" Color="#666666" />
 
             <Style x:Key="SettingsLabelStyle" TargetType="TextBlock">
-                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontSize" Value="13" />
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="FontWeight" Value="SemiBold" />
                 <Setter Property="FontFamily" Value="Cascadia Code" />

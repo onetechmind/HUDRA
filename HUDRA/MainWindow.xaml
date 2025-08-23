@@ -107,24 +107,6 @@
                                 Text="{x:Bind BatteryPercentageText, Mode=OneWay}" />
                         </StackPanel>
 
-                        <!--  Game Library Scanning Progress Indicator  -->
-                        <StackPanel
-                            x:Name="ScanProgressPanel"
-                            Width="50"
-                            Height="50"
-                            Margin="0,0,0,10"
-                            HorizontalAlignment="Center"
-                            Visibility="{x:Bind IsGameLibraryScanning, Mode=OneWay}">
-                            <ProgressRing
-                                x:Name="ScanProgressRing"
-                                Width="30"
-                                Height="30"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                Foreground="DarkViolet"
-                                IsActive="{x:Bind IsGameLibraryScanning, Mode=OneWay}"
-                                ToolTipService.ToolTip="{x:Bind ScanProgressText, Mode=OneWay}" />
-                        </StackPanel>
                         <!--  Main Page Navigation Item (Home icon)  -->
                         <Button
                             x:Name="MainPageNavButton"
@@ -179,7 +161,7 @@
                                 VerticalAlignment="Center"
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="25"
-                                Glyph="&#xE799;" />
+                                Glyph="&#xE740;" />
                         </Button>
 
                         <!--  Settings Navigation Item (Custom image)  -->
@@ -200,6 +182,33 @@
                                 FontSize="25"
                                 Glyph="&#xE713;" />
                         </Button>
+
+                        <!--  Game Library Scanning Progress Indicator  -->
+                        <StackPanel
+                            x:Name="ScanProgressPanel"
+                            Width="50"
+                            Height="70"
+                            Margin="0,20,0,0"
+                            HorizontalAlignment="Center"
+                            Visibility="{x:Bind IsGameLibraryScanning, Mode=OneWay}">
+                            <ProgressRing
+                                x:Name="ScanProgressRing"
+                                Width="30"
+                                Height="30"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Foreground="DarkViolet"
+                                IsActive="{x:Bind IsGameLibraryScanning, Mode=OneWay}"
+                                ToolTipService.ToolTip="{x:Bind ScanProgressText, Mode=OneWay}" />
+                            <TextBlock
+                                Padding="5"
+                                HorizontalAlignment="Center"
+                                FontSize="10"
+                                Opacity=".8">
+                                Scanning<LineBreak />
+                                library...</TextBlock>
+                        </StackPanel>
+
                     </StackPanel>
 
                     <!--  Bottom section with Alt+Tab and Close buttons  -->
