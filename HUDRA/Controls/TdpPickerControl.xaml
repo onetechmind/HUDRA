@@ -41,7 +41,7 @@
             Spacing="0" />
     </UserControl.Resources>
 
-    <StackPanel Spacing="8">
+    <StackPanel Spacing="8" XYFocusKeyboardNavigation="Enabled">
         <TextBlock
             Padding="0"
             HorizontalAlignment="Center"

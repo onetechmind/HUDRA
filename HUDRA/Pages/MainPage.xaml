@@ -13,7 +13,8 @@
             Margin="0,15,0,0"
             HorizontalAlignment="Center"
             VerticalAlignment="Top"
-            Spacing="20">
+            Spacing="20"
+            XYFocusKeyboardNavigation="Enabled">
             <!--  Header Section  -->
             <Border>
                 <TextBlock

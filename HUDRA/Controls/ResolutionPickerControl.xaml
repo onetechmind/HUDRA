@@ -8,7 +8,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     
-    <StackPanel Spacing="8">
+    <StackPanel Spacing="8" XYFocusKeyboardNavigation="Enabled">
         <!-- Labels -->
         <Grid Width="280">
             <Grid.ColumnDefinitions>

@@ -51,6 +51,10 @@ namespace HUDRA.Services
         private const string HIDE_SHOW_HOTKEY_KEY = "HideShowHotkeyKey";
         private const string HIDE_SHOW_HOTKEY_MODIFIERS = "HideShowHotkeyModifiers";
 
+        // Controller settings keys
+        private const string ControllerEnabledKey = "ControllerEnabled";
+        private const string ControllerDeadzoneKey = "ControllerDeadzone";
+
         // Enhanced game detection keys
         private const string ENHANCED_LIBRARY_SCANNING_KEY = "EnhancedLibraryScanningEnabled";
         private const string GAME_DATABASE_REFRESH_INTERVAL_KEY = "GameDatabaseRefreshInterval";
@@ -692,6 +696,41 @@ namespace HUDRA.Services
         public static void SetStartRtssWithHudra(bool enabled)
         {
             SetBooleanSetting(StartRtssWithHudraKey, enabled);
+        }
+
+        public static bool GetControllerEnabled()
+        {
+            return GetBooleanSetting(ControllerEnabledKey, true);
+        }
+
+        public static void SetControllerEnabled(bool enabled)
+        {
+            SetBooleanSetting(ControllerEnabledKey, enabled);
+        }
+
+        public static float GetControllerDeadzone()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(ControllerDeadzoneKey, out var value))
+                {
+                    if (value is JsonElement json && json.ValueKind == JsonValueKind.Number && json.TryGetDouble(out double f))
+                        return (float)f;
+                    if (value is float f2) return f2;
+                    if (value is double d) return (float)d;
+                }
+                return 0.1f; // default deadzone
+            }
+        }
+
+        public static void SetControllerDeadzone(float deadzone)
+        {
+            lock (_lock)
+            {
+                _settings ??= new Dictionary<string, object>();
+                _settings[ControllerDeadzoneKey] = deadzone;
+                SaveSettings();
+            }
         }
 
         // Lossless Scaling Settings

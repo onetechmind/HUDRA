@@ -9,10 +9,12 @@ using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using HUDRA.Services.Input;
+using HUDRA.Interfaces;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class ResolutionPickerControl : UserControl, INotifyPropertyChanged
+    public sealed partial class ResolutionPickerControl : UserControl, INotifyPropertyChanged, IControllerNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<ResolutionChangedEventArgs>? ResolutionChanged;
@@ -334,6 +336,48 @@ namespace HUDRA.Controls
                 return false;
             }
         }
+
+        #region Controller Support
+
+        public bool CanReceiveControllerFocus => true;
+
+        public bool HandleControllerInput(ControllerButton button, bool isPressed)
+        {
+            if (!isPressed) return false;
+            switch (button)
+            {
+                case ControllerButton.DPadLeft:
+                    if (ResolutionComboBox != null && ResolutionComboBox.SelectedIndex > 0)
+                        ResolutionComboBox.SelectedIndex--;
+                    return true;
+                case ControllerButton.DPadRight:
+                    if (ResolutionComboBox != null && ResolutionComboBox.SelectedIndex < ResolutionComboBox.Items.Count - 1)
+                        ResolutionComboBox.SelectedIndex++;
+                    return true;
+                case ControllerButton.DPadUp:
+                    if (RefreshRateComboBox != null && RefreshRateComboBox.SelectedIndex > 0)
+                        RefreshRateComboBox.SelectedIndex--;
+                    return true;
+                case ControllerButton.DPadDown:
+                    if (RefreshRateComboBox != null && RefreshRateComboBox.SelectedIndex < RefreshRateComboBox.Items.Count - 1)
+                        RefreshRateComboBox.SelectedIndex++;
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public void OnControllerFocusReceived()
+        {
+            VisualStateManager.GoToState(this, "ControllerFocused", true);
+        }
+
+        public void OnControllerFocusLost()
+        {
+            VisualStateManager.GoToState(this, "Normal", true);
+        }
+
+        #endregion
 
 
         public void Dispose()

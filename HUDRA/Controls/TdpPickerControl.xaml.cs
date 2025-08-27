@@ -1,6 +1,8 @@
 ﻿using HUDRA.Configuration;
 using HUDRA.Helpers;
 using HUDRA.Services;
+using HUDRA.Services.Input;
+using HUDRA.Interfaces;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -13,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class TdpPickerControl : UserControl, INotifyPropertyChanged
+    public sealed partial class TdpPickerControl : UserControl, INotifyPropertyChanged, IControllerNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<int>? TdpChanged;
@@ -297,6 +299,53 @@ namespace HUDRA.Controls
 
             _lastCenteredTdp = _selectedTdp;
         }
+
+        #region Controller Support
+
+        public bool CanReceiveControllerFocus => true;
+
+        public bool HandleControllerInput(ControllerButton button, bool isPressed)
+        {
+            if (!isPressed) return false;
+
+            switch (button)
+            {
+                case ControllerButton.DPadUp:
+                case ControllerButton.Y:
+                    IncrementTdp();
+                    return true;
+                case ControllerButton.DPadDown:
+                case ControllerButton.A:
+                    DecrementTdp();
+                    return true;
+                case ControllerButton.DPadLeft:
+                    SetTdpValue(SelectedTdp - 5);
+                    return true;
+                case ControllerButton.DPadRight:
+                    SetTdpValue(SelectedTdp + 5);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public void OnControllerFocusReceived()
+        {
+            VisualStateManager.GoToState(this, "ControllerFocused", true);
+        }
+
+        public void OnControllerFocusLost()
+        {
+            VisualStateManager.GoToState(this, "Normal", true);
+        }
+
+        private void IncrementTdp() => SelectedTdp = Math.Min(SelectedTdp + 1, HudraSettings.MAX_TDP);
+
+        private void DecrementTdp() => SelectedTdp = Math.Max(SelectedTdp - 1, HudraSettings.MIN_TDP);
+
+        private void SetTdpValue(int value) => SelectedTdp = Math.Clamp(value, HudraSettings.MIN_TDP, HudraSettings.MAX_TDP);
+
+        #endregion
 
         #endregion
 

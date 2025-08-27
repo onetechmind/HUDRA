@@ -4,10 +4,13 @@ using HUDRA.Models;
 using HUDRA.Pages;
 using HUDRA.Services;
 using HUDRA.Services.Power;
+using HUDRA.Services.Input;
+using HUDRA.Interfaces;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
@@ -36,6 +39,8 @@ namespace HUDRA
         private readonly BatteryService _batteryService;
         private readonly PowerProfileService _powerProfileService;
         private readonly RtssFpsLimiterService _fpsLimiterService;
+        private readonly GameControllerService _controllerService;
+        private readonly FocusNavigationService _focusNavigationService;
         private TdpMonitorService? _tdpMonitor;
         private TurboService? _turboService;
         private MicaController? _micaController;
@@ -169,6 +174,8 @@ namespace HUDRA
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
             _fpsLimiterService = new RtssFpsLimiterService();
+            _controllerService = new GameControllerService();
+            _focusNavigationService = new FocusNavigationService();
 
             // Subscribe to navigation events
             _navigationService.PageChanged += OnPageChanged;
@@ -177,6 +184,7 @@ namespace HUDRA
             InitializeWindow();
             SetupEventHandlers();
             SetupDragHandling();
+            InitializeControllerSupport();
 
             _navigationService.NavigateToMain();
 
@@ -1337,6 +1345,55 @@ namespace HUDRA
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to auto-start RTSS: {ex.Message}");
             }
+        }
+
+        private void InitializeControllerSupport()
+        {
+            _controllerService.NavigationRequested += OnControllerNavigation;
+            _controllerService.ButtonPressed += OnControllerButtonPress;
+            _ = _controllerService.StartPollingAsync();
+        }
+
+        private void OnControllerNavigation(object? sender, ControllerNavigationEventArgs e)
+        {
+            switch (e.Action)
+            {
+                case HudraAction.NextPage:
+                    _navigationService.NavigateToNext();
+                    _audioService?.PlayTickSound();
+                    break;
+                case HudraAction.PreviousPage:
+                    _navigationService.NavigateToPrevious();
+                    _audioService?.PlayTickSound();
+                    break;
+                case HudraAction.NavigateUp:
+                case HudraAction.NavigateDown:
+                case HudraAction.NavigateLeft:
+                case HudraAction.NavigateRight:
+                    _focusNavigationService.HandleDirectionalNavigation(e.Action);
+                    break;
+            }
+        }
+
+        private void OnControllerButtonPress(object? sender, ControllerButtonEventArgs e)
+        {
+            var currentPage = _navigationService.CurrentPage;
+            var handled = false;
+
+            if (FocusManager.GetFocusedElement(this) is IControllerNavigable navigableControl)
+            {
+                handled = navigableControl.HandleControllerInput(e.Button, e.IsPressed);
+            }
+
+            if (!handled)
+            {
+                HandlePageSpecificControllerInput(currentPage, e.Button, e.IsPressed);
+            }
+        }
+
+        private void HandlePageSpecificControllerInput(Type? currentPage, ControllerButton button, bool isPressed)
+        {
+            // Placeholder for future page specific handling
         }
 
     }

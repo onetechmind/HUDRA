@@ -1,5 +1,7 @@
 using HUDRA.Configuration;
 using HUDRA.Services;
+using HUDRA.Services.Input;
+using HUDRA.Interfaces;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -9,7 +11,7 @@ using System.Runtime.CompilerServices;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class AudioControlsControl : UserControl, INotifyPropertyChanged
+    public sealed partial class AudioControlsControl : UserControl, INotifyPropertyChanged, IControllerNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<AudioStateChangedEventArgs>? AudioStateChanged;
@@ -242,6 +244,44 @@ namespace HUDRA.Controls
             }
         }
 
+        #region Controller Support
+
+        public bool CanReceiveControllerFocus => true;
+
+        public bool HandleControllerInput(ControllerButton button, bool isPressed)
+        {
+            if (!isPressed) return false;
+
+            switch (button)
+            {
+                case ControllerButton.DPadLeft:
+                    if (VolumeSlider != null)
+                        VolumeSlider.Value = Math.Max(0, VolumeSlider.Value - 1);
+                    return true;
+                case ControllerButton.DPadRight:
+                    if (VolumeSlider != null)
+                        VolumeSlider.Value = Math.Min(100, VolumeSlider.Value + 1);
+                    return true;
+                case ControllerButton.A:
+                case ControllerButton.X:
+                    OnMuteButtonClick(this, new RoutedEventArgs());
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        public void OnControllerFocusReceived()
+        {
+            VisualStateManager.GoToState(this, "ControllerFocused", true);
+        }
+
+        public void OnControllerFocusLost()
+        {
+            VisualStateManager.GoToState(this, "Normal", true);
+        }
+
+        #endregion
 
         public void Dispose()
         {
