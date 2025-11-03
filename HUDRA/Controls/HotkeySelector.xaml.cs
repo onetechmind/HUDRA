@@ -1,6 +1,10 @@
+using HUDRA.Interfaces;
+using HUDRA.AttachedProperties;
+using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -11,7 +15,7 @@ using VirtualKey = Windows.System.VirtualKey;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class HotkeySelector : UserControl, INotifyPropertyChanged
+    public sealed partial class HotkeySelector : UserControl, INotifyPropertyChanged, IGamepadNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<HotkeyChangedEventArgs>? HotkeyChanged;
@@ -20,10 +24,14 @@ namespace HUDRA.Controls
         private HashSet<Keys> _pressedKeys = new();
         private string _currentModifiers = "Win+Alt+Ctrl";
         private string _currentKey = "";
-        
+
         // Store original values for cancel functionality
         private string _originalModifiers = "";
         private string _originalKey = "";
+
+        // Gamepad navigation fields
+        private GamepadNavigationService? _gamepadNavigationService;
+        private bool _isFocused = false;
 
         public string CurrentModifiers
         {
@@ -53,10 +61,60 @@ namespace HUDRA.Controls
             }
         }
 
+        // IGamepadNavigable implementation
+        public bool CanNavigateUp => false;
+        public bool CanNavigateDown => false;
+        public bool CanNavigateLeft => false;
+        public bool CanNavigateRight => false;
+        public bool CanActivate => true;
+        public FrameworkElement NavigationElement => this;
+
+        // Slider interface implementations - HotkeySelector has no sliders
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+
+        // ComboBox interface implementations - HotkeySelector has no ComboBoxes
+        public bool HasComboBoxes => false;
+        public bool IsComboBoxOpen { get; set; } = false;
+        public ComboBox? GetFocusedComboBox() => null;
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+        public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
+
+        // Focus brush property for XAML binding
+        public Brush HotkeySelectorFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                {
+                    return new SolidColorBrush(_isCapturing ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         public HotkeySelector()
         {
             this.InitializeComponent();
+            this.DataContext = this;
             UpdateDisplay();
+            InitializeGamepadNavigation();
+        }
+
+        private void InitializeGamepadNavigation()
+        {
+            GamepadNavigation.SetIsEnabled(this, true);
+            GamepadNavigation.SetNavigationGroup(this, "MainControls");
+            GamepadNavigation.SetNavigationOrder(this, 1);
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+            }
         }
 
         public void SetHotkey(string modifiers, string key)
@@ -373,6 +431,71 @@ namespace HUDRA.Controls
                 VirtualKey.PageDown => Keys.PageDown,
                 _ => Keys.None
             };
+        }
+
+        // IGamepadNavigable event handlers
+        public void OnGamepadNavigateUp()
+        {
+            // No up/down navigation in HotkeySelector
+        }
+
+        public void OnGamepadNavigateDown()
+        {
+            // No up/down navigation in HotkeySelector
+        }
+
+        public void OnGamepadNavigateLeft()
+        {
+            // No left/right navigation in HotkeySelector
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            // No left/right navigation in HotkeySelector
+        }
+
+        public void OnGamepadActivate()
+        {
+            // Trigger the Edit button when activated with gamepad
+            EditButton_Click(EditButton, new RoutedEventArgs());
+            System.Diagnostics.Debug.WriteLine($"🎮 HotkeySelector: Activated Edit button");
+        }
+
+        public void OnGamepadFocusReceived()
+        {
+            // Initialize gamepad service if needed
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 HotkeySelector: Received gamepad focus");
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            _isFocused = false;
+
+            // Cancel any ongoing capture when losing focus
+            if (_isCapturing)
+            {
+                CancelCapture();
+            }
+
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 HotkeySelector: Lost gamepad focus");
+        }
+
+        public void AdjustSliderValue(int direction)
+        {
+            // No sliders in HotkeySelector control
+        }
+
+        private void UpdateFocusVisuals()
+        {
+            OnPropertyChanged(nameof(HotkeySelectorFocusBrush));
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

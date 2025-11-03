@@ -5,13 +5,20 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:HUDRA.Controls"
+    xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="1">
 
     <Border
+        x:Name="HotkeySelectorBorder"
         Padding="15,10"
         Background="#33FFFFFF"
-        CornerRadius="8">
+        CornerRadius="8"
+        BorderBrush="{x:Bind HotkeySelectorFocusBrush, Mode=OneWay}"
+        BorderThickness="2">
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />

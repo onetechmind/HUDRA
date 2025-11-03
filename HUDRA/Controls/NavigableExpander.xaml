@@ -1,0 +1,25 @@
+<UserControl
+    x:Class="HUDRA.Controls.NavigableExpander"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    mc:Ignorable="d"
+    x:Name="Root">
+
+    <Border
+        CornerRadius="12"
+        HorizontalAlignment="Stretch"
+        BorderBrush="{x:Bind FocusBorderBrush, Mode=OneWay}"
+        BorderThickness="{x:Bind FocusBorderThickness, Mode=OneWay}">
+        <Expander x:Name="InnerExpander"
+                  HorizontalAlignment="Stretch"
+                  Padding="0"
+                  IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}">
+            <Expander.Header>
+                <ContentPresenter Content="{x:Bind Header, Mode=OneWay}"/>
+            </Expander.Header>
+            <ContentPresenter x:Name="BodyContentPresenter" Content="{x:Bind Body, Mode=OneWay}"/>
+        </Expander>
+    </Border>
+</UserControl>

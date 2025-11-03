@@ -5,9 +5,23 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:HUDRA.Controls"
+    xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:helpers="using:HUDRA.Helpers"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:power="using:HUDRA.Services.Power"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="1">
+
+    <UserControl.Resources>
+        <Style
+            x:Key="PowerProfileComboBoxItemStyle"
+            TargetType="ComboBoxItem"
+            BasedOn="{StaticResource HudraComboBoxItemStyle}">
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+        </Style>
+    </UserControl.Resources>
 
     <StackPanel Padding="5" Spacing="8">
 
@@ -19,20 +33,22 @@
             Foreground="#CCFFFFFF"
             Text="Default Profile" />
 
-        <ComboBox
-            x:Name="DefaultProfileComboBox"
-            HorizontalAlignment="Stretch"
-            ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-            SelectionChanged="OnDefaultProfileSelectionChanged"
-            Style="{StaticResource HudraComboBoxStyle}">
+        <Border
+            x:Name="DefaultProfileBorder"
+            CornerRadius="6"
+            BorderBrush="{x:Bind DefaultProfileFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <ComboBox
+                x:Name="DefaultProfileComboBox"
+                HorizontalAlignment="Stretch"
+                helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
+                ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
+                SelectionChanged="OnDefaultProfileSelectionChanged"
+                Style="{StaticResource HudraComboBoxStyle}">
             <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="power:PowerProfile">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon
-                            FontSize="13"
-                            Foreground="#CCFFFFFF"
-                            Glyph="{x:Bind TypeIcon}" />
-                        <TextBlock Foreground="#CCFFFFFF" Text="{x:Bind Name}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch">
+                        <TextBlock Text="{x:Bind Name}" />
                         <TextBlock
                             FontSize="13"
                             Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
@@ -41,7 +57,8 @@
                     </StackPanel>
                 </DataTemplate>
             </ComboBox.ItemTemplate>
-        </ComboBox>
+            </ComboBox>
+        </Border>
 
         <!--  Gaming Power Profile  -->
         <TextBlock
@@ -51,20 +68,22 @@
             Foreground="#CCFFFFFF"
             Text="Gaming Profile" />
 
-        <ComboBox
-            x:Name="GamingProfileComboBox"
-            HorizontalAlignment="Stretch"
-            ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-            SelectionChanged="OnGamingProfileSelectionChanged"
-            Style="{StaticResource HudraComboBoxStyle}">
+        <Border
+            x:Name="GamingProfileBorder"
+            CornerRadius="6"
+            BorderBrush="{x:Bind GamingProfileFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <ComboBox
+                x:Name="GamingProfileComboBox"
+                HorizontalAlignment="Stretch"
+                helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
+                ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
+                SelectionChanged="OnGamingProfileSelectionChanged"
+                Style="{StaticResource HudraComboBoxStyle}">
             <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="power:PowerProfile">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <FontIcon
-                            FontSize="14"
-                            Foreground="#CCFFFFFF"
-                            Glyph="{x:Bind TypeIcon}" />
-                        <TextBlock Foreground="#CCFFFFFF" Text="{x:Bind Name}" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Stretch">
+                        <TextBlock Text="{x:Bind Name}" />
                         <TextBlock
                             FontSize="12"
                             Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
@@ -73,16 +92,20 @@
                     </StackPanel>
                 </DataTemplate>
             </ComboBox.ItemTemplate>
-        </ComboBox>
+            </ComboBox>
+        </Border>
 
         <Rectangle Margin="15" Style="{StaticResource HudraHorizontalRule}" />
 
         <!--  Intelligent Switching Toggle  -->
         <Border
+            x:Name="IntelligentSwitchingBorder"
             Margin="0"
             Padding="10,5,10,5"
             Background="#22FFFFFF"
-            CornerRadius="12">
+            CornerRadius="12"
+            BorderBrush="{x:Bind IntelligentSwitchingFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="4*" />
@@ -107,10 +130,13 @@
 
         <!--  CPU Boost Toggle  -->
         <Border
+            x:Name="CpuBoostBorder"
             Margin="0,10,0,0"
             Padding="10,5,10,5"
             Background="#22FFFFFF"
-            CornerRadius="12">
+            CornerRadius="12"
+            BorderBrush="{x:Bind CpuBoostFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="4*" />
@@ -132,14 +158,19 @@
             </Grid>
         </Border>
 
-        <HyperlinkButton
-            x:Name="PowerOptionsLink"
-            Padding="0,4,0,0"
+        <Border
+            x:Name="PowerOptionsLinkBorder"
             HorizontalAlignment="Center"
-            Click="OnPowerOptionsLinkClick"
-            Content="Advanced power settings..."
-            FontSize="12"
-            Foreground="#99FFFFFF">
+            CornerRadius="6"
+            BorderBrush="{x:Bind PowerOptionsLinkFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <HyperlinkButton
+                x:Name="PowerOptionsLink"
+                Padding="0,4,0,0"
+                Click="OnPowerOptionsLinkClick"
+                Content="Advanced power settings..."
+                FontSize="12"
+                Foreground="#99FFFFFF">
             <HyperlinkButton.Resources>
                 <Style TargetType="HyperlinkButton">
                     <Setter Property="Foreground" Value="#99FFFFFF" />
@@ -184,7 +215,8 @@
                     </Setter>
                 </Style>
             </HyperlinkButton.Resources>
-        </HyperlinkButton>
+            </HyperlinkButton>
+        </Border>
     </StackPanel>
 
 </UserControl>

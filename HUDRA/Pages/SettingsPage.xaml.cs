@@ -1,4 +1,5 @@
 using HUDRA.Services;
+using HUDRA.Controls;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -14,7 +15,7 @@ namespace HUDRA.Pages
     {
         private DpiScalingService? _dpiService;
         private bool _isInitialized = false;
-        
+
         // Property change callback token for TDP Settings Expander
         private long _tdpExpanderCallbackToken = 0;
         
@@ -36,40 +37,117 @@ namespace HUDRA.Pages
             LoadDatabaseStatus();
         }
 
+        // Expose root for gamepad page navigation
+        public FrameworkElement? RootPanel => SettingsRootPanel;
+
         private void LoadSettings()
         {
-
-            TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
-            UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
-            UpdateStartupTdpEnabledState();
+            // Settings are now loaded within the custom controls themselves
+            // Wire up event handlers to the custom controls
+            LoadTdpSettings();
+            LoadGameDetectionSettings();
             LoadStartupSettings();
             LoadHotkeySettings();
             DiagnoseStartupTask();
         }
+
+        private void LoadTdpSettings()
+        {
+            // TDP settings are handled within TdpSettingsControl
+            if (TdpSettingsControl?.TdpCorrectionToggle != null)
+            {
+                TdpSettingsControl.TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
+                TdpSettingsControl.TdpCorrectionToggle.Toggled += TdpCorrectionToggle_Toggled;
+            }
+            if (TdpSettingsControl?.UseStartupTdpToggle != null)
+            {
+                TdpSettingsControl.UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
+                TdpSettingsControl.UseStartupTdpToggle.Toggled += UseStartupTdpToggle_Toggled;
+            }
+        }
+
+        private void LoadGameDetectionSettings()
+        {
+            // Game detection settings are handled within GameDetectionControl
+            if (GameDetectionControl?.EnhancedLibraryScanningToggle != null)
+            {
+                GameDetectionControl.EnhancedLibraryScanningToggle.IsOn = SettingsService.IsEnhancedLibraryScanningEnabled();
+                GameDetectionControl.EnhancedLibraryScanningToggle.Toggled += EnhancedLibraryScanningToggle_Toggled;
+            }
+            if (GameDetectionControl?.ScanIntervalComboBox != null)
+            {
+                LoadScanIntervalSettings();
+                GameDetectionControl.ScanIntervalComboBox.SelectionChanged += ScanIntervalComboBox_SelectionChanged;
+            }
+            if (GameDetectionControl?.RefreshDatabaseButton != null)
+            {
+                GameDetectionControl.RefreshDatabaseButton.Click += RefreshDatabaseButton_Click;
+            }
+        }
+
+        private void LoadScanIntervalSettings()
+        {
+            if (GameDetectionControl?.ScanIntervalComboBox == null) return;
+
+            // Load and set scan interval ComboBox
+            int currentInterval = SettingsService.GetGameDatabaseRefreshInterval();
+            foreach (ComboBoxItem item in GameDetectionControl.ScanIntervalComboBox.Items)
+            {
+                if (item.Tag is string tagValue && int.TryParse(tagValue, out int intervalValue))
+                {
+                    if (intervalValue == currentInterval)
+                    {
+                        GameDetectionControl.ScanIntervalComboBox.SelectedItem = item;
+                        break;
+                    }
+                }
+            }
+
+            // If no match found, default to 15 minutes
+            if (GameDetectionControl.ScanIntervalComboBox.SelectedItem == null)
+            {
+                GameDetectionControl.ScanIntervalComboBox.SelectedIndex = 1; // 15 minutes option
+            }
+        }
+
         private void LoadStartupSettings()
         {
-            // Load startup settings
-            StartupToggle.IsOn = SettingsService.GetStartupEnabled();
-            MinimizeOnStartupToggle.IsOn = SettingsService.GetMinimizeToTrayOnStartup();
+            // Startup settings are handled within StartupOptionsControl
+            if (StartupOptionsControl?.StartupToggle != null)
+            {
+                StartupOptionsControl.StartupToggle.IsOn = SettingsService.GetStartupEnabled();
+                StartupOptionsControl.StartupToggle.Toggled += StartupToggle_Toggled;
+            }
+            if (StartupOptionsControl?.MinimizeOnStartupToggle != null)
+            {
+                StartupOptionsControl.MinimizeOnStartupToggle.IsOn = SettingsService.GetMinimizeToTrayOnStartup();
+                StartupOptionsControl.MinimizeOnStartupToggle.Toggled += MinimizeOnStartupToggle_Toggled;
+            }
+            if (StartupOptionsControl?.StartRtssWithHudraToggle != null)
+            {
+                StartupOptionsControl.StartRtssWithHudraToggle.IsOn = SettingsService.GetStartRtssWithHudra();
+                StartupOptionsControl.StartRtssWithHudraToggle.Toggled += StartRtssWithHudraToggle_Toggled;
+            }
 
             UpdateMinimizeOnStartupState();
         }
 
         private async void StartupToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = StartupToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
 
             // Don't proceed if not admin
             if (!StartupService.IsRunningAsAdmin())
             {
-                StartupToggle.IsOn = false;
+                if (toggle != null) toggle.IsOn = false;
                 return;
             }
 
             try
             {
                 // Show loading state
-                StartupToggle.IsEnabled = false;
+                if (toggle != null) toggle.IsEnabled = false;
 
                 // Run the startup configuration in background thread
                 // This might show UAC prompt when creating the task
@@ -82,34 +160,36 @@ namespace HUDRA.Pages
                 else
                 {
                     // Revert toggle
-                    StartupToggle.IsOn = !isOn;
+                    if (toggle != null) toggle.IsOn = !isOn;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error toggling startup: {ex.Message}");
-                StartupToggle.IsOn = !isOn;
+                if (toggle != null) toggle.IsOn = !isOn;
             }
             finally
             {
-                StartupToggle.IsEnabled = true;
+                if (toggle != null) toggle.IsEnabled = true;
             }
         }
         private void MinimizeOnStartupToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = MinimizeOnStartupToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
             SettingsService.SetMinimizeToTrayOnStartup(isOn);
         }
 
         private void StartRtssWithHudraToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = StartRtssWithHudraToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
             SettingsService.SetStartRtssWithHudra(isOn);
         }
 
         private void LoadRtssSettings()
         {
-            StartRtssWithHudraToggle.IsOn = SettingsService.GetStartRtssWithHudra();
+            // RTSS settings are now loaded in LoadStartupSettings()
         }
 
         private void UpdateMinimizeOnStartupState()
@@ -117,8 +197,11 @@ namespace HUDRA.Pages
             // Enable/disable based on admin status only - independent of startup toggle
             bool enable = StartupService.IsRunningAsAdmin();
 
-            MinimizeOnStartupToggle.IsEnabled = enable;
-            MinimizeOnStartupToggle.Opacity = enable ? 1.0 : 0.5;
+            if (StartupOptionsControl?.MinimizeOnStartupToggle != null)
+            {
+                StartupOptionsControl.MinimizeOnStartupToggle.IsEnabled = enable;
+                StartupOptionsControl.MinimizeOnStartupToggle.Opacity = enable ? 1.0 : 0.5;
+            }
         }
 
 
@@ -128,13 +211,16 @@ namespace HUDRA.Pages
             _dpiService = dpiService;
 
             // Initialize the TDP picker with autoSetEnabled=false (settings mode)
-            StartupTdpPicker.Initialize(dpiService, autoSetEnabled: false);
+            // This will automatically load and display the startup TDP from settings
+            if (TdpSettingsControl?.StartupTdpPicker != null)
+            {
+                TdpSettingsControl.StartupTdpPicker.Initialize(dpiService, autoSetEnabled: false);
 
-            // Set up change handler
-            StartupTdpPicker.TdpChanged += StartupTdpPicker_TdpChanged;
+                // Set up change handler
+                TdpSettingsControl.StartupTdpPicker.TdpChanged += StartupTdpPicker_TdpChanged;
+            }
 
             _isInitialized = true;
-
         }
 
         private void SettingsPage_Loaded(object sender, RoutedEventArgs e)
@@ -169,12 +255,9 @@ namespace HUDRA.Pages
                 _tdpExpanderCallbackToken = TdpSettingsExpander.RegisterPropertyChangedCallback(
                     Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty,
                     OnTdpExpanderStateChanged);
-                
-                // Set initial value if expander is already expanded
-                if (TdpSettingsExpander.IsExpanded)
-                {
-                    RefreshTdpPickerDisplay();
-                }
+
+                // Always refresh TDP picker display to ensure correct value is shown
+                RefreshTdpPickerDisplay();
             }
         }
 
@@ -226,18 +309,19 @@ namespace HUDRA.Pages
         private void RefreshTdpPickerDisplay()
         {
             // Ensure the TDP picker displays correctly after expander expansion
-            // Use a small delay to allow the expander content to fully render
+            // This is needed because the control may have been initialized while inside a collapsed expander
             DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
             {
-                // Only refresh scroll position without disrupting selection state
-                StartupTdpPicker.EnsureScrollPositionAfterLayout();
+                int startupTdp = SettingsService.GetStartupTdp();
+                TdpSettingsControl?.StartupTdpPicker?.SetSelectedTdpWhenReady(startupTdp);
+                TdpSettingsControl?.StartupTdpPicker?.EnsureScrollPositionAfterLayout();
             });
         }
 
         private void SetTdpPickerValue()
         {
             int startupTdp = SettingsService.GetStartupTdp();
-            StartupTdpPicker.SetSelectedTdpWhenReady(startupTdp);
+            TdpSettingsControl?.StartupTdpPicker?.SetSelectedTdpWhenReady(startupTdp);
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -283,10 +367,10 @@ namespace HUDRA.Pages
             }
 
             // Cleanup
-            if (_isInitialized)
+            if (_isInitialized && TdpSettingsControl?.StartupTdpPicker != null)
             {
-                StartupTdpPicker.TdpChanged -= StartupTdpPicker_TdpChanged;
-                StartupTdpPicker.Dispose();
+                TdpSettingsControl.StartupTdpPicker.TdpChanged -= StartupTdpPicker_TdpChanged;
+                TdpSettingsControl.StartupTdpPicker.Dispose();
                 _isInitialized = false;
             }
         }
@@ -302,7 +386,8 @@ namespace HUDRA.Pages
 
         private void TdpCorrectionToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = TdpCorrectionToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
 
             SettingsService.SetTdpCorrectionEnabled(isOn);
 
@@ -318,7 +403,8 @@ namespace HUDRA.Pages
 
         private void UseStartupTdpToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = UseStartupTdpToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
 
             SettingsService.SetUseStartupTdp(isOn);
             UpdateStartupTdpEnabledState();
@@ -326,10 +412,13 @@ namespace HUDRA.Pages
 
         private void UpdateStartupTdpEnabledState()
         {
-            bool enable = UseStartupTdpToggle.IsOn;
+            bool enable = TdpSettingsControl?.UseStartupTdpToggle?.IsOn ?? false;
 
-            StartupTdpPicker.IsEnabled = enable;
-            StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
+            if (TdpSettingsControl?.StartupTdpPicker != null)
+            {
+                TdpSettingsControl.StartupTdpPicker.IsEnabled = enable;
+                TdpSettingsControl.StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
+            }
         }
 
 
@@ -365,8 +454,12 @@ namespace HUDRA.Pages
             {
                 string modifiers = SettingsService.GetHideShowHotkeyModifiers();
                 string key = SettingsService.GetHideShowHotkeyKey();
-                
-                HideShowHotkeySelector.SetHotkey(modifiers, key);
+
+                if (StartupOptionsControl?.HideShowHotkeySelector != null)
+                {
+                    StartupOptionsControl.HideShowHotkeySelector.SetHotkey(modifiers, key);
+                    StartupOptionsControl.HideShowHotkeySelector.HotkeyChanged += HideShowHotkeySelector_HotkeyChanged;
+                }
             }
             catch (Exception ex)
             {
@@ -429,40 +522,21 @@ namespace HUDRA.Pages
 
         private void LoadEnhancedScanningSettings()
         {
-            // Load enhanced library scanning settings
-            EnhancedLibraryScanningToggle.IsOn = SettingsService.IsEnhancedLibraryScanningEnabled();
-            
-            // Load and set scan interval ComboBox
-            int currentInterval = SettingsService.GetGameDatabaseRefreshInterval();
-            foreach (ComboBoxItem item in ScanIntervalComboBox.Items)
-            {
-                if (item.Tag is string tagValue && int.TryParse(tagValue, out int intervalValue))
-                {
-                    if (intervalValue == currentInterval)
-                    {
-                        ScanIntervalComboBox.SelectedItem = item;
-                        break;
-                    }
-                }
-            }
-            
-            // If no match found, default to 15 minutes
-            if (ScanIntervalComboBox.SelectedItem == null)
-            {
-                ScanIntervalComboBox.SelectedIndex = 1; // 15 minutes option
-            }
+            // Enhanced library scanning settings are now loaded in LoadGameDetectionSettings()
         }
 
         private void EnhancedLibraryScanningToggle_Toggled(object sender, RoutedEventArgs e)
         {
-            var isOn = EnhancedLibraryScanningToggle.IsOn;
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
             SettingsService.SetEnhancedLibraryScanningEnabled(isOn);
         }
 
         private void ScanIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (ScanIntervalComboBox.SelectedItem is ComboBoxItem selectedItem && 
-                selectedItem.Tag is string tagValue && 
+            var comboBox = sender as ComboBox;
+            if (comboBox?.SelectedItem is ComboBoxItem selectedItem &&
+                selectedItem.Tag is string tagValue &&
                 int.TryParse(tagValue, out int intervalValue))
             {
                 SettingsService.SetGameDatabaseRefreshInterval(intervalValue);
@@ -488,17 +562,26 @@ namespace HUDRA.Pages
                     }
                     else
                     {
-                        DatabaseStatusText.Text = "Enhanced game detection service not available";
+                        if (GameDetectionControl?.DatabaseStatusText != null)
+                        {
+                            GameDetectionControl.DatabaseStatusText.Text = "Enhanced game detection service not available";
+                        }
                     }
                 }
                 else
                 {
-                    DatabaseStatusText.Text = "MainWindow not available";
+                    if (GameDetectionControl?.DatabaseStatusText != null)
+                    {
+                        GameDetectionControl.DatabaseStatusText.Text = "MainWindow not available";
+                    }
                 }
             }
             catch (Exception ex)
             {
-                DatabaseStatusText.Text = $"Error loading database status: {ex.Message}";
+                if (GameDetectionControl?.DatabaseStatusText != null)
+                {
+                    GameDetectionControl.DatabaseStatusText.Text = $"Error loading database status: {ex.Message}";
+                }
                 System.Diagnostics.Debug.WriteLine($"Error loading database status: {ex.Message}");
             }
         }
@@ -528,11 +611,17 @@ namespace HUDRA.Pages
                     statusLines.Add($"Last Updated: {stats.LastUpdated:g}");
                 }
 
-                DatabaseStatusText.Text = string.Join("\n", statusLines);
+                if (GameDetectionControl?.DatabaseStatusText != null)
+                {
+                    GameDetectionControl.DatabaseStatusText.Text = string.Join("\n", statusLines);
+                }
             }
             catch (Exception ex)
             {
-                DatabaseStatusText.Text = $"Error updating database status: {ex.Message}";
+                if (GameDetectionControl?.DatabaseStatusText != null)
+                {
+                    GameDetectionControl.DatabaseStatusText.Text = $"Error updating database status: {ex.Message}";
+                }
                 System.Diagnostics.Debug.WriteLine($"Error updating database status: {ex.Message}");
             }
         }
@@ -541,8 +630,12 @@ namespace HUDRA.Pages
         {
             try
             {
-                RefreshDatabaseButton.IsEnabled = false;
-                RefreshDatabaseButton.Content = "Scanning...";
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = false;
+                    button.Content = "Scanning...";
+                }
 
                 var app = App.Current as App;
                 var mainWindow = app?.MainWindow;
@@ -570,12 +663,19 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error refreshing database: {ex.Message}");
-                DatabaseStatusText.Text = $"Error refreshing database: {ex.Message}";
+                if (GameDetectionControl?.DatabaseStatusText != null)
+                {
+                    GameDetectionControl.DatabaseStatusText.Text = $"Error refreshing database: {ex.Message}";
+                }
             }
             finally
             {
-                RefreshDatabaseButton.IsEnabled = true;
-                RefreshDatabaseButton.Content = "Re-Scan";
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = true;
+                    button.Content = "Re-Scan";
+                }
             }
         }
 

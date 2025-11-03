@@ -3,9 +3,13 @@
     x:Class="HUDRA.Controls.FanCurveControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="using:HUDRA.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="6"
     mc:Ignorable="d">
 
     <StackPanel Spacing="8">
@@ -16,55 +20,58 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <!--  Curve Enable Toggle  -->
+            <!--  Curve Enable Toggle with focus border  -->
             <Border
-                Grid.Column="1"
-                Padding="12,8"
-                Background="#22FFFFFF"
-                CornerRadius="12">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" />
-                        <ColumnDefinition Width="1*" />
-                    </Grid.ColumnDefinitions>
+                    Grid.Column="1"
+                    BorderBrush="{x:Bind ToggleFocusBrush, Mode=OneWay}"
+                    BorderThickness="2"
+                    CornerRadius="12">
+                <Border
+                        Padding="12,8"
+                        Background="#22FFFFFF"
+                        CornerRadius="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
 
-                    <TextBlock
-                        Grid.Row="0"
-                        Grid.Column="0"
-                        VerticalAlignment="Center"
-                        FontFamily="Cascadia Code"
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Foreground="#CCFFFFFF"
-                        Text="Custom Fan Curve" />
+                        <TextBlock
+                                Grid.Row="0"
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="14"
+                                FontWeight="SemiBold"
+                                Foreground="#CCFFFFFF"
+                                Text="Custom Fan Curve" />
 
-                    <ToggleSwitch
-                        x:Name="FanCurveToggle"
-                        Grid.Row="0"
-                        Grid.Column="1"
-                        MinWidth="0"
-                        Toggled="FanCurveToggle_Toggled" />
+                        <ToggleSwitch
+                                x:Name="FanCurveToggle"
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                MinWidth="0"
+                                Toggled="FanCurveToggle_Toggled" />
 
-                    <TextBlock
-                        x:Name="FanCurveStatusText"
-                        Grid.Row="1"
-                        Grid.Column="0"
-                        Grid.ColumnSpan="2"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Using built-in hardware fan curve." />
-                </Grid>
+
+                    </Grid>
+                </Border>
             </Border>
         </Grid>
 
+        <TextBlock HorizontalAlignment="Center"
+                x:Name="FanCurveStatusText"
+                Style="{StaticResource SettingsDescriptionStyle}"
+                Text="Enables custom fan curve management." />
+
         <!--  Status Display  -->
         <Border
-            Width="280"
-            Padding="12,8"
-            CornerRadius="0">
+                Width="280"
+                Padding="12,8"
+                CornerRadius="0">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -72,9 +79,9 @@
                 </Grid.RowDefinitions>
 
                 <Grid
-                    x:Name="TemperatureStatusPanel"
-                    HorizontalAlignment="Center"
-                    Visibility="Collapsed">
+                        x:Name="TemperatureStatusPanel"
+                        HorizontalAlignment="Center"
+                        Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="20" />
@@ -82,29 +89,29 @@
                     </Grid.ColumnDefinitions>
 
                     <TextBlock
-                        x:Name="TempStatusText"
-                        Grid.Column="0"
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Foreground="#CCFFFFFF"
-                        Text="Temp: --°C" />
+                            x:Name="TempStatusText"
+                            Grid.Column="0"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="#CCFFFFFF"
+                            Text="Temp: --°C" />
 
                     <TextBlock
-                        x:Name="FanSpeedStatusText"
-                        Grid.Column="2"
-                        FontSize="14"
-                        FontWeight="SemiBold"
-                        Foreground="#CCFFFFFF"
-                        Text="Fan Speed: --%" />
+                            x:Name="FanSpeedStatusText"
+                            Grid.Column="2"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Foreground="#CCFFFFFF"
+                            Text="Fan Speed: --%" />
                 </Grid>
             </Grid>
         </Border>
 
         <!--  Fan Curve Preset Buttons (only visible when enabled)  -->
         <Grid
-            x:Name="PresetButtonsPanel"
-            Width="280"
-            Visibility="Collapsed">
+                x:Name="PresetButtonsPanel"
+                Width="280"
+                Visibility="Collapsed">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
@@ -112,72 +119,93 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Button
-                x:Name="StealthPresetButton"
-                Grid.Column="0"
-                Width="65"
-                Height="35"
-                HorizontalAlignment="Center"
-                Click="StealthPreset_Click"
-                Content="Stealth"
-                FontFamily="Cascadia Code"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Style="{StaticResource PresetButtonStyle}"
-                ToolTipService.ToolTip="Ultra-quiet mode - prioritizes silence" />
+            <!--  Preset buttons with individual focus borders  -->
+            <Border
+                    x:Name="StealthPresetBorder"
+                    Grid.Column="0"
+                    BorderThickness="0"
+                    CornerRadius="6">
+                <Button
+                        x:Name="StealthPresetButton"
+                        Width="65"
+                        Height="35"
+                        HorizontalAlignment="Center"
+                        Click="StealthPreset_Click"
+                        Content="Stealth"
+                        FontFamily="Cascadia Code"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource PresetButtonStyle}"
+                        ToolTipService.ToolTip="Ultra-quiet mode - prioritizes silence" />
+            </Border>
 
-            <Button
-                x:Name="CruisePresetButton"
-                Grid.Column="1"
-                Width="65"
-                Height="35"
-                HorizontalAlignment="Center"
-                Click="CruisePreset_Click"
-                Content="Cruise"
-                FontFamily="Cascadia Code"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Style="{StaticResource PresetButtonStyle}"
-                ToolTipService.ToolTip="Balanced mode - moderate noise and temps" />
+            <Border
+                    x:Name="CruisePresetBorder"
+                    Grid.Column="1"
+                    BorderThickness="0"
+                    CornerRadius="6">
+                <Button
+                        x:Name="CruisePresetButton"
+                        Width="65"
+                        Height="35"
+                        HorizontalAlignment="Center"
+                        Click="CruisePreset_Click"
+                        Content="Cruise"
+                        FontFamily="Cascadia Code"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource PresetButtonStyle}"
+                        ToolTipService.ToolTip="Balanced mode - moderate noise and temps" />
+            </Border>
 
-            <Button
-                x:Name="WarpPresetButton"
-                Grid.Column="2"
-                Width="65"
-                Height="35"
-                HorizontalAlignment="Center"
-                Click="WarpPreset_Click"
-                Content="Warp"
-                FontFamily="Cascadia Code"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Style="{StaticResource PresetButtonStyle}"
-                ToolTipService.ToolTip="Performance mode - early ramp for max cooling" />
+            <Border
+                    x:Name="WarpPresetBorder"
+                    Grid.Column="2"
+                    BorderThickness="0"
+                    CornerRadius="6">
+                <Button
+                        x:Name="WarpPresetButton"
+                        Width="65"
+                        Height="35"
+                        HorizontalAlignment="Center"
+                        Click="WarpPreset_Click"
+                        Content="Warp"
+                        FontFamily="Cascadia Code"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource PresetButtonStyle}"
+                        ToolTipService.ToolTip="Performance mode - early ramp for max cooling" />
+            </Border>
 
-            <Button
-                x:Name="CustomPresetButton"
-                Grid.Column="3"
-                Width="65"
-                Height="35"
-                HorizontalAlignment="Center"
-                Click="CustomPresetButton_Click"
-                Content="Custom"
-                FontFamily="Cascadia Code"
-                FontSize="13"
-                FontWeight="SemiBold"
-                Style="{StaticResource PresetButtonStyle}"
-                ToolTipService.ToolTip="Create and edit your own custom fan curve" />
+            <Border
+                    x:Name="CustomPresetBorder"
+                    Grid.Column="3"
+                    BorderThickness="0"
+                    CornerRadius="6">
+                <Button
+                        x:Name="CustomPresetButton"
+                        Width="65"
+                        Height="35"
+                        HorizontalAlignment="Center"
+                        Click="CustomPresetButton_Click"
+                        Content="Custom"
+                        FontFamily="Cascadia Code"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Style="{StaticResource PresetButtonStyle}"
+                        ToolTipService.ToolTip="Create and edit your own custom fan curve" />
+            </Border>
         </Grid>
 
         <!--  Fan Curve Canvas (only visible when enabled)  -->
         <Border
-            x:Name="CurvePanel"
-            Width="280"
-            Height="225"
-            Padding="0"
-            Background="#22FFFFFF"
-            CornerRadius="12"
-            Visibility="Collapsed">
+                x:Name="CurvePanel"
+                Width="280"
+                Height="225"
+                Padding="0"
+                Background="#22FFFFFF"
+                CornerRadius="12"
+                Visibility="Collapsed">
 
             <Grid x:Name="MainChartGrid">
                 <Grid.RowDefinitions>
@@ -193,16 +221,16 @@
 
                 <!--  Y-Axis Label (Fan Speed %)  -->
                 <TextBlock
-                    Grid.Row="1"
-                    Grid.Column="0"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Foreground="#99FFFFFF"
-                    RenderTransformOrigin=".5,.5"
-                    Text="Fan %">
+                        Grid.Row="1"
+                        Grid.Column="0"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="#99FFFFFF"
+                        RenderTransformOrigin=".5,.5"
+                        Text="Fan %">
                     <TextBlock.RenderTransform>
                         <RotateTransform Angle="-90" />
                     </TextBlock.RenderTransform>
@@ -210,67 +238,66 @@
 
                 <!--  Canvas Container  -->
                 <Border
-                    x:Name="CanvasContainer"
-                    Grid.Row="1"
-                    Grid.Column="1"
-                    Width="190"
-                    Height="140"
-                    Background="Transparent">
-
-                    <Canvas
-                        x:Name="FanCurveCanvas"
+                        x:Name="CanvasContainer"
+                        Grid.Row="1"
+                        Grid.Column="1"
                         Width="190"
                         Height="140"
-                        Background="Transparent"
-                        PointerMoved="Canvas_PointerMoved"
-                        PointerPressed="Canvas_PointerPressed"
-                        PointerReleased="Canvas_PointerReleased" />
+                        Background="Transparent">
+
+                    <Canvas
+                            x:Name="FanCurveCanvas"
+                            Width="190"
+                            Height="140"
+                            Background="Transparent"
+                            PointerMoved="Canvas_PointerMoved"
+                            PointerPressed="Canvas_PointerPressed"
+                            PointerReleased="Canvas_PointerReleased" />
                 </Border>
 
                 <!--  Floating Tooltip - Now positioned relative to the main grid  -->
                 <Border
-                    x:Name="DragTooltip"
-                    Grid.Row="0"
-                    Grid.RowSpan="3"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="3"
-                    Width="80"
-                    Height="25"
-                    Padding="4,2"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Background="#DD000000"
-                    BorderBrush="DarkViolet"
-                    BorderThickness="1"
-                    CornerRadius="4"
-                    Visibility="Collapsed">
+                        x:Name="DragTooltip"
+                        Grid.Row="0"
+                        Grid.RowSpan="3"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="3"
+                        Width="80"
+                        Height="25"
+                        Padding="4,2"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Background="#DD000000"
+                        BorderBrush="DarkViolet"
+                        BorderThickness="1"
+                        CornerRadius="4"
+                        Visibility="Collapsed">
                     <TextBlock
-                        x:Name="TooltipText"
-                        VerticalAlignment="Center"
-                        FontFamily="Cascadia Code"
-                        FontSize="12"
-                        FontWeight="SemiBold"
-                        Foreground="White"
-                        Text="65°C → 75%"
-                        TextAlignment="Center"
-                        TextWrapping="NoWrap" />
+                            x:Name="TooltipText"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            FontWeight="SemiBold"
+                            Foreground="White"
+                            Text="65°C → 75%"
+                            TextAlignment="Center"
+                            TextWrapping="NoWrap" />
                 </Border>
 
                 <!--  X-Axis Label (Temperature Celsius)  -->
                 <TextBlock
-                    Grid.Row="2"
-                    Grid.Column="1"
-                    Margin="0,10,0,15"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="12"
-                    FontWeight="SemiBold"
-                    Foreground="#99FFFFFF"
-                    Text="Temperature °C" />
+                        Grid.Row="2"
+                        Grid.Column="1"
+                        Margin="0,10,0,15"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        FontWeight="SemiBold"
+                        Foreground="#99FFFFFF"
+                        Text="Temperature °C" />
             </Grid>
         </Border>
-
 
     </StackPanel>
 </UserControl>

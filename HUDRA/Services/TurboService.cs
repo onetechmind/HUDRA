@@ -100,8 +100,6 @@ namespace HUDRA.Services
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
             _pressed.Add(e.KeyCode);
-            System.Diagnostics.Debug.WriteLine($"🔑 Key pressed: {e.KeyCode}. Total pressed: {_pressed.Count}");
-            System.Diagnostics.Debug.WriteLine($"🔑 Currently pressed: {string.Join(", ", _pressed)}");
 
             // Check if all required keys are pressed
             if (IsHotkeyPressed())
@@ -123,7 +121,6 @@ namespace HUDRA.Services
                 string modifiers = SettingsService.GetHideShowHotkeyModifiers();
                 string key = SettingsService.GetHideShowHotkeyKey();
 
-                System.Diagnostics.Debug.WriteLine($"🔑 Loading hotkey config - Modifiers: '{modifiers}', Key: '{key}'");
 
                 _requiredKeys.Clear();
                 _mainKey = Keys.None;
@@ -141,19 +138,15 @@ namespace HUDRA.Services
                         {
                             case "win":
                                 _requiredKeys.Add(Keys.LWin);
-                                System.Diagnostics.Debug.WriteLine($"🔑 Added Win modifier");
                                 break;
                             case "ctrl":
                                 _requiredKeys.Add(Keys.LControlKey);
-                                System.Diagnostics.Debug.WriteLine($"🔑 Added Ctrl modifier");
                                 break;
                             case "alt":
                                 _requiredKeys.Add(Keys.LMenu);
-                                System.Diagnostics.Debug.WriteLine($"🔑 Added Alt modifier");
                                 break;
                             case "shift":
                                 _requiredKeys.Add(Keys.LShiftKey);
-                                System.Diagnostics.Debug.WriteLine($"🔑 Added Shift modifier");
                                 break;
                         }
                     }
@@ -166,7 +159,6 @@ namespace HUDRA.Services
                     if (_mainKey != Keys.None)
                     {
                         _requiredKeys.Add(_mainKey);
-                        System.Diagnostics.Debug.WriteLine($"🔑 Added main key: {_mainKey}");
                     }
                 }
 
@@ -202,11 +194,6 @@ namespace HUDRA.Services
         {
             // Check if all required keys are currently pressed
             bool allPressed = _requiredKeys.All(key => _pressed.Contains(key));
-            
-            if (_requiredKeys.Count > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"🔑 Checking hotkey: Required={string.Join(",", _requiredKeys)}, Pressed={string.Join(",", _pressed)}, Match={allPressed}");
-            }
             
             return allPressed;
         }

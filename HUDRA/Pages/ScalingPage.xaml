@@ -13,6 +13,7 @@
 
     <Grid Margin="0">
         <StackPanel
+            x:Name="ScalingRootPanel"
             MaxWidth="280"
             Margin="0,15,0,0"
             HorizontalAlignment="Center"
@@ -29,13 +30,13 @@
                     Text="SCALING" />
             </Border>
 
-            <!--  Lossless Scaling Settings Section  -->
-            <Expander
+            <!--  Lossless Scaling Settings Section (Navigable Expander)  -->
+            <controls:NavigableExpander
                 x:Name="LosslessScalingExpander"
-                Width="280"
-                Padding="0"
-                CornerRadius="12">
-                <Expander.Header>
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
@@ -44,7 +45,6 @@
                             Width="25"
                             Height="25"
                             Source="/Assets/ls-icon.png" />
-
                         <TextBlock
                             VerticalAlignment="Center"
                             FontFamily="Cascadia Code"
@@ -52,220 +52,11 @@
                             FontWeight="SemiBold"
                             Text="Lossless Scaling" />
                     </StackPanel>
-                </Expander.Header>
-                <StackPanel Spacing="0">
-                    <!--  Upscaling Toggle  -->
-                    <Border
-                        Margin="0"
-                        Padding="15"
-                        CornerRadius="12">
-                        <StackPanel Spacing="10">
-                            <Border
-                                Padding="10,5,10,5"
-                                Background="#22FFFFFF"
-                                CornerRadius="12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="4*" />
-                                        <ColumnDefinition Width="1*" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock
-                                        Grid.Column="0"
-                                        VerticalAlignment="Center"
-                                        FontFamily="Cascadia Code"
-                                        FontSize="14"
-                                        FontWeight="SemiBold"
-                                        Text="Upscaling" />
-                                    <ToggleSwitch
-                                        x:Name="UpscalingToggle"
-                                        Grid.Column="1"
-                                        IsOn="{Binding UpscalingEnabled, Mode=TwoWay}" />
-                                </Grid>
-                            </Border>
-
-                            <!--  Upscaling Description  -->
-                            <StackPanel Padding="5" Spacing="0">
-                                <TextBlock
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    Text="Enables LS1 scaling for sharper image quality."
-                                    TextWrapping="Wrap" />
-                                <TextBlock
-                                    Margin="0"
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    TextWrapping="Wrap">
-                                    <Run Text="Run games in Windowed mode at" />
-                                    <Run FontWeight="SemiBold" Text="{Binding OptimalGameResolution, Mode=OneWay}" />
-                                    <Run Text="for optimal results. This scales perfectly to your" />
-                                    <Run Text="{Binding NativeResolution, Mode=OneWay}" />
-                                    <Run Text="display." />
-                                </TextBlock>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!--  Frame Generation Multiplier  -->
-                    <Border Padding="10,5,10,5" CornerRadius="12">
-                        <StackPanel Spacing="10">
-                            <Border
-                                Margin="5"
-                                Padding="10,20,10,10"
-                                Background="#22FFFFFF"
-                                CornerRadius="12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <TextBlock
-                                        Grid.Row="0"
-                                        Grid.Column="0"
-                                        FontFamily="Cascadia Code"
-                                        FontSize="14"
-                                        FontWeight="SemiBold"
-                                        Text="Frame Generation" />
-                                    <TextBlock
-                                        Grid.Row="0"
-                                        Grid.Column="1"
-                                        FontFamily="Cascadia Code"
-                                        FontSize="12"
-                                        Text="{Binding FrameGenLabel, Mode=OneWay}" />
-                                    <Slider
-                                        x:Name="FrameGenSlider"
-                                        Grid.Row="1"
-                                        Maximum="4"
-                                        Minimum="1"
-                                        StepFrequency="1"
-                                        TickFrequency="1"
-                                        TickPlacement="BottomRight"
-                                        Value="{Binding FrameGenSelectedIndex, Mode=TwoWay}" />
-                                </Grid>
-                            </Border>
-
-
-                            <!--  Frame Generation Description  -->
-                            <StackPanel Padding="5" Spacing="0">
-                                <TextBlock
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    Text="Generates additional frames between real frames to increase smoothness."
-                                    TextWrapping="Wrap" />
-                                <TextBlock
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    Text="Higher settings may impact visual quality. Start with 2x and adjust as needed."
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!--  Flow Scale Slider  -->
-                    <Border Padding="10" CornerRadius="12">
-                        <StackPanel Spacing="10">
-                            <Border
-                                Margin="5"
-                                Padding="10,20,10,10"
-                                Background="#22FFFFFF"
-                                CornerRadius="12">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-
-                                    <TextBlock
-                                        Grid.Row="0"
-                                        Grid.Column="0"
-                                        FontFamily="Cascadia Code"
-                                        FontSize="14"
-                                        FontWeight="SemiBold"
-                                        Text="Flow Scale" />
-                                    <TextBlock
-                                        Grid.Row="0"
-                                        Grid.Column="1"
-                                        FontFamily="Cascadia Code"
-                                        FontSize="12"
-                                        Text="{Binding FlowScale, Mode=OneWay}" />
-
-                                    <Slider
-                                        x:Name="FlowScaleSlider"
-                                        Grid.Row="1"
-                                        Grid.ColumnSpan="2"
-                                        Maximum="100"
-                                        Minimum="0"
-                                        Value="{Binding FlowScale, Mode=TwoWay}" />
-                                </Grid>
-                            </Border>
-
-                            <!--  Flow Scale Description  -->
-                            <StackPanel Padding="5" Spacing="0">
-                                <TextBlock
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    Text="Fine-tunes frame generation quality vs performance."
-                                    TextWrapping="Wrap" />
-                                <TextBlock
-                                    Style="{StaticResource SettingsDescriptionStyle}"
-                                    Text="Lower values (0-30) prioritize performance. Higher values (70-100) prioritize quality."
-                                    TextWrapping="Wrap" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <!--  Status/Progress  -->
-                    <Border
-                        x:Name="StatusBorder"
-                        Padding="10"
-                        Background="Transparent"
-                        Visibility="{Binding IsApplying, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel
-                            HorizontalAlignment="Center"
-                            Orientation="Horizontal"
-                            Spacing="10">
-                            <ProgressRing
-                                Width="20"
-                                Height="20"
-                                Foreground="White"
-                                IsActive="True" />
-                            <TextBlock
-                                FontFamily="Cascadia Code"
-                                FontSize="12"
-                                Text="{Binding StatusMessage, Mode=OneWay}" />
-                        </StackPanel>
-                    </Border>
-
-                    <!--  Action Buttons  -->
-                    <StackPanel
-                        Margin="0,0,0,20"
-                        HorizontalAlignment="Center"
-                        Orientation="Horizontal"
-                        Spacing="15">
-                        <Button
-                            x:Name="ApplyButton"
-                            Width="75"
-                            Height="40"
-                            Click="ApplyButton_Click"
-                            Content="Apply" />
-                        <Button
-                            x:Name="ResetButton"
-                            Width="75"
-                            Height="40"
-                            Click="ResetButton_Click"
-                            Content="Reset" />
-                        <Button
-                            x:Name="RestoreButton"
-                            Width="75"
-                            Height="40"
-                            Click="RestoreButton_Click"
-                            Content="Restore"
-                            ToolTipService.ToolTip="Restore your backed-up Lossless Scaling settings." />
-                    </StackPanel>
-                </StackPanel>
-            </Expander>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:LosslessScalingControl x:Name="LosslessScalingControl" DataContext="{Binding}" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
 
         </StackPanel>
     </Grid>

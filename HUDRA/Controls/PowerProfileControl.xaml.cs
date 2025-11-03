@@ -1,7 +1,10 @@
+using HUDRA.Interfaces;
+using HUDRA.AttachedProperties;
 using HUDRA.Services;
 using HUDRA.Services.Power;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -13,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class PowerProfileControl : UserControl, INotifyPropertyChanged
+    public sealed partial class PowerProfileControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<PowerProfileChangedEventArgs>? PowerProfileChanged;
@@ -24,6 +27,11 @@ namespace HUDRA.Controls
         private bool _isUpdatingSelection = false;
         private bool _isUpdatingCpuBoost = false;
         private bool _isUpdatingIntelligentSwitching = false;
+
+        // Gamepad navigation fields
+        private GamepadNavigationService? _gamepadNavigationService;
+        private int _currentFocusedElement = 0; // 0=DefaultProfile, 1=GamingProfile, 2=IntelligentSwitching, 3=CpuBoost, 4=PowerOptionsLink
+        private bool _isFocused = false;
 
         public ObservableCollection<PowerProfile> AvailableProfiles
         {
@@ -51,10 +59,123 @@ namespace HUDRA.Controls
             }
         }
 
+        // IGamepadNavigable implementation
+        public bool CanNavigateUp => _currentFocusedElement > 0;
+        public bool CanNavigateDown => _currentFocusedElement < 4;
+        public bool CanNavigateLeft => false;
+        public bool CanNavigateRight => false;
+        public bool CanActivate => true;
+        public FrameworkElement NavigationElement => this;
+
+        // Slider interface implementations - PowerProfile has no sliders
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+
+        // ComboBox interface implementations
+        public bool HasComboBoxes => true;
+        public bool IsComboBoxOpen { get; set; } = false;
+        public ComboBox? GetFocusedComboBox()
+        {
+            return _currentFocusedElement switch
+            {
+                0 => DefaultProfileComboBox,
+                1 => GamingProfileComboBox,
+                _ => null
+            };
+        }
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+
+        public void ProcessCurrentSelection()
+        {
+            if ((_currentFocusedElement == 0 || _currentFocusedElement == 1) && !IsNavigatingComboBox)
+            {
+                // ComboBox selection will be handled by existing event handlers
+                System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: ComboBox selection processed");
+            }
+        }
+
+        // Focus brush properties for XAML binding
+        public Brush DefaultProfileFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 0)
+                {
+                    return new SolidColorBrush(IsComboBoxOpen ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush GamingProfileFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 1)
+                {
+                    return new SolidColorBrush(IsComboBoxOpen ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush IntelligentSwitchingFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 2)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush CpuBoostFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 3)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush PowerOptionsLinkFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 4)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         public PowerProfileControl()
         {
             this.InitializeComponent();
             this.DataContext = this;
+            InitializeGamepadNavigation();
+        }
+
+        private void InitializeGamepadNavigation()
+        {
+            GamepadNavigation.SetIsEnabled(this, true);
+            GamepadNavigation.SetNavigationGroup(this, "MainControls");
+            GamepadNavigation.SetNavigationOrder(this, 1);
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+            }
         }
 
         public async Task InitializeAsync()
@@ -338,6 +459,163 @@ namespace HUDRA.Controls
                     System.Diagnostics.Debug.WriteLine($"Fallback also failed: {fallbackEx.Message}");
                 }
             }
+        }
+
+        // IGamepadNavigable event handlers
+        public void OnGamepadNavigateUp()
+        {
+            // Handle ComboBox navigation when open
+            if ((_currentFocusedElement == 0 || _currentFocusedElement == 1) && IsComboBoxOpen)
+            {
+                var comboBox = GetFocusedComboBox();
+                if (comboBox != null)
+                {
+                    var currentIndex = comboBox.SelectedIndex;
+                    if (currentIndex > 0)
+                    {
+                        comboBox.SelectedIndex = currentIndex - 1;
+                        System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: ComboBox moved up to index {comboBox.SelectedIndex}");
+                    }
+                }
+                return;
+            }
+
+            // Normal navigation between elements
+            if (_currentFocusedElement > 0)
+            {
+                _currentFocusedElement--;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Moved up to element {_currentFocusedElement}");
+            }
+        }
+
+        public void OnGamepadNavigateDown()
+        {
+            // Handle ComboBox navigation when open
+            if ((_currentFocusedElement == 0 || _currentFocusedElement == 1) && IsComboBoxOpen)
+            {
+                var comboBox = GetFocusedComboBox();
+                if (comboBox != null)
+                {
+                    var currentIndex = comboBox.SelectedIndex;
+                    if (currentIndex < comboBox.Items.Count - 1)
+                    {
+                        comboBox.SelectedIndex = currentIndex + 1;
+                        System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: ComboBox moved down to index {comboBox.SelectedIndex}");
+                    }
+                }
+                return;
+            }
+
+            // Normal navigation between elements
+            if (_currentFocusedElement < 4)
+            {
+                _currentFocusedElement++;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Moved down to element {_currentFocusedElement}");
+            }
+        }
+
+        public void OnGamepadNavigateLeft()
+        {
+            // No left navigation in PowerProfile control
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            // No right navigation in PowerProfile control
+        }
+
+        public void OnGamepadActivate()
+        {
+            switch (_currentFocusedElement)
+            {
+                case 0: // DefaultProfileComboBox
+                case 1: // GamingProfileComboBox
+                    var comboBox = GetFocusedComboBox();
+                    if (comboBox != null)
+                    {
+                        if (!IsComboBoxOpen)
+                        {
+                            // Open ComboBox
+                            ComboBoxOriginalIndex = comboBox.SelectedIndex;
+                            comboBox.IsDropDownOpen = true;
+                            IsComboBoxOpen = true;
+                            IsNavigatingComboBox = true;
+                            UpdateFocusVisuals();
+                            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Opened ComboBox {_currentFocusedElement}");
+                        }
+                        else
+                        {
+                            // Close ComboBox and apply selection
+                            comboBox.IsDropDownOpen = false;
+                            IsComboBoxOpen = false;
+                            IsNavigatingComboBox = false;
+                            ProcessCurrentSelection();
+                            UpdateFocusVisuals();
+                            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Closed ComboBox {_currentFocusedElement} and applied selection");
+                        }
+                    }
+                    break;
+
+                case 2: // IntelligentSwitchingToggle
+                    if (IntelligentSwitchingToggle != null)
+                    {
+                        IntelligentSwitchingToggle.IsOn = !IntelligentSwitchingToggle.IsOn;
+                        System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Toggled IntelligentSwitching to {IntelligentSwitchingToggle.IsOn}");
+                    }
+                    break;
+
+                case 3: // CpuBoostToggle
+                    if (CpuBoostToggle != null)
+                    {
+                        CpuBoostToggle.IsOn = !CpuBoostToggle.IsOn;
+                        System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Toggled CpuBoost to {CpuBoostToggle.IsOn}");
+                    }
+                    break;
+
+                case 4: // PowerOptionsLink
+                    OnPowerOptionsLinkClick(PowerOptionsLink, new RoutedEventArgs());
+                    System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Activated PowerOptionsLink");
+                    break;
+            }
+        }
+
+        public void OnGamepadFocusReceived()
+        {
+            // Initialize gamepad service if needed
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+
+            _currentFocusedElement = 0; // Start with DefaultProfileComboBox
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Received gamepad focus");
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            _isFocused = false;
+            IsComboBoxOpen = false;
+            IsNavigatingComboBox = false;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Lost gamepad focus");
+        }
+
+        public void AdjustSliderValue(int direction)
+        {
+            // No sliders in PowerProfile control
+        }
+
+        private void UpdateFocusVisuals()
+        {
+            OnPropertyChanged(nameof(DefaultProfileFocusBrush));
+            OnPropertyChanged(nameof(GamingProfileFocusBrush));
+            OnPropertyChanged(nameof(IntelligentSwitchingFocusBrush));
+            OnPropertyChanged(nameof(CpuBoostFocusBrush));
+            OnPropertyChanged(nameof(PowerOptionsLinkFocusBrush));
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

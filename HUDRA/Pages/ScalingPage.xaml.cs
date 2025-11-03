@@ -31,6 +31,9 @@ namespace HUDRA.Pages
             ViewModel.Initialize();
         }
 
+        // Expose root for gamepad page navigation
+        public FrameworkElement RootPanel => ScalingRootPanel;
+
         private void ScalingPage_Loaded(object sender, RoutedEventArgs e)
         {
             System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] Page loaded, setting expander state");
