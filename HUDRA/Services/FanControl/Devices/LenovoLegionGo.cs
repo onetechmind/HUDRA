@@ -36,8 +36,9 @@ namespace HUDRA.Services.FanControl.Devices
                 "Legion Go",       // Display name
                 "83E1",            // Legion Go 1 model number
                 "LNVNB161822",     // Legion Go 1 model ID
-                "8ASP2",           // Legion Go 2 model number
-                "8AHP2"            // Legion Go 2 model number variant
+                "83N0",            // Legion Go 2 model number (verified)
+                "8ASP2",           // Legion Go 2 model number (alternate)
+                "8AHP2"            // Legion Go 2 model number (alternate)
             }
         };
 

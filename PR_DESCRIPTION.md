@@ -58,7 +58,8 @@ Unlike existing EC-based devices (OneXPlayer, GPD), Legion Go uses Windows Manag
 - Display name: `Legion Go`
 
 **Legion Go 2:**
-- Model numbers: `8ASP2`, `8AHP2`
+- Model number: `83N0` (verified on hardware)
+- Alternate model numbers: `8ASP2`, `8AHP2` (potential variants)
 
 ### Fan Control Modes
 
