@@ -1,5 +1,7 @@
 ﻿using HUDRA.Services;
 using HUDRA.Services.FanControl;
+using HUDRA.Interfaces;
+using HUDRA.AttachedProperties;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -8,15 +10,18 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Windows.Foundation;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class FanCurveControl : UserControl
+    public sealed partial class FanCurveControl : UserControl, IGamepadNavigable, INotifyPropertyChanged
     {
         public event EventHandler<FanCurveChangedEventArgs>? FanCurveChanged;
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         private FanControlService? _fanControlService;
         private bool _isUpdatingControls = false;
@@ -25,6 +30,35 @@ namespace HUDRA.Controls
         private int _dragPointIndex = -1;
         private string _activePresetName = string.Empty;
         private readonly List<Button> _presetButtons = new();
+        private GamepadNavigationService? _gamepadNavigationService;
+        private int _currentFocusedElement = 0; // 0=Toggle, 1-4=Preset Buttons, 5-9=Control Points
+        private bool _isFocused = false;
+        
+        // Control point activation tracking
+        private bool _isControlPointActivated = false;
+        private int _activeControlPointIndex = -1;
+        private FanCurvePoint _originalControlPointPosition;
+
+        // Focus state property with change notification (matching TdpPickerControl pattern)
+        public bool IsFocused
+        {
+            get => _isFocused;
+            set
+            {
+                if (_isFocused != value)
+                {
+                    _isFocused = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ToggleFocusBrush));
+                    OnPropertyChanged(nameof(PresetButtonFocusBrush));
+                    OnPropertyChanged(nameof(ControlPointFocusBrush));
+                }
+            }
+        }
+
+        // Focus brush fields for proper binding
+        private SolidColorBrush _focusBorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        private Thickness _focusBorderThickness = new Thickness(0);
 
         // ADD: Temperature monitoring fields
         private TemperatureData? _currentTemperature;
@@ -38,6 +72,7 @@ namespace HUDRA.Controls
         // Curve data
         private FanCurve _currentCurve;
         private readonly List<Ellipse> _controlPoints = new();
+        private readonly List<Border> _controlPointFocusBorders = new();
         private Polyline? _curveVisualization;
         private readonly List<Line> _gridLines = new();
         private readonly List<TextBlock> _axisLabels = new();
@@ -46,11 +81,97 @@ namespace HUDRA.Controls
         private bool _isTouchDragging = false;
         private uint _touchPointerId = 0;
 
+        // IGamepadNavigable implementation
+        public bool CanNavigateUp => _currentFocusedElement >= 1; // Can move up from preset buttons/control points to previous level
+        public bool CanNavigateDown => (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) || (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible); // Can move down from toggle to buttons OR from Custom button to control points
+        public bool CanNavigateLeft => (_currentFocusedElement > 1 && _currentFocusedElement <= 4) || (_currentFocusedElement > 5); // Can move left from preset buttons or between control points
+        public bool CanNavigateRight => (_currentFocusedElement == 0) || (_currentFocusedElement >= 1 && _currentFocusedElement < 4) || (_currentFocusedElement >= 5 && _currentFocusedElement < 9); // Can move right from toggle, between preset buttons, or between control points
+        public bool CanActivate => true;
+        public FrameworkElement NavigationElement => this;
+        
+        // Slider interface implementations - FanCurve is not a slider control
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+        public void AdjustSliderValue(int direction) 
+        {
+            if (_isControlPointActivated && _activeControlPointIndex >= 0)
+            {
+                AdjustControlPoint(direction);
+            }
+        }
+        
+        // ComboBox interface implementations - FanCurve has no ComboBoxes
+        public bool HasComboBoxes => false;
+        public bool IsComboBoxOpen { get; set; } = false;
+        public ComboBox? GetFocusedComboBox() => null;
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+        public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
+
+        public Brush FocusBorderBrush
+        {
+            get => _focusBorderBrush;
+        }
+
+        public Thickness FocusBorderThickness
+        {
+            get => _focusBorderThickness;
+        }
+
+        public Brush ToggleFocusBrush
+        {
+            get
+            {
+                // Ensure gamepad service is initialized before checking its state
+                if (_gamepadNavigationService == null)
+                {
+                    InitializeGamepadNavigationService();
+                }
+                
+                // Check all conditions after initialization
+                bool shouldShowFocus = IsFocused && 
+                                      _gamepadNavigationService != null && 
+                                      _gamepadNavigationService.IsGamepadActive && 
+                                      _currentFocusedElement == 0;
+                
+                return shouldShowFocus 
+                    ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet)
+                    : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush PresetButtonFocusBrush
+        {
+            get
+            {
+                if (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement >= 1 && _currentFocusedElement <= 4)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+        
+        public Brush ControlPointFocusBrush
+        {
+            get
+            {
+                if (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement >= 5 && _currentFocusedElement <= 9)
+                {
+                    // Use DodgerBlue when activated for editing, DarkViolet for navigation
+                    return new SolidColorBrush(_isControlPointActivated ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         public FanCurveControl()
         {
             this.InitializeComponent();
+            this.DataContext = this;
             // Don't load curve here - wait for Initialize() when everything is ready
             InitializeDefaultCurve();
+            InitializeGamepadNavigation();
         }
 
         private void InitializeDefaultCurve()
@@ -98,6 +219,9 @@ namespace HUDRA.Controls
                     System.Diagnostics.Debug.WriteLine("❌ Global FanControlService not available");
                     return;
                 }
+
+                // Initialize gamepad service early to ensure it's available for focus
+                InitializeGamepadNavigationService();
 
                 // ADD: Connect to global temperature monitoring
                 ConnectToGlobalTemperatureMonitoring();
@@ -418,6 +542,7 @@ namespace HUDRA.Controls
         {
             FanCurveCanvas.Children.Clear();
             _controlPoints.Clear();
+            _controlPointFocusBorders.Clear();
             _gridLines.Clear();
             _axisLabels.Clear();
 
@@ -550,14 +675,32 @@ namespace HUDRA.Controls
                     Tag = i // Store point index
                 };
 
+                // Create a focus border for gamepad navigation
+                var focusBorder = new Border
+                {
+                    Width = POINT_RADIUS * 2 + 8, // +4px on each side for thicker border
+                    Height = POINT_RADIUS * 2 + 8,
+                    BorderThickness = new Thickness(4), // Double thickness for better visibility
+                    CornerRadius = new CornerRadius((POINT_RADIUS + 4)),
+                    BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent),
+                    IsHitTestVisible = false // Don't interfere with mouse interaction
+                };
+
                 double x = TemperatureToX(point.Temperature) - POINT_RADIUS;
+                double borderX = x - 4; // Offset for thicker border
                 double y = FanSpeedToY(point.FanSpeed) - POINT_RADIUS;
+                double borderY = y - 4;
 
                 Canvas.SetLeft(ellipse, x);
                 Canvas.SetTop(ellipse, y);
+                Canvas.SetLeft(focusBorder, borderX);
+                Canvas.SetTop(focusBorder, borderY);
 
                 FanCurveCanvas.Children.Add(ellipse);
+                FanCurveCanvas.Children.Add(focusBorder);
                 _controlPoints.Add(ellipse);
+                _controlPointFocusBorders.Add(focusBorder);
             }
         }
 
@@ -1187,6 +1330,431 @@ namespace HUDRA.Controls
             {
                 DragTooltip.Visibility = Visibility.Collapsed;
             }
+        }
+
+        // IGamepadNavigable event handlers
+        public void OnGamepadNavigateUp() 
+        {
+            // If a control point is activated, move it instead of navigating
+            if (_isControlPointActivated)
+            {
+                AdjustControlPointVertically(1); // Move control point up (increase fan speed)
+                return;
+            }
+            
+            if (_currentFocusedElement >= 5 && _currentFocusedElement <= 9) // From control points back to Custom button
+            {
+                _currentFocusedElement = 4; // Custom button
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved up from control points to Custom button");
+            }
+            else if (_currentFocusedElement >= 1 && _currentFocusedElement <= 4) // From preset buttons back to toggle
+            {
+                _currentFocusedElement = 0;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved up to toggle");
+            }
+        }
+        
+        public void OnGamepadNavigateDown() 
+        {
+            // If a control point is activated, move it instead of navigating
+            if (_isControlPointActivated)
+            {
+                AdjustControlPointVertically(-1); // Move control point down (decrease fan speed)
+                return;
+            }
+            
+            if (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) // From toggle to first preset button
+            {
+                _currentFocusedElement = 1;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved down to preset buttons");
+            }
+            else if (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible) // From Custom button to middle control point
+            {
+                _currentFocusedElement = 7; // Middle control point (index 2, so element 5+2=7)
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved down to control points");
+            }
+        }
+        
+        public void OnGamepadNavigateLeft()
+        {
+            // If a control point is activated, move it instead of navigating
+            if (_isControlPointActivated)
+            {
+                AdjustSliderValue(-1); // Move control point left (decrease temperature)
+                return;
+            }
+            
+            if (_currentFocusedElement > 5 && _currentFocusedElement <= 9) // Between control points
+            {
+                _currentFocusedElement--;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved left to control point {_currentFocusedElement - 5}");
+            }
+            else if (_currentFocusedElement == 5) // Wrap around to last control point
+            {
+                _currentFocusedElement = 9;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Wrapped around to last control point");
+            }
+            else if (_currentFocusedElement > 1 && _currentFocusedElement <= 4) // In preset buttons area
+            {
+                _currentFocusedElement--;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved left to element {_currentFocusedElement}");
+            }
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            // If a control point is activated, move it instead of navigating
+            if (_isControlPointActivated)
+            {
+                AdjustSliderValue(1); // Move control point right (increase temperature)
+                return;
+            }
+            
+            if (_currentFocusedElement >= 5 && _currentFocusedElement < 9) // Between control points
+            {
+                _currentFocusedElement++;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved right to control point {_currentFocusedElement - 5}");
+            }
+            else if (_currentFocusedElement == 9) // Wrap around to first control point
+            {
+                _currentFocusedElement = 5;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Wrapped around to first control point");
+            }
+            else if (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) // From toggle to first preset (alternative to down)
+            {
+                _currentFocusedElement = 1;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved right to preset buttons");
+            }
+            else if (_currentFocusedElement >= 1 && _currentFocusedElement < 4) // Between preset buttons
+            {
+                _currentFocusedElement++;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved right to element {_currentFocusedElement}");
+            }
+        }
+
+        public void OnGamepadActivate()
+        {
+            if (_currentFocusedElement == 0) // Toggle
+            {
+                FanCurveToggle.IsOn = !FanCurveToggle.IsOn;
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Toggled fan curve");
+            }
+            else if (_currentFocusedElement == 1) // Stealth
+            {
+                StealthPreset_Click(StealthPresetButton, new RoutedEventArgs());
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated Stealth preset");
+            }
+            else if (_currentFocusedElement == 2) // Cruise
+            {
+                CruisePreset_Click(CruisePresetButton, new RoutedEventArgs());
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated Cruise preset");
+            }
+            else if (_currentFocusedElement == 3) // Warp
+            {
+                WarpPreset_Click(WarpPresetButton, new RoutedEventArgs());
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated Warp preset");
+            }
+            else if (_currentFocusedElement == 4) // Custom
+            {
+                CustomPresetButton_Click(CustomPresetButton, new RoutedEventArgs());
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated Custom preset");
+            }
+            else if (_currentFocusedElement >= 5 && _currentFocusedElement <= 9) // Control points
+            {
+                int controlPointIndex = _currentFocusedElement - 5;
+                if (!_isControlPointActivated)
+                {
+                    // Activate control point for editing
+                    _isControlPointActivated = true;
+                    _activeControlPointIndex = controlPointIndex;
+                    _originalControlPointPosition = _currentCurve.Points[controlPointIndex];
+                    
+                    // Set slider activated state for GamepadNavigationService
+                    IsSliderActivated = true;
+                    
+                    UpdateFocusVisuals();
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated control point {controlPointIndex} for editing");
+                }
+                else
+                {
+                    // Confirm changes and deactivate
+                    _isControlPointActivated = false;
+                    _activeControlPointIndex = -1;
+                    
+                    IsSliderActivated = false;
+                    
+                    UpdateFocusVisuals();
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Confirmed control point {controlPointIndex} changes");
+                }
+            }
+        }
+
+        public void OnGamepadFocusReceived()
+        {
+            // Ensure gamepad service is initialized
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+            
+            _currentFocusedElement = 0; // Start with toggle
+            
+            // Use the property to trigger change notifications
+            IsFocused = true;
+            
+            // Update visuals with a dispatcher delay to ensure bindings are ready
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+            {
+                UpdateFocusVisuals();
+            });
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            IsFocused = false;
+            UpdateFocusVisuals();
+        }
+        
+        private void InitializeGamepadNavigation()
+        {
+            GamepadNavigation.SetIsEnabled(this, true);
+            GamepadNavigation.SetNavigationGroup(this, "MainControls");
+            GamepadNavigation.SetNavigationOrder(this, 6);
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+            }
+        }
+
+        private void UpdateFocusVisuals()
+        {
+            // Use dispatcher to ensure UI updates happen immediately
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // Update focus brush fields based on current state
+                if (IsFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                {
+                    _focusBorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    _focusBorderThickness = new Thickness(2);
+                }
+                else
+                {
+                    _focusBorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _focusBorderThickness = new Thickness(0);
+                }
+
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+                OnPropertyChanged(nameof(ToggleFocusBrush));
+                OnPropertyChanged(nameof(PresetButtonFocusBrush));
+                OnPropertyChanged(nameof(ControlPointFocusBrush));
+                
+                // Update individual button focus states
+                UpdatePresetButtonFocusStates();
+                
+                // Update control point focus states
+                UpdateControlPointFocusStates();
+            });
+        }
+        
+        private void UpdatePresetButtonFocusStates()
+        {
+            // Reset all buttons first
+            SetPresetButtonFocus(StealthPresetButton, false);
+            SetPresetButtonFocus(CruisePresetButton, false);
+            SetPresetButtonFocus(WarpPresetButton, false);
+            SetPresetButtonFocus(CustomPresetButton, false);
+            
+            // Set focus on current element
+            if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+            {
+                switch (_currentFocusedElement)
+                {
+                    case 1: SetPresetButtonFocus(StealthPresetButton, true); break;
+                    case 2: SetPresetButtonFocus(CruisePresetButton, true); break;
+                    case 3: SetPresetButtonFocus(WarpPresetButton, true); break;
+                    case 4: SetPresetButtonFocus(CustomPresetButton, true); break;
+                }
+            }
+        }
+        
+        private void UpdateControlPointFocusStates()
+        {
+            // Update all control point focus borders
+            for (int i = 0; i < _controlPointFocusBorders.Count; i++)
+            {
+                var border = _controlPointFocusBorders[i];
+                var shouldShowFocus = _isFocused && 
+                                      _gamepadNavigationService?.IsGamepadActive == true && 
+                                      _currentFocusedElement == (5 + i);
+                                      
+                if (shouldShowFocus)
+                {
+                    // Use DodgerBlue when activated for editing, DarkViolet for navigation
+                    var focusColor = _isControlPointActivated && _activeControlPointIndex == i 
+                        ? Microsoft.UI.Colors.DodgerBlue 
+                        : Microsoft.UI.Colors.DarkViolet;
+                    border.BorderBrush = new SolidColorBrush(focusColor);
+                }
+                else
+                {
+                    border.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                }
+            }
+        }
+        
+        private void SetPresetButtonFocus(Button? button, bool hasFocus)
+        {
+            if (button != null)
+            {
+                var borderBrush = hasFocus ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet) : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                var borderThickness = hasFocus ? new Thickness(2) : new Thickness(0);
+                
+                // Map buttons to their named borders
+                Border? border = button.Name switch
+                {
+                    "StealthPresetButton" => StealthPresetBorder,
+                    "CruisePresetButton" => CruisePresetBorder,
+                    "WarpPresetButton" => WarpPresetBorder,
+                    "CustomPresetButton" => CustomPresetBorder,
+                    _ => button.Parent as Border
+                };
+                
+                if (border != null)
+                {
+                    border.BorderBrush = borderBrush;
+                    border.BorderThickness = borderThickness;
+                }
+            }
+        }
+        
+        private void AdjustControlPoint(int direction)
+        {
+            if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
+                return;
+                
+            var currentPoint = _currentCurve.Points[_activeControlPointIndex];
+            var newPoint = currentPoint;
+            
+            // Determine movement direction based on input
+            // For D-pad: Up/Down = fan speed, Left/Right = temperature
+            // We'll use a simple mapping: negative = left/down, positive = right/up
+            
+            if (Math.Abs(direction) == 1) // Simple directional input
+            {
+                // For now, treat as temperature adjustment
+                newPoint.Temperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
+            }
+            else
+            {
+                // Could be extended for more complex movement patterns
+                return;
+            }
+            
+            // Apply constraints and update if valid
+            if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
+            {
+                _currentCurve.Points[_activeControlPointIndex] = newPoint;
+                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                UpdateCurveLineOnly();
+                
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C, F:{newPoint.FanSpeed}%");
+            }
+        }
+        
+        private void AdjustControlPointVertically(int direction)
+        {
+            if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
+                return;
+                
+            var currentPoint = _currentCurve.Points[_activeControlPointIndex];
+            var newPoint = currentPoint;
+            
+            // Adjust fan speed: positive direction = up = increase fan speed, negative = down = decrease
+            newPoint.FanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
+            
+            // Apply constraints and update if valid
+            if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
+            {
+                _currentCurve.Points[_activeControlPointIndex] = newPoint;
+                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                UpdateCurveLineOnly();
+                
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}% (T:{newPoint.Temperature}°C)");
+            }
+        }
+        
+        private double ConstrainTemperature(double temperature, int pointIndex)
+        {
+            double minTemp = 30;
+            double maxTemp = 90;
+            
+            // Ensure temperature stays between adjacent points
+            if (pointIndex > 0)
+                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 1);
+            if (pointIndex < _currentCurve.Points.Length - 1)
+                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 1);
+                
+            return Math.Clamp(temperature, minTemp, maxTemp);
+        }
+        
+        private double ConstrainFanSpeed(double fanSpeed)
+        {
+            return Math.Clamp(fanSpeed, 0, 100);
+        }
+        
+        private bool IsValidControlPointPosition(FanCurvePoint point, int pointIndex)
+        {
+            // Check temperature ordering constraints
+            if (pointIndex > 0 && point.Temperature <= _currentCurve.Points[pointIndex - 1].Temperature)
+                return false;
+            if (pointIndex < _currentCurve.Points.Length - 1 && point.Temperature >= _currentCurve.Points[pointIndex + 1].Temperature)
+                return false;
+                
+            // Check fan speed bounds
+            if (point.FanSpeed < 0 || point.FanSpeed > 100)
+                return false;
+                
+            return true;
+        }
+        
+        private void UpdateControlPointPosition(int pointIndex, FanCurvePoint newPoint)
+        {
+            if (pointIndex < _controlPoints.Count)
+            {
+                var ellipse = _controlPoints[pointIndex];
+                var focusBorder = _controlPointFocusBorders[pointIndex];
+                
+                double x = TemperatureToX(newPoint.Temperature) - POINT_RADIUS;
+                double y = FanSpeedToY(newPoint.FanSpeed) - POINT_RADIUS;
+                double borderX = x - 4; // Updated for thicker border
+                double borderY = y - 4;
+                
+                Canvas.SetLeft(ellipse, x);
+                Canvas.SetTop(ellipse, y);
+                Canvas.SetLeft(focusBorder, borderX);
+                Canvas.SetTop(focusBorder, borderY);
+            }
+        }
+        
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         public void Dispose()

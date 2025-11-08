@@ -36,6 +36,7 @@ namespace HUDRA
         private readonly BatteryService _batteryService;
         private readonly PowerProfileService _powerProfileService;
         private readonly RtssFpsLimiterService _fpsLimiterService;
+        private readonly GamepadNavigationService _gamepadNavigationService;
         private TdpMonitorService? _tdpMonitor;
         private TurboService? _turboService;
         private MicaController? _micaController;
@@ -49,9 +50,16 @@ namespace HUDRA
 
         // Public window manager access for App.xaml.c
         public WindowManagementService WindowManager => _windowManager;
+        
+        // Public gamepad navigation service access for controls
+        public GamepadNavigationService GamepadNavigationService => _gamepadNavigationService;
 
         //Navigation events
         private bool _mainPageInitialized = false;
+        // Tracks if the next page navigation was initiated via gamepad (L1/R1)
+        private bool _isGamepadPageNavPending = false;
+        // Latched flag for the page that just became active
+        private bool _isGamepadNavForCurrentPage = false;
 
         // Current page references
         private MainPage? _mainPage;
@@ -166,6 +174,8 @@ namespace HUDRA
             _brightnessService = new BrightnessService();
             _resolutionService = new ResolutionService();
             _navigationService = new NavigationService(ContentFrame);
+            _gamepadNavigationService = new GamepadNavigationService();
+            _gamepadNavigationService.SetCurrentFrame(ContentFrame);
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
             _fpsLimiterService = new RtssFpsLimiterService();
@@ -173,10 +183,13 @@ namespace HUDRA
             // Subscribe to navigation events
             _navigationService.PageChanged += OnPageChanged;
             _batteryService.BatteryInfoUpdated += OnBatteryInfoUpdated;
+            _gamepadNavigationService.PageNavigationRequested += OnGamepadPageNavigationRequested;
+            _gamepadNavigationService.NavbarButtonRequested += OnGamepadNavbarButtonRequested;
 
             InitializeWindow();
             SetupEventHandlers();
             SetupDragHandling();
+            SetupInputDetection();
 
             _navigationService.NavigateToMain();
 
@@ -192,9 +205,79 @@ namespace HUDRA
 
         private void OnPageChanged(object sender, Type pageType)
         {
+            // Latch and clear the pending gamepad navigation flag for this page
+            _isGamepadNavForCurrentPage = _isGamepadPageNavPending;
+            _isGamepadPageNavPending = false;
+
             _currentPageType = pageType;
             UpdateNavigationButtonStates();
             HandlePageSpecificInitialization(pageType);
+        }
+
+        private void OnGamepadPageNavigationRequested(object sender, GamepadPageNavigationEventArgs e)
+        {
+            // Mark that this navigation originated from gamepad buttons
+            _isGamepadPageNavPending = true;
+
+            // Define page order for navigation
+            var pageOrder = new List<Type>
+            {
+                typeof(MainPage),
+                typeof(FanCurvePage),
+                typeof(ScalingPage),
+                typeof(SettingsPage)
+            };
+
+            // Find current page index
+            int currentIndex = pageOrder.IndexOf(_currentPageType);
+            if (currentIndex == -1) return; // Current page not in order, ignore
+
+            // Calculate target page index with wrap-around
+            int targetIndex;
+            if (e.Direction == GamepadPageDirection.Previous)
+            {
+                targetIndex = currentIndex == 0 ? pageOrder.Count - 1 : currentIndex - 1;
+            }
+            else // Next
+            {
+                targetIndex = currentIndex == pageOrder.Count - 1 ? 0 : currentIndex + 1;
+            }
+
+            var targetPageType = pageOrder[targetIndex];
+
+            // Navigate to target page using appropriate method
+            if (targetPageType == typeof(MainPage))
+                _navigationService.NavigateToMain();
+            else if (targetPageType == typeof(FanCurvePage))
+                _navigationService.NavigateToFanCurve();
+            else if (targetPageType == typeof(ScalingPage))
+                _navigationService.NavigateToScaling();
+            else if (targetPageType == typeof(SettingsPage))
+                _navigationService.NavigateToSettings();
+        }
+
+        private void OnGamepadNavbarButtonRequested(object sender, GamepadNavbarButtonEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine($"🎮 Navbar button requested: {e.Button}");
+
+            switch (e.Button)
+            {
+                case GamepadNavbarButton.BackToGame:
+                    // Only invoke if button is visible
+                    if (AltTabButton.Visibility == Microsoft.UI.Xaml.Visibility.Visible)
+                    {
+                        AltTabButton_Click(AltTabButton, new RoutedEventArgs());
+                    }
+                    break;
+
+                case GamepadNavbarButton.LosslessScaling:
+                    // Only invoke if button is visible
+                    if (LosslessScalingButton.Visibility == Microsoft.UI.Xaml.Visibility.Visible)
+                    {
+                        LosslessScalingButton_Click(LosslessScalingButton, new RoutedEventArgs());
+                    }
+                    break;
+            }
         }
 
         private void HandlePageSpecificInitialization(Type pageType)
@@ -290,6 +373,9 @@ namespace HUDRA
 
                     // Auto-start RTSS if enabled
                     _ = StartRtssIfEnabledAsync();
+                    
+                    // Initialize gamepad navigation for MainPage
+                    _gamepadNavigationService.InitializePageNavigation(_mainPage.RootPanel);
                 });
             }
             else
@@ -329,6 +415,9 @@ namespace HUDRA
 
                 // Refresh FPS limiter on subsequent visits
                 _ = InitializeFpsLimiterAsync();
+                
+                // Re-initialize gamepad navigation for MainPage
+                _gamepadNavigationService.InitializePageNavigation(_mainPage.RootPanel);
 
                 // Re-establish TDP change tracking
                 _mainPage.TdpPicker.TdpChanged += (s, value) =>
@@ -355,6 +444,14 @@ namespace HUDRA
             {
                 _settingsPage.Initialize(_dpiService);
                 _ = LoadPowerProfilesAsync();
+
+                // Initialize gamepad navigation for SettingsPage
+                if (_settingsPage?.RootPanel is FrameworkElement root)
+                {
+                    _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                }
+
+                _isGamepadNavForCurrentPage = false;
             }
             catch (Exception ex)
             {
@@ -367,12 +464,29 @@ namespace HUDRA
         {
             if (_fanCurvePage == null) return;
 
-            System.Diagnostics.Debug.WriteLine("=== InitializeFanCurvePage called ===");
-
             try
             {
                 _fanCurvePage.Initialize();
-                System.Diagnostics.Debug.WriteLine("=== FanCurvePage initialization complete ===");
+                
+                // Add a small delay to ensure the control is fully loaded and gamepad navigation is set up
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                {
+                    // If navigation did not originate from the gamepad, ensure gamepad mode is deactivated
+                    // so we don't apply initial focus borders due to lingering IsGamepadActive state
+                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    {
+                        _gamepadNavigationService.DeactivateGamepadMode();
+                    }
+
+                    // Initialize gamepad navigation for FanCurvePage only if navigation came from gamepad
+                    _gamepadNavigationService.InitializePageNavigation(
+                        _fanCurvePage.FanCurveControl,
+                        isFromPageNavigation: _isGamepadNavForCurrentPage
+                    );
+
+                    // Reset flag after applying to avoid unintended focusing on subsequent navigations
+                    _isGamepadNavForCurrentPage = false;
+                });
             }
             catch (Exception ex)
             {
@@ -390,6 +504,22 @@ namespace HUDRA
             {
                 _scalingPage.Initialize();
                 System.Diagnostics.Debug.WriteLine("=== ScalingPage initialization complete ===");
+
+                // After initialization, apply gamepad navigation focus consistent with current nav origin
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                {
+                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    {
+                        _gamepadNavigationService.DeactivateGamepadMode();
+                    }
+
+                    if (_scalingPage?.RootPanel is FrameworkElement root)
+                    {
+                        _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                    }
+
+                    _isGamepadNavForCurrentPage = false;
+                });
             }
             catch (Exception ex)
             {
@@ -433,21 +563,29 @@ namespace HUDRA
         // Navigation event handlers
         private void MainPageNavButton_Click(object sender, RoutedEventArgs e)
         {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToMain();
         }
 
         private void FanCurveNavButton_Click(object sender, RoutedEventArgs e)
         {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToFanCurve();
         }
 
         private void ScalingNavButton_Click(object sender, RoutedEventArgs e)
         {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToScaling();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)
         {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToSettings();
         }
 
@@ -538,6 +676,14 @@ namespace HUDRA
             LogoDragHandle.PointerExited += OnLogoPointerExited;
         }
 
+        private void SetupInputDetection()
+        {
+            // Detect non-gamepad input to clear gamepad focus
+            LayoutRoot.PointerPressed += OnNonGamepadInput;  // Mouse clicks and touch
+            LayoutRoot.Tapped += OnNonGamepadInput;          // Additional touch detection
+            LayoutRoot.KeyDown += OnNonGamepadInput;         // Keyboard input
+        }
+
         private void OnLogoDragHandlePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
         {
             var pointer = e.Pointer;
@@ -596,6 +742,16 @@ namespace HUDRA
             if (!_isDragging)
             {
                 LogoDragHandle.Opacity = 1.0;
+            }
+        }
+
+        private void OnNonGamepadInput(object sender, object e)
+        {
+            // Clear gamepad focus when mouse/keyboard/touch is used
+            if (_gamepadNavigationService?.IsGamepadActive == true)
+            {
+                _gamepadNavigationService.DeactivateGamepadMode();
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad focus cleared due to mouse/keyboard/touch input");
             }
         }
 
@@ -823,6 +979,7 @@ namespace HUDRA
             _tdpMonitor?.Dispose();
             _batteryService?.Dispose();
             _navigationService?.Dispose();
+            _gamepadNavigationService?.Dispose();
             _enhancedGameDetectionService?.Dispose();
             _losslessScalingService?.Dispose();
             _powerProfileService?.Dispose();

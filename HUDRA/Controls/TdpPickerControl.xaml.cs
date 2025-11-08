@@ -1,9 +1,12 @@
-﻿using HUDRA.Configuration;
+﻿using HUDRA.AttachedProperties;
+using HUDRA.Configuration;
 using HUDRA.Helpers;
+using HUDRA.Interfaces;
 using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -13,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class TdpPickerControl : UserControl, INotifyPropertyChanged
+    public sealed partial class TdpPickerControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<int>? TdpChanged;
@@ -46,6 +49,10 @@ namespace HUDRA.Controls
         private double _dragStartX = 0;
         private double _dragStartScrollOffset = 0;
         private const double DRAG_THRESHOLD = 5; // pixels before we consider it a drag
+
+        // Gamepad navigation fields
+        private GamepadNavigationService? _gamepadNavigationService;
+        private bool _isFocused = false;
 
         #region Public Properties
 
@@ -102,12 +109,50 @@ namespace HUDRA.Controls
 
         public Border PickerBorder => TdpPickerBorder;
 
+        // Focus properties for XAML binding
+        public bool IsFocused
+        {
+            get => _isFocused;
+            set
+            {
+                if (_isFocused != value)
+                {
+                    _isFocused = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FocusBorderBrush));
+                    OnPropertyChanged(nameof(FocusBorderThickness));
+                }
+            }
+        }
+
+        public Brush FocusBorderBrush => (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _autoSetEnabled)
+            ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet)
+            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+        public Thickness FocusBorderThickness => (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _autoSetEnabled)
+            ? new Thickness(3)
+            : new Thickness(0);
+
         #endregion
 
         public TdpPickerControl()
         {
             this.InitializeComponent();
             InitializeData();
+            this.Loaded += TdpPickerControl_Loaded;
+        }
+
+        private void TdpPickerControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            // When control is loaded (especially after being in a collapsed expander),
+            // ensure scroll position is correct
+            if (_isInitialized)
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    ScrollToSelectedItem();
+                });
+            }
         }
 
         #region Initialization
@@ -171,6 +216,9 @@ namespace HUDRA.Controls
                     ScrollToSelectedItem();
                 });
             }
+
+            // Initialize gamepad navigation after _autoSetEnabled is properly set
+            InitializeGamepadNavigation();
 
             _lastCenteredTdp = _selectedTdp;
         }
@@ -656,6 +704,109 @@ namespace HUDRA.Controls
         #endregion
 
         #region Cleanup
+
+        #region IGamepadNavigable Implementation
+
+        public bool CanNavigateUp => false; // TDP picker only supports left/right navigation
+        public bool CanNavigateDown => false;
+        public bool CanNavigateLeft => _selectedTdp > HudraSettings.MIN_TDP;
+        public bool CanNavigateRight => _selectedTdp < HudraSettings.MAX_TDP;
+        public bool CanActivate => false; // TDP picker uses left/right for value changes
+        
+        public FrameworkElement NavigationElement => this;
+        
+        // Slider interface implementations - TDP picker is not a traditional slider
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+        public void AdjustSliderValue(int direction) { /* Not applicable for TDP picker */ }
+        
+        // ComboBox interface implementations - TdpPicker has no ComboBoxes
+        public bool HasComboBoxes => false;
+        public bool IsComboBoxOpen { get; set; } = false;
+        public ComboBox? GetFocusedComboBox() => null;
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+        public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
+
+        public void OnGamepadNavigateUp() { } // Not applicable
+        public void OnGamepadNavigateDown() { } // Not applicable
+
+        public void OnGamepadNavigateLeft()
+        {
+            if (CanNavigateLeft)
+            {
+                ChangeTdpBy(-1);
+                _audioHelper?.PlayTick();
+            }
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            if (CanNavigateRight)
+            {
+                ChangeTdpBy(1);
+                _audioHelper?.PlayTick();
+            }
+        }
+
+        public void OnGamepadActivate() { } // Not applicable
+
+        public void OnGamepadFocusReceived()
+        {
+            // Lazy initialization of gamepad service if needed
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+            
+            IsFocused = true;
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            IsFocused = false;
+        }
+
+        private void OnGamepadActiveStateChanged(object? sender, bool isActive)
+        {
+            // Update focus border properties when gamepad active state changes
+            // Must run on UI thread since property getters create SolidColorBrush objects
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+            });
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            // Get gamepad navigation service from app
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+                
+                // Subscribe to gamepad active state changes to update focus borders
+                if (_gamepadNavigationService != null)
+                {
+                    _gamepadNavigationService.GamepadActiveStateChanged += OnGamepadActiveStateChanged;
+                }
+            }
+        }
+
+        private void InitializeGamepadNavigation()
+        {
+            // Only register as a navigable element when in main page mode
+            // In settings mode, TdpSettingsControl handles the navigation
+            if (_autoSetEnabled)
+            {
+                GamepadNavigation.SetIsEnabled(this, true);
+                GamepadNavigation.SetNavigationGroup(this, "MainControls");
+                GamepadNavigation.SetNavigationOrder(this, 1);
+            }
+        }
+
+
+        #endregion
 
         public void Dispose()
         {

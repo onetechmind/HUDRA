@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="HUDRA.Controls.StartupOptionsControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HUDRA.Controls"
+    xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="1">
+
+    <StackPanel
+        Margin="0,20,0,20"
+        Padding="5"
+        Spacing="15">
+        <!--  Start with Windows  -->
+        <Border
+            x:Name="StartupBorder"
+            Padding="20,5"
+            Background="#22FFFFFF"
+            CornerRadius="12"
+            BorderBrush="{x:Bind StartupFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1.2*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Start with Windows" />
+
+                <ToggleSwitch
+                    x:Name="StartupToggle"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    x:FieldModifier="public" />
+            </Grid>
+        </Border>
+        <TextBlock
+            Padding="10,0,10,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Automatically launches HUDRA with admin privileges when Windows starts." />
+
+        <!--  Start Minimized  -->
+        <Border
+            x:Name="MinimizeBorder"
+            Padding="20,5"
+            Background="#22FFFFFF"
+            CornerRadius="12"
+            BorderBrush="{x:Bind MinimizeFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1.2*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Start Minimized" />
+
+                <ToggleSwitch
+                    x:Name="MinimizeOnStartupToggle"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    x:FieldModifier="public" />
+            </Grid>
+        </Border>
+
+        <TextBlock
+            Padding="10,0,10,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Starts HUDRA minimized to tray." />
+
+        <!--  Auto-Start RTSS  -->
+        <Border
+            x:Name="RtssBorder"
+            Padding="20,5"
+            Background="#22FFFFFF"
+            CornerRadius="12"
+            BorderBrush="{x:Bind RtssFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1.2*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Auto-Start RTSS" />
+
+                <ToggleSwitch
+                    x:Name="StartRtssWithHudraToggle"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    x:FieldModifier="public" />
+            </Grid>
+        </Border>
+
+        <TextBlock Padding="10,0,10,0"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting." />
+
+        <!--  Hide/Show Hotkey  -->
+        <Border
+            x:Name="HotkeyBorder"
+            Padding="10"
+            Background="#22FFFFFF"
+            CornerRadius="12"
+            BorderBrush="{x:Bind HotkeyFocusBrush, Mode=OneWay}"
+            BorderThickness="2">
+            <StackPanel Spacing="8">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Hide/Show Hotkey" />
+
+                <controls:HotkeySelector x:Name="HideShowHotkeySelector" x:FieldModifier="public" />
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

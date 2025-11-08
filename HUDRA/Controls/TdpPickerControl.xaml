@@ -51,11 +51,16 @@
             Text="TDP"
             Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
 
-        <Border
-            x:Name="TdpPickerBorder"
-            Padding="5,0"
-            Background="#22FFFFFF"
-            CornerRadius="12">
+        <!-- Focus Border around TDP picker -->
+        <Border x:Name="FocusBorder"
+                BorderBrush="{x:Bind FocusBorderBrush, Mode=OneWay}"
+                BorderThickness="{x:Bind FocusBorderThickness, Mode=OneWay}"
+                CornerRadius="12">
+            <Border
+                x:Name="TdpPickerBorder"
+                Padding="5,0"
+                Background="#22FFFFFF"
+                CornerRadius="12">
             <Grid Height="60">
                 <ScrollViewer
                     x:Name="TdpScrollViewer"
@@ -76,6 +81,7 @@
                         Layout="{StaticResource HorizontalStackLayout}" />
                 </ScrollViewer>
             </Grid>
+            </Border>
         </Border>
     </StackPanel>
 </UserControl>

@@ -90,8 +90,9 @@ namespace HUDRA.Services
                 
                 _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, "Loading existing game database..."));
 
-                // Load existing games from persistent database
-                var existingGames = _gameDatabase.GetAllGames().ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                // Load existing games from persistent database (async to avoid blocking UI)
+                var allExistingGames = await _gameDatabase.GetAllGamesAsync();
+                var existingGames = allExistingGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
                 var newGames = new Dictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
 
                 _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Found {existingGames.Count} existing games, scanning for new games..."));
@@ -147,7 +148,7 @@ namespace HUDRA.Services
                 }
 
                 // Build in-memory cache from all games (existing + new)
-                var allGames = _gameDatabase.GetAllGames();
+                var allGames = await _gameDatabase.GetAllGamesAsync();
                 _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
                 
                 _isDatabaseReady = true;

@@ -9,11 +9,12 @@
 
     <Grid Margin="0">
         <StackPanel
+            x:Name="SettingsRootPanel"
             MaxWidth="280"
-            Margin="0"
+            Margin="0,15,0,0"
             HorizontalAlignment="Center"
             VerticalAlignment="Top"
-            Spacing="15">
+            Spacing="20">
 
             <Border>
                 <TextBlock
@@ -26,12 +27,12 @@
             </Border>
 
             <!--  TDP Settings  -->
-            <Expander
+            <controls:NavigableExpander
                 x:Name="TdpSettingsExpander"
-                Width="280"
-                Padding="5"
-                CornerRadius="12">
-                <Expander.Header>
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
@@ -46,103 +47,19 @@
                             FontWeight="SemiBold"
                             Text="TDP Options" />
                     </StackPanel>
-                </Expander.Header>
-                <StackPanel
-                    Margin="0,20,0,20"
-                    Padding="5"
-                    Spacing="15">
-                    <Border
-                        Margin="0"
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
-                                <ColumnDefinition Width="1*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Use Default TDP" />
-
-                            <ToggleSwitch
-                                x:Name="UseStartupTdpToggle"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                x:FieldModifier="public"
-                                Toggled="UseStartupTdpToggle_Toggled" />
-
-                        </Grid>
-
-                    </Border>
-
-                    <StackPanel>
-                        <controls:TdpPickerControl
-                            x:Name="StartupTdpPicker"
-                            Width="245"
-                            x:FieldModifier="public"
-                            ShowLabel="False" />
-                    </StackPanel>
-
-                    <TextBlock
-                        Margin="0"
-                        Padding="10,0,10,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Sets a default TDP for HUDRA to start with each time." />
-
-                    <!--  Sticky TDP setting  -->
-                    <Border
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="3*" />
-                                <ColumnDefinition Width="1*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Sticky TDP" />
-
-                            <ToggleSwitch
-                                x:Name="TdpCorrectionToggle"
-                                Grid.Column="1"
-                                Margin="10,0,0,0"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                x:FieldModifier="public"
-                                Toggled="TdpCorrectionToggle_Toggled" />
-                        </Grid>
-                    </Border>
-
-                    <TextBlock
-                        Margin="0"
-                        Padding="10,0,10,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Sets whether your custom TDP will be managed more aggressively." />
-                </StackPanel>
-            </Expander>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:TdpSettingsControl x:Name="TdpSettingsControl" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
 
             <!--  Power Profile Control  -->
-            <Expander
+            <controls:NavigableExpander
                 x:Name="PowerProfileExpander"
-                Width="280"
-                Padding="5"
-                CornerRadius="12">
-                <Expander.Header>
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
@@ -157,22 +74,21 @@
                             FontWeight="SemiBold"
                             Text="Power Profile" />
                     </StackPanel>
-                </Expander.Header>
-                <StackPanel Spacing="8">
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
                     <controls:PowerProfileControl
                         x:Name="PowerProfileControl"
-                        Width="250"
                         x:FieldModifier="public" />
-                </StackPanel>
-            </Expander>
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
 
             <!--  Game Detection Settings  -->
-            <Expander
+            <controls:NavigableExpander
                 x:Name="GameDetectionExpander"
-                Width="280"
-                Padding="5"
-                CornerRadius="12">
-                <Expander.Header>
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
@@ -187,102 +103,18 @@
                             FontWeight="SemiBold"
                             Text="Game Detection" />
                     </StackPanel>
-                </Expander.Header>
-                <StackPanel
-                    Width="250"
-                    Margin="0,20,0,20"
-                    Padding="5"
-                    Spacing="15">
-                    <Border
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
-                                <ColumnDefinition Width="1.2*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Library Scanning" />
-
-                            <ToggleSwitch
-                                x:Name="EnhancedLibraryScanningToggle"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                x:FieldModifier="public"
-                                Toggled="EnhancedLibraryScanningToggle_Toggled" />
-
-
-                        </Grid>
-                    </Border>
-
-                    <StackPanel Spacing="8">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontWeight="SemiBold"
-                            Foreground="#CCFFFFFF"
-                            Text="Scan Interval" />
-
-                        <ComboBox
-                            x:Name="ScanIntervalComboBox"
-                            HorizontalAlignment="Stretch"
-                            x:FieldModifier="public"
-                            IsEnabled="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}"
-                            ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                            SelectionChanged="ScanIntervalComboBox_SelectionChanged"
-                            Style="{StaticResource HudraComboBoxStyle}">
-                            <ComboBoxItem Content="5 mins" Tag="5" />
-                            <ComboBoxItem Content="15 mins" Tag="15" />
-                            <ComboBoxItem Content="30 mins" Tag="30" />
-                            <ComboBoxItem Content="60 mins" Tag="60" />
-                        </ComboBox>
-                    </StackPanel>
-
-                    <TextBlock Style="{StaticResource SettingsDescriptionStyle}">Automatically scans games from Steam, GOG, Epic, Xbox, and more for faster and more accurate game detection.</TextBlock>
-
-                    <StackPanel Spacing="8" Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}">
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            Style="{StaticResource SettingsLabelStyle}"
-                            Text="Library Stats" />
-
-                        <TextBlock
-                            x:Name="DatabaseStatusText"
-                            Style="{StaticResource SettingsDescriptionStyle}"
-                            Text="Loading database information..." />
-
-                        <Button
-                            x:Name="RefreshDatabaseButton"
-                            MinWidth="75"
-                            MinHeight="25"
-                            Padding="10"
-                            HorizontalAlignment="Center"
-                            Background="#4A4A4A"
-                            BorderBrush="#666666"
-                            BorderThickness="1"
-                            Click="RefreshDatabaseButton_Click"
-                            Content="Re-Scan"
-                            CornerRadius="10" />
-                    </StackPanel>
-                </StackPanel>
-            </Expander>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:GameDetectionControl x:Name="GameDetectionControl" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
             <!--  Startup & Windows Integration  -->
-            <Expander
+            <controls:NavigableExpander
                 x:Name="StartupSettingsExpander"
-                Width="280"
-                Padding="5"
-                CornerRadius="12">
-                <Expander.Header>
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
@@ -297,135 +129,11 @@
                             FontWeight="SemiBold"
                             Text="Startup &amp; Options" />
                     </StackPanel>
-                </Expander.Header>
-                <StackPanel
-                    Width="250"
-                    Margin="0,20,0,20"
-                    Padding="5"
-                    Spacing="15">
-                    <!--  Start with Windows  -->
-                    <Border
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
-                                <ColumnDefinition Width="1.2*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Start with Windows" />
-
-                            <ToggleSwitch
-                                x:Name="StartupToggle"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Toggled="StartupToggle_Toggled" />
-                        </Grid>
-
-                    </Border>
-                    <TextBlock
-                        Padding="10,0,10,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Automatically launches HUDRA with admin privileges when Windows starts." />
-
-                    <!--  Start Minimized  -->
-                    <Border
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
-                                <ColumnDefinition Width="1.2*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Start Minimized" />
-
-                            <ToggleSwitch
-                                x:Name="MinimizeOnStartupToggle"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Toggled="MinimizeOnStartupToggle_Toggled" />
-                        </Grid>
-                    </Border>
-
-                    <TextBlock
-                        Padding="10,0,10,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Starts HUDRA minimized to tray." />
-
-                    <!--  Auto-Start RTSS  -->
-                    <Border
-                        Padding="20,5"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="4*" />
-                                <ColumnDefinition Width="1.2*" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBlock
-                                Grid.Row="0"
-                                Grid.Column="0"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Auto-Start RTSS" />
-
-                            <ToggleSwitch
-                                x:Name="StartRtssWithHudraToggle"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Toggled="StartRtssWithHudraToggle_Toggled" />
-
-                        </Grid>
-                    </Border>
-
-                    <TextBlock Padding="10,0,10,0"
-     Style="{StaticResource SettingsDescriptionStyle}"
-     Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting." />
-
-                    <!--  Hide/Show Hotkey  -->
-                    <Border
-                        Padding="10"
-                        Background="#22FFFFFF"
-                        CornerRadius="12">
-                        <StackPanel Spacing="8">
-                            <TextBlock
-                                HorizontalAlignment="Center"
-                                Style="{StaticResource SettingsLabelStyle}"
-                                Text="Hide/Show Hotkey" />
-
-                            <controls:HotkeySelector x:Name="HideShowHotkeySelector" HotkeyChanged="HideShowHotkeySelector_HotkeyChanged" />
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </Expander>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:StartupOptionsControl x:Name="StartupOptionsControl" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
         </StackPanel>
     </Grid>
 </Page>

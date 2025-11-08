@@ -272,6 +272,90 @@ protected override void OnNavigatedFrom(NavigationEventArgs e) { }
 
 **Note:** The current implementation uses session-only storage by design. If persistent storage is needed, integrate with `SettingsService.cs` instead of static fields.
 
+## Controls Inside Collapsed Expanders
+
+### The Problem
+
+When controls are placed inside a collapsed Expander and initialized before the Expander is expanded, they may not display correctly. This is especially problematic for controls that require accurate measurement and scroll positioning, such as:
+- ScrollViewer-based controls
+- ItemsRepeater with dynamic positioning
+- Custom pickers/selectors with scroll-to-item functionality
+
+**Root Cause:** When a control is inside a collapsed Expander, it's not in the visual tree during initialization. ScrollViewer dimensions (`ViewportWidth`, `ExtentWidth`) are not available, causing scroll positioning to fail.
+
+### The Solution
+
+Use the control's `Loaded` event to ensure proper initialization when the control enters the visual tree:
+
+```csharp
+public TdpPickerControl()
+{
+    this.InitializeComponent();
+    InitializeData();
+    this.Loaded += TdpPickerControl_Loaded;
+}
+
+private void TdpPickerControl_Loaded(object sender, RoutedEventArgs e)
+{
+    // When control is loaded (especially after being in a collapsed expander),
+    // ensure scroll position is correct
+    if (_isInitialized)
+    {
+        DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+        {
+            ScrollToSelectedItem();
+        });
+    }
+}
+```
+
+**Key Points:**
+- The `Loaded` event fires when the control enters the visual tree
+- This happens when a collapsed Expander is expanded for the first time
+- Use `DispatcherQueue.TryEnqueue` with `Low` priority to ensure layout is complete
+- Only refresh positioning/scrolling, don't re-initialize the entire control
+- Check `_isInitialized` flag to avoid running before control is ready
+
+### Example: TDP Picker Display Issue
+
+**Problem:** TdpPickerControl in SettingsPage was showing "5" and "6" instead of the saved default TDP value (e.g., 15W).
+
+**Why:** The control was initialized inside a collapsed `TdpSettingsExpander`, so `ScrollToSelectedItem()` failed because ScrollViewer dimensions were unavailable.
+
+**Fix:** Added `Loaded` event handler to refresh scroll position when the Expander is expanded and the control enters the visual tree.
+
+### When to Use This Pattern
+
+Use the `Loaded` event pattern for controls inside Expanders when:
+1. Control has scroll positioning or centering logic
+2. Control needs accurate measurement for layout
+3. Control's `Initialize()` method is called before the Expander is expanded
+4. Control displays wrong initial state when Expander is first expanded
+
+### Additional Considerations
+
+**Complement with Expander State Callbacks:**
+```csharp
+// In parent page
+if (TdpSettingsExpander != null)
+{
+    _tdpExpanderCallbackToken = TdpSettingsExpander.RegisterPropertyChangedCallback(
+        Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty,
+        OnTdpExpanderStateChanged);
+}
+
+private void OnTdpExpanderStateChanged(DependencyObject sender, DependencyProperty dp)
+{
+    // Only refresh when expander is expanded
+    if (TdpSettingsExpander != null && TdpSettingsExpander.IsExpanded)
+    {
+        RefreshControlDisplay();
+    }
+}
+```
+
+This provides an additional opportunity to refresh control display when the Expander expands, complementing the control's own `Loaded` event.
+
 ## Performance Considerations
 
 - **Minimal overhead**: Only saves/loads boolean values
@@ -307,5 +391,6 @@ This implementation provides reliable, session-persistent Expander state managem
 3. Always check for null before accessing controls
 4. Include debug logging for troubleshooting
 5. Ensure `x:Name` is set in XAML
+6. **For controls inside Expanders**: Use control's `Loaded` event to refresh layout/positioning when entering visual tree
 
 This pattern can be easily replicated across multiple pages and Expanders in the HUDRA application.

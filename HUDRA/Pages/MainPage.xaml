@@ -10,6 +10,7 @@
     <Grid Margin="0">
         <StackPanel
             x:Name="RootPanel"
+            x:FieldModifier="public"
             Margin="0,15,0,0"
             HorizontalAlignment="Center"
             VerticalAlignment="Top"

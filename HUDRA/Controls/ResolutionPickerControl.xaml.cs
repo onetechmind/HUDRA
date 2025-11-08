@@ -1,8 +1,11 @@
 using HUDRA.Configuration;
 using HUDRA.Helpers;
 using HUDRA.Services;
+using HUDRA.Interfaces;
+using HUDRA.AttachedProperties;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -12,7 +15,7 @@ using System.Threading.Tasks;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class ResolutionPickerControl : UserControl, INotifyPropertyChanged
+    public sealed partial class ResolutionPickerControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<ResolutionChangedEventArgs>? ResolutionChanged;
@@ -21,6 +24,9 @@ namespace HUDRA.Controls
         private ResolutionService? _resolutionService;
         private ResolutionAutoSetManager? _resolutionAutoSetManager;
         private RefreshRateAutoSetManager? _refreshRateAutoSetManager;
+        private GamepadNavigationService? _gamepadNavigationService;
+        private int _currentFocusedControl = 0; // 0 = Resolution, 1 = RefreshRate
+        private bool _isFocused = false;
 
         private List<ResolutionService.Resolution> _availableResolutions = new();
         private List<int> _availableRefreshRates = new();
@@ -55,6 +61,98 @@ namespace HUDRA.Controls
             }
         }
 
+        // IGamepadNavigable implementation
+        public bool CanNavigateUp => false;
+        public bool CanNavigateDown => false;
+        public bool CanNavigateLeft => _currentFocusedControl == 1; // Can move left from RefreshRate to Resolution
+        public bool CanNavigateRight => _currentFocusedControl == 0; // Can move right from Resolution to RefreshRate
+        public bool CanActivate => true;
+        public FrameworkElement NavigationElement => this;
+        
+        // Slider interface implementations - ResolutionPicker is not a slider control
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+        public void AdjustSliderValue(int direction) { /* Not applicable */ }
+        
+        // ComboBox interface implementations - ResolutionPicker has ComboBoxes
+        public bool HasComboBoxes => true;
+        private bool _isComboBoxOpen = false;
+        public bool IsComboBoxOpen 
+        { 
+            get => _isComboBoxOpen; 
+            set => _isComboBoxOpen = value; 
+        }
+        
+        public ComboBox? GetFocusedComboBox()
+        {
+            return _currentFocusedControl == 0 ? ResolutionComboBox : RefreshRateComboBox;
+        }
+        
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+        
+        public void ProcessCurrentSelection()
+        {
+            // Process the current resolution selection
+            if (_currentFocusedControl == 0 && ResolutionComboBox != null)
+            {
+                OnResolutionSelectionChanged(ResolutionComboBox, new Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs(new List<object>(), new List<object>()));
+            }
+            // Process the current refresh rate selection
+            else if (_currentFocusedControl == 1 && RefreshRateComboBox != null)
+            {
+                OnRefreshRateSelectionChanged(RefreshRateComboBox, new Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs(new List<object>(), new List<object>()));
+            }
+        }
+
+        public Brush FocusBorderBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Thickness FocusBorderThickness
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                {
+                    return new Thickness(2);
+                }
+                return new Thickness(0);
+            }
+        }
+
+        public Brush ResolutionFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 0)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush RefreshRateFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 1)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
 
         public ResolutionPickerControl()
         {
@@ -67,6 +165,12 @@ namespace HUDRA.Controls
 
             _resolutionAutoSetManager = new ResolutionAutoSetManager(SetResolutionAsync, status => ResolutionStatusText = status);
             _refreshRateAutoSetManager = new RefreshRateAutoSetManager(SetRefreshRateAsync, status => RefreshRateStatusText = status);
+
+            // Get gamepad service
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+            }
 
             InitializeResolutions();
             SetupEventHandlers();
@@ -105,15 +209,15 @@ namespace HUDRA.Controls
             if (ResolutionComboBox != null)
             {
                 ResolutionComboBox.SelectionChanged += OnResolutionSelectionChanged;
-                ResolutionComboBox.DropDownOpened += (s, e) => { /* Can add popup handling later */ };
-                ResolutionComboBox.DropDownClosed += (s, e) => { /* Can add popup handling later */ };
+                ResolutionComboBox.DropDownOpened += (s, e) => { IsComboBoxOpen = true; };
+                ResolutionComboBox.DropDownClosed += (s, e) => { IsComboBoxOpen = false; };
             }
 
             if (RefreshRateComboBox != null)
             {
                 RefreshRateComboBox.SelectionChanged += OnRefreshRateSelectionChanged;
-                RefreshRateComboBox.DropDownOpened += (s, e) => { /* Can add popup handling later */ };
-                RefreshRateComboBox.DropDownClosed += (s, e) => { /* Can add popup handling later */ };
+                RefreshRateComboBox.DropDownOpened += (s, e) => { IsComboBoxOpen = true; };
+                RefreshRateComboBox.DropDownClosed += (s, e) => { IsComboBoxOpen = false; };
             }
         }
 
@@ -124,6 +228,13 @@ namespace HUDRA.Controls
                 _resolutionAutoSetManager == null)
                 return;
 
+            // Skip processing if we're just navigating items (not actually selecting)
+            if (IsNavigatingComboBox)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Resolution navigation - skipping update for index: {ResolutionComboBox.SelectedIndex}");
+                return;
+            }
+
             _selectedResolutionIndex = ResolutionComboBox.SelectedIndex;
             UpdateRefreshRatesForResolution(_selectedResolutionIndex);
 
@@ -131,6 +242,7 @@ namespace HUDRA.Controls
             ResolutionChanged?.Invoke(this, new ResolutionChangedEventArgs(selectedResolution, false));
 
             _resolutionAutoSetManager.ScheduleUpdate(_selectedResolutionIndex);
+            System.Diagnostics.Debug.WriteLine($"🎮 Resolution actual selection - applying update for index: {_selectedResolutionIndex}");
         }
 
         private void OnRefreshRateSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -140,12 +252,20 @@ namespace HUDRA.Controls
                 _refreshRateAutoSetManager == null)
                 return;
 
+            // Skip processing if we're just navigating items (not actually selecting)
+            if (IsNavigatingComboBox)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 RefreshRate navigation - skipping update for index: {RefreshRateComboBox.SelectedIndex}");
+                return;
+            }
+
             _selectedRefreshRateIndex = RefreshRateComboBox.SelectedIndex;
 
             var selectedRefreshRate = _availableRefreshRates[_selectedRefreshRateIndex];
             RefreshRateChanged?.Invoke(this, new RefreshRateChangedEventArgs(selectedRefreshRate, false));
 
             _refreshRateAutoSetManager.ScheduleUpdate(_selectedRefreshRateIndex);
+            System.Diagnostics.Debug.WriteLine($"🎮 RefreshRate actual selection - applying update for index: {_selectedRefreshRateIndex}");
         }
 
         private void UpdateRefreshRatesForResolution(int resolutionIndex)
@@ -340,6 +460,72 @@ namespace HUDRA.Controls
         {
             _resolutionAutoSetManager?.Dispose();
             _refreshRateAutoSetManager?.Dispose();
+        }
+
+        // IGamepadNavigable event handlers
+        public void OnGamepadNavigateUp() { }
+        public void OnGamepadNavigateDown() { }
+        
+        public void OnGamepadNavigateLeft()
+        {
+            if (_currentFocusedControl == 1) // From RefreshRate to Resolution
+            {
+                _currentFocusedControl = 0;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Moved left to Resolution ComboBox");
+            }
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            if (_currentFocusedControl == 0) // From Resolution to RefreshRate
+            {
+                _currentFocusedControl = 1;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Moved right to RefreshRate ComboBox");
+            }
+        }
+
+        public void OnGamepadActivate()
+        {
+            // Open the currently focused ComboBox
+            if (_currentFocusedControl == 0 && ResolutionComboBox != null)
+            {
+                ResolutionComboBox.IsDropDownOpen = true;
+                System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Opened Resolution ComboBox");
+            }
+            else if (_currentFocusedControl == 1 && RefreshRateComboBox != null)
+            {
+                RefreshRateComboBox.IsDropDownOpen = true;
+                System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Opened RefreshRate ComboBox");
+            }
+        }
+
+        public void OnGamepadFocusReceived()
+        {
+            _isFocused = true;
+            _currentFocusedControl = 0; // Start with Resolution ComboBox
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Received gamepad focus");
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            _isFocused = false;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Lost gamepad focus");
+        }
+
+        private void UpdateFocusVisuals()
+        {
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+                OnPropertyChanged(nameof(ResolutionFocusBrush));
+                OnPropertyChanged(nameof(RefreshRateFocusBrush));
+            });
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

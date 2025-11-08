@@ -1,8 +1,11 @@
 using HUDRA.Models;
 using HUDRA.Services;
+using HUDRA.Interfaces;
+using HUDRA.AttachedProperties;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Media;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -25,7 +28,7 @@ namespace HUDRA.Controls
         }
     }
 
-    public sealed partial class FpsLimiterControl : UserControl, INotifyPropertyChanged
+    public sealed partial class FpsLimiterControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<FpsLimitChangedEventArgs>? FpsLimitChanged;
@@ -35,6 +38,8 @@ namespace HUDRA.Controls
         private bool _isRtssSupported = false;
         private bool _isRtssInstalled = false;
         private bool _isGameRunning = false;
+        private GamepadNavigationService? _gamepadNavigationService;
+        private bool _isFocused = false;
 
         public FpsLimitSettings FpsSettings
         {
@@ -101,6 +106,77 @@ namespace HUDRA.Controls
             }
         }
 
+        // IGamepadNavigable implementation
+        public bool CanNavigateUp => false;
+        public bool CanNavigateDown => false;
+        public bool CanNavigateLeft => false;
+        public bool CanNavigateRight => false;
+        public bool CanActivate => IsRtssInstalled;
+        public FrameworkElement NavigationElement => this;
+        
+        // Slider interface implementations - FpsLimiter is not a slider control
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
+        public void AdjustSliderValue(int direction) { /* Not applicable */ }
+        
+        // ComboBox interface implementations - FpsLimiter has ComboBox
+        public bool HasComboBoxes => true;
+        private bool _isComboBoxOpen = false;
+        public bool IsComboBoxOpen 
+        { 
+            get => _isComboBoxOpen; 
+            set => _isComboBoxOpen = value; 
+        }
+        
+        public ComboBox? GetFocusedComboBox()
+        {
+            return FpsLimitComboBox;
+        }
+        
+        public int ComboBoxOriginalIndex { get; set; } = -1;
+        public bool IsNavigatingComboBox { get; set; } = false;
+        
+        public void ProcessCurrentSelection()
+        {
+            // Process the current FPS limit selection
+            if (FpsLimitComboBox != null)
+            {
+                OnFpsLimitChanged(FpsLimitComboBox, new Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs(new List<object>(), new List<object>()));
+            }
+        }
+
+        public Brush FocusBorderBrush
+        {
+            get
+            {
+                var isActive = _gamepadNavigationService?.IsGamepadActive == true;
+                var shouldShow = _isFocused && isActive;
+
+                if (shouldShow)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> DarkViolet (_isFocused={_isFocused}, isGamepadActive={isActive})");
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> Transparent (_isFocused={_isFocused}, gamepadService={_gamepadNavigationService != null}, isGamepadActive={isActive})");
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Thickness FocusBorderThickness
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                {
+                    return new Thickness(2);
+                }
+                return new Thickness(0);
+            }
+        }
+
         public FpsLimiterControl()
         {
             this.InitializeComponent();
@@ -113,6 +189,19 @@ namespace HUDRA.Controls
         public async void Initialize(RtssFpsLimiterService fpsLimiterService)
         {
             _fpsLimiterService = fpsLimiterService;
+            
+            // Get gamepad service
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+            }
+            
+            // Set up ComboBox event handlers for dropdown state tracking
+            if (FpsLimitComboBox != null)
+            {
+                FpsLimitComboBox.DropDownOpened += (s, e) => { IsComboBoxOpen = true; };
+                FpsLimitComboBox.DropDownClosed += (s, e) => { IsComboBoxOpen = false; };
+            }
             
             // Only check running status - installation status already set in constructor from cache
             if (_fpsLimiterService != null)
@@ -250,6 +339,13 @@ namespace HUDRA.Controls
         {
             if (FpsLimitComboBox?.SelectedIndex >= 0 && FpsLimitComboBox.SelectedIndex < _fpsSettings.AvailableFpsOptions.Count)
             {
+                // Skip processing if we're just navigating items (not actually selecting)
+                if (IsNavigatingComboBox)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimit navigation - skipping update for index: {FpsLimitComboBox.SelectedIndex}");
+                    return;
+                }
+
                 var selectedFps = _fpsSettings.AvailableFpsOptions[FpsLimitComboBox.SelectedIndex];
                 if (selectedFps != _fpsSettings.SelectedFpsLimit)
                 {
@@ -258,7 +354,63 @@ namespace HUDRA.Controls
                     
                     // Always notify of the change - the handler will decide whether to apply
                     FpsLimitChanged?.Invoke(this, new FpsLimitChangedEventArgs(selectedFps));
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimit actual selection - applying update for fps: {selectedFps}");
                 }
+            }
+        }
+
+        // IGamepadNavigable event handlers
+        public void OnGamepadNavigateUp() { }
+        public void OnGamepadNavigateDown() { }
+        public void OnGamepadNavigateLeft() { }
+        public void OnGamepadNavigateRight() { }
+        
+        public void OnGamepadActivate()
+        {
+            if (FpsLimitComboBox != null && IsRtssInstalled)
+            {
+                FpsLimitComboBox.IsDropDownOpen = true;
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Opened ComboBox dropdown");
+            }
+        }
+
+        public void OnGamepadFocusReceived()
+        {
+            // Lazy initialization of gamepad service if needed
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Received gamepad focus");
+        }
+
+        public void OnGamepadFocusLost()
+        {
+            _isFocused = false;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Lost gamepad focus");
+        }
+
+        private void UpdateFocusVisuals()
+        {
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+            });
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            // Get gamepad navigation service from app
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Lazy-initialized gamepad navigation service");
             }
         }
 

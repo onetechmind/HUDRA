@@ -4,9 +4,14 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:local="using:HUDRA.Controls"
+    xmlns:helpers="using:HUDRA.Helpers"
+    xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d">
+    mc:Ignorable="d"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationOrder="2"
+    ap:GamepadNavigation.NavigationGroup="MainControls">
     
     <StackPanel Spacing="8">
         <!-- Labels -->
@@ -32,7 +37,6 @@
                        Grid.Column="2"/>
         </Grid>
 
-        <!-- ComboBoxes -->
         <Grid Width="280">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -40,17 +44,33 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <ComboBox x:Name="ResolutionComboBox"
-                      Grid.Column="0"
-                      Style="{StaticResource HudraComboBoxStyle}"
-                      ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                      HorizontalAlignment="Stretch"/>
+            <!-- Resolution ComboBox with focus border -->
+            <Border Grid.Column="0"
+                        BorderBrush="{x:Bind ResolutionFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="6">
+                <ComboBox x:Name="ResolutionComboBox"
+                              Style="{StaticResource HudraComboBoxStyle}"
+                              ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                              HorizontalAlignment="Stretch"
+                              UseSystemFocusVisuals="False"
+                              IsTabStop="False"
+                              helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
+            </Border>
 
-            <ComboBox x:Name="RefreshRateComboBox"
-                      Grid.Column="2"
-                      Style="{StaticResource HudraComboBoxStyle}"
-                      ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                      HorizontalAlignment="Stretch"/>
+            <!-- RefreshRate ComboBox with focus border -->
+            <Border Grid.Column="2"
+                        BorderBrush="{x:Bind RefreshRateFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="6">
+                <ComboBox x:Name="RefreshRateComboBox"
+                              Style="{StaticResource HudraComboBoxStyle}"
+                              ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
+                              HorizontalAlignment="Stretch"
+                              UseSystemFocusVisuals="False"
+                              IsTabStop="False"
+                              helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
+            </Border>
         </Grid>
     </StackPanel>
     
