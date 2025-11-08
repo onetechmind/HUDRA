@@ -312,12 +312,16 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(UpscalingToggleFocusBrush));
-            OnPropertyChanged(nameof(FrameGenSliderFocusBrush));
-            OnPropertyChanged(nameof(FlowScaleSliderFocusBrush));
-            OnPropertyChanged(nameof(ApplyButtonFocusBrush));
-            OnPropertyChanged(nameof(ResetButtonFocusBrush));
-            OnPropertyChanged(nameof(RestoreButtonFocusBrush));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(UpscalingToggleFocusBrush));
+                OnPropertyChanged(nameof(FrameGenSliderFocusBrush));
+                OnPropertyChanged(nameof(FlowScaleSliderFocusBrush));
+                OnPropertyChanged(nameof(ApplyButtonFocusBrush));
+                OnPropertyChanged(nameof(ResetButtonFocusBrush));
+                OnPropertyChanged(nameof(RestoreButtonFocusBrush));
+            });
         }
 
         // Button click handlers - delegate to parent page

@@ -76,6 +76,8 @@
                         HorizontalAlignment="Stretch"
                         x:FieldModifier="public"
                         IsEnabled="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}"
+                        UseSystemFocusVisuals="False"
+                        IsTabStop="False"
                         ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                         Style="{StaticResource HudraComboBoxStyle}">
                         <ComboBoxItem Content="5 mins" Tag="5" />
@@ -116,6 +118,8 @@
                     Background="#4A4A4A"
                     BorderBrush="#666666"
                     BorderThickness="1"
+                    UseSystemFocusVisuals="False"
+                    IsTabStop="False"
                     Content="Re-Scan"
                     CornerRadius="10" />
             </Border>

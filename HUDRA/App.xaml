@@ -12,6 +12,13 @@
                 <!--  Other merged dictionaries here  -->
             </ResourceDictionary.MergedDictionaries>
 
+            <!--  Global Focus Visual Styling (Purple for gamepad navigation)  -->
+            <SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="DarkViolet" />
+            <SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="DarkViolet" />
+            <Thickness x:Key="FocusVisualThickness">2</Thickness>
+            <x:Double x:Key="FocusVisualPrimaryThickness">2</x:Double>
+            <x:Double x:Key="FocusVisualSecondaryThickness">1</x:Double>
+
             <!--  Horizontal Rule Style  -->
             <Style x:Key="HudraHorizontalRule" TargetType="Rectangle">
                 <Setter Property="Height" Value="1" />

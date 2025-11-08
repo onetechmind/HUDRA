@@ -209,8 +209,12 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(FocusBorderBrush));
-            OnPropertyChanged(nameof(FocusBorderThickness));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+            });
         }
 
         public void AdjustSliderValue(int direction)

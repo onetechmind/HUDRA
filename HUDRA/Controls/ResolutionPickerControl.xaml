@@ -53,6 +53,8 @@
                               Style="{StaticResource HudraComboBoxStyle}"
                               ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                               HorizontalAlignment="Stretch"
+                              UseSystemFocusVisuals="False"
+                              IsTabStop="False"
                               helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
             </Border>
 
@@ -65,6 +67,8 @@
                               Style="{StaticResource HudraComboBoxStyle}"
                               ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                               HorizontalAlignment="Stretch"
+                              UseSystemFocusVisuals="False"
+                              IsTabStop="False"
                               helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
             </Border>
         </Grid>

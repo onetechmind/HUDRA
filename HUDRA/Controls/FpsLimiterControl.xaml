@@ -80,9 +80,11 @@
                 Width="136"
                 HorizontalAlignment="Center"
                 IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}"
+                IsTabStop="False"
                 ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                 SelectionChanged="OnFpsLimitChanged"
                 Style="{StaticResource HudraComboBoxStyle}"
+                UseSystemFocusVisuals="False"
                 helpers:GamepadComboBoxHelper.IsGamepadEnabled="True" />
         </Border>
 

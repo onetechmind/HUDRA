@@ -41,6 +41,8 @@
             <ComboBox
                 x:Name="DefaultProfileComboBox"
                 HorizontalAlignment="Stretch"
+                UseSystemFocusVisuals="False"
+                IsTabStop="False"
                 helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
                 ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
                 SelectionChanged="OnDefaultProfileSelectionChanged"
@@ -76,6 +78,8 @@
             <ComboBox
                 x:Name="GamingProfileComboBox"
                 HorizontalAlignment="Stretch"
+                UseSystemFocusVisuals="False"
+                IsTabStop="False"
                 helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
                 ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
                 SelectionChanged="OnGamingProfileSelectionChanged"

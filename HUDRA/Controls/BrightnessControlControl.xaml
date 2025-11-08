@@ -42,7 +42,9 @@
                 x:Name="BrightnessSlider"
                 Margin="8,0"
                 Maximum="100"
-                Minimum="0" />
+                Minimum="0"
+                UseSystemFocusVisuals="False"
+                IsTabStop="False" />
         </Border>
     </Grid>
 

@@ -211,8 +211,11 @@ namespace HUDRA.Controls
                 case 2: // RefreshDatabaseButton
                     if (RefreshDatabaseButton != null && RefreshDatabaseButton.IsEnabled)
                     {
-                        // Trigger button click
-                        RefreshDatabaseButton.Command?.Execute(RefreshDatabaseButton.CommandParameter);
+                        // Programmatically invoke the button's Click event using automation peer
+                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(RefreshDatabaseButton);
+                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
+                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
+                        invokeProv?.Invoke();
                         System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Refresh button");
                     }
                     break;
@@ -249,9 +252,13 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(LibraryScanningFocusBrush));
-            OnPropertyChanged(nameof(ScanIntervalFocusBrush));
-            OnPropertyChanged(nameof(RefreshButtonFocusBrush));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(LibraryScanningFocusBrush));
+                OnPropertyChanged(nameof(ScanIntervalFocusBrush));
+                OnPropertyChanged(nameof(RefreshButtonFocusBrush));
+            });
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

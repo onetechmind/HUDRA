@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace HUDRA.Services
 {
@@ -151,6 +152,22 @@ namespace HUDRA.Services
             try
             {
                 return _games.FindAll().ToList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error getting all games: {ex.Message}");
+                return Enumerable.Empty<DetectedGame>();
+            }
+        }
+
+        public async Task<IEnumerable<DetectedGame>> GetAllGamesAsync()
+        {
+            if (_disposed) return Enumerable.Empty<DetectedGame>();
+
+            try
+            {
+                // Run LiteDB query on background thread to avoid blocking UI
+                return await Task.Run(() => _games.FindAll().ToList());
             }
             catch (Exception ex)
             {

@@ -495,7 +495,11 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(HotkeySelectorFocusBrush));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(HotkeySelectorFocusBrush));
+            });
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

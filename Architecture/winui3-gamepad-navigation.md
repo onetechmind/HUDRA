@@ -6,7 +6,8 @@ This document provides a comprehensive guide to the gamepad navigation system im
 
 **Key Features:**
 - Full D-pad navigation between controls
-- L1/R1 shoulder button page navigation  
+- L1/R1 shoulder button page navigation
+- L2/R2 trigger shortcuts for navbar buttons (Back to Game, Lossless Scaling)
 - A button activation for controls
 - B button for back/cancel operations
 - Visual focus indicators (DarkViolet borders)
@@ -113,9 +114,31 @@ public interface IGamepadNavigable
 }
 ```
 
-### Focus Visualization
+### Focus Visualization System
 
-All navigable controls implement focus visualization using a DarkViolet border:
+HUDRA uses a unified focus visual system that combines WinUI's built-in focus visuals with custom border overlays:
+
+#### Global System Focus Visual Styling (App.xaml)
+
+All WinUI system focus visuals are styled purple to match the app theme:
+
+```xml
+<!-- In App.xaml Resources -->
+<SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="DarkViolet" />
+<SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="DarkViolet" />
+<Thickness x:Key="FocusVisualThickness">2</Thickness>
+<x:Double x:Key="FocusVisualPrimaryThickness">2</x:Double>
+<x:Double x:Key="FocusVisualSecondaryThickness">1</x:Double>
+```
+
+**Benefits:**
+- Consistent purple theme across all controls
+- Automatic focus visuals for controls without custom implementations
+- No white/default focus rectangles competing with custom borders
+
+#### Custom Focus Borders with Gamepad Detection
+
+Controls with gamepad-aware custom borders implement conditional visualization:
 
 ```csharp
 public Brush FocusBorderBrush
@@ -131,10 +154,37 @@ public Brush FocusBorderBrush
 }
 ```
 
-**Important**: Controls with multiple focusable elements may use different colors:
+**CRITICAL**: Controls with custom borders must disable system focus visuals to prevent conflicts:
+
+```xml
+<ComboBox x:Name="MyComboBox"
+          UseSystemFocusVisuals="False"
+          IsTabStop="False"
+          ... />
+```
+
+**Why This Matters:**
+- `UseSystemFocusVisuals="False"` - Disables WinUI's default white focus rectangle
+- `IsTabStop="False"` - Prevents keyboard tab navigation interference
+- Custom border only shows when gamepad is active
+- System focus visual (now purple) serves as fallback for other input methods
+
+#### Focus Visual Colors by Control State
+
+Controls with multiple states use different colors:
 - **DarkViolet**: Standard focused control
 - **DodgerBlue**: Activated slider (adjusting value)
 - **MediumOrchid**: Selected preset button
+
+#### Controls with Custom Focus Borders
+
+The following controls have `UseSystemFocusVisuals="False"` and custom gamepad-aware borders:
+- `FpsLimiterControl` - ComboBox
+- `ResolutionPickerControl` - 2 ComboBoxes (Resolution & RefreshRate)
+- `BrightnessControlControl` - Slider
+- `AudioControlsControl` - Button, Slider
+- `PowerProfileControl` - 2 ComboBoxes (Default & Gaming profiles)
+- `GameDetectionControl` - ComboBox, Button
 
 ### Lazy Initialization Pattern
 
@@ -478,12 +528,12 @@ Shoulder buttons navigate between pages in a fixed order:
 // In GamepadNavigationService
 if (HasButton(newButtons, GamepadButtons.LeftShoulder))
 {
-    _gamepadPageNavigationRequested?.Invoke(this, 
+    _gamepadPageNavigationRequested?.Invoke(this,
         new GamepadPageNavigationEventArgs(NavigationDirection.Previous));
 }
 else if (HasButton(newButtons, GamepadButtons.RightShoulder))
 {
-    _gamepadPageNavigationRequested?.Invoke(this, 
+    _gamepadPageNavigationRequested?.Invoke(this,
         new GamepadPageNavigationEventArgs(NavigationDirection.Next));
 }
 
@@ -496,6 +546,85 @@ var pageOrder = new List<Type>
     typeof(SettingsPage)
 };
 ```
+
+### Navbar Button Shortcuts (L2/R2)
+
+**Purpose**: Provide instant access to context-sensitive navbar buttons without navigating away from focused controls.
+
+**Implementation**: L2/R2 triggers invoke navbar button actions directly, bypassing normal navigation flow. Buttons are only invoked when visible (game detection triggers visibility).
+
+```csharp
+// In GamepadNavigationService.cs - Analog trigger state tracking
+private bool _leftTriggerPressed = false;
+private bool _rightTriggerPressed = false;
+private const double TRIGGER_THRESHOLD = 0.8;
+
+// In ProcessNavigationInput()
+bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
+bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
+
+if (leftTriggerActive && !_leftTriggerPressed)
+{
+    _leftTriggerPressed = true;
+    NavbarButtonRequested?.Invoke(this,
+        new GamepadNavbarButtonEventArgs(GamepadNavbarButton.BackToGame));
+    return;
+}
+else if (!leftTriggerActive && _leftTriggerPressed)
+{
+    _leftTriggerPressed = false;
+}
+
+if (rightTriggerActive && !_rightTriggerPressed)
+{
+    _rightTriggerPressed = true;
+    NavbarButtonRequested?.Invoke(this,
+        new GamepadNavbarButtonEventArgs(GamepadNavbarButton.LosslessScaling));
+    return;
+}
+else if (!rightTriggerActive && _rightTriggerPressed)
+{
+    _rightTriggerPressed = false;
+}
+```
+
+```csharp
+// In MainWindow.xaml.cs - Event handler
+private void OnGamepadNavbarButtonRequested(object sender, GamepadNavbarButtonEventArgs e)
+{
+    switch (e.Button)
+    {
+        case GamepadNavbarButton.BackToGame:
+            // Only invoke if button is visible (game detected)
+            if (AltTabButton.Visibility == Visibility.Visible)
+            {
+                AltTabButton_Click(AltTabButton, new RoutedEventArgs());
+            }
+            break;
+
+        case GamepadNavbarButton.LosslessScaling:
+            // Only invoke if button is visible (LS detected)
+            if (LosslessScalingButton.Visibility == Visibility.Visible)
+            {
+                LosslessScalingButton_Click(LosslessScalingButton, new RoutedEventArgs());
+            }
+            break;
+    }
+}
+```
+
+**Button Mapping**:
+| Trigger | Navbar Button | Visibility Condition |
+|---------|---------------|---------------------|
+| **L2 (Left Trigger)** | Back to Game | Game process detected |
+| **R2 (Right Trigger)** | Lossless Scaling | Lossless Scaling + game detected |
+
+**Design Rationale**:
+- **L2/R2 chosen over L1/R1**: Shoulder buttons (L1/R1) are reserved for page navigation. Triggers provide conflict-free quick access.
+- **No navigation required**: Users can access critical actions (switching to game, enabling LS) without leaving current control focus.
+- **Context-sensitive**: Buttons only work when visible, preventing accidental presses when features unavailable.
+- **Analog tracking**: Triggers are analog (0.0-1.0), not digital buttons. Separate state tracking prevents input repeats.
+- **Haptic feedback**: Trigger presses include controller vibration for tactile confirmation.
 
 ### Control Navigation (D-pad)
 
@@ -535,9 +664,9 @@ private const int INPUT_REPEAT_RATE_MS = 50;   // Repeat rate
 private void ProcessGamepadInput(GamepadReading reading)
 {
     var newButtons = GetNewlyPressedButtons(reading.Buttons);
-    bool shouldProcessRepeats = 
+    bool shouldProcessRepeats =
         (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
-    
+
     if (newButtons.Count > 0 || shouldProcessRepeats)
     {
         ProcessNavigationInput(reading, newButtons, shouldProcessRepeats);
@@ -545,6 +674,80 @@ private void ProcessGamepadInput(GamepadReading reading)
     }
 }
 ```
+
+### Gamepad Mode Activation
+
+When gamepad input is first detected (or re-detected after mouse/keyboard input), the system activates gamepad mode. **The activating input is consumed and NOT processed as navigation.**
+
+#### Activation Flow (GamepadNavigationService.cs, lines 171-200)
+
+```csharp
+private void ProcessGamepadInput(GamepadReading reading)
+{
+    // Check for any input
+    bool hasInput = reading.Buttons != GamepadButtons.None || /* thumbstick checks */;
+
+    if (!hasInput)
+    {
+        UpdatePressedButtonsState(reading.Buttons);
+        return;
+    }
+
+    // ACTIVATION CHECK
+    if (!_isGamepadActive)
+    {
+        SetGamepadActive(true);  // Set IsGamepadActive = true
+        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
+
+        // Initialize focus if not suppressed
+        if (_currentFrame?.Content is FrameworkElement rootElement)
+        {
+            if (!_suppressAutoFocusOnActivation)
+            {
+                InitializePageNavigation(rootElement);
+            }
+        }
+
+        _suppressAutoFocusOnActivation = false;
+        _lastInputTime = DateTime.Now;
+
+        // CRITICAL: Update button state to prevent held buttons from being
+        // processed as "new" in the next frame
+        UpdatePressedButtonsState(reading.Buttons);
+
+        return;  // Consume the activation input - don't process as navigation
+    }
+
+    // Process navigation only after activation
+    var newButtons = GetNewlyPressedButtons(reading.Buttons);
+    // ... navigation processing
+}
+```
+
+#### Why Button State Update is Critical
+
+**Problem Without State Update:**
+1. User presses and holds D-pad Down
+2. Frame 1: Gamepad activates, focus border appears, returns without updating `_pressedButtons`
+3. Frame 2 (~16ms later): User still holding D-pad Down
+4. `GetNewlyPressedButtons()` sees D-pad Down is NOT in `_pressedButtons`
+5. **Incorrectly treats held button as "newly pressed"**
+6. Processes unwanted navigation action
+
+**Solution:**
+By calling `UpdatePressedButtonsState(reading.Buttons)` during activation, held buttons are tracked immediately. The next frame correctly identifies them as "held" rather than "new", preventing unintended navigation.
+
+#### Activation Behavior
+
+**Initial Activation:**
+- App starts → user presses D-pad Down → gamepad activates → focus appears → D-pad Down is consumed
+- Next input (release and press again) triggers navigation
+
+**Re-activation After Mouse/Keyboard:**
+- User clicks with mouse → gamepad deactivates → user presses D-pad Down → gamepad activates → focus appears → D-pad Down is consumed
+- Next input triggers navigation
+
+This ensures predictable, intentional navigation that only occurs on deliberate button presses after activation.
 
 ## Focus Management
 
@@ -599,7 +802,63 @@ private void OnGlobalPointerPressed(object sender, PointerRoutedEventArgs e)
 
 ## Common Issues and Solutions
 
-### Issue 1: Focus Border Not Appearing on Page Navigation (CRITICAL)
+### Issue 1: Focus Border Not Showing Reliably (Intermittent White Box Issue)
+
+**Problem**: Purple focus border doesn't appear consistently when navigating with gamepad. Sometimes a white default focus rectangle appears instead, or focus borders don't show at all.
+
+**Root Cause**: Multiple timing and synchronization issues:
+1. Property change notifications not processed on UI thread
+2. System focus visuals competing with custom borders
+3. Binding updates not synchronized with rendering pipeline
+
+**Complete Solution**:
+
+**Step 1**: Wrap property change notifications in `DispatcherQueue.TryEnqueue()`:
+
+```csharp
+private void UpdateFocusVisuals()
+{
+    // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+    DispatcherQueue.TryEnqueue(() =>
+    {
+        OnPropertyChanged(nameof(FocusBorderBrush));
+        OnPropertyChanged(nameof(FocusBorderThickness));
+    });
+}
+```
+
+**Why This Works:**
+- `x:Bind Mode=OneWay` bindings need property changes processed at the correct time in the rendering cycle
+- Rapid gamepad navigation events can cause timing mismatches
+- `DispatcherQueue.TryEnqueue()` ensures notifications are processed synchronously with UI rendering
+
+**Step 2**: Disable system focus visuals on interactive controls:
+
+```xml
+<ComboBox x:Name="FpsLimitComboBox"
+          UseSystemFocusVisuals="False"
+          IsTabStop="False"
+          helpers:GamepadComboBoxHelper.IsGamepadEnabled="True" />
+
+<Slider x:Name="BrightnessSlider"
+        UseSystemFocusVisuals="False"
+        IsTabStop="False" />
+
+<Button x:Name="MuteButton"
+        UseSystemFocusVisuals="False"
+        IsTabStop="False" />
+```
+
+**Step 3**: Style system focus visuals globally (App.xaml):
+
+```xml
+<SolidColorBrush x:Key="SystemControlFocusVisualPrimaryBrush" Color="DarkViolet" />
+<SolidColorBrush x:Key="SystemControlFocusVisualSecondaryBrush" Color="DarkViolet" />
+```
+
+**Result**: Consistent purple focus indicators with no white boxes. Controls with custom borders show only custom borders. Controls without custom implementations use purple system focus visuals.
+
+### Issue 2: Focus Border Not Appearing on Page Navigation (CRITICAL)
 
 **Problem**: When navigating to a page via L1/R1, the focus border doesn't appear until D-pad is pressed.
 
@@ -691,7 +950,46 @@ private void InitializeFanCurvePage()
 - Focus border only appears after D-pad input
 - `GetNavigableElements` never finds the target control
 
-### Issue 2: ComboBox Selection Commits Unexpectedly
+### Issue 3: Activation Input Processed as Navigation (FIXED 2025)
+
+**Problem**: When gamepad mode is activated (or re-activated after mouse/keyboard input), if the user holds the activation button, the held button is incorrectly processed as navigation input in the next polling frame (~16ms later), causing unintended navigation immediately after activation.
+
+**Example:**
+1. App starts with gamepad inactive
+2. User presses and holds D-pad Down
+3. Gamepad activates, focus border appears correctly
+4. **BUG**: 16ms later, focus moves down unexpectedly (user still holding button)
+
+**Root Cause**:
+The activation block in `ProcessGamepadInput()` was correctly consuming the activation input by returning early, but it wasn't updating the `_pressedButtons` HashSet before returning. This caused the next frame's `GetNewlyPressedButtons()` to see the held button as "newly pressed" since it wasn't tracked.
+
+**Solution (GamepadNavigationService.cs, line 198)**:
+
+```csharp
+if (!_isGamepadActive)
+{
+    SetGamepadActive(true);
+    // ... initialization code ...
+
+    _lastInputTime = DateTime.Now;
+
+    // CRITICAL FIX: Update pressed buttons state to prevent held buttons
+    // from being processed as "new" in the next frame
+    UpdatePressedButtonsState(reading.Buttons);
+
+    return;  // Consume the activation input - don't process as navigation
+}
+```
+
+**Why This Works:**
+- `UpdatePressedButtonsState()` adds the activating button to the `_pressedButtons` HashSet
+- Next frame's `GetNewlyPressedButtons()` sees the button is already tracked
+- Correctly identifies it as "held" rather than "newly pressed"
+- Button is not processed as navigation until released and pressed again
+
+**Result**: The activation input is truly consumed. Navigation only occurs on deliberate button presses after gamepad mode is active.
+
+### Issue 4: ComboBox Selection Commits Unexpectedly
 
 **Problem**: ComboBox selections commit immediately instead of allowing preview.
 
@@ -709,7 +1007,7 @@ if (IsNavigatingComboBox && ComboBoxOriginalIndex >= 0)
 }
 ```
 
-### Issue 3: Slider Adjustment Too Sensitive
+### Issue 5: Slider Adjustment Too Sensitive
 
 **Problem**: Slider values change too quickly during adjustment.
 
@@ -770,9 +1068,15 @@ public Brush FocusBorderBrush
     BorderBrush="{x:Bind FocusBorderBrush, Mode=OneWay}"
     BorderThickness="2"
     CornerRadius="6">
+    <ComboBox x:Name="MyComboBox"
+              UseSystemFocusVisuals="False"
+              IsTabStop="False"
+              ... />
     <!-- Your control content -->
 </Border>
 ```
+
+**Important**: Always set `UseSystemFocusVisuals="False"` and `IsTabStop="False"` on interactive controls to prevent system focus visual conflicts.
 
 5. **Handle Navigation Events**
 ```csharp
@@ -812,10 +1116,16 @@ private void InitializeGamepadNavigationService()
 ```csharp
 private void UpdateFocusVisuals()
 {
-    OnPropertyChanged(nameof(FocusBorderBrush));
-    OnPropertyChanged(nameof(FocusBorderThickness));
+    // CRITICAL: Dispatch on UI thread to ensure bindings update reliably
+    DispatcherQueue.TryEnqueue(() =>
+    {
+        OnPropertyChanged(nameof(FocusBorderBrush));
+        OnPropertyChanged(nameof(FocusBorderThickness));
+    });
 }
 ```
+
+**Critical**: Always wrap property change notifications in `DispatcherQueue.TryEnqueue()` to ensure reliable focus border updates during rapid gamepad navigation.
 
 ## Debug Output
 
@@ -1076,6 +1386,7 @@ The HUDRA gamepad navigation system provides a comprehensive solution for contro
 4. **Flexibility**: Controls can customize navigation behavior
 5. **Reliability**: Lazy initialization handles timing issues
 6. **Root element detection**: Fixed critical bug in `GetNavigableElements()`
+7. **Intentional activation**: Fixed activation input consumption to prevent unintended navigation
 
 The system successfully enables handheld gaming device users to adjust performance settings without leaving their gamepad comfort zone, essential for the optimal gaming experience on devices like the ROG Ally and Legion Go.
 
@@ -1084,6 +1395,9 @@ The system successfully enables handheld gaming device users to adjust performan
 - ✅ Add constructor gamepad navigation setup
 - ✅ Create IsFocused property (not field) with change notifications
 - ✅ Create focus border visualization with OneWay binding
+- ✅ **Set `UseSystemFocusVisuals="False"` on interactive controls**
+- ✅ **Set `IsTabStop="False"` on interactive controls**
+- ✅ **Wrap UpdateFocusVisuals property notifications in `DispatcherQueue.TryEnqueue()`**
 - ✅ Handle navigation events appropriately
 - ✅ Implement lazy service initialization
 - ✅ Use dispatcher delays for page navigation timing
@@ -1091,6 +1405,8 @@ The system successfully enables handheld gaming device users to adjust performan
 - ✅ Ensure GetNavigableElements finds the control
 - ✅ Add comprehensive debug logging for troubleshooting
 
-**Critical Fix Applied (2025):** Modified `GetNavigableElements()` to check the root element itself as navigable, not just its children. This was the primary cause of focus borders not appearing on page navigation.
+**Critical Fixes Applied (2025):**
+1. Modified `GetNavigableElements()` to check the root element itself as navigable, not just its children. This was the primary cause of focus borders not appearing on page navigation.
+2. Added `UpdatePressedButtonsState()` call during gamepad activation to prevent held buttons from being processed as "newly pressed" in subsequent frames, ensuring the activating input is truly consumed.
 
 This documentation will be updated as the gamepad navigation system evolves with new features and improvements.

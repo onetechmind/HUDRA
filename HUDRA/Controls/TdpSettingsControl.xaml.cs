@@ -263,22 +263,26 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(UseStartupTdpFocusBrush));
-            OnPropertyChanged(nameof(TdpPickerFocusBrush));
-            OnPropertyChanged(nameof(StickyTdpFocusBrush));
-
-            // Update TDP picker focus state
-            if (StartupTdpPicker != null)
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
             {
-                if (_currentFocusedElement == 1)
+                OnPropertyChanged(nameof(UseStartupTdpFocusBrush));
+                OnPropertyChanged(nameof(TdpPickerFocusBrush));
+                OnPropertyChanged(nameof(StickyTdpFocusBrush));
+
+                // Update TDP picker focus state
+                if (StartupTdpPicker != null)
                 {
-                    StartupTdpPicker.OnGamepadFocusReceived();
+                    if (_currentFocusedElement == 1)
+                    {
+                        StartupTdpPicker.OnGamepadFocusReceived();
+                    }
+                    else
+                    {
+                        StartupTdpPicker.OnGamepadFocusLost();
+                    }
                 }
-                else
-                {
-                    StartupTdpPicker.OnGamepadFocusLost();
-                }
-            }
+            });
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

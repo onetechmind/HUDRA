@@ -635,6 +635,9 @@ namespace HUDRA.Pages
                 {
                     button.IsEnabled = false;
                     button.Content = "Scanning...";
+
+                    // Force UI to render immediately before blocking database operations
+                    await Task.Yield();
                 }
 
                 var app = App.Current as App;

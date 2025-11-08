@@ -184,6 +184,7 @@ namespace HUDRA
             _navigationService.PageChanged += OnPageChanged;
             _batteryService.BatteryInfoUpdated += OnBatteryInfoUpdated;
             _gamepadNavigationService.PageNavigationRequested += OnGamepadPageNavigationRequested;
+            _gamepadNavigationService.NavbarButtonRequested += OnGamepadNavbarButtonRequested;
 
             InitializeWindow();
             SetupEventHandlers();
@@ -243,7 +244,7 @@ namespace HUDRA
             }
 
             var targetPageType = pageOrder[targetIndex];
-            
+
             // Navigate to target page using appropriate method
             if (targetPageType == typeof(MainPage))
                 _navigationService.NavigateToMain();
@@ -253,6 +254,30 @@ namespace HUDRA
                 _navigationService.NavigateToScaling();
             else if (targetPageType == typeof(SettingsPage))
                 _navigationService.NavigateToSettings();
+        }
+
+        private void OnGamepadNavbarButtonRequested(object sender, GamepadNavbarButtonEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine($"🎮 Navbar button requested: {e.Button}");
+
+            switch (e.Button)
+            {
+                case GamepadNavbarButton.BackToGame:
+                    // Only invoke if button is visible
+                    if (AltTabButton.Visibility == Microsoft.UI.Xaml.Visibility.Visible)
+                    {
+                        AltTabButton_Click(AltTabButton, new RoutedEventArgs());
+                    }
+                    break;
+
+                case GamepadNavbarButton.LosslessScaling:
+                    // Only invoke if button is visible
+                    if (LosslessScalingButton.Visibility == Microsoft.UI.Xaml.Visibility.Visible)
+                    {
+                        LosslessScalingButton_Click(LosslessScalingButton, new RoutedEventArgs());
+                    }
+                    break;
+            }
         }
 
         private void HandlePageSpecificInitialization(Type pageType)

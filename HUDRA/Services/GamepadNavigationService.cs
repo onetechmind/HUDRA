@@ -21,7 +21,12 @@ namespace HUDRA.Services
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
-        
+
+        // Trigger state tracking (analog triggers need separate tracking)
+        private bool _leftTriggerPressed = false;
+        private bool _rightTriggerPressed = false;
+        private const double TRIGGER_THRESHOLD = 0.8;
+
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
         
@@ -35,6 +40,7 @@ namespace HUDRA.Services
 
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
+        public event EventHandler<GamepadNavbarButtonEventArgs>? NavbarButtonRequested;
         public event EventHandler<GamepadConnectionEventArgs>? GamepadConnected;
         public event EventHandler<GamepadConnectionEventArgs>? GamepadDisconnected;
         public event EventHandler<bool>? GamepadActiveStateChanged;
@@ -158,7 +164,9 @@ namespace HUDRA.Services
                            Math.Abs(reading.LeftThumbstickX) > 0.1 ||
                            Math.Abs(reading.LeftThumbstickY) > 0.1 ||
                            Math.Abs(reading.RightThumbstickX) > 0.1 ||
-                           Math.Abs(reading.RightThumbstickY) > 0.1;
+                           Math.Abs(reading.RightThumbstickY) > 0.1 ||
+                           reading.LeftTrigger > TRIGGER_THRESHOLD ||
+                           reading.RightTrigger > TRIGGER_THRESHOLD;
 
             if (!hasInput) 
             {
@@ -193,6 +201,10 @@ namespace HUDRA.Services
                 // Don't process the activation input as navigation - just consume it for activation
                 // Set last input time to prevent repeat logic from triggering immediately
                 _lastInputTime = DateTime.Now;
+
+                // Update pressed buttons state to prevent next frame from treating held button as "new"
+                UpdatePressedButtonsState(reading.Buttons);
+
                 return;
             }
 
@@ -201,8 +213,11 @@ namespace HUDRA.Services
 
             // Check if we should process input (avoid spam)
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
-            
-            if (newButtons.Count > 0 || shouldProcessRepeats)
+
+            // Include trigger input in addition to digital buttons and repeats
+            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+
+            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput)
             {
                 ProcessNavigationInput(reading, newButtons, shouldProcessRepeats);
                 _lastInputTime = DateTime.Now;
@@ -321,11 +336,37 @@ namespace HUDRA.Services
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
                 return;
             }
-            
+
             if (newButtons.Contains(GamepadButtons.RightShoulder))
             {
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
                 return;
+            }
+
+            // Handle navbar button shortcuts (L2/R2 triggers) - only on new presses
+            bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
+            bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
+
+            if (leftTriggerActive && !_leftTriggerPressed)
+            {
+                _leftTriggerPressed = true;
+                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.BackToGame));
+                return;
+            }
+            else if (!leftTriggerActive && _leftTriggerPressed)
+            {
+                _leftTriggerPressed = false;
+            }
+
+            if (rightTriggerActive && !_rightTriggerPressed)
+            {
+                _rightTriggerPressed = true;
+                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.LosslessScaling));
+                return;
+            }
+            else if (!rightTriggerActive && _rightTriggerPressed)
+            {
+                _rightTriggerPressed = false;
             }
 
             // Handle standard navigation
@@ -369,9 +410,15 @@ namespace HUDRA.Services
             }
 
             // Add haptic feedback for important actions
-            if (newButtons.Contains(GamepadButtons.A) || 
-                newButtons.Contains(GamepadButtons.LeftShoulder) || 
-                newButtons.Contains(GamepadButtons.RightShoulder))
+            // Check trigger state changes for haptic feedback
+            bool leftTriggerJustPressed = leftTriggerActive && !_leftTriggerPressed;
+            bool rightTriggerJustPressed = rightTriggerActive && !_rightTriggerPressed;
+
+            if (newButtons.Contains(GamepadButtons.A) ||
+                newButtons.Contains(GamepadButtons.LeftShoulder) ||
+                newButtons.Contains(GamepadButtons.RightShoulder) ||
+                leftTriggerJustPressed ||
+                rightTriggerJustPressed)
             {
                 TriggerHapticFeedback();
             }
@@ -772,9 +819,25 @@ namespace HUDRA.Services
         }
     }
 
+    public class GamepadNavbarButtonEventArgs : EventArgs
+    {
+        public GamepadNavbarButton Button { get; }
+
+        public GamepadNavbarButtonEventArgs(GamepadNavbarButton button)
+        {
+            Button = button;
+        }
+    }
+
     public enum GamepadPageDirection
     {
         Previous,
         Next
+    }
+
+    public enum GamepadNavbarButton
+    {
+        BackToGame,
+        LosslessScaling
     }
 }

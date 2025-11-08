@@ -149,9 +149,17 @@ namespace HUDRA.Controls
         {
             get
             {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
+                var isActive = _gamepadNavigationService?.IsGamepadActive == true;
+                var shouldShow = _isFocused && isActive;
+
+                if (shouldShow)
                 {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> DarkViolet (_isFocused={_isFocused}, isGamepadActive={isActive})");
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> Transparent (_isFocused={_isFocused}, gamepadService={_gamepadNavigationService != null}, isGamepadActive={isActive})");
                 }
                 return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             }
@@ -368,6 +376,12 @@ namespace HUDRA.Controls
 
         public void OnGamepadFocusReceived()
         {
+            // Lazy initialization of gamepad service if needed
+            if (_gamepadNavigationService == null)
+            {
+                InitializeGamepadNavigationService();
+            }
+
             _isFocused = true;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Received gamepad focus");
@@ -382,8 +396,22 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(FocusBorderBrush));
-            OnPropertyChanged(nameof(FocusBorderThickness));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                OnPropertyChanged(nameof(FocusBorderThickness));
+            });
+        }
+
+        private void InitializeGamepadNavigationService()
+        {
+            // Get gamepad navigation service from app
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                _gamepadNavigationService = mainWindow.GamepadNavigationService;
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Lazy-initialized gamepad navigation service");
+            }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

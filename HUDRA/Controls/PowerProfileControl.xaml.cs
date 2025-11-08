@@ -611,11 +611,15 @@ namespace HUDRA.Controls
 
         private void UpdateFocusVisuals()
         {
-            OnPropertyChanged(nameof(DefaultProfileFocusBrush));
-            OnPropertyChanged(nameof(GamingProfileFocusBrush));
-            OnPropertyChanged(nameof(IntelligentSwitchingFocusBrush));
-            OnPropertyChanged(nameof(CpuBoostFocusBrush));
-            OnPropertyChanged(nameof(PowerOptionsLinkFocusBrush));
+            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                OnPropertyChanged(nameof(DefaultProfileFocusBrush));
+                OnPropertyChanged(nameof(GamingProfileFocusBrush));
+                OnPropertyChanged(nameof(IntelligentSwitchingFocusBrush));
+                OnPropertyChanged(nameof(CpuBoostFocusBrush));
+                OnPropertyChanged(nameof(PowerOptionsLinkFocusBrush));
+            });
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
