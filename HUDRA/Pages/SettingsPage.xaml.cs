@@ -83,6 +83,10 @@ namespace HUDRA.Pages
             {
                 GameDetectionControl.RefreshDatabaseButton.Click += RefreshDatabaseButton_Click;
             }
+            if (GameDetectionControl?.ResetDatabaseButton != null)
+            {
+                GameDetectionControl.ResetDatabaseButton.Click += ResetDatabaseButton_Click;
+            }
         }
 
         private void LoadScanIntervalSettings()
@@ -593,8 +597,7 @@ namespace HUDRA.Pages
                 var stats = enhancedService.DatabaseStats;
                 var statusLines = new List<string>
                 {
-                    $"Total Games: {stats.TotalGames}",
-                    $"Database Size: {stats.GetFormattedSize()}"
+                    $"Total Games: {stats.TotalGames}"
                 };
 
                 if (stats.GamesBySource.Any())
@@ -678,6 +681,79 @@ namespace HUDRA.Pages
                 {
                     button.IsEnabled = true;
                     button.Content = "Re-Scan";
+                }
+            }
+        }
+
+        private async void ResetDatabaseButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Show confirmation dialog
+                var dialog = new ContentDialog
+                {
+                    Title = "Reset Game Database",
+                    Content = "This will clear all detected games and perform a fresh scan. Continue?",
+                    PrimaryButtonText = "Yes",
+                    CloseButtonText = "No",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+                if (result != ContentDialogResult.Primary)
+                {
+                    return; // User cancelled
+                }
+
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = false;
+                    button.Content = "Resetting...";
+
+                    // Force UI to render immediately before blocking database operations
+                    await Task.Yield();
+                }
+
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var enhancedServiceField = typeof(MainWindow).GetField("_enhancedGameDetectionService",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (enhancedServiceField?.GetValue(mainWindow) is EnhancedGameDetectionService enhancedService)
+                    {
+                        // Call ResetDatabaseAsync
+                        var resetMethod = typeof(EnhancedGameDetectionService).GetMethod("ResetDatabaseAsync",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                        if (resetMethod != null)
+                        {
+                            await (Task)resetMethod.Invoke(enhancedService, null);
+
+                            // Update the display after reset
+                            UpdateDatabaseStatusDisplay(enhancedService);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error resetting database: {ex.Message}");
+                if (GameDetectionControl?.DatabaseStatusText != null)
+                {
+                    GameDetectionControl.DatabaseStatusText.Text = $"Error resetting database: {ex.Message}";
+                }
+            }
+            finally
+            {
+                var button = sender as Button;
+                if (button != null)
+                {
+                    button.IsEnabled = true;
+                    button.Content = "Reset";
                 }
             }
         }

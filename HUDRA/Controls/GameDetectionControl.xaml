@@ -18,7 +18,7 @@
 
     <StackPanel
         Margin="0,20,0,20"
-        Padding="5"
+        Padding="25,0,25,0"
         Spacing="15">
         <Border
             x:Name="LibraryScanningBorder"
@@ -103,26 +103,47 @@
                 Style="{StaticResource SettingsDescriptionStyle}"
                 Text="Loading database information..." />
 
-            <Border
-                x:Name="RefreshButtonBorder"
-                HorizontalAlignment="Center"
-                CornerRadius="10"
-                BorderBrush="{x:Bind RefreshButtonFocusBrush, Mode=OneWay}"
-                BorderThickness="2">
-                <Button
-                    x:Name="RefreshDatabaseButton"
-                    x:FieldModifier="public"
-                    MinWidth="75"
-                    MinHeight="25"
-                    Padding="10"
-                    Background="#4A4A4A"
-                    BorderBrush="#666666"
-                    BorderThickness="1"
-                    UseSystemFocusVisuals="False"
-                    IsTabStop="False"
-                    Content="Re-Scan"
-                    CornerRadius="10" />
-            </Border>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+                <Border
+                    x:Name="RefreshButtonBorder"
+                    CornerRadius="10"
+                    BorderBrush="{x:Bind RefreshButtonFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Button
+                        x:Name="RefreshDatabaseButton"
+                        x:FieldModifier="public"
+                        MinWidth="75"
+                        MinHeight="40"
+                        Padding="10"
+                        Background="#4A4A4A"
+                        BorderBrush="#666666"
+                        BorderThickness="1"
+                        UseSystemFocusVisuals="False"
+                        IsTabStop="False"
+                        Content="Re-Scan"
+                        CornerRadius="10" />
+                </Border>
+
+                <Border
+                    x:Name="ResetButtonBorder"
+                    CornerRadius="10"
+                    BorderBrush="{x:Bind ResetButtonFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Button
+                        x:Name="ResetDatabaseButton"
+                        x:FieldModifier="public"
+                        MinWidth="75"
+                        MinHeight="40"
+                        Padding="10"
+                        Background="#4A4A4A"
+                        BorderBrush="#666666"
+                        BorderThickness="1"
+                        UseSystemFocusVisuals="False"
+                        IsTabStop="False"
+                        Content="Reset"
+                        CornerRadius="10" />
+                </Border>
+            </StackPanel>
         </StackPanel>
     </StackPanel>
 </UserControl>

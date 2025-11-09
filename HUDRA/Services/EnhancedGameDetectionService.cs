@@ -19,8 +19,7 @@ namespace HUDRA.Services
         private Timer? _refreshTimer;
         private readonly Timer _detectionTimer;
         private readonly EnhancedGameDatabase _gameDatabase;
-        private readonly GameLearningService _learningService;
-        
+
         private Dictionary<string, DetectedGame> _cachedGames = new(StringComparer.OrdinalIgnoreCase);
         private GameInfo? _currentGame;
         private bool _disposed = false;
@@ -47,10 +46,9 @@ namespace HUDRA.Services
         public EnhancedGameDetectionService(DispatcherQueue dispatcher)
         {
             _dispatcher = dispatcher;
-            
-            // Initialize database and learning service
+
+            // Initialize database
             _gameDatabase = new EnhancedGameDatabase();
-            _learningService = new GameLearningService();
             
             // Create providers
             _providers = new List<IGameLibraryProvider>
@@ -143,7 +141,6 @@ namespace HUDRA.Services
                     foreach (var game in newGames.Values)
                     {
                         _gameDatabase.SaveGame(game);
-                        _learningService.LearnGame(game.ProcessName);
                     }
                 }
 
@@ -177,6 +174,22 @@ namespace HUDRA.Services
             if (!IsEnhancedScanningEnabled())
                 return;
 
+            await BuildGameDatabaseAsync();
+        }
+
+        private async Task ResetDatabaseAsync()
+        {
+            if (!IsEnhancedScanningEnabled())
+                return;
+
+            // Clear the database
+            _gameDatabase.ClearDatabase();
+
+            // Clear in-memory cache
+            _cachedGames.Clear();
+            _isDatabaseReady = false;
+
+            // Rebuild from scratch
             await BuildGameDatabaseAsync();
         }
 
@@ -355,13 +368,14 @@ namespace HUDRA.Services
         }
 
         /// <summary>
-        /// Enhanced detection: First check database, then fall back to directory detection for unknown games
+        /// Enhanced detection: Uses database-driven detection only (GameLib.NET + XboxGameProvider)
         /// </summary>
         private GameInfo? DetectEnhancedGame()
         {
             try
             {
-                // Step 1: Try database-driven detection for known games
+                // Only use database-driven detection (GameLib.NET + XboxGameProvider)
+                // No directory-based fallback to avoid false positives
                 if (_isDatabaseReady)
                 {
                     var databaseGame = GetRunningGameFromDatabase();
@@ -369,49 +383,6 @@ namespace HUDRA.Services
                     {
                         return databaseGame;
                     }
-                    else
-                    {
-                        // Database lookup failed - try directory detection
-                    }
-                }
-                else
-                {
-                }
-
-                // Step 2: Fall back to directory detection for unknown games
-                // This ensures we can still detect games not in the database
-                var directoryGame = GetRunningGameFromDirectory();
-                if (directoryGame != null)
-                {
-                    // Learn the new game and add to database for future detection
-                    if (_isDatabaseReady)
-                    {
-                        try
-                        {
-                            var detectedGame = new DetectedGame
-                            {
-                                ProcessName = directoryGame.ProcessName,
-                                DisplayName = directoryGame.WindowTitle,
-                                ExecutablePath = directoryGame.ExecutablePath,
-                                InstallLocation = Path.GetDirectoryName(directoryGame.ExecutablePath) ?? string.Empty,
-                                Source = GameSource.Directory,
-                                LauncherInfo = "Directory Detection",
-                                PackageInfo = string.Empty,
-                                LastDetected = DateTime.Now
-                            };
-                            
-                            _gameDatabase.SaveGame(detectedGame);
-                            _cachedGames[directoryGame.ProcessName] = detectedGame;
-                            _learningService.LearnGame(directoryGame.ProcessName);
-                            
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Enhanced: Error learning new game: {ex.Message}");
-                        }
-                    }
-                    
-                    return directoryGame;
                 }
 
                 return null;
@@ -697,108 +668,6 @@ namespace HUDRA.Services
         private const int SW_RESTORE = 9;
         
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
-
-        /// <summary>
-        /// Directory-based detection for unknown games (fallback)
-        /// </summary>
-        private GameInfo? GetRunningGameFromDirectory()
-        {
-            try
-            {
-                // Get foreground process and check if it's a game using directory detection
-                var foregroundProcess = GetForegroundProcess();
-                if (foregroundProcess == null)
-                    return null;
-                    
-                var processName = foregroundProcess.ProcessName;
-                
-                // Skip if we already know this isn't a game
-                if (_learningService.IsKnownNonGame(processName))
-                    return null;
-                
-                // Skip if we already have this in the database
-                if (_cachedGames.ContainsKey(processName))
-                    return null;
-                
-                // Get window title and executable path
-                var windowTitle = GetWindowTitle(foregroundProcess.MainWindowHandle);
-                string executablePath = string.Empty;
-                try
-                {
-                    executablePath = foregroundProcess.MainModule?.FileName ?? string.Empty;
-                }
-                catch { }
-                
-                // Use the same game detection logic as the fallback service
-                if (IsLikelyGameProcess(foregroundProcess, windowTitle, executablePath))
-                {
-                    return new GameInfo
-                    {
-                        ProcessName = processName,
-                        WindowTitle = windowTitle,
-                        ProcessId = foregroundProcess.Id,
-                        WindowHandle = foregroundProcess.MainWindowHandle,
-                        ExecutablePath = executablePath
-                    };
-                }
-                
-                return null;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in GetRunningGameFromDirectory: {ex.Message}");
-                return null;
-            }
-        }
-        
-        /// <summary>
-        /// Determine if a process is likely a game using directory-based detection
-        /// </summary>
-        private bool IsLikelyGameProcess(Process process, string windowTitle, string executablePath)
-        {
-            try
-            {
-                // Basic checks first
-                if (string.IsNullOrWhiteSpace(windowTitle))
-                    return false;
-                    
-                if (string.IsNullOrEmpty(executablePath))
-                    return false;
-                
-                // Use a simple directory check for common game locations
-                var gameDirectories = new[]
-                {
-                    @"\Steam\steamapps\",
-                    @"\steamapps\",
-                    @"\Epic Games\",
-                    @"\XboxGames\",
-                    @"\Xbox Games\",
-                    @"\WindowsApps\",
-                    @"\GOG Galaxy\",
-                    @"\GOG Games\",
-                    @"\Origin Games\",
-                    @"\Ubisoft Game Launcher\",
-                    @"\Program Files\Steam\",
-                    @"\Program Files (x86)\Steam\",
-                    @"\Games\"
-                };
-                
-                bool inGameDirectory = gameDirectories.Any(dir => 
-                    executablePath.Contains(dir, StringComparison.OrdinalIgnoreCase));
-                    
-                if (inGameDirectory)
-                {
-                    return true;
-                }
-                
-                return false;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error in IsLikelyGameProcess: {ex.Message}");
-                return false;
-            }
-        }
 
         /// <summary>
         /// Scans all running processes to find any known games, prioritizing foreground game
@@ -1115,7 +984,6 @@ namespace HUDRA.Services
                     {
                         _gameDatabase.SaveGame(game);
                         _cachedGames[game.ProcessName] = game;
-                        _learningService.LearnGame(game.ProcessName);
                     }
                     
                     return newXboxGames.Count;

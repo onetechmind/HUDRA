@@ -15,12 +15,12 @@ namespace HUDRA.Controls
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=RefreshButton
+        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=RefreshButton, 3=ResetButton
         private bool _isFocused = false;
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0;
-        public bool CanNavigateDown => _currentFocusedElement < 2;
+        public bool CanNavigateDown => _currentFocusedElement < 3;
         public bool CanNavigateLeft => false;
         public bool CanNavigateRight => false;
         public bool CanActivate => true;
@@ -83,6 +83,18 @@ namespace HUDRA.Controls
             }
         }
 
+        public Brush ResetButtonFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 3)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         public GameDetectionControl()
         {
             this.InitializeComponent();
@@ -110,8 +122,8 @@ namespace HUDRA.Controls
         {
             if (_currentFocusedElement > 0)
             {
-                // Skip ScanInterval ComboBox if library scanning is disabled
-                if (_currentFocusedElement == 2 && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
+                // Skip ScanInterval ComboBox and buttons if library scanning is disabled
+                if ((_currentFocusedElement == 2 || _currentFocusedElement == 3) && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
                 {
                     _currentFocusedElement = 0; // Jump directly to LibraryScanning
                 }
@@ -126,7 +138,7 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateDown()
         {
-            if (_currentFocusedElement < 2)
+            if (_currentFocusedElement < 3)
             {
                 // Skip ScanInterval ComboBox if library scanning is disabled
                 if (_currentFocusedElement == 0 && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
@@ -219,6 +231,18 @@ namespace HUDRA.Controls
                         System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Refresh button");
                     }
                     break;
+
+                case 3: // ResetDatabaseButton
+                    if (ResetDatabaseButton != null && ResetDatabaseButton.IsEnabled)
+                    {
+                        // Programmatically invoke the button's Click event using automation peer
+                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(ResetDatabaseButton);
+                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
+                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
+                        invokeProv?.Invoke();
+                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Reset button");
+                    }
+                    break;
             }
         }
 
@@ -258,6 +282,7 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(LibraryScanningFocusBrush));
                 OnPropertyChanged(nameof(ScanIntervalFocusBrush));
                 OnPropertyChanged(nameof(RefreshButtonFocusBrush));
+                OnPropertyChanged(nameof(ResetButtonFocusBrush));
             });
         }
 

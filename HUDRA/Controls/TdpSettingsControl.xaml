@@ -50,7 +50,7 @@
 
         <Border
             x:Name="TdpPickerBorder"
-            Width="245"
+            Width="250"
             Padding="0"
             Background="Transparent"
             BorderBrush="{x:Bind TdpPickerFocusBrush, Mode=OneWay}"
