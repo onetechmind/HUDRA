@@ -3,6 +3,7 @@ using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 
 namespace HUDRA
@@ -26,7 +27,13 @@ namespace HUDRA
         public App()
         {
             InitializeComponent();
+
+            // Register all global exception handlers to catch crashes
             this.UnhandledException += OnUnhandledException;
+            AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
+            System.Diagnostics.Debug.WriteLine("✅ Global exception handlers registered");
         }
 
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
@@ -366,9 +373,129 @@ namespace HUDRA
             }
         }
 
+        /// <summary>
+        /// Catches unhandled exceptions from UI thread operations
+        /// </summary>
         private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+            LogException("UI Exception", e.Exception);
+
+            // Mark as handled to prevent immediate crash and show error to user
+            e.Handled = true;
+
+            // Show error message to user on UI thread
+            try
+            {
+                MainWindow?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    ShowErrorDialog(e.Exception);
+                });
+            }
+            catch
+            {
+                // If we can't show dialog, at least we logged it
+            }
+        }
+
+        /// <summary>
+        /// Catches unhandled exceptions from non-UI threads (background tasks)
+        /// </summary>
+        private void OnAppDomainUnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+        {
+            if (e.ExceptionObject is Exception exception)
+            {
+                LogException("AppDomain Exception", exception);
+
+                if (e.IsTerminating)
+                {
+                    LogException("FATAL", new Exception("Application is terminating due to unhandled exception"));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Catches exceptions from Task operations that weren't awaited or observed
+        /// </summary>
+        private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
+            LogException("Task Exception", e.Exception);
+
+            // Mark as observed to prevent app crash
+            e.SetObserved();
+        }
+
+        /// <summary>
+        /// Logs exception details to a file in LocalApplicationData
+        /// </summary>
+        private void LogException(string source, Exception exception)
+        {
+            try
+            {
+                // Create logs directory in LocalApplicationData
+                string appDataPath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+                string hudraPath = Path.Combine(appDataPath, "HUDRA");
+                string logsPath = Path.Combine(hudraPath, "Logs");
+
+                Directory.CreateDirectory(logsPath);
+
+                // Create log file with date in name
+                string logFileName = $"error_{DateTime.Now:yyyy-MM-dd}.log";
+                string logFilePath = Path.Combine(logsPath, logFileName);
+
+                // Format error message
+                string logEntry = $@"
+================================================================================
+[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {source}
+================================================================================
+Message: {exception.Message}
+Type: {exception.GetType().FullName}
+Stack Trace:
+{exception.StackTrace}
+
+{(exception.InnerException != null ? $"Inner Exception: {exception.InnerException.Message}\n{exception.InnerException.StackTrace}\n" : "")}
+================================================================================
+
+";
+
+                // Append to log file
+                File.AppendAllText(logFilePath, logEntry);
+
+                // Also write to debug output
+                System.Diagnostics.Debug.WriteLine($"❌ {source}: {exception.Message}");
+                System.Diagnostics.Debug.WriteLine($"📁 Error logged to: {logFilePath}");
+            }
+            catch (Exception logException)
+            {
+                // If logging fails, at least output to debug
+                System.Diagnostics.Debug.WriteLine($"❌ Failed to log exception: {logException.Message}");
+                System.Diagnostics.Debug.WriteLine($"❌ Original exception: {exception.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shows a user-friendly error dialog
+        /// </summary>
+        private async void ShowErrorDialog(Exception exception)
+        {
+            try
+            {
+                if (MainWindow?.Content is Microsoft.UI.Xaml.Controls.Frame frame)
+                {
+                    var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+                    {
+                        Title = "An Error Occurred",
+                        Content = $"HUDRA encountered an error:\n\n{exception.Message}\n\nThe error has been logged. You can continue using the app.",
+                        CloseButtonText = "OK",
+                        XamlRoot = frame.XamlRoot
+                    };
+
+                    await dialog.ShowAsync();
+                }
+            }
+            catch
+            {
+                // If dialog fails, we already logged the error
+            }
         }
 
         private void CleanupAndExit()
