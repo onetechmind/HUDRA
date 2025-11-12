@@ -600,7 +600,17 @@ namespace HUDRA.Services
             {
                 GamepadNavigation.SetIsCurrentFocus(_currentFocusedElement, true);
                 _currentFocusedElement.Focus(FocusState.Programmatic);
-                System.Diagnostics.Debug.WriteLine($"🎮 Set focus to: {_currentFocusedElement.GetType().Name}");
+
+                // Scroll element into view if it's out of viewport
+                try
+                {
+                    _currentFocusedElement.StartBringIntoView();
+                    System.Diagnostics.Debug.WriteLine($"🎮 Set focus to: {_currentFocusedElement.GetType().Name} and scrolled into view");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 Set focus to: {_currentFocusedElement.GetType().Name} (scroll failed: {ex.Message})");
+                }
             }
         }
 
