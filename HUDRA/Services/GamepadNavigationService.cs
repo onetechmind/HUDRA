@@ -7,6 +7,7 @@ using Windows.Gaming.Input;
 using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
+using HUDRA.Controls;
 using Microsoft.UI.Xaml.Input;
 
 namespace HUDRA.Services
@@ -560,9 +561,28 @@ namespace HUDRA.Services
             var navigableElements = GamepadNavigation.GetNavigableElements(rootElement).ToList();
             if (navigableElements.Count == 0) return;
 
-            int currentIndex = _currentFocusedElement != null 
+            int currentIndex = _currentFocusedElement != null
                 ? navigableElements.IndexOf(_currentFocusedElement)
                 : -1;
+
+            // If current element is not in the list, check if it's inside a NavigableExpander
+            if (currentIndex == -1 && _currentFocusedElement != null)
+            {
+                // Find parent NavigableExpander
+                var parent = FindNavigableParent(_currentFocusedElement);
+                if (parent != null)
+                {
+                    currentIndex = navigableElements.IndexOf(parent);
+                    System.Diagnostics.Debug.WriteLine($"🎮 Current element not in nav list, using parent expander at index {currentIndex}");
+
+                    // For UP navigation, return focus to the parent expander
+                    if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
+                    {
+                        SetFocus(parent);
+                        return;
+                    }
+                }
+            }
 
             int nextIndex = currentIndex;
             switch (direction)
@@ -582,6 +602,20 @@ namespace HUDRA.Services
             {
                 SetFocus(navigableElements[nextIndex]);
             }
+        }
+
+        private FrameworkElement? FindNavigableParent(FrameworkElement element)
+        {
+            var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+            while (parent != null)
+            {
+                if (parent is NavigableExpander expander)
+                {
+                    return expander;
+                }
+                parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
+            }
+            return null;
         }
 
         public void SetFocus(FrameworkElement? element)

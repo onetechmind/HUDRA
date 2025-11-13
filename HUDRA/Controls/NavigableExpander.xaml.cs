@@ -123,7 +123,7 @@ namespace HUDRA.Controls
 
         // IGamepadNavigable
         public bool CanNavigateUp => false;
-        public bool CanNavigateDown => false;
+        public bool CanNavigateDown => IsExpanded && Body is IGamepadNavigable;
         public bool CanNavigateLeft => false;
         public bool CanNavigateRight => false;
         public bool CanActivate => true;
@@ -142,7 +142,19 @@ namespace HUDRA.Controls
         public void ProcessCurrentSelection() { }
 
         public void OnGamepadNavigateUp() { }
-        public void OnGamepadNavigateDown() { }
+        public void OnGamepadNavigateDown()
+        {
+            // Navigate into body content if expanded and it's navigable
+            if (IsExpanded && Body is IGamepadNavigable navigable)
+            {
+                // Transfer focus to the body control
+                if (_gamepadNavigationService != null && Body is FrameworkElement bodyElement)
+                {
+                    _gamepadNavigationService.SetFocus(bodyElement);
+                    System.Diagnostics.Debug.WriteLine($"🎮 NavigableExpander: Navigated DOWN into body content");
+                }
+            }
+        }
         public void OnGamepadNavigateLeft() { }
         public void OnGamepadNavigateRight() { }
 
