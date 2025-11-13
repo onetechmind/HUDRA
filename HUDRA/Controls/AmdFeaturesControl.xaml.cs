@@ -4,18 +4,23 @@ using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class AmdFeaturesControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
+    public sealed partial class AmdFeaturesControl : UserControl, INotifyPropertyChanged, IGamepadNavigable, IDisposable
     {
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
+        private AmdAdlxService? _amdAdlxService;
         private int _currentFocusedElement = 0; // 0=RSR Toggle
         private bool _isFocused = false;
+        private bool _isInitialized = false;
+        private bool _isApplyingSettings = false;
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => false; // Single element, no vertical navigation within control
@@ -58,12 +63,13 @@ namespace HUDRA.Controls
             get => _rsrEnabled;
             set
             {
-                if (_rsrEnabled != value)
+                if (_rsrEnabled != value && !_isApplyingSettings)
                 {
                     _rsrEnabled = value;
                     OnPropertyChanged();
-                    // TODO: Apply RSR settings when toggled
-                    System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: RSR toggled to {value}");
+
+                    // Apply RSR settings asynchronously
+                    _ = ApplyRsrSettingAsync(value);
                 }
             }
         }
@@ -72,7 +78,112 @@ namespace HUDRA.Controls
         {
             this.InitializeComponent();
             this.DataContext = this;
+            this.Loaded += AmdFeaturesControl_Loaded;
+            this.Unloaded += AmdFeaturesControl_Unloaded;
             InitializeGamepadNavigation();
+        }
+
+        private async void AmdFeaturesControl_Loaded(object sender, RoutedEventArgs e)
+        {
+            if (!_isInitialized)
+            {
+                await InitializeAmdServiceAsync();
+                _isInitialized = true;
+            }
+        }
+
+        private void AmdFeaturesControl_Unloaded(object sender, RoutedEventArgs e)
+        {
+            // Cleanup if needed
+        }
+
+        private async Task InitializeAmdServiceAsync()
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Initializing AMD service...");
+
+                _amdAdlxService = new AmdAdlxService();
+
+                // Check if AMD GPU is available
+                if (!_amdAdlxService.IsAmdGpuAvailable())
+                {
+                    System.Diagnostics.Debug.WriteLine("No AMD GPU detected - AMD Features will be non-functional");
+                    // TODO: Consider hiding/disabling the control or showing a warning
+                    return;
+                }
+
+                // Load current RSR state
+                var (success, enabled, sharpness) = await _amdAdlxService.GetRsrStateAsync();
+                if (success)
+                {
+                    _isApplyingSettings = true;
+                    _rsrEnabled = enabled;
+                    OnPropertyChanged(nameof(RsrEnabled));
+                    _isApplyingSettings = false;
+
+                    System.Diagnostics.Debug.WriteLine($"Loaded RSR state: enabled={enabled}, sharpness={sharpness}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing AMD service: {ex.Message}");
+            }
+        }
+
+        private async Task ApplyRsrSettingAsync(bool enabled)
+        {
+            if (_amdAdlxService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("AMD service not initialized");
+                return;
+            }
+
+            if (!_amdAdlxService.IsAmdGpuAvailable())
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot apply RSR: No AMD GPU detected");
+                // Revert toggle state
+                _isApplyingSettings = true;
+                _rsrEnabled = !enabled;
+                OnPropertyChanged(nameof(RsrEnabled));
+                _isApplyingSettings = false;
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying RSR setting: {enabled}");
+
+                // Apply with default sharpness of 80%
+                bool success = await _amdAdlxService.SetRsrEnabledAsync(enabled, sharpness: 80);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to apply RSR setting");
+
+                    // Revert toggle state on failure
+                    _isApplyingSettings = true;
+                    _rsrEnabled = !enabled;
+                    OnPropertyChanged(nameof(RsrEnabled));
+                    _isApplyingSettings = false;
+
+                    // TODO: Show error message to user
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR setting: {enabled}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying RSR setting: {ex.Message}");
+
+                // Revert toggle state on error
+                _isApplyingSettings = true;
+                _rsrEnabled = !enabled;
+                OnPropertyChanged(nameof(RsrEnabled));
+                _isApplyingSettings = false;
+            }
         }
 
         private void InitializeGamepadNavigation()
@@ -158,6 +269,18 @@ namespace HUDRA.Controls
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        public void Dispose()
+        {
+            this.Loaded -= AmdFeaturesControl_Loaded;
+            this.Unloaded -= AmdFeaturesControl_Unloaded;
+
+            if (_amdAdlxService != null)
+            {
+                _amdAdlxService.Dispose();
+                _amdAdlxService = null;
+            }
         }
     }
 }
