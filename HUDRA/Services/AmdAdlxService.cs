@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.Win32;
+using HUDRA.Services.AMD;
 
 namespace HUDRA.Services
 {
@@ -122,13 +123,26 @@ namespace HUDRA.Services
         {
             try
             {
-                // Check if ADLX DLL is available
-                // Note: Full ADLX implementation would require the actual AMD driver DLLs
-                // This is a simplified check - full implementation would need P/Invoke to ADLX functions
+                System.Diagnostics.Debug.WriteLine("Attempting to initialize ADLX SDK...");
 
-                // For now, return false to use registry fallback
-                // TODO: Implement full ADLX P/Invoke when AMD driver DLLs are confirmed available
-                return false;
+                // Check if ADLX DLL is available
+                if (!AdlxWrapper.IsAdlxDllAvailable())
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX DLL not found - will use registry fallback");
+                    return false;
+                }
+
+                // Test ADLX functionality by checking RSR support
+                if (AdlxWrapper.TryHasRSRSupport(out bool supported))
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX initialized successfully. RSR supported: {supported}");
+                    return true;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX DLL found but initialization failed - will use registry fallback");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -214,22 +228,84 @@ namespace HUDRA.Services
             });
         }
 
-        #region ADLX Methods (Placeholder for full implementation)
+        #region ADLX Methods
 
         private (bool success, bool enabled, int sharpness) GetRsrStateViaAdlx()
         {
-            // TODO: Implement ADLX P/Invoke calls
-            // This would use ADLX SDK functions to query RSR state
-            System.Diagnostics.Debug.WriteLine("ADLX: GetRsrState (not yet implemented)");
-            return (false, false, 0);
+            try
+            {
+                // Get RSR enabled state
+                if (!AdlxWrapper.TryGetRSRState(out bool enabled))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to get RSR state");
+                    return (false, false, 0);
+                }
+
+                // Get RSR sharpness
+                if (!AdlxWrapper.TryGetRSRSharpness(out int sharpness))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to get RSR sharpness, using default");
+                    sharpness = 80; // Default if we can't read it
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: RSR enabled={enabled}, sharpness={sharpness}");
+                return (true, enabled, sharpness);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting RSR state: {ex.Message}");
+                return (false, false, 0);
+            }
         }
 
         private bool SetRsrViaAdlx(bool enabled, int sharpness)
         {
-            // TODO: Implement ADLX P/Invoke calls
-            // This would use ADLX SDK functions to set RSR state
-            System.Diagnostics.Debug.WriteLine($"ADLX: SetRsr enabled={enabled}, sharpness={sharpness} (not yet implemented)");
-            return false;
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting RSR enabled={enabled}, sharpness={sharpness}");
+
+                // Set RSR enabled/disabled
+                if (!AdlxWrapper.TrySetRSR(enabled, out bool setRsrSuccess))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to call SetRSR");
+                    return false;
+                }
+
+                if (!setRsrSuccess)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetRSR returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR enabled={enabled}");
+
+                // Set sharpness if RSR was enabled
+                if (enabled)
+                {
+                    if (!AdlxWrapper.TrySetRSRSharpness(sharpness, out bool setSharpnessSuccess))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: Failed to call SetRSRSharpness");
+                        // Don't fail the whole operation if sharpness fails
+                        return true;
+                    }
+
+                    if (!setSharpnessSuccess)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: SetRSRSharpness returned false");
+                        // Don't fail the whole operation if sharpness fails
+                        return true;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR sharpness={sharpness}");
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting RSR: {ex.Message}");
+                return false;
+            }
         }
 
         #endregion
