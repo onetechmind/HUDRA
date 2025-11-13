@@ -135,7 +135,7 @@ namespace HUDRA.Controls
         {
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
-            GamepadNavigation.SetNavigationOrder(this, 1);
+            GamepadNavigation.SetNavigationOrder(this, 21);
         }
 
         private void InitializeGamepadNavigationService()

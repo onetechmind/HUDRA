@@ -35,7 +35,8 @@
                 x:Name="AmdFeaturesExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                ap:GamepadNavigation.NavigationOrder="10">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
@@ -59,7 +60,8 @@
                 x:Name="LosslessScalingExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                ap:GamepadNavigation.NavigationOrder="20">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
