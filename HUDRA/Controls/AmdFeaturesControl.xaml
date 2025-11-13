@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="HUDRA.Controls.AmdFeaturesControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HUDRA.Controls"
+    xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="1">
+
+    <StackPanel Spacing="0">
+        <!--  RSR Toggle  -->
+        <Border
+            Margin="0"
+            Padding="15"
+            CornerRadius="12">
+            <StackPanel Spacing="10">
+                <Border
+                    x:Name="RsrToggleBorder"
+                    Padding="10,5,10,5"
+                    Background="#22FFFFFF"
+                    CornerRadius="12"
+                    BorderBrush="{x:Bind RsrToggleFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Radeon Super Resolution" />
+                        <ToggleSwitch
+                            x:Name="RsrToggle"
+                            Grid.Column="1"
+                            IsOn="{Binding RsrEnabled, Mode=TwoWay}" />
+                    </Grid>
+                </Border>
+
+                <!--  RSR Description  -->
+                <StackPanel Padding="5" Spacing="0">
+                    <TextBlock
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="AMD's upscaling technology for improved image quality."
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Margin="0"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Works with all games and displays to enhance visual fidelity."
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

@@ -30,6 +30,30 @@
                     Text="SCALING" />
             </Border>
 
+            <!--  AMD Features Settings Section (Navigable Expander)  -->
+            <controls:NavigableExpander
+                x:Name="AmdFeaturesExpander"
+                HorizontalAlignment="Stretch"
+                Margin="0"
+                Padding="0">
+                <controls:NavigableExpander.Header>
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="AMD Features" />
+                    </StackPanel>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:AmdFeaturesControl x:Name="AmdFeaturesControl" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
+
             <!--  Lossless Scaling Settings Section (Navigable Expander)  -->
             <controls:NavigableExpander
                 x:Name="LosslessScalingExpander"

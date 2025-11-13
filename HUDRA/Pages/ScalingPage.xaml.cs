@@ -13,8 +13,9 @@ namespace HUDRA.Pages
     public sealed partial class ScalingPage : Page
     {
         public ScalingPageViewModel ViewModel { get; private set; }
-        
-        // Session-only state storage for Lossless Scaling Expander
+
+        // Session-only state storage for expanders
+        private static bool _amdFeaturesExpanderExpanded = false;
         private static bool _losslessScalingExpanderExpanded = false;
 
         public ScalingPage()
@@ -36,14 +37,26 @@ namespace HUDRA.Pages
 
         private void ScalingPage_Loaded(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] Page loaded, setting expander state");
-            
+            System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] Page loaded, setting expander states");
+
+            // Load AMD Features Expander state (session-only) after page UI is loaded
+            if (AmdFeaturesExpander != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Loading AMD Features expander state: {_amdFeaturesExpanderExpanded}");
+                AmdFeaturesExpander.IsExpanded = _amdFeaturesExpanderExpanded;
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] AMD Features expander IsExpanded set to: {AmdFeaturesExpander.IsExpanded}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[ScalingPage_Loaded] AmdFeaturesExpander is null!");
+            }
+
             // Load Lossless Scaling Expander state (session-only) after page UI is loaded
             if (LosslessScalingExpander != null)
             {
-                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Loading expander state: {_losslessScalingExpanderExpanded}");
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Loading Lossless Scaling expander state: {_losslessScalingExpanderExpanded}");
                 LosslessScalingExpander.IsExpanded = _losslessScalingExpanderExpanded;
-                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Expander IsExpanded set to: {LosslessScalingExpander.IsExpanded}");
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Loaded] Lossless Scaling expander IsExpanded set to: {LosslessScalingExpander.IsExpanded}");
             }
             else
             {
@@ -53,14 +66,26 @@ namespace HUDRA.Pages
 
         private void ScalingPage_Unloaded(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine("[ScalingPage_Unloaded] Page unloaded, saving expander state");
-            
-            // Save expander state when leaving the page (session-only)
+            System.Diagnostics.Debug.WriteLine("[ScalingPage_Unloaded] Page unloaded, saving expander states");
+
+            // Save AMD Features expander state when leaving the page (session-only)
+            if (AmdFeaturesExpander != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Current AMD Features expander state: {AmdFeaturesExpander.IsExpanded}");
+                _amdFeaturesExpanderExpanded = AmdFeaturesExpander.IsExpanded;
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Saved AMD Features state to static field: {_amdFeaturesExpanderExpanded}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("[ScalingPage_Unloaded] AmdFeaturesExpander is null!");
+            }
+
+            // Save Lossless Scaling expander state when leaving the page (session-only)
             if (LosslessScalingExpander != null)
             {
-                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Current expander state: {LosslessScalingExpander.IsExpanded}");
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Current Lossless Scaling expander state: {LosslessScalingExpander.IsExpanded}");
                 _losslessScalingExpanderExpanded = LosslessScalingExpander.IsExpanded;
-                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Saved state to static field: {_losslessScalingExpanderExpanded}");
+                System.Diagnostics.Debug.WriteLine($"[ScalingPage_Unloaded] Saved Lossless Scaling state to static field: {_losslessScalingExpanderExpanded}");
             }
             else
             {
