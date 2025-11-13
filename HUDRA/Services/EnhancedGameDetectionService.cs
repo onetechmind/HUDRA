@@ -450,7 +450,15 @@ namespace HUDRA.Services
                         {
                             // Get a valid window handle for the game
                             var windowHandle = GetValidWindowHandle(process);
-                            
+
+                            // For Xbox games, if we don't get a valid window handle, keep looking
+                            // Game Pass games often have multiple processes with the same exe name
+                            if (windowHandle == IntPtr.Zero && matchingGame.Source == GameSource.Xbox)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox game '{matchingGame.DisplayName}' matched but no valid window handle. Continuing search for other processes with same exe...");
+                                continue; // Keep searching for other processes with same name
+                            }
+
                             // Found a running game that matches our database!
                             var gameInfo = new GameInfo
                             {
@@ -460,14 +468,15 @@ namespace HUDRA.Services
                                 WindowHandle = windowHandle,
                                 ExecutablePath = matchingGame.ExecutablePath
                             };
-                            
-                            
+
+
                             // Validate window handle is still accessible
                             if (windowHandle != IntPtr.Zero && !IsWindow(windowHandle))
                             {
                                 System.Diagnostics.Debug.WriteLine($"Enhanced: Warning - Window handle {windowHandle} is no longer valid!");
                             }
-                            
+
+                            System.Diagnostics.Debug.WriteLine($"Enhanced: Successfully detected game '{gameInfo.WindowTitle}' with valid window handle: {windowHandle}");
                             return gameInfo;
                         }
                     }
