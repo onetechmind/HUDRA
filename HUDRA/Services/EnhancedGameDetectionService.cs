@@ -25,6 +25,7 @@ namespace HUDRA.Services
         private bool _disposed = false;
         private bool _isDatabaseReady = false;
         private bool _isScanning = false;
+        private bool _isMonitoringActiveGame = false; // Flag to pause expensive process scanning when game is running
         
 
         // Enhanced scanning properties and events
@@ -140,6 +141,7 @@ namespace HUDRA.Services
                     
                     foreach (var game in newGames.Values)
                     {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Saving game to DB - Name: {game.DisplayName}, ProcessName: {game.ProcessName}, ExecutablePath: {game.ExecutablePath}");
                         _gameDatabase.SaveGame(game);
                     }
                 }
@@ -286,7 +288,18 @@ namespace HUDRA.Services
 
             try
             {
-                var detectedGame = DetectActiveGame();
+                // Optimization: If we're monitoring an active game, just check if it's still running
+                // This avoids expensive process scanning while a game is active
+                GameInfo? detectedGame;
+                if (_isMonitoringActiveGame && _currentGame != null)
+                {
+                    detectedGame = IsCurrentGameStillRunning();
+                }
+                else
+                {
+                    // No active game - do full process scan to find one
+                    detectedGame = DetectActiveGame();
+                }
                 
                 // Enhanced game change logic with window handle refresh
                 bool gameChanged = false;
@@ -325,6 +338,20 @@ namespace HUDRA.Services
                 {
                     _currentGame = detectedGame;
 
+                    // Update monitoring state
+                    if (_currentGame != null)
+                    {
+                        // Game started - pause expensive process scanning
+                        _isMonitoringActiveGame = true;
+                        System.Diagnostics.Debug.WriteLine("Enhanced: Pausing process scanning - monitoring active game");
+                    }
+                    else
+                    {
+                        // Game stopped - resume process scanning
+                        _isMonitoringActiveGame = false;
+                        System.Diagnostics.Debug.WriteLine("Enhanced: Resuming process scanning - no active game");
+                    }
+
                     _dispatcher.TryEnqueue(() =>
                     {
                         if (_currentGame != null)
@@ -362,9 +389,59 @@ namespace HUDRA.Services
             {
                 return null; // No detection when disabled
             }
-            
+
             // Enhanced detection (database + directory fallback)
             return DetectEnhancedGame();
+        }
+
+        /// <summary>
+        /// Lightweight check if the current game is still running.
+        /// Used when monitoring an active game to avoid expensive process scanning.
+        /// Only checks the specific process ID rather than scanning all processes.
+        /// </summary>
+        private GameInfo? IsCurrentGameStillRunning()
+        {
+            if (_currentGame == null)
+                return null;
+
+            try
+            {
+                // Try to get the process by ID (lightweight operation)
+                var process = Process.GetProcessById(_currentGame.ProcessId);
+
+                // Check if process has exited
+                if (process.HasExited)
+                {
+                    process.Dispose();
+                    return null; // Game stopped
+                }
+
+                // Game still running - get fresh window handle
+                var windowHandle = GetValidWindowHandle(process);
+
+                // Return updated GameInfo with refreshed window handle
+                var updatedGameInfo = new GameInfo
+                {
+                    ProcessName = _currentGame.ProcessName,
+                    WindowTitle = _currentGame.WindowTitle,
+                    ProcessId = _currentGame.ProcessId,
+                    WindowHandle = windowHandle,
+                    ExecutablePath = _currentGame.ExecutablePath
+                };
+
+                process.Dispose();
+                return updatedGameInfo;
+            }
+            catch (ArgumentException)
+            {
+                // Process no longer exists
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error checking if game still running: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
@@ -405,11 +482,15 @@ namespace HUDRA.Services
 
             try
             {
+                // Track last Xbox game match as fallback if no process has valid window handle
+                DetectedGame? lastXboxMatch = null;
+                Process? lastXboxProcess = null;
+
                 // Get all processes and filter out system processes more aggressively
                 var allProcesses = Process.GetProcesses();
-                var candidateProcesses = allProcesses.Where(p => 
+                var candidateProcesses = allProcesses.Where(p =>
                     ShouldScanProcess(p)).ToList();
-                
+
                 foreach (var process in candidateProcesses)
                 {
                     try
@@ -433,16 +514,39 @@ namespace HUDRA.Services
                         
                         if (string.IsNullOrEmpty(processExePath))
                             continue;
-                            
-                        // Check if this executable path matches any game in our database
-                        var matchingGame = _cachedGames.Values.FirstOrDefault(dbGame => 
+
+                        // Check if this executable path matches any game in our database (exact path match)
+                        var matchingGame = _cachedGames.Values.FirstOrDefault(dbGame =>
                             string.Equals(dbGame.ExecutablePath, processExePath, StringComparison.OrdinalIgnoreCase));
-                            
+
+                        // If no exact path match, try Xbox fallback matching by executable name
+                        // This handles Game Pass games where path junctions can cause mismatches
+                        if (matchingGame == null)
+                        {
+                            matchingGame = TryMatchXboxGameByExecutableName(process.ProcessName, processExePath);
+                        }
+
                         if (matchingGame != null)
                         {
                             // Get a valid window handle for the game
                             var windowHandle = GetValidWindowHandle(process);
-                            
+
+                            // For Xbox games, if we don't get a valid window handle, keep looking
+                            // Game Pass games often have multiple processes with the same exe name
+                            if (windowHandle == IntPtr.Zero && matchingGame.Source == GameSource.Xbox)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox game '{matchingGame.DisplayName}' matched but no valid window handle (PID: {process.Id}). Saving as fallback and continuing search...");
+
+                                // Save this as fallback in case we don't find any process with valid handle
+                                if (lastXboxMatch == null)
+                                {
+                                    lastXboxMatch = matchingGame;
+                                    lastXboxProcess = process;
+                                }
+
+                                continue; // Keep searching for other processes with same name
+                            }
+
                             // Found a running game that matches our database!
                             var gameInfo = new GameInfo
                             {
@@ -452,14 +556,15 @@ namespace HUDRA.Services
                                 WindowHandle = windowHandle,
                                 ExecutablePath = matchingGame.ExecutablePath
                             };
-                            
-                            
+
+
                             // Validate window handle is still accessible
                             if (windowHandle != IntPtr.Zero && !IsWindow(windowHandle))
                             {
                                 System.Diagnostics.Debug.WriteLine($"Enhanced: Warning - Window handle {windowHandle} is no longer valid!");
                             }
-                            
+
+                            System.Diagnostics.Debug.WriteLine($"Enhanced: Successfully detected game '{gameInfo.WindowTitle}' with valid window handle: {windowHandle}");
                             return gameInfo;
                         }
                     }
@@ -473,7 +578,23 @@ namespace HUDRA.Services
                         process.Dispose();
                     }
                 }
-                
+
+                // If we found an Xbox game match but none had valid window handles, return the fallback
+                // This handles cases where all processes for a Game Pass game lack proper window handles
+                if (lastXboxMatch != null && lastXboxProcess != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: No Xbox processes with valid handles found. Returning fallback match for '{lastXboxMatch.DisplayName}' (PID: {lastXboxProcess.Id})");
+
+                    return new GameInfo
+                    {
+                        ProcessName = lastXboxMatch.ProcessName,
+                        WindowTitle = lastXboxMatch.DisplayName,
+                        ProcessId = lastXboxProcess.Id,
+                        WindowHandle = IntPtr.Zero, // No valid handle available
+                        ExecutablePath = lastXboxMatch.ExecutablePath
+                    };
+                }
+
                 return null;
             }
             catch (Exception ex)
@@ -482,7 +603,74 @@ namespace HUDRA.Services
                 return null;
             }
         }
-        
+
+        /// <summary>
+        /// Try to match a running process against Xbox games in the database by executable name.
+        /// This fallback is used when exact path matching fails (common with Game Pass due to junctions).
+        /// Checks the AlternativeExecutables list which contains all .exe files found during scan (up to 5 levels deep).
+        /// This handles edge cases like Expedition 33 where MicrosoftGame.config lists "SandFall.exe"
+        /// but the actual running process is "SandFall-WinGDK-Shipping.exe".
+        /// Only matches against games already in the database - does NOT add new games.
+        /// </summary>
+        private DetectedGame? TryMatchXboxGameByExecutableName(string processName, string processExePath)
+        {
+            try
+            {
+                // Get the executable filename from the running process
+                string processExeName = Path.GetFileNameWithoutExtension(processExePath);
+
+                if (string.IsNullOrEmpty(processExeName))
+                    return null;
+
+                // Only check Xbox games in the database
+                var xboxGames = _cachedGames.Values.Where(g => g.Source == GameSource.Xbox).ToList();
+
+                if (!xboxGames.Any())
+                    return null;
+
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
+
+                // Check each Xbox game's alternative executables list
+                // This list was populated during scan by enumerating all .exe files up to 5 levels deep
+                foreach (var xboxGame in xboxGames)
+                {
+                    // First try exact path match
+                    string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
+                    if (string.Equals(dbExeName, processExeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH (main exe)! Found '{xboxGame.DisplayName}'");
+                        System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                        System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
+                        return xboxGame;
+                    }
+
+                    // Check alternative executables list
+                    if (xboxGame.AlternativeExecutables != null && xboxGame.AlternativeExecutables.Any())
+                    {
+                        foreach (var altExe in xboxGame.AlternativeExecutables)
+                        {
+                            if (string.Equals(altExe, processExeName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback ALTERNATIVE MATCH! Found '{xboxGame.DisplayName}'");
+                                System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                                System.Diagnostics.Debug.WriteLine($"  Matched alternative: {altExe}");
+                                System.Diagnostics.Debug.WriteLine($"  Total alternatives for this game: {xboxGame.AlternativeExecutables.Count}");
+                                return xboxGame;
+                            }
+                        }
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No match found for '{processExeName}'");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error in Xbox fallback matching: {ex.Message}");
+                return null;
+            }
+        }
+
         /// <summary>
         /// Get a valid window handle for the process, trying multiple methods
         /// </summary>
