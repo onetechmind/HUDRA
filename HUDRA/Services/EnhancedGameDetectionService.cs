@@ -140,6 +140,7 @@ namespace HUDRA.Services
                     
                     foreach (var game in newGames.Values)
                     {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Saving game to DB - Name: {game.DisplayName}, ProcessName: {game.ProcessName}, ExecutablePath: {game.ExecutablePath}");
                         _gameDatabase.SaveGame(game);
                     }
                 }
@@ -433,11 +434,18 @@ namespace HUDRA.Services
                         
                         if (string.IsNullOrEmpty(processExePath))
                             continue;
-                            
-                        // Check if this executable path matches any game in our database
-                        var matchingGame = _cachedGames.Values.FirstOrDefault(dbGame => 
+
+                        // Check if this executable path matches any game in our database (exact path match)
+                        var matchingGame = _cachedGames.Values.FirstOrDefault(dbGame =>
                             string.Equals(dbGame.ExecutablePath, processExePath, StringComparison.OrdinalIgnoreCase));
-                            
+
+                        // If no exact path match, try Xbox fallback matching by executable name
+                        // This handles Game Pass games where path junctions can cause mismatches
+                        if (matchingGame == null)
+                        {
+                            matchingGame = TryMatchXboxGameByExecutableName(process.ProcessName, processExePath);
+                        }
+
                         if (matchingGame != null)
                         {
                             // Get a valid window handle for the game
@@ -482,7 +490,55 @@ namespace HUDRA.Services
                 return null;
             }
         }
-        
+
+        /// <summary>
+        /// Try to match a running process against Xbox games in the database by executable name.
+        /// This fallback is used when exact path matching fails (common with Game Pass due to junctions).
+        /// Only matches against games already in the database - does NOT add new games.
+        /// </summary>
+        private DetectedGame? TryMatchXboxGameByExecutableName(string processName, string processExePath)
+        {
+            try
+            {
+                // Get the executable filename from the running process
+                string processExeName = Path.GetFileNameWithoutExtension(processExePath);
+
+                if (string.IsNullOrEmpty(processExeName))
+                    return null;
+
+                // Only check Xbox games in the database
+                var xboxGames = _cachedGames.Values.Where(g => g.Source == GameSource.Xbox).ToList();
+
+                if (!xboxGames.Any())
+                    return null;
+
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
+
+                // Try to match by executable filename
+                foreach (var xboxGame in xboxGames)
+                {
+                    string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
+
+                    if (string.Equals(dbExeName, processExeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback MATCH! Found '{xboxGame.DisplayName}'");
+                        System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                        System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
+                        System.Diagnostics.Debug.WriteLine($"  DB full path: {xboxGame.ExecutablePath}");
+                        return xboxGame;
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No match found for '{processExeName}'");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error in Xbox fallback matching: {ex.Message}");
+                return null;
+            }
+        }
+
         /// <summary>
         /// Get a valid window handle for the process, trying multiple methods
         /// </summary>
