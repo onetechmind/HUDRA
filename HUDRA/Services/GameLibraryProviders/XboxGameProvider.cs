@@ -79,7 +79,8 @@ namespace HUDRA.Services.GameLibraryProviders
                                 Source = GameSource.Xbox,
                                 LauncherInfo = "Xbox/Game Pass",
                                 PackageInfo = gameResult.PackageFullName ?? string.Empty,
-                                LastDetected = DateTime.Now
+                                LastDetected = DateTime.Now,
+                                AlternativeExecutables = gameResult.AlternativeExecutables ?? new List<string>()
                             };
 
                             detectedGames[gameResult.ProcessName] = detectedGame;
@@ -218,10 +219,22 @@ namespace HUDRA.Services.GameLibraryProviders
                             $configPath = Join-Path $actualLocation 'MicrosoftGame.config'
                             $config = [xml](Get-Content $configPath)
                             $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
-                            
+
                             # Extract display name from the parent folder name (go up one level from Content)
                             $folderName = Split-Path -Leaf (Split-Path -Parent $actualLocation)
-                            
+
+                            # Scan for all .exe files up to 2 levels deep in the game folder
+                            # This helps detect games where the actual running exe differs from MicrosoftGame.config
+                            $allExeNames = @()
+                            try {
+                                # Get all .exe files in root and up to 2 levels of subfolders
+                                $exeFiles = Get-ChildItem -Path $actualLocation -Filter '*.exe' -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                                $allExeNames = $exeFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) } | Select-Object -Unique
+                            } catch {
+                                # If enumeration fails, just use the main exe from config
+                                $allExeNames = @($exeName)
+                            }
+
                             $gameObj = @{
                                 ProcessName = $package.Name
                                 GameName = $folderName
@@ -229,6 +242,7 @@ namespace HUDRA.Services.GameLibraryProviders
                                 PackageFullName = $package.PackageFullName
                                 ExecutablePath = Join-Path $actualLocation $config.Game.ExecutableList.Executable.Name
                                 ExecutableName = $exeName
+                                AlternativeExecutables = $allExeNames
                             }
                             
                             $games += $gameObj
@@ -305,6 +319,7 @@ namespace HUDRA.Services.GameLibraryProviders
             public string InstallLocation { get; set; } = string.Empty;
             public string PackageFullName { get; set; } = string.Empty;
             public string ExecutablePath { get; set; } = string.Empty;
+            public List<string> AlternativeExecutables { get; set; } = new List<string>();
         }
     }
 }

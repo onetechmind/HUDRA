@@ -531,6 +531,9 @@ namespace HUDRA.Services
         /// <summary>
         /// Try to match a running process against Xbox games in the database by executable name.
         /// This fallback is used when exact path matching fails (common with Game Pass due to junctions).
+        /// Checks the AlternativeExecutables list which contains all .exe files found during scan (up to 2 levels deep).
+        /// This handles edge cases like Expedition 33 where MicrosoftGame.config lists "SandFall.exe"
+        /// but the actual running process is "SandFall-WinGDK-Shipping.exe".
         /// Only matches against games already in the database - does NOT add new games.
         /// </summary>
         private DetectedGame? TryMatchXboxGameByExecutableName(string processName, string processExePath)
@@ -551,45 +554,31 @@ namespace HUDRA.Services
 
                 System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
 
-                // Try to match by executable filename (exact match first)
+                // Check each Xbox game's alternative executables list
+                // This list was populated during scan by enumerating all .exe files up to 2 levels deep
                 foreach (var xboxGame in xboxGames)
                 {
+                    // First try exact path match
                     string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
-
                     if (string.Equals(dbExeName, processExeName, StringComparison.OrdinalIgnoreCase))
                     {
-                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH! Found '{xboxGame.DisplayName}'");
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH (main exe)! Found '{xboxGame.DisplayName}'");
                         System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
                         System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
-                        System.Diagnostics.Debug.WriteLine($"  DB full path: {xboxGame.ExecutablePath}");
                         return xboxGame;
                     }
-                }
 
-                // If no exact match, try fuzzy matching for Game Pass edge cases
-                // E.g., DB has "SandFall.exe" but process is "SandFall-WinGDK-Shipping.exe"
-                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No exact match. Trying fuzzy matching...");
-
-                foreach (var xboxGame in xboxGames)
-                {
-                    string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
-
-                    // Check if DB exe name is a prefix of the running exe name (with separator)
-                    // This handles: "SandFall" matches "SandFall-WinGDK-Shipping"
-                    if (processExeName.StartsWith(dbExeName, StringComparison.OrdinalIgnoreCase))
+                    // Check alternative executables list
+                    if (xboxGame.AlternativeExecutables != null && xboxGame.AlternativeExecutables.Any())
                     {
-                        // Require a separator after the prefix to avoid false positives
-                        // Valid: "SandFall" + "-WinGDK" or "Game" + "-Win64"
-                        // Invalid: "Sand" matching "Sandbox" (no separator)
-                        if (processExeName.Length > dbExeName.Length)
+                        foreach (var altExe in xboxGame.AlternativeExecutables)
                         {
-                            char nextChar = processExeName[dbExeName.Length];
-                            if (nextChar == '-' || nextChar == '_')
+                            if (string.Equals(altExe, processExeName, StringComparison.OrdinalIgnoreCase))
                             {
-                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback FUZZY MATCH! Found '{xboxGame.DisplayName}'");
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback ALTERNATIVE MATCH! Found '{xboxGame.DisplayName}'");
                                 System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
-                                System.Diagnostics.Debug.WriteLine($"  DB exe (prefix): {dbExeName}");
-                                System.Diagnostics.Debug.WriteLine($"  DB full path: {xboxGame.ExecutablePath}");
+                                System.Diagnostics.Debug.WriteLine($"  Matched alternative: {altExe}");
+                                System.Diagnostics.Debug.WriteLine($"  Total alternatives for this game: {xboxGame.AlternativeExecutables.Count}");
                                 return xboxGame;
                             }
                         }
