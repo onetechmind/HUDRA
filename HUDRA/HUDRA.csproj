@@ -135,6 +135,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Update="Assets\amd-logo.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Update="Assets\HUDRA-logo-large-png.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
