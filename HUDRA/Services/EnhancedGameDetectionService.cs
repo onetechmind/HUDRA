@@ -551,18 +551,48 @@ namespace HUDRA.Services
 
                 System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
 
-                // Try to match by executable filename
+                // Try to match by executable filename (exact match first)
                 foreach (var xboxGame in xboxGames)
                 {
                     string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
 
                     if (string.Equals(dbExeName, processExeName, StringComparison.OrdinalIgnoreCase))
                     {
-                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback MATCH! Found '{xboxGame.DisplayName}'");
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH! Found '{xboxGame.DisplayName}'");
                         System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
                         System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
                         System.Diagnostics.Debug.WriteLine($"  DB full path: {xboxGame.ExecutablePath}");
                         return xboxGame;
+                    }
+                }
+
+                // If no exact match, try fuzzy matching for Game Pass edge cases
+                // E.g., DB has "SandFall.exe" but process is "SandFall-WinGDK-Shipping.exe"
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No exact match. Trying fuzzy matching...");
+
+                foreach (var xboxGame in xboxGames)
+                {
+                    string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
+
+                    // Check if DB exe name is a prefix of the running exe name (with separator)
+                    // This handles: "SandFall" matches "SandFall-WinGDK-Shipping"
+                    if (processExeName.StartsWith(dbExeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Require a separator after the prefix to avoid false positives
+                        // Valid: "SandFall" + "-WinGDK" or "Game" + "-Win64"
+                        // Invalid: "Sand" matching "Sandbox" (no separator)
+                        if (processExeName.Length > dbExeName.Length)
+                        {
+                            char nextChar = processExeName[dbExeName.Length];
+                            if (nextChar == '-' || nextChar == '_')
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback FUZZY MATCH! Found '{xboxGame.DisplayName}'");
+                                System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                                System.Diagnostics.Debug.WriteLine($"  DB exe (prefix): {dbExeName}");
+                                System.Diagnostics.Debug.WriteLine($"  DB full path: {xboxGame.ExecutablePath}");
+                                return xboxGame;
+                            }
+                        }
                     }
                 }
 
