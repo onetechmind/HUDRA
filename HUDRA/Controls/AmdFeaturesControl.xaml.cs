@@ -17,23 +17,45 @@ namespace HUDRA.Controls
 
         private GamepadNavigationService? _gamepadNavigationService;
         private AmdAdlxService? _amdAdlxService;
-        private int _currentFocusedElement = 0; // 0=RSR Toggle
+        private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider
         private bool _isFocused = false;
         private bool _isInitialized = false;
         private bool _isApplyingSettings = false;
 
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => false; // Single element, no vertical navigation within control
-        public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => false;
-        public bool CanNavigateRight => false;
+        public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider to toggle
+        public bool CanNavigateDown => _currentFocusedElement < 1; // Can navigate down from toggle to slider
+        public bool CanNavigateLeft => _isSliderActivated; // Can adjust slider when activated
+        public bool CanNavigateRight => _isSliderActivated; // Can adjust slider when activated
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
 
-        // Slider interface implementations - AmdFeatures has no sliders
-        public bool IsSlider => false;
-        public bool IsSliderActivated { get; set; } = false;
-        public void AdjustSliderValue(int direction) { /* Not applicable - no sliders */ }
+        // Slider interface implementations
+        private bool _isSliderActivated = false;
+        public bool IsSlider => _currentFocusedElement == 1; // Sharpness slider
+        public bool IsSliderActivated
+        {
+            get => _isSliderActivated;
+            set
+            {
+                _isSliderActivated = value;
+                OnPropertyChanged();
+                UpdateFocusVisuals();
+            }
+        }
+        public void AdjustSliderValue(int direction)
+        {
+            if (!_isSliderActivated || _currentFocusedElement != 1) return;
+
+            if (SharpnessSlider != null)
+            {
+                double increment = 5.0; // 5% increments
+                double newValue = SharpnessSlider.Value + (direction * increment);
+                newValue = Math.Clamp(newValue, SharpnessSlider.Minimum, SharpnessSlider.Maximum);
+                SharpnessSlider.Value = newValue;
+                System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Adjusted sharpness to {newValue}");
+            }
+        }
 
         // ComboBox interface implementations - AmdFeatures has no ComboBoxes
         public bool HasComboBoxes => false;
@@ -43,7 +65,7 @@ namespace HUDRA.Controls
         public bool IsNavigatingComboBox { get; set; } = false;
         public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
 
-        // Focus brush property for XAML binding
+        // Focus brush properties for XAML binding
         public Brush RsrToggleFocusBrush
         {
             get
@@ -51,6 +73,18 @@ namespace HUDRA.Controls
                 if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 0)
                 {
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush SharpnessSliderFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 1)
+                {
+                    return new SolidColorBrush(_isSliderActivated ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
                 }
                 return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             }
@@ -68,8 +102,28 @@ namespace HUDRA.Controls
                     _rsrEnabled = value;
                     OnPropertyChanged();
 
-                    // Apply RSR settings asynchronously
-                    _ = ApplyRsrSettingAsync(value);
+                    // Apply RSR settings asynchronously (includes current sharpness)
+                    _ = ApplyRsrSettingsAsync(value, _rsrSharpness);
+                }
+            }
+        }
+
+        private int _rsrSharpness = 80;
+        public int RsrSharpness
+        {
+            get => _rsrSharpness;
+            set
+            {
+                if (_rsrSharpness != value && !_isApplyingSettings)
+                {
+                    _rsrSharpness = value;
+                    OnPropertyChanged();
+
+                    // Apply sharpness change if RSR is enabled
+                    if (_rsrEnabled)
+                    {
+                        _ = ApplyRsrSharpnessAsync(value);
+                    }
                 }
             }
         }
@@ -119,7 +173,9 @@ namespace HUDRA.Controls
                 {
                     _isApplyingSettings = true;
                     _rsrEnabled = enabled;
+                    _rsrSharpness = sharpness;
                     OnPropertyChanged(nameof(RsrEnabled));
+                    OnPropertyChanged(nameof(RsrSharpness));
                     _isApplyingSettings = false;
 
                     System.Diagnostics.Debug.WriteLine($"Loaded RSR state: enabled={enabled}, sharpness={sharpness}");
@@ -131,7 +187,7 @@ namespace HUDRA.Controls
             }
         }
 
-        private async Task ApplyRsrSettingAsync(bool enabled)
+        private async Task ApplyRsrSettingsAsync(bool enabled, int sharpness)
         {
             if (_amdAdlxService == null)
             {
@@ -152,14 +208,13 @@ namespace HUDRA.Controls
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Applying RSR setting: {enabled}");
+                System.Diagnostics.Debug.WriteLine($"Applying RSR settings: enabled={enabled}, sharpness={sharpness}");
 
-                // Apply with default sharpness of 80%
-                bool success = await _amdAdlxService.SetRsrEnabledAsync(enabled, sharpness: 80);
+                bool success = await _amdAdlxService.SetRsrEnabledAsync(enabled, sharpness);
 
                 if (!success)
                 {
-                    System.Diagnostics.Debug.WriteLine("Failed to apply RSR setting");
+                    System.Diagnostics.Debug.WriteLine("Failed to apply RSR settings");
 
                     // Revert toggle state on failure
                     _isApplyingSettings = true;
@@ -171,18 +226,55 @@ namespace HUDRA.Controls
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR setting: {enabled}");
+                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR settings: enabled={enabled}, sharpness={sharpness}");
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error applying RSR setting: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error applying RSR settings: {ex.Message}");
 
                 // Revert toggle state on error
                 _isApplyingSettings = true;
                 _rsrEnabled = !enabled;
                 OnPropertyChanged(nameof(RsrEnabled));
                 _isApplyingSettings = false;
+            }
+        }
+
+        private async Task ApplyRsrSharpnessAsync(int sharpness)
+        {
+            if (_amdAdlxService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("AMD service not initialized");
+                return;
+            }
+
+            if (!_amdAdlxService.IsAmdGpuAvailable())
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot apply sharpness: No AMD GPU detected");
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying RSR sharpness: {sharpness}");
+
+                // Since RSR is already enabled, just update sharpness
+                bool success = await _amdAdlxService.SetRsrEnabledAsync(true, sharpness);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to apply RSR sharpness");
+                    // TODO: Show error message to user
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR sharpness: {sharpness}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying RSR sharpness: {ex.Message}");
             }
         }
 
@@ -204,35 +296,86 @@ namespace HUDRA.Controls
         // IGamepadNavigable event handlers
         public void OnGamepadNavigateUp()
         {
-            // Single element - no internal navigation
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Navigate up (no-op)");
+            // If slider is activated, adjust value instead of navigating
+            if (_isSliderActivated)
+            {
+                AdjustSliderValue(1); // Increase value
+                return;
+            }
+
+            if (_currentFocusedElement > 0)
+            {
+                _currentFocusedElement--;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Moved up to element {_currentFocusedElement}");
+            }
         }
 
         public void OnGamepadNavigateDown()
         {
-            // Single element - no internal navigation
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Navigate down (no-op)");
+            // If slider is activated, adjust value instead of navigating
+            if (_isSliderActivated)
+            {
+                AdjustSliderValue(-1); // Decrease value
+                return;
+            }
+
+            if (_currentFocusedElement < 1)
+            {
+                _currentFocusedElement++;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Moved down to element {_currentFocusedElement}");
+            }
         }
 
         public void OnGamepadNavigateLeft()
         {
-            // Single element - no internal navigation
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Navigate left (no-op)");
+            // If slider is activated, adjust value
+            if (_isSliderActivated)
+            {
+                AdjustSliderValue(-1); // Decrease value
+                return;
+            }
         }
 
         public void OnGamepadNavigateRight()
         {
-            // Single element - no internal navigation
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Navigate right (no-op)");
+            // If slider is activated, adjust value
+            if (_isSliderActivated)
+            {
+                AdjustSliderValue(1); // Increase value
+                return;
+            }
         }
 
         public void OnGamepadActivate()
         {
-            // Toggle RSR when activated
-            if (RsrToggle != null)
+            switch (_currentFocusedElement)
             {
-                RsrToggle.IsOn = !RsrToggle.IsOn;
-                System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Toggled RSR to {RsrToggle.IsOn}");
+                case 0: // RSR Toggle
+                    if (RsrToggle != null)
+                    {
+                        RsrToggle.IsOn = !RsrToggle.IsOn;
+                        System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Toggled RSR to {RsrToggle.IsOn}");
+                    }
+                    break;
+
+                case 1: // Sharpness Slider
+                    if (!_isSliderActivated)
+                    {
+                        // Activate slider for value adjustment
+                        _isSliderActivated = true;
+                        IsSliderActivated = true;
+                        System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Activated sharpness slider for adjustment");
+                    }
+                    else
+                    {
+                        // Deactivate slider
+                        _isSliderActivated = false;
+                        IsSliderActivated = false;
+                        System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Deactivated sharpness slider adjustment");
+                    }
+                    break;
             }
         }
 
@@ -244,7 +387,7 @@ namespace HUDRA.Controls
                 InitializeGamepadNavigationService();
             }
 
-            _currentFocusedElement = 0; // Focus on RSR Toggle
+            _currentFocusedElement = 0; // Start with RSR Toggle
             _isFocused = true;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Received gamepad focus");
@@ -253,6 +396,7 @@ namespace HUDRA.Controls
         public void OnGamepadFocusLost()
         {
             _isFocused = false;
+            _isSliderActivated = false;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Lost gamepad focus");
         }
@@ -263,6 +407,7 @@ namespace HUDRA.Controls
             DispatcherQueue.TryEnqueue(() =>
             {
                 OnPropertyChanged(nameof(RsrToggleFocusBrush));
+                OnPropertyChanged(nameof(SharpnessSliderFocusBrush));
             });
         }
 

@@ -59,5 +59,62 @@
                 </StackPanel>
             </StackPanel>
         </Border>
+
+        <!--  RSR Sharpness Slider  -->
+        <Border Padding="10,5,10,5" CornerRadius="12">
+            <StackPanel Spacing="10">
+                <Border
+                    x:Name="SharpnessSliderBorder"
+                    Margin="5"
+                    Padding="10,20,10,10"
+                    Background="#22FFFFFF"
+                    CornerRadius="12"
+                    BorderBrush="{x:Bind SharpnessSliderFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Sharpness" />
+                        <TextBlock
+                            Grid.Row="0"
+                            Grid.Column="1"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Text="{Binding RsrSharpness, Mode=OneWay}" />
+                        <Slider
+                            x:Name="SharpnessSlider"
+                            Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Maximum="100"
+                            Minimum="0"
+                            Value="{Binding RsrSharpness, Mode=TwoWay}" />
+                    </Grid>
+                </Border>
+
+                <!--  Sharpness Description  -->
+                <StackPanel Padding="5" Spacing="0">
+                    <TextBlock
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Adjusts the sharpness level of RSR upscaling."
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="Lower values (0-50) are softer. Higher values (50-100) are sharper."
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>
