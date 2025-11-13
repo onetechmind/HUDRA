@@ -531,7 +531,7 @@ namespace HUDRA.Services
         /// <summary>
         /// Try to match a running process against Xbox games in the database by executable name.
         /// This fallback is used when exact path matching fails (common with Game Pass due to junctions).
-        /// Checks the AlternativeExecutables list which contains all .exe files found during scan (up to 2 levels deep).
+        /// Checks the AlternativeExecutables list which contains all .exe files found during scan (up to 5 levels deep).
         /// This handles edge cases like Expedition 33 where MicrosoftGame.config lists "SandFall.exe"
         /// but the actual running process is "SandFall-WinGDK-Shipping.exe".
         /// Only matches against games already in the database - does NOT add new games.
@@ -555,7 +555,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
 
                 // Check each Xbox game's alternative executables list
-                // This list was populated during scan by enumerating all .exe files up to 2 levels deep
+                // This list was populated during scan by enumerating all .exe files up to 5 levels deep
                 foreach (var xboxGame in xboxGames)
                 {
                     // First try exact path match

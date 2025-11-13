@@ -223,12 +223,12 @@ namespace HUDRA.Services.GameLibraryProviders
                             # Extract display name from the parent folder name (go up one level from Content)
                             $folderName = Split-Path -Leaf (Split-Path -Parent $actualLocation)
 
-                            # Scan for all .exe files up to 2 levels deep in the game folder
+                            # Scan for all .exe files up to 5 levels deep in the game folder
                             # This helps detect games where the actual running exe differs from MicrosoftGame.config
                             $allExeNames = @()
                             try {
-                                # Get all .exe files in root and up to 2 levels of subfolders
-                                $exeFiles = Get-ChildItem -Path $actualLocation -Filter '*.exe' -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                                # Get all .exe files in root and up to 5 levels of subfolders
+                                $exeFiles = Get-ChildItem -Path $actualLocation -Filter '*.exe' -Recurse -Depth 5 -ErrorAction SilentlyContinue
                                 $allExeNames = $exeFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) } | Select-Object -Unique
                             } catch {
                                 # If enumeration fails, just use the main exe from config
