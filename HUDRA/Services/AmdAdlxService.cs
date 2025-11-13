@@ -382,7 +382,7 @@ namespace HUDRA.Services
         {
             try
             {
-                // Method 1: Try to restart AMD Radeon Software service/process
+                // Method 1: Try to find AMD Radeon Software service/process
                 var amdProcesses = new[] { "RadeonSoftware", "AMDRSServ", "AMD External Events Utility" };
 
                 foreach (var processName in amdProcesses)
@@ -396,8 +396,18 @@ namespace HUDRA.Services
                             // Don't restart - just log that it's running
                             // Settings should apply on next driver activation
                         }
+
+                        // Dispose process handles
+                        foreach (var proc in processes)
+                        {
+                            proc?.Dispose();
+                        }
                     }
-                    catch { }
+                    catch (Exception ex)
+                    {
+                        // Silently ignore process enumeration errors
+                        System.Diagnostics.Debug.WriteLine($"Could not check process {processName}: {ex.GetType().Name}");
+                    }
                 }
 
                 // Method 2: Broadcast WM_SETTINGCHANGE message
