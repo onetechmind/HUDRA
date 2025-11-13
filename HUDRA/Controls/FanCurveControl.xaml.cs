@@ -1525,7 +1525,12 @@ namespace HUDRA.Controls
             IsFocused = false;
             UpdateFocusVisuals();
         }
-        
+
+        public void FocusLastElement()
+        {
+            // Not used - FanCurveControl is not in a NavigableExpander
+        }
+
         private void InitializeGamepadNavigation()
         {
             GamepadNavigation.SetIsEnabled(this, true);

@@ -488,6 +488,11 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 HotkeySelector: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Not used - HotkeySelector is not in a NavigableExpander
+        }
+
         public void AdjustSliderValue(int direction)
         {
             // No sliders in HotkeySelector control
