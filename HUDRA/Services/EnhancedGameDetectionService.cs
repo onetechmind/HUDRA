@@ -25,6 +25,7 @@ namespace HUDRA.Services
         private bool _disposed = false;
         private bool _isDatabaseReady = false;
         private bool _isScanning = false;
+        private bool _isMonitoringActiveGame = false; // Flag to pause expensive process scanning when game is running
         
 
         // Enhanced scanning properties and events
@@ -287,7 +288,18 @@ namespace HUDRA.Services
 
             try
             {
-                var detectedGame = DetectActiveGame();
+                // Optimization: If we're monitoring an active game, just check if it's still running
+                // This avoids expensive process scanning while a game is active
+                GameInfo? detectedGame;
+                if (_isMonitoringActiveGame && _currentGame != null)
+                {
+                    detectedGame = IsCurrentGameStillRunning();
+                }
+                else
+                {
+                    // No active game - do full process scan to find one
+                    detectedGame = DetectActiveGame();
+                }
                 
                 // Enhanced game change logic with window handle refresh
                 bool gameChanged = false;
@@ -326,6 +338,20 @@ namespace HUDRA.Services
                 {
                     _currentGame = detectedGame;
 
+                    // Update monitoring state
+                    if (_currentGame != null)
+                    {
+                        // Game started - pause expensive process scanning
+                        _isMonitoringActiveGame = true;
+                        System.Diagnostics.Debug.WriteLine("Enhanced: Pausing process scanning - monitoring active game");
+                    }
+                    else
+                    {
+                        // Game stopped - resume process scanning
+                        _isMonitoringActiveGame = false;
+                        System.Diagnostics.Debug.WriteLine("Enhanced: Resuming process scanning - no active game");
+                    }
+
                     _dispatcher.TryEnqueue(() =>
                     {
                         if (_currentGame != null)
@@ -363,9 +389,59 @@ namespace HUDRA.Services
             {
                 return null; // No detection when disabled
             }
-            
+
             // Enhanced detection (database + directory fallback)
             return DetectEnhancedGame();
+        }
+
+        /// <summary>
+        /// Lightweight check if the current game is still running.
+        /// Used when monitoring an active game to avoid expensive process scanning.
+        /// Only checks the specific process ID rather than scanning all processes.
+        /// </summary>
+        private GameInfo? IsCurrentGameStillRunning()
+        {
+            if (_currentGame == null)
+                return null;
+
+            try
+            {
+                // Try to get the process by ID (lightweight operation)
+                var process = Process.GetProcessById(_currentGame.ProcessId);
+
+                // Check if process has exited
+                if (process.HasExited)
+                {
+                    process.Dispose();
+                    return null; // Game stopped
+                }
+
+                // Game still running - get fresh window handle
+                var windowHandle = GetValidWindowHandle(process);
+
+                // Return updated GameInfo with refreshed window handle
+                var updatedGameInfo = new GameInfo
+                {
+                    ProcessName = _currentGame.ProcessName,
+                    WindowTitle = _currentGame.WindowTitle,
+                    ProcessId = _currentGame.ProcessId,
+                    WindowHandle = windowHandle,
+                    ExecutablePath = _currentGame.ExecutablePath
+                };
+
+                process.Dispose();
+                return updatedGameInfo;
+            }
+            catch (ArgumentException)
+            {
+                // Process no longer exists
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Enhanced: Error checking if game still running: {ex.Message}");
+                return null;
+            }
         }
 
         /// <summary>
