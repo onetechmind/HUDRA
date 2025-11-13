@@ -406,11 +406,15 @@ namespace HUDRA.Services
 
             try
             {
+                // Track last Xbox game match as fallback if no process has valid window handle
+                DetectedGame? lastXboxMatch = null;
+                Process? lastXboxProcess = null;
+
                 // Get all processes and filter out system processes more aggressively
                 var allProcesses = Process.GetProcesses();
-                var candidateProcesses = allProcesses.Where(p => 
+                var candidateProcesses = allProcesses.Where(p =>
                     ShouldScanProcess(p)).ToList();
-                
+
                 foreach (var process in candidateProcesses)
                 {
                     try
@@ -455,7 +459,15 @@ namespace HUDRA.Services
                             // Game Pass games often have multiple processes with the same exe name
                             if (windowHandle == IntPtr.Zero && matchingGame.Source == GameSource.Xbox)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox game '{matchingGame.DisplayName}' matched but no valid window handle. Continuing search for other processes with same exe...");
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox game '{matchingGame.DisplayName}' matched but no valid window handle (PID: {process.Id}). Saving as fallback and continuing search...");
+
+                                // Save this as fallback in case we don't find any process with valid handle
+                                if (lastXboxMatch == null)
+                                {
+                                    lastXboxMatch = matchingGame;
+                                    lastXboxProcess = process;
+                                }
+
                                 continue; // Keep searching for other processes with same name
                             }
 
@@ -490,7 +502,23 @@ namespace HUDRA.Services
                         process.Dispose();
                     }
                 }
-                
+
+                // If we found an Xbox game match but none had valid window handles, return the fallback
+                // This handles cases where all processes for a Game Pass game lack proper window handles
+                if (lastXboxMatch != null && lastXboxProcess != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Enhanced: No Xbox processes with valid handles found. Returning fallback match for '{lastXboxMatch.DisplayName}' (PID: {lastXboxProcess.Id})");
+
+                    return new GameInfo
+                    {
+                        ProcessName = lastXboxMatch.ProcessName,
+                        WindowTitle = lastXboxMatch.DisplayName,
+                        ProcessId = lastXboxProcess.Id,
+                        WindowHandle = IntPtr.Zero, // No valid handle available
+                        ExecutablePath = lastXboxMatch.ExecutablePath
+                    };
+                }
+
                 return null;
             }
             catch (Exception ex)
