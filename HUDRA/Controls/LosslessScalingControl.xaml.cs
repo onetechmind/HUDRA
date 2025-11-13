@@ -291,6 +291,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 LosslessScaling: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 5: Restore button)
+            _currentFocusedElement = 5;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 LosslessScaling: Focused last element (Restore button)");
+        }
+
         public void AdjustSliderValue(int direction)
         {
             if (!_isSliderActivated) return;

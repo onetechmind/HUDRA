@@ -204,6 +204,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 3: Auto-start with Windows toggle)
+            _currentFocusedElement = 3;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Focused last element (Auto-start with Windows)");
+        }
+
         public void AdjustSliderValue(int direction)
         {
             // No sliders in StartupOptions control

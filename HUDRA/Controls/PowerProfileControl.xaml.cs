@@ -606,6 +606,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 4: AC Power Profile)
+            _currentFocusedElement = 4;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Focused last element (AC Power Profile)");
+        }
+
         public void AdjustSliderValue(int direction)
         {
             // No sliders in PowerProfile control

@@ -600,7 +600,23 @@ namespace HUDRA.Services
 
             if (nextIndex != currentIndex)
             {
-                SetFocus(navigableElements[nextIndex]);
+                var nextElement = navigableElements[nextIndex];
+
+                // Check if next element is an open NavigableExpander
+                if (nextElement is NavigableExpander expander && expander.IsExpanded && expander.Body is IGamepadNavigable bodyControl && expander.Body is FrameworkElement bodyElement)
+                {
+                    // For UP navigation, enter the body at the LAST element
+                    if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
+                    {
+                        SetFocus(bodyElement);
+                        bodyControl.FocusLastElement();
+                        System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP into expanded expander at last element");
+                        return;
+                    }
+                    // For DOWN navigation, the expander's CanNavigateDown will handle it
+                }
+
+                SetFocus(nextElement);
             }
         }
 

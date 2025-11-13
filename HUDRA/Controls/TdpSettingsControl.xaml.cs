@@ -254,6 +254,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 TdpSettings: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 2: Sticky TDP toggle)
+            _currentFocusedElement = 2;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 TdpSettings: Focused last element (Sticky TDP)");
+        }
+
         public void AdjustSliderValue(int direction)
         {
             // No sliders in TDP Settings, but delegate to TdpPicker if focused

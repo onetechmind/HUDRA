@@ -36,13 +36,6 @@ namespace HUDRA.Controls
             {
                 BodyContentPresenter.Visibility = IsExpanded ? Visibility.Visible : Visibility.Collapsed;
                 System.Diagnostics.Debug.WriteLine($"🎮 NavigableExpander: Set content visibility to {BodyContentPresenter.Visibility} (IsExpanded: {IsExpanded})");
-
-                // Also update CanNavigate on the body content to prevent navigation when collapsed
-                if (Body is DependencyObject bodyElement)
-                {
-                    GamepadNavigation.SetCanNavigate(bodyElement, IsExpanded);
-                    System.Diagnostics.Debug.WriteLine($"🎮 NavigableExpander: Set body CanNavigate to {IsExpanded}");
-                }
             }
         }
 
@@ -180,6 +173,12 @@ namespace HUDRA.Controls
         public void OnGamepadFocusLost()
         {
             IsFocused = false;
+        }
+
+        public void FocusLastElement()
+        {
+            // NavigableExpander is just a header, no internal elements to focus
+            // This method is not applicable for expanders
         }
 
         public bool IsFocused

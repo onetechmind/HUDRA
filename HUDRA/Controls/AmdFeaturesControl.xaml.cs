@@ -403,6 +403,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (sharpness slider)
+            _currentFocusedElement = 1;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Focused last element (sharpness slider)");
+        }
+
         private void UpdateFocusVisuals()
         {
             // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation

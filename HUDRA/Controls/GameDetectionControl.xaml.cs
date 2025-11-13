@@ -271,6 +271,15 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 3: Display notification toggle)
+            _currentFocusedElement = 3;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Display notification)");
+        }
+
         public void AdjustSliderValue(int direction)
         {
             // No sliders in GameDetection control
