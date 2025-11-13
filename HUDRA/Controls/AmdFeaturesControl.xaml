@@ -37,7 +37,7 @@
                             FontFamily="Cascadia Code"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Text="Radeon Super Resolution" />
+                            Text="Radeon Super&#x0a;Resolution" />
                         <ToggleSwitch
                             x:Name="RsrToggle"
                             Grid.Column="1"
@@ -46,22 +46,16 @@
                 </Border>
 
                 <!--  RSR Description  -->
-                <StackPanel Padding="5" Spacing="0">
-                    <TextBlock
+                <TextBlock
+                    Padding="5,0,5,0"
                         Style="{StaticResource SettingsDescriptionStyle}"
                         Text="AMD's upscaling technology for improved image quality."
                         TextWrapping="Wrap" />
-                    <TextBlock
-                        Margin="0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Works with all games and displays to enhance visual fidelity."
-                        TextWrapping="Wrap" />
-                </StackPanel>
             </StackPanel>
         </Border>
 
         <!--  RSR Sharpness Slider  -->
-        <Border Padding="10,5,10,5" CornerRadius="12">
+        <Border Padding="10,0,10,5" CornerRadius="12">
             <StackPanel Spacing="10">
                 <Border
                     x:Name="SharpnessSliderBorder"
@@ -104,16 +98,11 @@
                 </Border>
 
                 <!--  Sharpness Description  -->
-                <StackPanel Padding="5" Spacing="0">
-                    <TextBlock
+                <TextBlock
+                    Padding="10,0,10,0"
                         Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Adjusts the sharpness level of RSR upscaling."
+                        Text="Adjusts the sharpness level of RSR."
                         TextWrapping="Wrap" />
-                    <TextBlock
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Lower values (0-50) are softer. Higher values (50-100) are sharper."
-                        TextWrapping="Wrap" />
-                </StackPanel>
             </StackPanel>
         </Border>
     </StackPanel>

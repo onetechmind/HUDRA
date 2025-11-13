@@ -30,6 +30,10 @@
     <None Remove="Controls\FanControlControl.xaml" />
     <None Remove="Controls\FanCurveControl.xaml" />
     <None Remove="Controls\TdpPickerControl.xaml" />
+    <None Remove="External Resources\AMD\ADLX\ADLX_3DSettings.dll" />
+    <None Remove="External Resources\AMD\ADLX\ADLX_AutoTuning.dll" />
+    <None Remove="External Resources\AMD\ADLX\ADLX_DisplaySettings.dll" />
+    <None Remove="External Resources\AMD\ADLX\ADLX_PerformanceMetrics.dll" />
     <None Remove="Tools\RTSSHooks.dll" />
     <None Remove="Tools\RTSSHooks64.dll" />
     <None Remove="Tools\RTSSSharedMemoryNET.dll" />
@@ -48,6 +52,18 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="Configuration\Settings.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="External Resources\AMD\ADLX\ADLX_3DSettings.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="External Resources\AMD\ADLX\ADLX_AutoTuning.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="External Resources\AMD\ADLX\ADLX_DisplaySettings.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="External Resources\AMD\ADLX\ADLX_PerformanceMetrics.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Tools\RTSSHooks.dll">
