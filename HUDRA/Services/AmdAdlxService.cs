@@ -37,8 +37,6 @@ namespace HUDRA.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("AmdAdlxService: Starting initialization...");
-
                 // Check if AMD GPU is present (with additional safety)
                 try
                 {
@@ -53,8 +51,6 @@ namespace HUDRA.Services
 
                 if (_isAmdGpuPresent)
                 {
-                    System.Diagnostics.Debug.WriteLine("AMD GPU detected");
-
                     // Try to initialize ADLX (with additional safety)
                     try
                     {
@@ -65,27 +61,11 @@ namespace HUDRA.Services
                         System.Diagnostics.Debug.WriteLine($"AmdAdlxService: ADLX init failed: {adlxEx.Message}");
                         _isAdlxAvailable = false;
                     }
-
-                    if (_isAdlxAvailable)
-                    {
-                        System.Diagnostics.Debug.WriteLine("ADLX SDK initialized successfully");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("ADLX SDK not available, will use registry fallback");
-                    }
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("No AMD GPU detected");
-                }
-
-                System.Diagnostics.Debug.WriteLine("AmdAdlxService: Initialization complete");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"AmdAdlxService: Fatal error during initialization: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"AmdAdlxService: Stack trace: {ex.StackTrace}");
                 _isAmdGpuPresent = false;
                 _isAdlxAvailable = false;
             }
@@ -101,23 +81,16 @@ namespace HUDRA.Services
                 // Method 1: Check registry first (more reliable than WMI)
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine("Checking registry for AMD GPU...");
                     using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"))
                     {
                         if (key != null)
                         {
                             var providerName = key.GetValue("ProviderName")?.ToString() ?? "";
-                            System.Diagnostics.Debug.WriteLine($"Registry ProviderName: '{providerName}'");
                             if (providerName.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
                                 providerName.Contains("ATI", StringComparison.OrdinalIgnoreCase))
                             {
-                                System.Diagnostics.Debug.WriteLine($"Found AMD GPU via registry: {providerName}");
                                 return true;
                             }
-                        }
-                        else
-                        {
-                            System.Diagnostics.Debug.WriteLine("Registry key 0000 is null");
                         }
                     }
                 }
@@ -129,8 +102,6 @@ namespace HUDRA.Services
                 // Method 2: Check via WMI (with protection against crashes)
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine("Attempting WMI check for AMD GPU...");
-
                     // Use a timeout and run on a separate thread to prevent hangs
                     var wmiTask = Task.Run(() =>
                     {
@@ -143,14 +114,11 @@ namespace HUDRA.Services
                                     var name = obj["Name"]?.ToString() ?? "";
                                     var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
 
-                                    System.Diagnostics.Debug.WriteLine($"WMI found GPU: Name='{name}', Compatibility='{adapterCompatibility}'");
-
                                     if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
                                         name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
                                         adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
                                         adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
                                     {
-                                        System.Diagnostics.Debug.WriteLine($"Found AMD GPU via WMI: {name}");
                                         return true;
                                     }
                                 }
@@ -172,10 +140,6 @@ namespace HUDRA.Services
                             return true;
                         }
                     }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("WMI query timed out after 3 seconds");
-                    }
                 }
                 catch (Exception ex)
                 {
@@ -187,7 +151,6 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"Error detecting AMD GPU: {ex.Message}");
             }
 
-            System.Diagnostics.Debug.WriteLine("No AMD GPU detected");
             return false;
         }
 
@@ -198,8 +161,6 @@ namespace HUDRA.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("Attempting to initialize ADLX SDK...");
-
                 // Check if ADLX DLL is available (this does file existence check only)
                 bool dllExists = false;
                 try
@@ -214,7 +175,6 @@ namespace HUDRA.Services
 
                 if (!dllExists)
                 {
-                    System.Diagnostics.Debug.WriteLine("ADLX DLL not found - will use registry fallback");
                     return false;
                 }
 
@@ -242,21 +202,11 @@ namespace HUDRA.Services
                     return false;
                 }
 
-                if (initSuccess)
-                {
-                    System.Diagnostics.Debug.WriteLine($"ADLX initialized successfully. RSR supported: {supported}");
-                    return true;
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("ADLX DLL found but initialization failed - will use registry fallback");
-                    return false;
-                }
+                return initSuccess;
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing ADLX: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
         }

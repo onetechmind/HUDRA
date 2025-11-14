@@ -155,7 +155,6 @@ namespace HUDRA.Controls
                         _pendingSharpness = value;
                         _sharpnessDebounceTimer.Stop();
                         _sharpnessDebounceTimer.Start();
-                        System.Diagnostics.Debug.WriteLine($"RSR Sharpness changed to {value}, debouncing...");
                     }
                 }
             }
@@ -231,7 +230,6 @@ namespace HUDRA.Controls
 
             if (_pendingSharpness >= 0 && _rsrEnabled)
             {
-                System.Diagnostics.Debug.WriteLine($"Applying debounced RSR sharpness: {_pendingSharpness}");
                 await ApplyRsrSharpnessAsync(_pendingSharpness);
                 _pendingSharpness = -1;
             }
@@ -244,21 +242,16 @@ namespace HUDRA.Controls
                 // If initialization has already failed once, don't try again
                 if (_initializationFailed)
                 {
-                    System.Diagnostics.Debug.WriteLine("AMD service initialization previously failed, skipping retry");
                     return;
                 }
 
                 // If service already exists (singleton), reuse it
                 if (_sharedAmdAdlxService != null)
                 {
-                    System.Diagnostics.Debug.WriteLine("AMD service already initialized, reusing existing instance");
-
                     // Load current state from the existing service
                     await LoadCurrentStateAsync();
                     return;
                 }
-
-                System.Diagnostics.Debug.WriteLine("Initializing AMD service for the first time...");
 
                 // Wrap service creation in try-catch to prevent crashes
                 try
@@ -295,7 +288,6 @@ namespace HUDRA.Controls
         {
             if (_amdAdlxService == null)
             {
-                System.Diagnostics.Debug.WriteLine("Cannot load state: AMD service is null");
                 return;
             }
 
@@ -311,8 +303,6 @@ namespace HUDRA.Controls
                     OnPropertyChanged(nameof(RsrEnabled));
                     OnPropertyChanged(nameof(RsrSharpness));
                     _isApplyingSettings = false;
-
-                    System.Diagnostics.Debug.WriteLine($"Loaded RSR state: enabled={enabled}, sharpness={sharpness}");
                 }
 
                 // Load current AFMF state
@@ -323,8 +313,6 @@ namespace HUDRA.Controls
                     _afmfEnabled = afmfEnabled;
                     OnPropertyChanged(nameof(AfmfEnabled));
                     _isApplyingSettings = false;
-
-                    System.Diagnostics.Debug.WriteLine($"Loaded AFMF state: enabled={afmfEnabled}");
                 }
 
                 // Load current Anti-Lag state
@@ -335,8 +323,6 @@ namespace HUDRA.Controls
                     _antiLagEnabled = antiLagEnabled;
                     OnPropertyChanged(nameof(AntiLagEnabled));
                     _isApplyingSettings = false;
-
-                    System.Diagnostics.Debug.WriteLine($"Loaded Anti-Lag state: enabled={antiLagEnabled}");
                 }
             }
             catch (Exception ex)
@@ -366,8 +352,6 @@ namespace HUDRA.Controls
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Applying RSR settings: enabled={enabled}, sharpness={sharpness}");
-
                 bool success = await _amdAdlxService.SetRsrEnabledAsync(enabled, sharpness);
 
                 if (!success)
@@ -379,12 +363,6 @@ namespace HUDRA.Controls
                     _rsrEnabled = !enabled;
                     OnPropertyChanged(nameof(RsrEnabled));
                     _isApplyingSettings = false;
-
-                    // TODO: Show error message to user
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR settings: enabled={enabled}, sharpness={sharpness}");
                 }
             }
             catch (Exception ex)
@@ -415,19 +393,12 @@ namespace HUDRA.Controls
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Applying RSR sharpness: {sharpness}");
-
                 // Since RSR is already enabled, just update sharpness
                 bool success = await _amdAdlxService.SetRsrEnabledAsync(true, sharpness);
 
                 if (!success)
                 {
                     System.Diagnostics.Debug.WriteLine("Failed to apply RSR sharpness");
-                    // TODO: Show error message to user
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Successfully applied RSR sharpness: {sharpness}");
                 }
             }
             catch (Exception ex)
@@ -452,8 +423,6 @@ namespace HUDRA.Controls
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Applying AFMF settings: enabled={enabled}");
-
                 bool success = await _amdAdlxService.SetAfmfEnabledAsync(enabled);
 
                 if (!success)
@@ -465,12 +434,6 @@ namespace HUDRA.Controls
                     _afmfEnabled = !enabled;
                     OnPropertyChanged(nameof(AfmfEnabled));
                     _isApplyingSettings = false;
-
-                    // TODO: Show error message to user
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Successfully applied AFMF settings: enabled={enabled}");
                 }
             }
             catch (Exception ex)
@@ -501,8 +464,6 @@ namespace HUDRA.Controls
 
             try
             {
-                System.Diagnostics.Debug.WriteLine($"Applying Anti-Lag settings: enabled={enabled}");
-
                 bool success = await _amdAdlxService.SetAntiLagEnabledAsync(enabled);
 
                 if (!success)
@@ -514,12 +475,6 @@ namespace HUDRA.Controls
                     _antiLagEnabled = !enabled;
                     OnPropertyChanged(nameof(AntiLagEnabled));
                     _isApplyingSettings = false;
-
-                    // TODO: Show error message to user
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Successfully applied Anti-Lag settings: enabled={enabled}");
                 }
             }
             catch (Exception ex)
