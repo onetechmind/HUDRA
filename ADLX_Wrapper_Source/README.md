@@ -29,11 +29,14 @@ This directory contains the C++ source code for the ADLX_3DSettings.dll wrapper 
    │   │   ├── ADLX.h
    │   │   ├── I3DSettings.h
    │   │   └── ... (other interface headers)
-   │   └── ADLXHelper/
+   │   ├── ADLXHelper/
+   │   │   └── Windows/
+   │   │       └── Cpp/
+   │   │           ├── ADLXHelper.h
+   │   │           └── ADLXHelper.cpp
+   │   └── Platform/
    │       └── Windows/
-   │           └── Cpp/
-   │               ├── ADLXHelper.h
-   │               └── ADLXHelper.cpp
+   │           └── WinAPIs.cpp
    └── ADLX_3DSettings.cpp
    ```
 
@@ -53,7 +56,7 @@ This directory contains the C++ source code for the ADLX_3DSettings.dll wrapper 
    cl.exe /LD /O2 /EHsc /MD ^
       /I"SDK\Include" ^
       /I"SDK\ADLXHelper\Windows\Cpp" ^
-      ADLX_3DSettings.cpp SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp ^
+      ADLX_3DSettings.cpp SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp SDK\Platform\Windows\WinAPIs.cpp ^
       /link /OUT:ADLX_3DSettings.dll
    ```
 
@@ -94,6 +97,7 @@ Create `ADLX_3DSettings.vcxproj` with the following content:
   <ItemGroup>
     <ClCompile Include="ADLX_3DSettings.cpp" />
     <ClCompile Include="SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp" />
+    <ClCompile Include="SDK\Platform\Windows\WinAPIs.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
