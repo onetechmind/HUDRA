@@ -116,6 +116,8 @@ namespace HUDRA.Controls
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
             GamepadNavigation.SetNavigationOrder(this, 1);
+            // Not directly navigable at page level - only accessible through parent expander
+            GamepadNavigation.SetCanNavigate(this, false);
         }
 
         private void InitializeGamepadNavigationService()
@@ -250,6 +252,15 @@ namespace HUDRA.Controls
             }
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 TdpSettings: Lost gamepad focus");
+        }
+
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 2: Sticky TDP toggle)
+            _currentFocusedElement = 2;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 TdpSettings: Focused last element (Sticky TDP)");
         }
 
         public void AdjustSliderValue(int direction)

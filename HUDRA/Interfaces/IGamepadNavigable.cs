@@ -18,6 +18,7 @@ namespace HUDRA.Interfaces
         void OnGamepadActivate();
         void OnGamepadFocusReceived();
         void OnGamepadFocusLost();
+        void FocusLastElement(); // Focus the last navigable element within this control
         
         FrameworkElement NavigationElement { get; }
         

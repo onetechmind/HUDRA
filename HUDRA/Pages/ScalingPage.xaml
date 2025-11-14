@@ -2,6 +2,7 @@
     x:Class="HUDRA.Pages.ScalingPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:controls="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -30,12 +31,42 @@
                     Text="SCALING" />
             </Border>
 
+            <!--  AMD Features Settings Section (Navigable Expander)  -->
+            <controls:NavigableExpander
+                x:Name="AmdFeaturesExpander"
+                Margin="0"
+                Padding="0"
+                HorizontalAlignment="Stretch"
+                ap:GamepadNavigation.NavigationOrder="10">
+                <controls:NavigableExpander.Header>
+                    <StackPanel
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <Image
+                            Width="25"
+                            Height="25"
+                            Source="/Assets/amd-logo.png" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="AMD Features" />
+                    </StackPanel>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <controls:AmdFeaturesControl x:Name="AmdFeaturesControl" />
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
+
             <!--  Lossless Scaling Settings Section (Navigable Expander)  -->
             <controls:NavigableExpander
                 x:Name="LosslessScalingExpander"
-                HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                HorizontalAlignment="Stretch"
+                ap:GamepadNavigation.NavigationOrder="20">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"

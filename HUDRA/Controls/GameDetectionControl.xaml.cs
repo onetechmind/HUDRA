@@ -107,6 +107,8 @@ namespace HUDRA.Controls
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
             GamepadNavigation.SetNavigationOrder(this, 1);
+            // Not directly navigable at page level - only accessible through parent expander
+            GamepadNavigation.SetCanNavigate(this, false);
         }
 
         private void InitializeGamepadNavigationService()
@@ -267,6 +269,15 @@ namespace HUDRA.Controls
             IsNavigatingComboBox = false;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Lost gamepad focus");
+        }
+
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 3: Display notification toggle)
+            _currentFocusedElement = 3;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Display notification)");
         }
 
         public void AdjustSliderValue(int direction)

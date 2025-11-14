@@ -207,6 +207,11 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 Brightness: Lost gamepad focus");
         }
 
+        public void FocusLastElement()
+        {
+            // Not used - BrightnessControlControl is not in a NavigableExpander
+        }
+
         private void UpdateFocusVisuals()
         {
             // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation

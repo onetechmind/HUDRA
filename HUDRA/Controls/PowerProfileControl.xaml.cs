@@ -168,6 +168,8 @@ namespace HUDRA.Controls
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
             GamepadNavigation.SetNavigationOrder(this, 1);
+            // Not directly navigable at page level - only accessible through parent expander
+            GamepadNavigation.SetCanNavigate(this, false);
         }
 
         private void InitializeGamepadNavigationService()
@@ -602,6 +604,15 @@ namespace HUDRA.Controls
             IsNavigatingComboBox = false;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Lost gamepad focus");
+        }
+
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 4: AC Power Profile)
+            _currentFocusedElement = 4;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Focused last element (AC Power Profile)");
         }
 
         public void AdjustSliderValue(int direction)

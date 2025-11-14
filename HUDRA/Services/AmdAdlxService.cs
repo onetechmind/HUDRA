@@ -1,0 +1,739 @@
+using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using Microsoft.Win32;
+using HUDRA.Services.AMD;
+
+namespace HUDRA.Services
+{
+    /// <summary>
+    /// Service for controlling AMD GPU features using ADLX SDK.
+    /// Falls back to registry-based control if ADLX is not available.
+    /// </summary>
+    public class AmdAdlxService : IDisposable
+    {
+        private bool _disposed = false;
+        private bool _isAmdGpuPresent = false;
+        private bool _isAdlxAvailable = false;
+        private IntPtr _adlxContext = IntPtr.Zero;
+
+        // ADLX DLL name (should be in System32 or driver folder)
+        private const string ADLX_DLL = "amdxx64.dll"; // AMD Display Library
+
+        // Registry paths for AMD driver settings
+        private const string AMD_REGISTRY_PATH = @"Software\AMD\CN";
+        private const string AMD_REGISTRY_KEY_RSR_ENABLE = "RSR_Enable";
+        private const string AMD_REGISTRY_KEY_RSR_SHARPNESS = "RSR_Sharpness";
+
+        public AmdAdlxService()
+        {
+            Initialize();
+        }
+
+        private void Initialize()
+        {
+            try
+            {
+                // Check if AMD GPU is present (with additional safety)
+                try
+                {
+                    _isAmdGpuPresent = DetectAmdGpu();
+                }
+                catch (Exception detectEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AmdAdlxService: GPU detection failed: {detectEx.Message}");
+                    _isAmdGpuPresent = false;
+                    return;
+                }
+
+                if (_isAmdGpuPresent)
+                {
+                    // Try to initialize ADLX (with additional safety)
+                    try
+                    {
+                        _isAdlxAvailable = TryInitializeAdlx();
+                    }
+                    catch (Exception adlxEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"AmdAdlxService: ADLX init failed: {adlxEx.Message}");
+                        _isAdlxAvailable = false;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AmdAdlxService: Fatal error during initialization: {ex.Message}");
+                _isAmdGpuPresent = false;
+                _isAdlxAvailable = false;
+            }
+        }
+
+        /// <summary>
+        /// Detect if an AMD GPU is present in the system
+        /// </summary>
+        private bool DetectAmdGpu()
+        {
+            try
+            {
+                // Method 1: Check registry first (more reliable than WMI)
+                try
+                {
+                    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"))
+                    {
+                        if (key != null)
+                        {
+                            var providerName = key.GetValue("ProviderName")?.ToString() ?? "";
+                            if (providerName.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                providerName.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error checking registry for AMD GPU: {ex.Message}");
+                }
+
+                // Method 2: Check via WMI (with protection against crashes)
+                try
+                {
+                    // Use a timeout and run on a separate thread to prevent hangs
+                    var wmiTask = Task.Run(() =>
+                    {
+                        try
+                        {
+                            using (var searcher = new System.Management.ManagementObjectSearcher("SELECT Name, AdapterCompatibility FROM Win32_VideoController"))
+                            {
+                                foreach (var obj in searcher.Get())
+                                {
+                                    var name = obj["Name"]?.ToString() ?? "";
+                                    var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
+
+                                    if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                        name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
+                                        adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                        adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        return true;
+                                    }
+                                }
+                            }
+                            return false;
+                        }
+                        catch (Exception wmiEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"WMI query exception: {wmiEx.Message}");
+                            return false;
+                        }
+                    });
+
+                    // Wait up to 3 seconds for WMI query
+                    if (wmiTask.Wait(TimeSpan.FromSeconds(3)))
+                    {
+                        if (wmiTask.Result)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error during WMI check: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error detecting AMD GPU: {ex.Message}");
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Try to initialize ADLX SDK
+        /// </summary>
+        private bool TryInitializeAdlx()
+        {
+            try
+            {
+                // Check if ADLX DLL is available (this does file existence check only)
+                bool dllExists = false;
+                try
+                {
+                    dllExists = AdlxWrapper.IsAdlxDllAvailable();
+                }
+                catch (Exception dllCheckEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL availability check failed: {dllCheckEx.Message}");
+                    return false;
+                }
+
+                if (!dllExists)
+                {
+                    return false;
+                }
+
+                // Test ADLX functionality by checking RSR support
+                // Wrap in additional try-catch to prevent P/Invoke crashes
+                bool supported = false;
+                bool initSuccess = false;
+                try
+                {
+                    initSuccess = AdlxWrapper.TryHasRSRSupport(out supported);
+                }
+                catch (DllNotFoundException dllEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL could not be loaded: {dllEx.Message}");
+                    return false;
+                }
+                catch (BadImageFormatException imgEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL architecture mismatch: {imgEx.Message}");
+                    return false;
+                }
+                catch (Exception wrapperEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX wrapper call failed: {wrapperEx.Message}");
+                    return false;
+                }
+
+                return initSuccess;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing ADLX: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Check if AMD GPU is present
+        /// </summary>
+        public bool IsAmdGpuAvailable()
+        {
+            return _isAmdGpuPresent;
+        }
+
+        /// <summary>
+        /// Get current RSR state
+        /// </summary>
+        public async Task<(bool success, bool enabled, int sharpness)> GetRsrStateAsync()
+        {
+            if (!_isAmdGpuPresent)
+            {
+                return (false, false, 0);
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to get RSR state
+                        return GetRsrStateViaAdlx();
+                    }
+                    else
+                    {
+                        // Use registry to get RSR state
+                        return GetRsrStateViaRegistry();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting RSR state: {ex.Message}");
+                    return (false, false, 0);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Enable or disable RSR
+        /// </summary>
+        public async Task<bool> SetRsrEnabledAsync(bool enabled, int sharpness = 80)
+        {
+            if (!_isAmdGpuPresent)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot set RSR: No AMD GPU detected");
+                return false;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Setting RSR: enabled={enabled}, sharpness={sharpness}");
+
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to set RSR
+                        return SetRsrViaAdlx(enabled, sharpness);
+                    }
+                    else
+                    {
+                        // Use registry to set RSR
+                        return SetRsrViaRegistry(enabled, sharpness);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error setting RSR: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Get current AFMF state
+        /// </summary>
+        public async Task<(bool success, bool enabled)> GetAfmfStateAsync()
+        {
+            if (!_isAmdGpuPresent)
+            {
+                return (false, false);
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to get AFMF state
+                        return GetAfmfStateViaAdlx();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("AFMF requires ADLX - not available");
+                        return (false, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting AFMF state: {ex.Message}");
+                    return (false, false);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Enable or disable AFMF
+        /// </summary>
+        public async Task<bool> SetAfmfEnabledAsync(bool enabled)
+        {
+            if (!_isAmdGpuPresent)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot set AFMF: No AMD GPU detected");
+                return false;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Setting AFMF: enabled={enabled}");
+
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to set AFMF
+                        return SetAfmfViaAdlx(enabled);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("AFMF requires ADLX - not available");
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error setting AFMF: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Get current Anti-Lag state
+        /// </summary>
+        public async Task<(bool success, bool enabled)> GetAntiLagStateAsync()
+        {
+            if (!_isAmdGpuPresent)
+            {
+                return (false, false);
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to get Anti-Lag state
+                        return GetAntiLagStateViaAdlx();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Anti-Lag requires ADLX - not available");
+                        return (false, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting Anti-Lag state: {ex.Message}");
+                    return (false, false);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Enable or disable Anti-Lag
+        /// </summary>
+        public async Task<bool> SetAntiLagEnabledAsync(bool enabled)
+        {
+            if (!_isAmdGpuPresent)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot set Anti-Lag: No AMD GPU detected");
+                return false;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Setting Anti-Lag: enabled={enabled}");
+
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to set Anti-Lag
+                        return SetAntiLagViaAdlx(enabled);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Anti-Lag requires ADLX - not available");
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error setting Anti-Lag: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        #region ADLX Methods
+
+        private (bool success, bool enabled, int sharpness) GetRsrStateViaAdlx()
+        {
+            try
+            {
+                // Get RSR enabled state
+                if (!AdlxWrapper.TryGetRSRState(out bool enabled))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to get RSR state");
+                    return (false, false, 0);
+                }
+
+                // Get RSR sharpness
+                if (!AdlxWrapper.TryGetRSRSharpness(out int sharpness))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to get RSR sharpness, using default");
+                    sharpness = 80; // Default if we can't read it
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: RSR enabled={enabled}, sharpness={sharpness}");
+                return (true, enabled, sharpness);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting RSR state: {ex.Message}");
+                return (false, false, 0);
+            }
+        }
+
+        private bool SetRsrViaAdlx(bool enabled, int sharpness)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting RSR enabled={enabled}, sharpness={sharpness}");
+
+                // Set sharpness BEFORE enabling RSR (required for immediate activation)
+                if (enabled)
+                {
+                    if (!AdlxWrapper.TrySetRSRSharpness(sharpness, out bool setSharpnessSuccess))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: Failed to call SetRSRSharpness");
+                        // Continue anyway, try to enable RSR
+                    }
+                    else if (!setSharpnessSuccess)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: SetRSRSharpness returned false");
+                        // Continue anyway
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR sharpness={sharpness}");
+                    }
+                }
+
+                // Set RSR enabled/disabled
+                if (!AdlxWrapper.TrySetRSR(enabled, out bool setRsrSuccess))
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: Failed to call SetRSR");
+                    return false;
+                }
+
+                if (!setRsrSuccess)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetRSR returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR enabled={enabled}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting RSR: {ex.Message}");
+                return false;
+            }
+        }
+
+        private (bool success, bool enabled) GetAfmfStateViaAdlx()
+        {
+            try
+            {
+                // Try to get AFMF state
+                bool enabled = AdlxWrapper.GetAFMFState();
+                System.Diagnostics.Debug.WriteLine($"ADLX: AFMF enabled={enabled}");
+                return (true, enabled);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting AFMF state: {ex.Message}");
+                return (false, false);
+            }
+        }
+
+        private bool SetAfmfViaAdlx(bool enabled)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting AFMF enabled={enabled}");
+
+                // Set AFMF enabled/disabled
+                bool success = AdlxWrapper.SetAFMFState(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetAFMFState returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set AFMF enabled={enabled}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting AFMF: {ex.Message}");
+                return false;
+            }
+        }
+
+        private (bool success, bool enabled) GetAntiLagStateViaAdlx()
+        {
+            try
+            {
+                // Try to get Anti-Lag state
+                bool enabled = AdlxWrapper.GetAntiLagState();
+                System.Diagnostics.Debug.WriteLine($"ADLX: Anti-Lag enabled={enabled}");
+                return (true, enabled);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting Anti-Lag state: {ex.Message}");
+                return (false, false);
+            }
+        }
+
+        private bool SetAntiLagViaAdlx(bool enabled)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting Anti-Lag enabled={enabled}");
+
+                // Set Anti-Lag enabled/disabled
+                bool success = AdlxWrapper.SetAntiLagState(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetAntiLagState returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set Anti-Lag enabled={enabled}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting Anti-Lag: {ex.Message}");
+                return false;
+            }
+        }
+
+        #endregion
+
+        #region Registry Methods (Fallback)
+
+        private (bool success, bool enabled, int sharpness) GetRsrStateViaRegistry()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(AMD_REGISTRY_PATH))
+                {
+                    if (key == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Registry key not found: {AMD_REGISTRY_PATH}");
+                        return (false, false, 0);
+                    }
+
+                    var rsrEnabled = key.GetValue(AMD_REGISTRY_KEY_RSR_ENABLE);
+                    var rsrSharpness = key.GetValue(AMD_REGISTRY_KEY_RSR_SHARPNESS);
+
+                    bool enabled = rsrEnabled != null && Convert.ToInt32(rsrEnabled) == 1;
+                    int sharpness = rsrSharpness != null ? Convert.ToInt32(rsrSharpness) : 80;
+
+                    System.Diagnostics.Debug.WriteLine($"Registry: RSR enabled={enabled}, sharpness={sharpness}");
+                    return (true, enabled, sharpness);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading RSR state from registry: {ex.Message}");
+                return (false, false, 0);
+            }
+        }
+
+        private bool SetRsrViaRegistry(bool enabled, int sharpness)
+        {
+            try
+            {
+                // Try HKEY_CURRENT_USER first (user-level settings)
+                using (var key = Registry.CurrentUser.CreateSubKey(AMD_REGISTRY_PATH))
+                {
+                    if (key == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to create/open registry key: {AMD_REGISTRY_PATH}");
+                        return false;
+                    }
+
+                    key.SetValue(AMD_REGISTRY_KEY_RSR_ENABLE, enabled ? 1 : 0, RegistryValueKind.DWord);
+                    key.SetValue(AMD_REGISTRY_KEY_RSR_SHARPNESS, sharpness, RegistryValueKind.DWord);
+
+                    System.Diagnostics.Debug.WriteLine($"Registry: Set RSR enabled={enabled}, sharpness={sharpness}");
+
+                    // Note: AMD driver may need to be notified of changes
+                    // This could be done via driver-specific mechanisms or system restart
+                    NotifyAmdDriverOfChanges();
+
+                    return true;
+                }
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Registry access denied: {ex.Message}. App may need elevated permissions.");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error setting RSR via registry: {ex.Message}");
+                return false;
+            }
+        }
+
+        private void NotifyAmdDriverOfChanges()
+        {
+            try
+            {
+                // Method 1: Try to find AMD Radeon Software service/process
+                var amdProcesses = new[] { "RadeonSoftware", "AMDRSServ", "AMD External Events Utility" };
+
+                foreach (var processName in amdProcesses)
+                {
+                    try
+                    {
+                        var processes = Process.GetProcessesByName(processName);
+                        if (processes.Length > 0)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Found AMD process: {processName}");
+                            // Don't restart - just log that it's running
+                            // Settings should apply on next driver activation
+                        }
+
+                        // Dispose process handles
+                        foreach (var proc in processes)
+                        {
+                            proc?.Dispose();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Silently ignore process enumeration errors
+                        System.Diagnostics.Debug.WriteLine($"Could not check process {processName}: {ex.GetType().Name}");
+                    }
+                }
+
+                // Method 2: Broadcast WM_SETTINGCHANGE message
+                // This notifies applications that system settings have changed
+                BroadcastSystemSettingChange();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error notifying AMD driver: {ex.Message}");
+            }
+        }
+
+        [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+        private static extern bool SendNotifyMessage(IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam);
+
+        private const uint WM_SETTINGCHANGE = 0x001A;
+        private static readonly IntPtr HWND_BROADCAST = new IntPtr(0xffff);
+
+        private void BroadcastSystemSettingChange()
+        {
+            try
+            {
+                SendNotifyMessage(HWND_BROADCAST, WM_SETTINGCHANGE, UIntPtr.Zero, "intl");
+                System.Diagnostics.Debug.WriteLine("Broadcasted WM_SETTINGCHANGE");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error broadcasting setting change: {ex.Message}");
+            }
+        }
+
+        #endregion
+
+        public void Dispose()
+        {
+            if (_disposed)
+                return;
+
+            _disposed = true;
+
+            // Cleanup ADLX resources if initialized
+            if (_adlxContext != IntPtr.Zero)
+            {
+                // TODO: Call ADLX cleanup functions
+                _adlxContext = IntPtr.Zero;
+            }
+
+            System.Diagnostics.Debug.WriteLine("AmdAdlxService disposed");
+        }
+    }
+}

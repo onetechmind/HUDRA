@@ -127,7 +127,8 @@ namespace HUDRA.Controls
         public LosslessScalingControl()
         {
             this.InitializeComponent();
-            this.DataContext = this;
+            // Don't set DataContext here - it will be inherited from parent page (ScalingPageViewModel)
+            // this.DataContext = this;
             InitializeGamepadNavigation();
         }
 
@@ -135,7 +136,9 @@ namespace HUDRA.Controls
         {
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
-            GamepadNavigation.SetNavigationOrder(this, 1);
+            GamepadNavigation.SetNavigationOrder(this, 21);
+            // Not directly navigable at page level - only accessible through parent expander
+            GamepadNavigation.SetCanNavigate(this, false);
         }
 
         private void InitializeGamepadNavigationService()
@@ -287,6 +290,15 @@ namespace HUDRA.Controls
             _activeSliderIndex = -1;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 LosslessScaling: Lost gamepad focus");
+        }
+
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 5: Restore button)
+            _currentFocusedElement = 5;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 LosslessScaling: Focused last element (Restore button)");
         }
 
         public void AdjustSliderValue(int direction)

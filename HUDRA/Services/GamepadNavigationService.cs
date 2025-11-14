@@ -7,6 +7,7 @@ using Windows.Gaming.Input;
 using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
+using HUDRA.Controls;
 using Microsoft.UI.Xaml.Input;
 
 namespace HUDRA.Services
@@ -521,7 +522,7 @@ namespace HUDRA.Services
                             else
                             {
                                 navigableControl.OnGamepadActivate();
-                                
+
                                 // Check if a ComboBox was opened and needs to be tracked
                                 if (navigableControl.HasComboBoxes)
                                 {
@@ -533,6 +534,19 @@ namespace HUDRA.Services
                                 }
                             }
                             handled = true;
+                            break;
+                        case GamepadNavigationAction.Back:
+                            // If no control is active (slider/combobox already handled above),
+                            // collapse parent expander if inside one
+                            var parentExpander = FindNavigableParent(_currentFocusedElement);
+                            if (parentExpander is NavigableExpander expander && expander.IsExpanded)
+                            {
+                                // Collapse the expander and return focus to it
+                                expander.IsExpanded = false;
+                                SetFocus(expander);
+                                System.Diagnostics.Debug.WriteLine($"🎮 B button: Collapsed parent expander and returned focus to header");
+                                handled = true;
+                            }
                             break;
                     }
 
@@ -560,9 +574,28 @@ namespace HUDRA.Services
             var navigableElements = GamepadNavigation.GetNavigableElements(rootElement).ToList();
             if (navigableElements.Count == 0) return;
 
-            int currentIndex = _currentFocusedElement != null 
+            int currentIndex = _currentFocusedElement != null
                 ? navigableElements.IndexOf(_currentFocusedElement)
                 : -1;
+
+            // If current element is not in the list, check if it's inside a NavigableExpander
+            if (currentIndex == -1 && _currentFocusedElement != null)
+            {
+                // Find parent NavigableExpander
+                var parent = FindNavigableParent(_currentFocusedElement);
+                if (parent != null)
+                {
+                    currentIndex = navigableElements.IndexOf(parent);
+                    System.Diagnostics.Debug.WriteLine($"🎮 Current element not in nav list, using parent expander at index {currentIndex}");
+
+                    // For UP navigation, return focus to the parent expander
+                    if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
+                    {
+                        SetFocus(parent);
+                        return;
+                    }
+                }
+            }
 
             int nextIndex = currentIndex;
             switch (direction)
@@ -580,8 +613,38 @@ namespace HUDRA.Services
 
             if (nextIndex != currentIndex)
             {
-                SetFocus(navigableElements[nextIndex]);
+                var nextElement = navigableElements[nextIndex];
+
+                // Check if next element is an open NavigableExpander
+                if (nextElement is NavigableExpander expander && expander.IsExpanded && expander.Body is IGamepadNavigable bodyControl && expander.Body is FrameworkElement bodyElement)
+                {
+                    // For UP navigation, enter the body at the LAST element
+                    if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
+                    {
+                        SetFocus(bodyElement);
+                        bodyControl.FocusLastElement();
+                        System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP into expanded expander at last element");
+                        return;
+                    }
+                    // For DOWN navigation, the expander's CanNavigateDown will handle it
+                }
+
+                SetFocus(nextElement);
             }
+        }
+
+        private FrameworkElement? FindNavigableParent(FrameworkElement element)
+        {
+            var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(element);
+            while (parent != null)
+            {
+                if (parent is NavigableExpander expander)
+                {
+                    return expander;
+                }
+                parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
+            }
+            return null;
         }
 
         public void SetFocus(FrameworkElement? element)

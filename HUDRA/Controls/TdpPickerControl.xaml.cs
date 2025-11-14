@@ -767,6 +767,11 @@ namespace HUDRA.Controls
             IsFocused = false;
         }
 
+        public void FocusLastElement()
+        {
+            // Not used - TdpPickerControl is not in a NavigableExpander
+        }
+
         private void OnGamepadActiveStateChanged(object? sender, bool isActive)
         {
             // Update focus border properties when gamepad active state changes

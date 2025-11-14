@@ -99,6 +99,8 @@ namespace HUDRA.Controls
             GamepadNavigation.SetIsEnabled(this, true);
             GamepadNavigation.SetNavigationGroup(this, "MainControls");
             GamepadNavigation.SetNavigationOrder(this, 1);
+            // Not directly navigable at page level - only accessible through parent expander
+            GamepadNavigation.SetCanNavigate(this, false);
         }
 
         private void InitializeGamepadNavigationService()
@@ -200,6 +202,15 @@ namespace HUDRA.Controls
             _isFocused = false;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Lost gamepad focus");
+        }
+
+        public void FocusLastElement()
+        {
+            // Focus the last element (element 3: Auto-start with Windows toggle)
+            _currentFocusedElement = 3;
+            _isFocused = true;
+            UpdateFocusVisuals();
+            System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Focused last element (Auto-start with Windows)");
         }
 
         public void AdjustSliderValue(int direction)
