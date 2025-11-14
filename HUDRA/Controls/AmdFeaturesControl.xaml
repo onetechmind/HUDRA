@@ -93,6 +93,7 @@
                             Grid.ColumnSpan="2"
                             Maximum="100"
                             Minimum="0"
+                            IsEnabled="{Binding RsrEnabled, Mode=OneWay}"
                             Value="{Binding RsrSharpness, Mode=TwoWay}" />
                     </Grid>
                 </Border>

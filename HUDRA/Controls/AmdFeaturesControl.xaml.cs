@@ -16,7 +16,8 @@ namespace HUDRA.Controls
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
-        private AmdAdlxService? _amdAdlxService;
+        private static AmdAdlxService? _sharedAmdAdlxService; // Singleton service instance
+        private AmdAdlxService? _amdAdlxService => _sharedAmdAdlxService; // Reference to shared instance
         private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider, 2=AFMF Toggle, 3=Anti-Lag Toggle
         private bool _isFocused = false;
         private bool _isInitialized = false;
@@ -221,30 +222,59 @@ namespace HUDRA.Controls
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine("Initializing AMD service...");
+                // If service already exists (singleton), reuse it
+                if (_sharedAmdAdlxService != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("AMD service already initialized, reusing existing instance");
+
+                    // Load current state from the existing service
+                    await LoadCurrentStateAsync();
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine("Initializing AMD service for the first time...");
 
                 // Wrap service creation in try-catch to prevent crashes
                 try
                 {
-                    _amdAdlxService = new AmdAdlxService();
+                    _sharedAmdAdlxService = new AmdAdlxService();
                 }
                 catch (Exception serviceEx)
                 {
                     System.Diagnostics.Debug.WriteLine($"Failed to create AMD service: {serviceEx.Message}");
                     System.Diagnostics.Debug.WriteLine($"Stack trace: {serviceEx.StackTrace}");
-                    _amdAdlxService = null;
+                    _sharedAmdAdlxService = null;
                     _initializationFailed = true; // Mark as failed to prevent retry
                     return;
                 }
 
                 // Check if AMD GPU is available
-                if (!_amdAdlxService.IsAmdGpuAvailable())
+                if (!_sharedAmdAdlxService.IsAmdGpuAvailable())
                 {
                     System.Diagnostics.Debug.WriteLine("No AMD GPU detected - AMD Features will be non-functional");
                     // TODO: Consider hiding/disabling the control or showing a warning
                     return;
                 }
 
+                // Load current state from driver
+                await LoadCurrentStateAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error initializing AMD service: {ex.Message}");
+            }
+        }
+
+        private async Task LoadCurrentStateAsync()
+        {
+            if (_amdAdlxService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot load state: AMD service is null");
+                return;
+            }
+
+            try
+            {
                 // Load current RSR state
                 var (success, enabled, sharpness) = await _amdAdlxService.GetRsrStateAsync();
                 if (success)
@@ -285,7 +315,7 @@ namespace HUDRA.Controls
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing AMD service: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error loading AMD state: {ex.Message}");
             }
         }
 
@@ -650,11 +680,8 @@ namespace HUDRA.Controls
             this.Loaded -= AmdFeaturesControl_Loaded;
             this.Unloaded -= AmdFeaturesControl_Unloaded;
 
-            if (_amdAdlxService != null)
-            {
-                _amdAdlxService.Dispose();
-                _amdAdlxService = null;
-            }
+            // Don't dispose the shared service - it's a singleton used across all control instances
+            // The service will be disposed when the application exits
         }
     }
 }
