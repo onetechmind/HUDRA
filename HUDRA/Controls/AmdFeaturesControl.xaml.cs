@@ -201,12 +201,89 @@ namespace HUDRA.Controls
             {
                 await InitializeAmdServiceAsync();
                 _isInitialized = true;
+
+                // Subscribe to window activation events for state synchronization
+                if (App.Current is App app && app.MainWindow != null)
+                {
+                    app.MainWindow.Activated += MainWindow_Activated;
+                    System.Diagnostics.Debug.WriteLine("AMD Features: Subscribed to window activation events");
+                }
             }
         }
 
         private void AmdFeaturesControl_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Cleanup if needed
+            // Unsubscribe from window activation events
+            if (App.Current is App app && app.MainWindow != null)
+            {
+                app.MainWindow.Activated -= MainWindow_Activated;
+                System.Diagnostics.Debug.WriteLine("AMD Features: Unsubscribed from window activation events");
+            }
+        }
+
+        private async void MainWindow_Activated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs e)
+        {
+            // Only refresh when window is actually activated (gains focus)
+            if (e.WindowActivationState != Microsoft.UI.Xaml.WindowActivationState.Deactivated)
+            {
+                await RefreshAmdFeaturesStateAsync();
+            }
+        }
+
+        private async Task RefreshAmdFeaturesStateAsync()
+        {
+            if (_amdAdlxService == null || _isApplyingSettings)
+                return;
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("AMD Features: Refreshing state from driver...");
+
+                // Get current states from AMD driver
+                var (rsrSuccess, rsrEnabled, rsrSharpness) = await _amdAdlxService.GetRsrStateAsync();
+                var (afmfSuccess, afmfEnabled) = await _amdAdlxService.GetAfmfStateAsync();
+                var (antiLagSuccess, antiLagEnabled) = await _amdAdlxService.GetAntiLagStateAsync();
+
+                // Update UI if values changed
+                bool stateChanged = false;
+
+                if (rsrSuccess && (RsrEnabled != rsrEnabled || RsrSharpness != rsrSharpness))
+                {
+                    _isApplyingSettings = true; // Prevent triggering setters
+                    RsrEnabled = rsrEnabled;
+                    RsrSharpness = rsrSharpness;
+                    _isApplyingSettings = false;
+                    stateChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"AMD Features: RSR state updated - Enabled={rsrEnabled}, Sharpness={rsrSharpness}");
+                }
+
+                if (afmfSuccess && AfmfEnabled != afmfEnabled)
+                {
+                    _isApplyingSettings = true;
+                    AfmfEnabled = afmfEnabled;
+                    _isApplyingSettings = false;
+                    stateChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"AMD Features: AFMF state updated - Enabled={afmfEnabled}");
+                }
+
+                if (antiLagSuccess && AntiLagEnabled != antiLagEnabled)
+                {
+                    _isApplyingSettings = true;
+                    AntiLagEnabled = antiLagEnabled;
+                    _isApplyingSettings = false;
+                    stateChanged = true;
+                    System.Diagnostics.Debug.WriteLine($"AMD Features: Anti-Lag state updated - Enabled={antiLagEnabled}");
+                }
+
+                if (stateChanged)
+                {
+                    System.Diagnostics.Debug.WriteLine("AMD Features: State synchronized with AMD driver");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"AMD Features: Error refreshing state - {ex.Message}");
+            }
         }
 
         private async Task InitializeAmdServiceAsync()
