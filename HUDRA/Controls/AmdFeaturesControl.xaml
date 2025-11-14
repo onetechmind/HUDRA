@@ -146,5 +146,46 @@
                         TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+
+        <!--  Anti-Lag Toggle  -->
+        <Border
+            Margin="0"
+            Padding="15"
+            CornerRadius="12">
+            <StackPanel Spacing="10">
+                <Border
+                    x:Name="AntiLagToggleBorder"
+                    Padding="10,5,10,5"
+                    Background="#22FFFFFF"
+                    CornerRadius="12"
+                    BorderBrush="{x:Bind AntiLagToggleFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Radeon&#x0a;Anti-Lag" />
+                        <ToggleSwitch
+                            x:Name="AntiLagToggle"
+                            Grid.Column="1"
+                            IsOn="{Binding AntiLagEnabled, Mode=TwoWay}" />
+                    </Grid>
+                </Border>
+
+                <!--  Anti-Lag Description  -->
+                <TextBlock
+                    Padding="5,0,5,0"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="AMD's latency reduction technology for improved responsiveness."
+                        TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

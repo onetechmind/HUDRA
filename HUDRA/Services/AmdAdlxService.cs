@@ -297,6 +297,75 @@ namespace HUDRA.Services
             });
         }
 
+        /// <summary>
+        /// Get current Anti-Lag state
+        /// </summary>
+        public async Task<(bool success, bool enabled)> GetAntiLagStateAsync()
+        {
+            if (!_isAmdGpuPresent)
+            {
+                return (false, false);
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to get Anti-Lag state
+                        return GetAntiLagStateViaAdlx();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Anti-Lag requires ADLX - not available");
+                        return (false, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting Anti-Lag state: {ex.Message}");
+                    return (false, false);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Enable or disable Anti-Lag
+        /// </summary>
+        public async Task<bool> SetAntiLagEnabledAsync(bool enabled)
+        {
+            if (!_isAmdGpuPresent)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot set Anti-Lag: No AMD GPU detected");
+                return false;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Setting Anti-Lag: enabled={enabled}");
+
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to set Anti-Lag
+                        return SetAntiLagViaAdlx(enabled);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("Anti-Lag requires ADLX - not available");
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error setting Anti-Lag: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
         #region ADLX Methods
 
         private (bool success, bool enabled, int sharpness) GetRsrStateViaAdlx()
@@ -414,6 +483,47 @@ namespace HUDRA.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ADLX: Error setting AFMF: {ex.Message}");
+                return false;
+            }
+        }
+
+        private (bool success, bool enabled) GetAntiLagStateViaAdlx()
+        {
+            try
+            {
+                // Try to get Anti-Lag state
+                bool enabled = AdlxWrapper.GetAntiLagState();
+                System.Diagnostics.Debug.WriteLine($"ADLX: Anti-Lag enabled={enabled}");
+                return (true, enabled);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting Anti-Lag state: {ex.Message}");
+                return (false, false);
+            }
+        }
+
+        private bool SetAntiLagViaAdlx(bool enabled)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting Anti-Lag enabled={enabled}");
+
+                // Set Anti-Lag enabled/disabled
+                bool success = AdlxWrapper.SetAntiLag(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetAntiLag returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set Anti-Lag enabled={enabled}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting Anti-Lag: {ex.Message}");
                 return false;
             }
         }

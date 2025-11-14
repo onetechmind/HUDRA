@@ -86,6 +86,32 @@ namespace HUDRA.Services.AMD
 
         #endregion
 
+        #region Anti-Lag Functions
+
+        /// <summary>
+        /// Check if the GPU supports Radeon Anti-Lag
+        /// </summary>
+        /// <returns>True if Anti-Lag is supported, false otherwise</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool HasAntiLagSupport();
+
+        /// <summary>
+        /// Get the current state of Radeon Anti-Lag
+        /// </summary>
+        /// <returns>True if Anti-Lag is enabled, false if disabled</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool GetAntiLagState();
+
+        /// <summary>
+        /// Enable or disable Radeon Anti-Lag
+        /// </summary>
+        /// <param name="isEnabled">True to enable, false to disable</param>
+        /// <returns>True if operation succeeded, false otherwise</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool SetAntiLag(bool isEnabled);
+
+        #endregion
+
         #region Helper Methods
 
         /// <summary>

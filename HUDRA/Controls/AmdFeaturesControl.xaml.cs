@@ -17,14 +17,14 @@ namespace HUDRA.Controls
 
         private GamepadNavigationService? _gamepadNavigationService;
         private AmdAdlxService? _amdAdlxService;
-        private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider, 2=AFMF Toggle
+        private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider, 2=AFMF Toggle, 3=Anti-Lag Toggle
         private bool _isFocused = false;
         private bool _isInitialized = false;
         private bool _isApplyingSettings = false;
 
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider/AFMF to previous element
-        public bool CanNavigateDown => _currentFocusedElement < 2; // Can navigate down to AFMF toggle
+        public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider/AFMF/Anti-Lag to previous element
+        public bool CanNavigateDown => _currentFocusedElement < 3; // Can navigate down to Anti-Lag toggle
         public bool CanNavigateLeft => _isSliderActivated; // Can adjust slider when activated
         public bool CanNavigateRight => _isSliderActivated; // Can adjust slider when activated
         public bool CanActivate => true;
@@ -102,6 +102,18 @@ namespace HUDRA.Controls
             }
         }
 
+        public Brush AntiLagToggleFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 3)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         // Data binding properties
         private bool _rsrEnabled = false;
         public bool RsrEnabled
@@ -153,6 +165,23 @@ namespace HUDRA.Controls
 
                     // Apply AFMF settings asynchronously
                     _ = ApplyAfmfSettingsAsync(value);
+                }
+            }
+        }
+
+        private bool _antiLagEnabled = false;
+        public bool AntiLagEnabled
+        {
+            get => _antiLagEnabled;
+            set
+            {
+                if (_antiLagEnabled != value && !_isApplyingSettings)
+                {
+                    _antiLagEnabled = value;
+                    OnPropertyChanged();
+
+                    // Apply Anti-Lag settings asynchronously
+                    _ = ApplyAntiLagSettingsAsync(value);
                 }
             }
         }
@@ -220,6 +249,18 @@ namespace HUDRA.Controls
                     _isApplyingSettings = false;
 
                     System.Diagnostics.Debug.WriteLine($"Loaded AFMF state: enabled={afmfEnabled}");
+                }
+
+                // Load current Anti-Lag state
+                var (antiLagSuccess, antiLagEnabled) = await _amdAdlxService.GetAntiLagStateAsync();
+                if (antiLagSuccess)
+                {
+                    _isApplyingSettings = true;
+                    _antiLagEnabled = antiLagEnabled;
+                    OnPropertyChanged(nameof(AntiLagEnabled));
+                    _isApplyingSettings = false;
+
+                    System.Diagnostics.Debug.WriteLine($"Loaded Anti-Lag state: enabled={antiLagEnabled}");
                 }
             }
             catch (Exception ex)
@@ -368,6 +409,55 @@ namespace HUDRA.Controls
             }
         }
 
+        private async Task ApplyAntiLagSettingsAsync(bool enabled)
+        {
+            if (_amdAdlxService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("AMD service not initialized");
+                return;
+            }
+
+            if (!_amdAdlxService.IsAmdGpuAvailable())
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot apply Anti-Lag: No AMD GPU detected");
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying Anti-Lag settings: enabled={enabled}");
+
+                bool success = await _amdAdlxService.SetAntiLagEnabledAsync(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to apply Anti-Lag settings");
+
+                    // Revert toggle state on failure
+                    _isApplyingSettings = true;
+                    _antiLagEnabled = !enabled;
+                    OnPropertyChanged(nameof(AntiLagEnabled));
+                    _isApplyingSettings = false;
+
+                    // TODO: Show error message to user
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully applied Anti-Lag settings: enabled={enabled}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying Anti-Lag settings: {ex.Message}");
+
+                // Revert toggle state on error
+                _isApplyingSettings = true;
+                _antiLagEnabled = !enabled;
+                OnPropertyChanged(nameof(AntiLagEnabled));
+                _isApplyingSettings = false;
+            }
+        }
+
         private void InitializeGamepadNavigation()
         {
             GamepadNavigation.SetIsEnabled(this, true);
@@ -412,7 +502,7 @@ namespace HUDRA.Controls
                 return;
             }
 
-            if (_currentFocusedElement < 1)
+            if (_currentFocusedElement < 3)
             {
                 _currentFocusedElement++;
                 UpdateFocusVisuals();
@@ -476,6 +566,14 @@ namespace HUDRA.Controls
                         System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Toggled AFMF to {AfmfToggle.IsOn}");
                     }
                     break;
+
+                case 3: // Anti-Lag Toggle
+                    if (AntiLagToggle != null)
+                    {
+                        AntiLagToggle.IsOn = !AntiLagToggle.IsOn;
+                        System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Toggled Anti-Lag to {AntiLagToggle.IsOn}");
+                    }
+                    break;
             }
         }
 
@@ -503,11 +601,11 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Focus the last element (AFMF toggle)
-            _currentFocusedElement = 2;
+            // Focus the last element (Anti-Lag toggle)
+            _currentFocusedElement = 3;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Focused last element (AFMF toggle)");
+            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Focused last element (Anti-Lag toggle)");
         }
 
         private void UpdateFocusVisuals()
@@ -518,6 +616,7 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(RsrToggleFocusBrush));
                 OnPropertyChanged(nameof(SharpnessSliderFocusBrush));
                 OnPropertyChanged(nameof(AfmfToggleFocusBrush));
+                OnPropertyChanged(nameof(AntiLagToggleFocusBrush));
             });
         }
 
