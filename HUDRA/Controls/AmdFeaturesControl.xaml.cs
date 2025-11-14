@@ -232,7 +232,7 @@ namespace HUDRA.Controls
 
         private async Task RefreshAmdFeaturesStateAsync()
         {
-            if (_amdAdlxService == null || _isApplyingSettings)
+            if (_amdAdlxService == null || _isApplyingSettings || !_isInitialized)
                 return;
 
             try
@@ -296,7 +296,17 @@ namespace HUDRA.Controls
             {
                 System.Diagnostics.Debug.WriteLine("Initializing AMD service...");
 
-                _amdAdlxService = new AmdAdlxService();
+                // Wrap service creation in try-catch to prevent crashes
+                try
+                {
+                    _amdAdlxService = new AmdAdlxService();
+                }
+                catch (Exception serviceEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to create AMD service: {serviceEx.Message}");
+                    _amdAdlxService = null;
+                    return;
+                }
 
                 // Check if AMD GPU is available
                 if (!_amdAdlxService.IsAmdGpuAvailable())

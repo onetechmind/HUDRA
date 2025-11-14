@@ -74,38 +74,53 @@ namespace HUDRA.Services
         {
             try
             {
-                // Method 1: Check via WMI
-                using (var searcher = new System.Management.ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
+                // Method 1: Check registry first (more reliable than WMI)
+                try
                 {
-                    foreach (var obj in searcher.Get())
+                    using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"))
                     {
-                        var name = obj["Name"]?.ToString() ?? "";
-                        var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
-
-                        if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
-                            name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
-                            adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
-                            adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                        if (key != null)
                         {
-                            System.Diagnostics.Debug.WriteLine($"Found AMD GPU: {name}");
-                            return true;
+                            var providerName = key.GetValue("ProviderName")?.ToString() ?? "";
+                            if (providerName.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                providerName.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Found AMD GPU via registry: {providerName}");
+                                return true;
+                            }
                         }
                     }
                 }
-
-                // Method 2: Check registry
-                using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"))
+                catch (Exception ex)
                 {
-                    if (key != null)
+                    System.Diagnostics.Debug.WriteLine($"Error checking registry for AMD GPU: {ex.Message}");
+                }
+
+                // Method 2: Check via WMI (may fail on some systems)
+                try
+                {
+                    using (var searcher = new System.Management.ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
                     {
-                        var providerName = key.GetValue("ProviderName")?.ToString() ?? "";
-                        if (providerName.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
-                            providerName.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                        foreach (var obj in searcher.Get())
                         {
-                            System.Diagnostics.Debug.WriteLine($"Found AMD GPU via registry: {providerName}");
-                            return true;
+                            var name = obj["Name"]?.ToString() ?? "";
+                            var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
+
+                            if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
+                                adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Found AMD GPU: {name}");
+                                return true;
+                            }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error checking WMI for AMD GPU: {ex.Message}");
+                    // WMI failed, but we already checked registry, so continue
                 }
             }
             catch (Exception ex)
@@ -113,6 +128,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"Error detecting AMD GPU: {ex.Message}");
             }
 
+            System.Diagnostics.Debug.WriteLine("No AMD GPU detected");
             return false;
         }
 
