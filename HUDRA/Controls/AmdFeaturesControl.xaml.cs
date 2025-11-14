@@ -21,6 +21,7 @@ namespace HUDRA.Controls
         private bool _isFocused = false;
         private bool _isInitialized = false;
         private bool _isApplyingSettings = false;
+        private static bool _initializationFailed = false; // Track if initialization has already failed
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider/AFMF/Anti-Lag to previous element
@@ -213,6 +214,13 @@ namespace HUDRA.Controls
         {
             try
             {
+                // If initialization has already failed once, don't try again
+                if (_initializationFailed)
+                {
+                    System.Diagnostics.Debug.WriteLine("AMD service initialization previously failed, skipping retry");
+                    return;
+                }
+
                 System.Diagnostics.Debug.WriteLine("Initializing AMD service...");
 
                 // Wrap service creation in try-catch to prevent crashes
@@ -223,7 +231,9 @@ namespace HUDRA.Controls
                 catch (Exception serviceEx)
                 {
                     System.Diagnostics.Debug.WriteLine($"Failed to create AMD service: {serviceEx.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Stack trace: {serviceEx.StackTrace}");
                     _amdAdlxService = null;
+                    _initializationFailed = true; // Mark as failed to prevent retry
                     return;
                 }
 

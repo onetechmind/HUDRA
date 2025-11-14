@@ -37,15 +37,34 @@ namespace HUDRA.Services
         {
             try
             {
-                // Check if AMD GPU is present
-                _isAmdGpuPresent = DetectAmdGpu();
+                System.Diagnostics.Debug.WriteLine("AmdAdlxService: Starting initialization...");
+
+                // Check if AMD GPU is present (with additional safety)
+                try
+                {
+                    _isAmdGpuPresent = DetectAmdGpu();
+                }
+                catch (Exception detectEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"AmdAdlxService: GPU detection failed: {detectEx.Message}");
+                    _isAmdGpuPresent = false;
+                    return;
+                }
 
                 if (_isAmdGpuPresent)
                 {
                     System.Diagnostics.Debug.WriteLine("AMD GPU detected");
 
-                    // Try to initialize ADLX
-                    _isAdlxAvailable = TryInitializeAdlx();
+                    // Try to initialize ADLX (with additional safety)
+                    try
+                    {
+                        _isAdlxAvailable = TryInitializeAdlx();
+                    }
+                    catch (Exception adlxEx)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"AmdAdlxService: ADLX init failed: {adlxEx.Message}");
+                        _isAdlxAvailable = false;
+                    }
 
                     if (_isAdlxAvailable)
                     {
@@ -60,10 +79,15 @@ namespace HUDRA.Services
                 {
                     System.Diagnostics.Debug.WriteLine("No AMD GPU detected");
                 }
+
+                System.Diagnostics.Debug.WriteLine("AmdAdlxService: Initialization complete");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing AmdAdlxService: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"AmdAdlxService: Fatal error during initialization: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"AmdAdlxService: Stack trace: {ex.StackTrace}");
+                _isAmdGpuPresent = false;
+                _isAdlxAvailable = false;
             }
         }
 
@@ -97,8 +121,12 @@ namespace HUDRA.Services
                 }
 
                 // Method 2: Check via WMI (may fail on some systems)
+                // Skip WMI entirely as it can be unstable after driver changes
                 try
                 {
+                    System.Diagnostics.Debug.WriteLine("Skipping WMI check (can be unstable after driver changes)");
+                    // WMI query disabled - registry check is sufficient and more reliable
+                    /*
                     using (var searcher = new System.Management.ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
                     {
                         foreach (var obj in searcher.Get())
@@ -116,11 +144,11 @@ namespace HUDRA.Services
                             }
                         }
                     }
+                    */
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error checking WMI for AMD GPU: {ex.Message}");
-                    // WMI failed, but we already checked registry, so continue
+                    System.Diagnostics.Debug.WriteLine($"Error in WMI section: {ex.Message}");
                 }
             }
             catch (Exception ex)
@@ -141,15 +169,49 @@ namespace HUDRA.Services
             {
                 System.Diagnostics.Debug.WriteLine("Attempting to initialize ADLX SDK...");
 
-                // Check if ADLX DLL is available
-                if (!AdlxWrapper.IsAdlxDllAvailable())
+                // Check if ADLX DLL is available (this does file existence check only)
+                bool dllExists = false;
+                try
+                {
+                    dllExists = AdlxWrapper.IsAdlxDllAvailable();
+                }
+                catch (Exception dllCheckEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL availability check failed: {dllCheckEx.Message}");
+                    return false;
+                }
+
+                if (!dllExists)
                 {
                     System.Diagnostics.Debug.WriteLine("ADLX DLL not found - will use registry fallback");
                     return false;
                 }
 
                 // Test ADLX functionality by checking RSR support
-                if (AdlxWrapper.TryHasRSRSupport(out bool supported))
+                // Wrap in additional try-catch to prevent P/Invoke crashes
+                bool supported = false;
+                bool initSuccess = false;
+                try
+                {
+                    initSuccess = AdlxWrapper.TryHasRSRSupport(out supported);
+                }
+                catch (DllNotFoundException dllEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL could not be loaded: {dllEx.Message}");
+                    return false;
+                }
+                catch (BadImageFormatException imgEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX DLL architecture mismatch: {imgEx.Message}");
+                    return false;
+                }
+                catch (Exception wrapperEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ADLX wrapper call failed: {wrapperEx.Message}");
+                    return false;
+                }
+
+                if (initSuccess)
                 {
                     System.Diagnostics.Debug.WriteLine($"ADLX initialized successfully. RSR supported: {supported}");
                     return true;
@@ -163,6 +225,7 @@ namespace HUDRA.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error initializing ADLX: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                 return false;
             }
         }
