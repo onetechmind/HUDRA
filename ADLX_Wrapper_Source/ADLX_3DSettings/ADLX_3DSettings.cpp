@@ -5,6 +5,7 @@
 
 #include "SDK/ADLXHelper/Windows/Cpp/ADLXHelper.h"
 #include "SDK/Include/I3DSettings.h"
+#include "SDK/Include/I3DSettings1.h"
 #include <iostream>
 
 // ADLX Helper instance
@@ -217,79 +218,89 @@ extern "C" __declspec(dllexport) bool SetRSRSharpness(int sharpness)
 
 extern "C" __declspec(dllexport) bool HasAFMFSupport()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
-    adlx::IADLXGPU* gpu = nullptr;
-
-    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    if (d3dSettingSrv == nullptr)
         return false;
 
-    adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
+    // Cast to v1 interface for AFMF support
+    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
+    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
 
-    bool supported = ADLX_SUCCEEDED(res) && afmf != nullptr;
+    bool supported = false;
+    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
+    {
+        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
+        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
 
-    if (afmf != nullptr)
-        afmf->Release();
-    if (gpu != nullptr)
-        gpu->Release();
-    if (d3dSettingSrv != nullptr)
-        d3dSettingSrv->Release();
+        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
+        {
+            afmf->IsSupported(&supported);
+            afmf->Release();
+        }
 
+        d3dSettingSrv1->Release();
+    }
+
+    d3dSettingSrv->Release();
     return supported;
 }
 
 extern "C" __declspec(dllexport) bool GetAFMFState()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
-    adlx::IADLXGPU* gpu = nullptr;
-
-    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    if (d3dSettingSrv == nullptr)
         return false;
 
-    adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
+    // Cast to v1 interface for AFMF support
+    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
+    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
 
     bool enabled = false;
-    if (ADLX_SUCCEEDED(res) && afmf != nullptr)
+    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
     {
-        afmf->IsEnabled(&enabled);
+        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
+        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
+
+        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
+        {
+            afmf->IsEnabled(&enabled);
+            afmf->Release();
+        }
+
+        d3dSettingSrv1->Release();
     }
 
-    if (afmf != nullptr)
-        afmf->Release();
-    if (gpu != nullptr)
-        gpu->Release();
-    if (d3dSettingSrv != nullptr)
-        d3dSettingSrv->Release();
-
+    d3dSettingSrv->Release();
     return enabled;
 }
 
 extern "C" __declspec(dllexport) bool SetAFMFState(bool isEnabled)
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
-    adlx::IADLXGPU* gpu = nullptr;
-
-    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    if (d3dSettingSrv == nullptr)
         return false;
 
-    adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
+    // Cast to v1 interface for AFMF support
+    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
+    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
 
     bool success = false;
-    if (ADLX_SUCCEEDED(res) && afmf != nullptr)
+    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
     {
-        res = afmf->SetEnabled(isEnabled);
-        success = ADLX_SUCCEEDED(res);
+        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
+        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
+
+        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
+        {
+            res = afmf->SetEnabled(isEnabled);
+            success = ADLX_SUCCEEDED(res);
+            afmf->Release();
+        }
+
+        d3dSettingSrv1->Release();
     }
 
-    if (afmf != nullptr)
-        afmf->Release();
-    if (gpu != nullptr)
-        gpu->Release();
-    if (d3dSettingSrv != nullptr)
-        d3dSettingSrv->Release();
-
+    d3dSettingSrv->Release();
     return success;
 }
 
