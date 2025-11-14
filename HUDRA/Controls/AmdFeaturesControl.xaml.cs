@@ -247,29 +247,33 @@ namespace HUDRA.Controls
                 // Update UI if values changed
                 bool stateChanged = false;
 
-                if (rsrSuccess && (RsrEnabled != rsrEnabled || RsrSharpness != rsrSharpness))
+                if (rsrSuccess && (_rsrEnabled != rsrEnabled || _rsrSharpness != rsrSharpness))
                 {
                     _isApplyingSettings = true; // Prevent triggering setters
-                    RsrEnabled = rsrEnabled;
-                    RsrSharpness = rsrSharpness;
+                    _rsrEnabled = rsrEnabled;
+                    _rsrSharpness = rsrSharpness;
+                    OnPropertyChanged(nameof(RsrEnabled));
+                    OnPropertyChanged(nameof(RsrSharpness));
                     _isApplyingSettings = false;
                     stateChanged = true;
                     System.Diagnostics.Debug.WriteLine($"AMD Features: RSR state updated - Enabled={rsrEnabled}, Sharpness={rsrSharpness}");
                 }
 
-                if (afmfSuccess && AfmfEnabled != afmfEnabled)
+                if (afmfSuccess && _afmfEnabled != afmfEnabled)
                 {
                     _isApplyingSettings = true;
-                    AfmfEnabled = afmfEnabled;
+                    _afmfEnabled = afmfEnabled;
+                    OnPropertyChanged(nameof(AfmfEnabled));
                     _isApplyingSettings = false;
                     stateChanged = true;
                     System.Diagnostics.Debug.WriteLine($"AMD Features: AFMF state updated - Enabled={afmfEnabled}");
                 }
 
-                if (antiLagSuccess && AntiLagEnabled != antiLagEnabled)
+                if (antiLagSuccess && _antiLagEnabled != antiLagEnabled)
                 {
                     _isApplyingSettings = true;
-                    AntiLagEnabled = antiLagEnabled;
+                    _antiLagEnabled = antiLagEnabled;
+                    OnPropertyChanged(nameof(AntiLagEnabled));
                     _isApplyingSettings = false;
                     stateChanged = true;
                     System.Diagnostics.Debug.WriteLine($"AMD Features: Anti-Lag state updated - Enabled={antiLagEnabled}");
