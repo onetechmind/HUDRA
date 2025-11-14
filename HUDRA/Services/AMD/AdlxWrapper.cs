@@ -108,7 +108,7 @@ namespace HUDRA.Services.AMD
         /// <param name="isEnabled">True to enable, false to disable</param>
         /// <returns>True if operation succeeded, false otherwise</returns>
         [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
-        public static extern bool SetAntiLag(bool isEnabled);
+        public static extern bool SetAntiLagState(bool isEnabled);
 
         #endregion
 

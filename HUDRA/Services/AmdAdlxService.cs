@@ -510,11 +510,11 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"ADLX: Setting Anti-Lag enabled={enabled}");
 
                 // Set Anti-Lag enabled/disabled
-                bool success = AdlxWrapper.SetAntiLag(enabled);
+                bool success = AdlxWrapper.SetAntiLagState(enabled);
 
                 if (!success)
                 {
-                    System.Diagnostics.Debug.WriteLine("ADLX: SetAntiLag returned false");
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetAntiLagState returned false");
                     return false;
                 }
 
