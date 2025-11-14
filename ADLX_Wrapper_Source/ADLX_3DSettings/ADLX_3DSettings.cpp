@@ -3,7 +3,7 @@
 //
 // Based on AMD ADLX SDK: https://github.com/GPUOpen-LibrariesAndSDKs/ADLX
 
-#include "SDK/Include/ADLXHelper/Windows/Cpp/ADLXHelper.h"
+#include "SDK/ADLXHelper/Windows/Cpp/ADLXHelper.h"
 #include "SDK/Include/I3DSettings.h"
 #include <iostream>
 

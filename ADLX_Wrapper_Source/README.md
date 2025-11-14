@@ -25,9 +25,15 @@ This directory contains the C++ source code for the ADLX_3DSettings.dll wrapper 
    ```
    ADLX_3DSettings/
    ├── SDK/
-   │   └── Include/
-   │       ├── ADLXHelper/
-   │       └── I3DSettings.h
+   │   ├── Include/
+   │   │   ├── ADLX.h
+   │   │   ├── I3DSettings.h
+   │   │   └── ... (other interface headers)
+   │   └── ADLXHelper/
+   │       └── Windows/
+   │           └── Cpp/
+   │               ├── ADLXHelper.h
+   │               └── ADLXHelper.cpp
    └── ADLX_3DSettings.cpp
    ```
 
@@ -46,7 +52,8 @@ This directory contains the C++ source code for the ADLX_3DSettings.dll wrapper 
    ```cmd
    cl.exe /LD /O2 /EHsc /MD ^
       /I"SDK\Include" ^
-      ADLX_3DSettings.cpp ^
+      /I"SDK\ADLXHelper\Windows\Cpp" ^
+      ADLX_3DSettings.cpp SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp ^
       /link /OUT:ADLX_3DSettings.dll
    ```
 
@@ -79,13 +86,14 @@ Create `ADLX_3DSettings.vcxproj` with the following content:
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>SDK\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>SDK\Include;SDK\ADLXHelper\Windows\Cpp;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>MaxSpeed</Optimization>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="ADLX_3DSettings.cpp" />
+    <ClCompile Include="SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>
@@ -123,7 +131,8 @@ All functions use `extern "C" __declspec(dllexport)` and `CallingConvention.Cdec
 
 **"Cannot open include file 'ADLXHelper.h'"**
 - Ensure the ADLX SDK is cloned in the correct location (`SDK/` subdirectory)
-- Verify the include path: `-I"SDK\Include"`
+- Verify both include paths are set: `/I"SDK\Include"` and `/I"SDK\ADLXHelper\Windows\Cpp"`
+- Make sure you're compiling both ADLX_3DSettings.cpp and SDK\ADLXHelper\Windows\Cpp\ADLXHelper.cpp
 
 **Linker errors**
 - Make sure you're using x64 tools (not x86)
