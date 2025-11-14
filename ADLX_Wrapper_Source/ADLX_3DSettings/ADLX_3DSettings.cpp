@@ -26,31 +26,31 @@ bool InitializeADLX()
     return false;
 }
 
-// Get the 3D Graphics Services interface
-adlx::IADLXInterface* Get3DGraphicsServices()
+// Get the 3D Graphics Services interface and GPU
+bool Get3DGraphicsServicesAndGPU(adlx::IADLX3DSettingsServices** ppService, adlx::IADLXGPU** ppGPU)
 {
     if (!InitializeADLX())
-        return nullptr;
+        return false;
 
     adlx::IADLXSystem* sys = g_ADLXHelper.GetSystemServices();
     if (sys == nullptr)
-        return nullptr;
+        return false;
 
-    adlx::IADLXGPU* gpu = nullptr;
     adlx::IADLXGPUList* gpus = nullptr;
 
     // Get GPU list
     ADLX_RESULT res = sys->GetGPUs(&gpus);
     if (ADLX_FAILED(res) || gpus == nullptr)
-        return nullptr;
+        return false;
 
     // Get first GPU
+    adlx::IADLXGPU* gpu = nullptr;
     res = gpus->At(0, &gpu);
     if (ADLX_FAILED(res) || gpu == nullptr)
     {
         if (gpus != nullptr)
             gpus->Release();
-        return nullptr;
+        return false;
     }
 
     // Get 3D Graphics Services
@@ -59,10 +59,33 @@ adlx::IADLXInterface* Get3DGraphicsServices()
 
     if (gpus != nullptr)
         gpus->Release();
-    if (gpu != nullptr)
-        gpu->Release();
 
-    return d3dSettingSrv;
+    if (ADLX_FAILED(res) || d3dSettingSrv == nullptr)
+    {
+        if (gpu != nullptr)
+            gpu->Release();
+        return false;
+    }
+
+    *ppService = d3dSettingSrv;
+    *ppGPU = gpu;
+    return true;
+}
+
+// Get the 3D Graphics Services interface (for RSR which doesn't need GPU parameter)
+adlx::IADLX3DSettingsServices* Get3DGraphicsServices()
+{
+    adlx::IADLX3DSettingsServices* service = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (Get3DGraphicsServicesAndGPU(&service, &gpu))
+    {
+        if (gpu != nullptr)
+            gpu->Release();
+        return service;
+    }
+
+    return nullptr;
 }
 
 // ============================================================================
@@ -194,17 +217,21 @@ extern "C" __declspec(dllexport) bool SetRSRSharpness(int sharpness)
 
 extern "C" __declspec(dllexport) bool HasAFMFSupport()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(&afmf);
+    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
 
     bool supported = ADLX_SUCCEEDED(res) && afmf != nullptr;
 
     if (afmf != nullptr)
         afmf->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
@@ -213,12 +240,14 @@ extern "C" __declspec(dllexport) bool HasAFMFSupport()
 
 extern "C" __declspec(dllexport) bool GetAFMFState()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(&afmf);
+    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
 
     bool enabled = false;
     if (ADLX_SUCCEEDED(res) && afmf != nullptr)
@@ -228,6 +257,8 @@ extern "C" __declspec(dllexport) bool GetAFMFState()
 
     if (afmf != nullptr)
         afmf->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
@@ -236,12 +267,14 @@ extern "C" __declspec(dllexport) bool GetAFMFState()
 
 extern "C" __declspec(dllexport) bool SetAFMFState(bool isEnabled)
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DFrameRateTargetControl* afmf = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(&afmf);
+    ADLX_RESULT res = d3dSettingSrv->GetFrameRateTargetControl(gpu, &afmf);
 
     bool success = false;
     if (ADLX_SUCCEEDED(res) && afmf != nullptr)
@@ -252,6 +285,8 @@ extern "C" __declspec(dllexport) bool SetAFMFState(bool isEnabled)
 
     if (afmf != nullptr)
         afmf->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
@@ -264,17 +299,21 @@ extern "C" __declspec(dllexport) bool SetAFMFState(bool isEnabled)
 
 extern "C" __declspec(dllexport) bool HasAntiLagSupport()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DAntiLag* antiLag = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(&antiLag);
+    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(gpu, &antiLag);
 
     bool supported = ADLX_SUCCEEDED(res) && antiLag != nullptr;
 
     if (antiLag != nullptr)
         antiLag->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
@@ -283,12 +322,14 @@ extern "C" __declspec(dllexport) bool HasAntiLagSupport()
 
 extern "C" __declspec(dllexport) bool GetAntiLagState()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DAntiLag* antiLag = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(&antiLag);
+    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(gpu, &antiLag);
 
     bool enabled = false;
     if (ADLX_SUCCEEDED(res) && antiLag != nullptr)
@@ -298,6 +339,8 @@ extern "C" __declspec(dllexport) bool GetAntiLagState()
 
     if (antiLag != nullptr)
         antiLag->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
@@ -306,12 +349,14 @@ extern "C" __declspec(dllexport) bool GetAntiLagState()
 
 extern "C" __declspec(dllexport) bool SetAntiLagState(bool isEnabled)
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = (adlx::IADLX3DSettingsServices*)Get3DGraphicsServices();
-    if (d3dSettingSrv == nullptr)
+    adlx::IADLX3DSettingsServices* d3dSettingSrv = nullptr;
+    adlx::IADLXGPU* gpu = nullptr;
+
+    if (!Get3DGraphicsServicesAndGPU(&d3dSettingSrv, &gpu))
         return false;
 
     adlx::IADLX3DAntiLag* antiLag = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(&antiLag);
+    ADLX_RESULT res = d3dSettingSrv->GetAntiLag(gpu, &antiLag);
 
     bool success = false;
     if (ADLX_SUCCEEDED(res) && antiLag != nullptr)
@@ -322,6 +367,8 @@ extern "C" __declspec(dllexport) bool SetAntiLagState(bool isEnabled)
 
     if (antiLag != nullptr)
         antiLag->Release();
+    if (gpu != nullptr)
+        gpu->Release();
     if (d3dSettingSrv != nullptr)
         d3dSettingSrv->Release();
 
