@@ -228,6 +228,75 @@ namespace HUDRA.Services
             });
         }
 
+        /// <summary>
+        /// Get current AFMF state
+        /// </summary>
+        public async Task<(bool success, bool enabled)> GetAfmfStateAsync()
+        {
+            if (!_isAmdGpuPresent)
+            {
+                return (false, false);
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to get AFMF state
+                        return GetAfmfStateViaAdlx();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("AFMF requires ADLX - not available");
+                        return (false, false);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error getting AFMF state: {ex.Message}");
+                    return (false, false);
+                }
+            });
+        }
+
+        /// <summary>
+        /// Enable or disable AFMF
+        /// </summary>
+        public async Task<bool> SetAfmfEnabledAsync(bool enabled)
+        {
+            if (!_isAmdGpuPresent)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot set AFMF: No AMD GPU detected");
+                return false;
+            }
+
+            return await Task.Run(() =>
+            {
+                try
+                {
+                    System.Diagnostics.Debug.WriteLine($"Setting AFMF: enabled={enabled}");
+
+                    if (_isAdlxAvailable)
+                    {
+                        // Use ADLX to set AFMF
+                        return SetAfmfViaAdlx(enabled);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("AFMF requires ADLX - not available");
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error setting AFMF: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
         #region ADLX Methods
 
         private (bool success, bool enabled, int sharpness) GetRsrStateViaAdlx()
@@ -304,6 +373,47 @@ namespace HUDRA.Services
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ADLX: Error setting RSR: {ex.Message}");
+                return false;
+            }
+        }
+
+        private (bool success, bool enabled) GetAfmfStateViaAdlx()
+        {
+            try
+            {
+                // Try to get AFMF state
+                bool enabled = AdlxWrapper.GetAFMFState();
+                System.Diagnostics.Debug.WriteLine($"ADLX: AFMF enabled={enabled}");
+                return (true, enabled);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error getting AFMF state: {ex.Message}");
+                return (false, false);
+            }
+        }
+
+        private bool SetAfmfViaAdlx(bool enabled)
+        {
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Setting AFMF enabled={enabled}");
+
+                // Set AFMF enabled/disabled
+                bool success = AdlxWrapper.SetAFMFState(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("ADLX: SetAFMFState returned false");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set AFMF enabled={enabled}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ADLX: Error setting AFMF: {ex.Message}");
                 return false;
             }
         }

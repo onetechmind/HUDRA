@@ -105,5 +105,46 @@
                         TextWrapping="Wrap" />
             </StackPanel>
         </Border>
+
+        <!--  AFMF Toggle  -->
+        <Border
+            Margin="0"
+            Padding="15"
+            CornerRadius="12">
+            <StackPanel Spacing="10">
+                <Border
+                    x:Name="AfmfToggleBorder"
+                    Padding="10,5,10,5"
+                    Background="#22FFFFFF"
+                    CornerRadius="12"
+                    BorderBrush="{x:Bind AfmfToggleFocusBrush, Mode=OneWay}"
+                    BorderThickness="2">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="4*" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            Text="Fluid Motion&#x0a;Frames" />
+                        <ToggleSwitch
+                            x:Name="AfmfToggle"
+                            Grid.Column="1"
+                            IsOn="{Binding AfmfEnabled, Mode=TwoWay}" />
+                    </Grid>
+                </Border>
+
+                <!--  AFMF Description  -->
+                <TextBlock
+                    Padding="5,0,5,0"
+                        Style="{StaticResource SettingsDescriptionStyle}"
+                        Text="AMD's frame generation technology for improved performance."
+                        TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

@@ -60,6 +60,32 @@ namespace HUDRA.Services.AMD
 
         #endregion
 
+        #region AFMF (AMD Fluid Motion Frames) Functions
+
+        /// <summary>
+        /// Check if the GPU supports AMD Fluid Motion Frames
+        /// </summary>
+        /// <returns>True if AFMF is supported, false otherwise</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool HasAFMFSupport();
+
+        /// <summary>
+        /// Get the current state of AMD Fluid Motion Frames
+        /// </summary>
+        /// <returns>True if AFMF is enabled, false if disabled</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool GetAFMFState();
+
+        /// <summary>
+        /// Enable or disable AMD Fluid Motion Frames
+        /// </summary>
+        /// <param name="isEnabled">True to enable, false to disable</param>
+        /// <returns>True if operation succeeded, false otherwise</returns>
+        [DllImport(ADLX_3D_SETTINGS_DLL, CallingConvention = CallingConvention.Cdecl)]
+        public static extern bool SetAFMFState(bool isEnabled);
+
+        #endregion
+
         #region Helper Methods
 
         /// <summary>

@@ -17,14 +17,14 @@ namespace HUDRA.Controls
 
         private GamepadNavigationService? _gamepadNavigationService;
         private AmdAdlxService? _amdAdlxService;
-        private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider
+        private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider, 2=AFMF Toggle
         private bool _isFocused = false;
         private bool _isInitialized = false;
         private bool _isApplyingSettings = false;
 
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider to toggle
-        public bool CanNavigateDown => _currentFocusedElement < 1; // Can navigate down from toggle to slider
+        public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider/AFMF to previous element
+        public bool CanNavigateDown => _currentFocusedElement < 2; // Can navigate down to AFMF toggle
         public bool CanNavigateLeft => _isSliderActivated; // Can adjust slider when activated
         public bool CanNavigateRight => _isSliderActivated; // Can adjust slider when activated
         public bool CanActivate => true;
@@ -90,6 +90,18 @@ namespace HUDRA.Controls
             }
         }
 
+        public Brush AfmfToggleFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 2)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
         // Data binding properties
         private bool _rsrEnabled = false;
         public bool RsrEnabled
@@ -124,6 +136,23 @@ namespace HUDRA.Controls
                     {
                         _ = ApplyRsrSharpnessAsync(value);
                     }
+                }
+            }
+        }
+
+        private bool _afmfEnabled = false;
+        public bool AfmfEnabled
+        {
+            get => _afmfEnabled;
+            set
+            {
+                if (_afmfEnabled != value && !_isApplyingSettings)
+                {
+                    _afmfEnabled = value;
+                    OnPropertyChanged();
+
+                    // Apply AFMF settings asynchronously
+                    _ = ApplyAfmfSettingsAsync(value);
                 }
             }
         }
@@ -179,6 +208,18 @@ namespace HUDRA.Controls
                     _isApplyingSettings = false;
 
                     System.Diagnostics.Debug.WriteLine($"Loaded RSR state: enabled={enabled}, sharpness={sharpness}");
+                }
+
+                // Load current AFMF state
+                var (afmfSuccess, afmfEnabled) = await _amdAdlxService.GetAfmfStateAsync();
+                if (afmfSuccess)
+                {
+                    _isApplyingSettings = true;
+                    _afmfEnabled = afmfEnabled;
+                    OnPropertyChanged(nameof(AfmfEnabled));
+                    _isApplyingSettings = false;
+
+                    System.Diagnostics.Debug.WriteLine($"Loaded AFMF state: enabled={afmfEnabled}");
                 }
             }
             catch (Exception ex)
@@ -275,6 +316,55 @@ namespace HUDRA.Controls
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error applying RSR sharpness: {ex.Message}");
+            }
+        }
+
+        private async Task ApplyAfmfSettingsAsync(bool enabled)
+        {
+            if (_amdAdlxService == null)
+            {
+                System.Diagnostics.Debug.WriteLine("AMD service not initialized");
+                return;
+            }
+
+            if (!_amdAdlxService.IsAmdGpuAvailable())
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot apply AFMF: No AMD GPU detected");
+                return;
+            }
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying AFMF settings: enabled={enabled}");
+
+                bool success = await _amdAdlxService.SetAfmfEnabledAsync(enabled);
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to apply AFMF settings");
+
+                    // Revert toggle state on failure
+                    _isApplyingSettings = true;
+                    _afmfEnabled = !enabled;
+                    OnPropertyChanged(nameof(AfmfEnabled));
+                    _isApplyingSettings = false;
+
+                    // TODO: Show error message to user
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Successfully applied AFMF settings: enabled={enabled}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying AFMF settings: {ex.Message}");
+
+                // Revert toggle state on error
+                _isApplyingSettings = true;
+                _afmfEnabled = !enabled;
+                OnPropertyChanged(nameof(AfmfEnabled));
+                _isApplyingSettings = false;
             }
         }
 
@@ -378,6 +468,14 @@ namespace HUDRA.Controls
                         System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Deactivated sharpness slider adjustment");
                     }
                     break;
+
+                case 2: // AFMF Toggle
+                    if (AfmfToggle != null)
+                    {
+                        AfmfToggle.IsOn = !AfmfToggle.IsOn;
+                        System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Toggled AFMF to {AfmfToggle.IsOn}");
+                    }
+                    break;
             }
         }
 
@@ -405,11 +503,11 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Focus the last element (sharpness slider)
-            _currentFocusedElement = 1;
+            // Focus the last element (AFMF toggle)
+            _currentFocusedElement = 2;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Focused last element (sharpness slider)");
+            System.Diagnostics.Debug.WriteLine($"🎮 AmdFeatures: Focused last element (AFMF toggle)");
         }
 
         private void UpdateFocusVisuals()
@@ -419,6 +517,7 @@ namespace HUDRA.Controls
             {
                 OnPropertyChanged(nameof(RsrToggleFocusBrush));
                 OnPropertyChanged(nameof(SharpnessSliderFocusBrush));
+                OnPropertyChanged(nameof(AfmfToggleFocusBrush));
             });
         }
 
