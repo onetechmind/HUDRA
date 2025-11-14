@@ -218,90 +218,67 @@ extern "C" __declspec(dllexport) bool SetRSRSharpness(int sharpness)
 
 extern "C" __declspec(dllexport) bool HasAFMFSupport()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    adlx::IADLX3DSettingsServicesPtr d3dSettingSrv(Get3DGraphicsServices());
     if (d3dSettingSrv == nullptr)
         return false;
 
     // Cast to v1 interface for AFMF support
-    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
+    adlx::IADLX3DSettingsServices1Ptr d3dSettingSrv1(d3dSettingSrv);
+    if (d3dSettingSrv1 == nullptr)
+        return false;
 
-    bool supported = false;
-    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
-    {
-        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
-        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
+    adlx::IADLX3DAMDFluidMotionFramesPtr afmf;
+    ADLX_RESULT res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
 
-        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
-        {
-            afmf->IsSupported(&supported);
-            afmf->Release();
-        }
+    if (ADLX_FAILED(res) || afmf == nullptr)
+        return false;
 
-        d3dSettingSrv1->Release();
-    }
-
-    d3dSettingSrv->Release();
+    adlx_bool supported = false;
+    afmf->IsSupported(&supported);
     return supported;
 }
 
 extern "C" __declspec(dllexport) bool GetAFMFState()
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    adlx::IADLX3DSettingsServicesPtr d3dSettingSrv(Get3DGraphicsServices());
     if (d3dSettingSrv == nullptr)
         return false;
 
     // Cast to v1 interface for AFMF support
-    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
+    adlx::IADLX3DSettingsServices1Ptr d3dSettingSrv1(d3dSettingSrv);
+    if (d3dSettingSrv1 == nullptr)
+        return false;
 
-    bool enabled = false;
-    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
-    {
-        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
-        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
+    adlx::IADLX3DAMDFluidMotionFramesPtr afmf;
+    ADLX_RESULT res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
 
-        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
-        {
-            afmf->IsEnabled(&enabled);
-            afmf->Release();
-        }
+    if (ADLX_FAILED(res) || afmf == nullptr)
+        return false;
 
-        d3dSettingSrv1->Release();
-    }
-
-    d3dSettingSrv->Release();
+    adlx_bool enabled = false;
+    afmf->IsEnabled(&enabled);
     return enabled;
 }
 
 extern "C" __declspec(dllexport) bool SetAFMFState(bool isEnabled)
 {
-    adlx::IADLX3DSettingsServices* d3dSettingSrv = Get3DGraphicsServices();
+    adlx::IADLX3DSettingsServicesPtr d3dSettingSrv(Get3DGraphicsServices());
     if (d3dSettingSrv == nullptr)
         return false;
 
     // Cast to v1 interface for AFMF support
-    adlx::IADLX3DSettingsServices1* d3dSettingSrv1 = nullptr;
-    ADLX_RESULT res = d3dSettingSrv->QueryInterface(adlx::IID_IADLX3DSettingsServices1(), (void**)&d3dSettingSrv1);
+    adlx::IADLX3DSettingsServices1Ptr d3dSettingSrv1(d3dSettingSrv);
+    if (d3dSettingSrv1 == nullptr)
+        return false;
 
-    bool success = false;
-    if (ADLX_SUCCEEDED(res) && d3dSettingSrv1 != nullptr)
-    {
-        adlx::IADLX3DAMDFluidMotionFrames* afmf = nullptr;
-        res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
+    adlx::IADLX3DAMDFluidMotionFramesPtr afmf;
+    ADLX_RESULT res = d3dSettingSrv1->GetAMDFluidMotionFrames(&afmf);
 
-        if (ADLX_SUCCEEDED(res) && afmf != nullptr)
-        {
-            res = afmf->SetEnabled(isEnabled);
-            success = ADLX_SUCCEEDED(res);
-            afmf->Release();
-        }
+    if (ADLX_FAILED(res) || afmf == nullptr)
+        return false;
 
-        d3dSettingSrv1->Release();
-    }
-
-    d3dSettingSrv->Release();
-    return success;
+    res = afmf->SetEnabled(isEnabled);
+    return ADLX_SUCCEEDED(res);
 }
 
 // ============================================================================
