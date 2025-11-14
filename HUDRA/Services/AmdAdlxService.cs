@@ -402,6 +402,25 @@ namespace HUDRA.Services
             {
                 System.Diagnostics.Debug.WriteLine($"ADLX: Setting RSR enabled={enabled}, sharpness={sharpness}");
 
+                // Set sharpness BEFORE enabling RSR (required for immediate activation)
+                if (enabled)
+                {
+                    if (!AdlxWrapper.TrySetRSRSharpness(sharpness, out bool setSharpnessSuccess))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: Failed to call SetRSRSharpness");
+                        // Continue anyway, try to enable RSR
+                    }
+                    else if (!setSharpnessSuccess)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: SetRSRSharpness returned false");
+                        // Continue anyway
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR sharpness={sharpness}");
+                    }
+                }
+
                 // Set RSR enabled/disabled
                 if (!AdlxWrapper.TrySetRSR(enabled, out bool setRsrSuccess))
                 {
@@ -416,27 +435,6 @@ namespace HUDRA.Services
                 }
 
                 System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR enabled={enabled}");
-
-                // Set sharpness if RSR was enabled
-                if (enabled)
-                {
-                    if (!AdlxWrapper.TrySetRSRSharpness(sharpness, out bool setSharpnessSuccess))
-                    {
-                        System.Diagnostics.Debug.WriteLine($"ADLX: Failed to call SetRSRSharpness");
-                        // Don't fail the whole operation if sharpness fails
-                        return true;
-                    }
-
-                    if (!setSharpnessSuccess)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"ADLX: SetRSRSharpness returned false");
-                        // Don't fail the whole operation if sharpness fails
-                        return true;
-                    }
-
-                    System.Diagnostics.Debug.WriteLine($"ADLX: Successfully set RSR sharpness={sharpness}");
-                }
-
                 return true;
             }
             catch (Exception ex)
