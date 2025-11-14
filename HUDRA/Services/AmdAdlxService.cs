@@ -101,17 +101,23 @@ namespace HUDRA.Services
                 // Method 1: Check registry first (more reliable than WMI)
                 try
                 {
+                    System.Diagnostics.Debug.WriteLine("Checking registry for AMD GPU...");
                     using (var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}\0000"))
                     {
                         if (key != null)
                         {
                             var providerName = key.GetValue("ProviderName")?.ToString() ?? "";
+                            System.Diagnostics.Debug.WriteLine($"Registry ProviderName: '{providerName}'");
                             if (providerName.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
                                 providerName.Contains("ATI", StringComparison.OrdinalIgnoreCase))
                             {
                                 System.Diagnostics.Debug.WriteLine($"Found AMD GPU via registry: {providerName}");
                                 return true;
                             }
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("Registry key 0000 is null");
                         }
                     }
                 }
@@ -120,35 +126,60 @@ namespace HUDRA.Services
                     System.Diagnostics.Debug.WriteLine($"Error checking registry for AMD GPU: {ex.Message}");
                 }
 
-                // Method 2: Check via WMI (may fail on some systems)
-                // Skip WMI entirely as it can be unstable after driver changes
+                // Method 2: Check via WMI (with protection against crashes)
                 try
                 {
-                    System.Diagnostics.Debug.WriteLine("Skipping WMI check (can be unstable after driver changes)");
-                    // WMI query disabled - registry check is sufficient and more reliable
-                    /*
-                    using (var searcher = new System.Management.ManagementObjectSearcher("SELECT * FROM Win32_VideoController"))
-                    {
-                        foreach (var obj in searcher.Get())
-                        {
-                            var name = obj["Name"]?.ToString() ?? "";
-                            var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
+                    System.Diagnostics.Debug.WriteLine("Attempting WMI check for AMD GPU...");
 
-                            if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
-                                name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
-                                adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
-                                adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                    // Use a timeout and run on a separate thread to prevent hangs
+                    var wmiTask = Task.Run(() =>
+                    {
+                        try
+                        {
+                            using (var searcher = new System.Management.ManagementObjectSearcher("SELECT Name, AdapterCompatibility FROM Win32_VideoController"))
                             {
-                                System.Diagnostics.Debug.WriteLine($"Found AMD GPU: {name}");
-                                return true;
+                                foreach (var obj in searcher.Get())
+                                {
+                                    var name = obj["Name"]?.ToString() ?? "";
+                                    var adapterCompatibility = obj["AdapterCompatibility"]?.ToString() ?? "";
+
+                                    System.Diagnostics.Debug.WriteLine($"WMI found GPU: Name='{name}', Compatibility='{adapterCompatibility}'");
+
+                                    if (name.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                        name.Contains("Radeon", StringComparison.OrdinalIgnoreCase) ||
+                                        adapterCompatibility.Contains("AMD", StringComparison.OrdinalIgnoreCase) ||
+                                        adapterCompatibility.Contains("ATI", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        System.Diagnostics.Debug.WriteLine($"Found AMD GPU via WMI: {name}");
+                                        return true;
+                                    }
+                                }
                             }
+                            return false;
+                        }
+                        catch (Exception wmiEx)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"WMI query exception: {wmiEx.Message}");
+                            return false;
+                        }
+                    });
+
+                    // Wait up to 3 seconds for WMI query
+                    if (wmiTask.Wait(TimeSpan.FromSeconds(3)))
+                    {
+                        if (wmiTask.Result)
+                        {
+                            return true;
                         }
                     }
-                    */
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("WMI query timed out after 3 seconds");
+                    }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Error in WMI section: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Error during WMI check: {ex.Message}");
                 }
             }
             catch (Exception ex)
