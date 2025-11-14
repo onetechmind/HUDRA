@@ -1,16 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <UserControl
     x:Class="HUDRA.Controls.LosslessScalingControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:HUDRA.Controls"
     xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:controls="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
     ap:GamepadNavigation.IsEnabled="True"
     ap:GamepadNavigation.NavigationGroup="MainControls"
-    ap:GamepadNavigation.NavigationOrder="1">
+    ap:GamepadNavigation.NavigationOrder="1"
+    mc:Ignorable="d">
 
     <UserControl.Resources>
         <controls:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
@@ -23,13 +23,18 @@
             Padding="15"
             CornerRadius="12">
             <StackPanel Spacing="10">
+                <TextBlock
+                    Padding="5,0,5,0"
+                    FontSize="14"
+                    Text="Adjust your Lossless Scaling settings, then press Apply."
+                    TextWrapping="Wrap" />
                 <Border
                     x:Name="UpscalingToggleBorder"
                     Padding="10,5,10,5"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind UpscalingToggleFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*" />
@@ -77,9 +82,9 @@
                     Margin="5"
                     Padding="10,20,10,10"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind FrameGenSliderFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -136,9 +141,9 @@
                     Margin="5"
                     Padding="10,20,10,10"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind FlowScaleSliderFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -217,9 +222,9 @@
             Spacing="15">
             <Border
                 x:Name="ApplyButtonBorder"
-                CornerRadius="6"
                 BorderBrush="{x:Bind ApplyButtonFocusBrush, Mode=OneWay}"
-                BorderThickness="2">
+                BorderThickness="2"
+                CornerRadius="6">
                 <Button
                     x:Name="ApplyButton"
                     Width="75"
@@ -229,9 +234,9 @@
             </Border>
             <Border
                 x:Name="ResetButtonBorder"
-                CornerRadius="6"
                 BorderBrush="{x:Bind ResetButtonFocusBrush, Mode=OneWay}"
-                BorderThickness="2">
+                BorderThickness="2"
+                CornerRadius="6">
                 <Button
                     x:Name="ResetButton"
                     Width="75"
@@ -241,9 +246,9 @@
             </Border>
             <Border
                 x:Name="RestoreButtonBorder"
-                CornerRadius="6"
                 BorderBrush="{x:Bind RestoreButtonFocusBrush, Mode=OneWay}"
-                BorderThickness="2">
+                BorderThickness="2"
+                CornerRadius="6">
                 <Button
                     x:Name="RestoreButton"
                     Width="75"

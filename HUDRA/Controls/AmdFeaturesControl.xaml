@@ -1,16 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8" ?>
 <UserControl
     x:Class="HUDRA.Controls.AmdFeaturesControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:HUDRA.Controls"
     xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:controls="using:HUDRA.Controls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
     ap:GamepadNavigation.IsEnabled="True"
     ap:GamepadNavigation.NavigationGroup="MainControls"
-    ap:GamepadNavigation.NavigationOrder="1">
+    ap:GamepadNavigation.NavigationOrder="1"
+    mc:Ignorable="d">
 
     <StackPanel Spacing="0">
         <!--  RSR Toggle  -->
@@ -19,13 +19,18 @@
             Padding="15"
             CornerRadius="12">
             <StackPanel Spacing="10">
+                <TextBlock
+                    Padding="5,0,5,0"
+                    FontSize="14"
+                    Text="Direct control of common AMD Adrenalin features. "
+                    TextWrapping="Wrap" />
                 <Border
                     x:Name="RsrToggleBorder"
                     Padding="10,5,10,5"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind RsrToggleFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*" />
@@ -45,12 +50,6 @@
                     </Grid>
                 </Border>
 
-                <!--  RSR Description  -->
-                <TextBlock
-                    Padding="5,0,5,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="AMD's upscaling technology for improved image quality."
-                        TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
@@ -62,9 +61,9 @@
                     Margin="5"
                     Padding="10,20,10,10"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind SharpnessSliderFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -80,7 +79,7 @@
                             FontFamily="Cascadia Code"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Text="Sharpness" />
+                            Text="RSR Sharpness" />
                         <TextBlock
                             Grid.Row="0"
                             Grid.Column="1"
@@ -91,9 +90,9 @@
                             x:Name="SharpnessSlider"
                             Grid.Row="1"
                             Grid.ColumnSpan="2"
+                            IsEnabled="{Binding RsrEnabled, Mode=OneWay}"
                             Maximum="100"
                             Minimum="0"
-                            IsEnabled="{Binding RsrEnabled, Mode=OneWay}"
                             Value="{Binding RsrSharpness, Mode=TwoWay}" />
                     </Grid>
                 </Border>
@@ -101,25 +100,25 @@
                 <!--  Sharpness Description  -->
                 <TextBlock
                     Padding="10,0,10,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="Adjusts the sharpness level of RSR."
-                        TextWrapping="Wrap" />
+                    Style="{StaticResource SettingsDescriptionStyle}"
+                    Text="AMD’s upscaling boosts lower-resolution images to your display’s full resolution."
+                    TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
         <!--  AFMF Toggle  -->
         <Border
             Margin="0"
-            Padding="15"
+            Padding="15,5,15,5"
             CornerRadius="12">
             <StackPanel Spacing="10">
                 <Border
                     x:Name="AfmfToggleBorder"
                     Padding="10,5,10,5"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind AfmfToggleFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*" />
@@ -131,7 +130,7 @@
                             FontFamily="Cascadia Code"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Text="Fluid Motion&#x0a;Frames" />
+                            Text="Fluid Motion Frames" />
                         <ToggleSwitch
                             x:Name="AfmfToggle"
                             Grid.Column="1"
@@ -142,25 +141,25 @@
                 <!--  AFMF Description  -->
                 <TextBlock
                     Padding="5,0,5,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="AMD's frame generation technology for improved performance."
-                        TextWrapping="Wrap" />
+                    Style="{StaticResource SettingsDescriptionStyle}"
+                    Text="AMD's frame generation technology adds extra frames for smoother motion."
+                    TextWrapping="Wrap" />
             </StackPanel>
         </Border>
 
         <!--  Anti-Lag Toggle  -->
         <Border
             Margin="0"
-            Padding="15"
+            Padding="15,5,15,5"
             CornerRadius="12">
             <StackPanel Spacing="10">
                 <Border
                     x:Name="AntiLagToggleBorder"
                     Padding="10,5,10,5"
                     Background="#22FFFFFF"
-                    CornerRadius="12"
                     BorderBrush="{x:Bind AntiLagToggleFocusBrush, Mode=OneWay}"
-                    BorderThickness="2">
+                    BorderThickness="2"
+                    CornerRadius="12">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="4*" />
@@ -172,7 +171,7 @@
                             FontFamily="Cascadia Code"
                             FontSize="14"
                             FontWeight="SemiBold"
-                            Text="Radeon&#x0a;Anti-Lag" />
+                            Text="Radeon Anti-Lag" />
                         <ToggleSwitch
                             x:Name="AntiLagToggle"
                             Grid.Column="1"
@@ -183,9 +182,9 @@
                 <!--  Anti-Lag Description  -->
                 <TextBlock
                     Padding="5,0,5,0"
-                        Style="{StaticResource SettingsDescriptionStyle}"
-                        Text="AMD's latency reduction technology for improved responsiveness."
-                        TextWrapping="Wrap" />
+                    Style="{StaticResource SettingsDescriptionStyle}"
+                    Text="AMD's latency reduction technology for improved responsiveness."
+                    TextWrapping="Wrap" />
             </StackPanel>
         </Border>
     </StackPanel>
