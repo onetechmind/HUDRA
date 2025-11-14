@@ -127,7 +127,8 @@ namespace HUDRA.Controls
         public LosslessScalingControl()
         {
             this.InitializeComponent();
-            this.DataContext = this;
+            // Don't set DataContext here - it will be inherited from parent page (ScalingPageViewModel)
+            // this.DataContext = this;
             InitializeGamepadNavigation();
         }
 
