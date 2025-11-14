@@ -24,6 +24,10 @@ namespace HUDRA.Controls
         private bool _isApplyingSettings = false;
         private static bool _initializationFailed = false; // Track if initialization has already failed
 
+        // Debounce timer for RSR sharpness slider
+        private DispatcherTimer? _sharpnessDebounceTimer;
+        private int _pendingSharpness = -1;
+
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0; // Can navigate up from slider/AFMF/Anti-Lag to previous element
         public bool CanNavigateDown => _currentFocusedElement < 3; // Can navigate down to Anti-Lag toggle
@@ -145,10 +149,13 @@ namespace HUDRA.Controls
                     _rsrSharpness = value;
                     OnPropertyChanged();
 
-                    // Apply sharpness change if RSR is enabled
-                    if (_rsrEnabled)
+                    // Debounce sharpness changes - only apply after user stops dragging
+                    if (_rsrEnabled && _sharpnessDebounceTimer != null)
                     {
-                        _ = ApplyRsrSharpnessAsync(value);
+                        _pendingSharpness = value;
+                        _sharpnessDebounceTimer.Stop();
+                        _sharpnessDebounceTimer.Start();
+                        System.Diagnostics.Debug.WriteLine($"RSR Sharpness changed to {value}, debouncing...");
                     }
                 }
             }
@@ -195,6 +202,13 @@ namespace HUDRA.Controls
             this.Loaded += AmdFeaturesControl_Loaded;
             this.Unloaded += AmdFeaturesControl_Unloaded;
             InitializeGamepadNavigation();
+
+            // Initialize debounce timer for sharpness slider (500ms delay)
+            _sharpnessDebounceTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _sharpnessDebounceTimer.Tick += SharpnessDebounceTimer_Tick;
         }
 
         private async void AmdFeaturesControl_Loaded(object sender, RoutedEventArgs e)
@@ -209,6 +223,18 @@ namespace HUDRA.Controls
         private void AmdFeaturesControl_Unloaded(object sender, RoutedEventArgs e)
         {
             // Cleanup handled in Dispose
+        }
+
+        private async void SharpnessDebounceTimer_Tick(object? sender, object e)
+        {
+            _sharpnessDebounceTimer?.Stop();
+
+            if (_pendingSharpness >= 0 && _rsrEnabled)
+            {
+                System.Diagnostics.Debug.WriteLine($"Applying debounced RSR sharpness: {_pendingSharpness}");
+                await ApplyRsrSharpnessAsync(_pendingSharpness);
+                _pendingSharpness = -1;
+            }
         }
 
         private async Task InitializeAmdServiceAsync()
@@ -679,6 +705,14 @@ namespace HUDRA.Controls
         {
             this.Loaded -= AmdFeaturesControl_Loaded;
             this.Unloaded -= AmdFeaturesControl_Unloaded;
+
+            // Clean up debounce timer
+            if (_sharpnessDebounceTimer != null)
+            {
+                _sharpnessDebounceTimer.Stop();
+                _sharpnessDebounceTimer.Tick -= SharpnessDebounceTimer_Tick;
+                _sharpnessDebounceTimer = null;
+            }
 
             // Don't dispose the shared service - it's a singleton used across all control instances
             // The service will be disposed when the application exits
