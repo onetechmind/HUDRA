@@ -39,6 +39,9 @@ namespace HUDRA.Services
         private bool _isComboBoxOpen = false;
         private IGamepadNavigable? _activeComboBoxControl = null;
 
+        // Polling suspension (for modal dialogs)
+        private bool _isPollingPaused = false;
+
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
         public event EventHandler<GamepadNavbarButtonEventArgs>? NavbarButtonRequested;
@@ -844,17 +847,40 @@ namespace HUDRA.Services
             }
         }
 
+        // Suspend gamepad polling (for modal dialogs)
+        public void SuspendPolling()
+        {
+            if (!_isPollingPaused && _gamepadTimer?.IsRunning == true)
+            {
+                _gamepadTimer.Stop();
+                _isPollingPaused = true;
+                DeactivateGamepadMode();
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling suspended (modal dialog)");
+            }
+        }
+
+        // Resume gamepad polling after modal dialog
+        public void ResumePolling()
+        {
+            if (_isPollingPaused && _connectedGamepads.Count > 0)
+            {
+                _gamepadTimer?.Start();
+                _isPollingPaused = false;
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
+            }
+        }
+
         public void Dispose()
         {
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposing...");
 
             _gamepadTimer?.Stop();
-            
+
             Gamepad.GamepadAdded -= OnGamepadAdded;
             Gamepad.GamepadRemoved -= OnGamepadRemoved;
-            
+
             _connectedGamepads.Clear();
-            
+
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposed");
         }
     }

@@ -632,28 +632,36 @@ namespace HUDRA
 
             try
             {
-                // Deactivate gamepad navigation to prevent background UI interaction
+                // Suspend gamepad polling to prevent background UI interaction
                 // Dialog will handle gamepad input natively (A = Primary, B = Close)
-                _gamepadNavigationService.DeactivateGamepadMode();
+                _gamepadNavigationService.SuspendPolling();
 
-                // Show confirmation dialog
-                // Gamepad support: A button = Force Quit, B button = Cancel
-                var dialog = new ContentDialog()
+                try
                 {
-                    Title = "Force Quit Game",
-                    Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
-                    PrimaryButtonText = "Ⓐ Force Quit",
-                    CloseButtonText = "Ⓑ Cancel",
-                    DefaultButton = ContentDialogButton.Close, // B button (safer default)
-                    XamlRoot = this.Content.XamlRoot
-                };
+                    // Show confirmation dialog
+                    // Gamepad support: A button = Force Quit, B button = Cancel
+                    var dialog = new ContentDialog()
+                    {
+                        Title = "Force Quit Game",
+                        Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
+                        PrimaryButtonText = "Ⓐ Force Quit",
+                        CloseButtonText = "Ⓑ Cancel",
+                        DefaultButton = ContentDialogButton.Close, // B button (safer default)
+                        XamlRoot = this.Content.XamlRoot
+                    };
 
-                var result = await dialog.ShowAsync();
+                    var result = await dialog.ShowAsync();
 
-                if (result != ContentDialogResult.Primary)
+                    if (result != ContentDialogResult.Primary)
+                    {
+                        System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
+                        return;
+                    }
+                }
+                finally
                 {
-                    System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
-                    return;
+                    // Resume gamepad polling after dialog closes
+                    _gamepadNavigationService.ResumePolling();
                 }
 
                 // User confirmed - proceed with force quit
@@ -688,18 +696,26 @@ namespace HUDRA
                 {
                     System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
 
-                    // Deactivate gamepad navigation before showing error dialog
-                    _gamepadNavigationService.DeactivateGamepadMode();
+                    // Suspend gamepad polling before showing error dialog
+                    _gamepadNavigationService.SuspendPolling();
 
-                    // Show error dialog
-                    var errorDialog = new ContentDialog()
+                    try
                     {
-                        Title = "Force Quit Failed",
-                        Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
-                        CloseButtonText = "OK",
-                        XamlRoot = this.Content.XamlRoot
-                    };
-                    await errorDialog.ShowAsync();
+                        // Show error dialog
+                        var errorDialog = new ContentDialog()
+                        {
+                            Title = "Force Quit Failed",
+                            Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
+                            CloseButtonText = "OK",
+                            XamlRoot = this.Content.XamlRoot
+                        };
+                        await errorDialog.ShowAsync();
+                    }
+                    finally
+                    {
+                        // Resume gamepad polling after error dialog closes
+                        _gamepadNavigationService.ResumePolling();
+                    }
                 }
             }
             catch (Exception ex)
