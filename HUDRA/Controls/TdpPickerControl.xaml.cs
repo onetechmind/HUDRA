@@ -151,6 +151,7 @@ namespace HUDRA.Controls
         public TdpPickerControl()
         {
             this.InitializeComponent();
+            this.DataContext = this; // Required for {Binding} to work
             InitializeData();
             this.Loaded += TdpPickerControl_Loaded;
         }

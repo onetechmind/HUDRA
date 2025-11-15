@@ -620,7 +620,9 @@ namespace HUDRA.Services
             // Check if we should enter navbar mode (Left press at leftmost element)
             if (action == GamepadNavigationAction.Left && _navbarButtons.Count > 0)
             {
-                // Check if current element is at index 0 (leftmost)
+                // Check if current element is at index 0 (leftmost) OR can't navigate left
+                bool isLeftmost = false;
+
                 if (_currentFrame?.Content is FrameworkElement rootElement)
                 {
                     var navigableElements = GamepadNavigation.GetNavigableElements(rootElement).ToList();
@@ -628,11 +630,27 @@ namespace HUDRA.Services
                         ? navigableElements.IndexOf(_currentFocusedElement)
                         : -1;
 
+                    // Element is leftmost if it's at index 0
                     if (currentIndex == 0)
                     {
-                        EnterNavbarMode();
-                        return;
+                        isLeftmost = true;
                     }
+                }
+
+                // Also check if the current element explicitly can't navigate left
+                if (!isLeftmost && _currentFocusedElement is IGamepadNavigable navigable)
+                {
+                    if (!navigable.CanNavigateLeft)
+                    {
+                        isLeftmost = true;
+                        System.Diagnostics.Debug.WriteLine($"🎮 Element {_currentFocusedElement.GetType().Name} can't navigate left, treating as leftmost");
+                    }
+                }
+
+                if (isLeftmost)
+                {
+                    EnterNavbarMode();
+                    return;
                 }
             }
 
@@ -1187,7 +1205,7 @@ namespace HUDRA.Services
             // Set focus on new button
             _currentNavbarButton = button;
             button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-            button.BorderThickness = new Thickness(3);
+            button.BorderThickness = new Thickness(2); // Reduced from 3 to 2 to avoid double-border effect with GlowingGameButtonStyle
             button.Focus(FocusState.Programmatic);
         }
 
