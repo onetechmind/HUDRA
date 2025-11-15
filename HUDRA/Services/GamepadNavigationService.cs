@@ -42,6 +42,9 @@ namespace HUDRA.Services
         // Polling suspension (for modal dialogs)
         private bool _isPollingPaused = false;
 
+        // Dialog state tracking (to bypass activation input consumption)
+        private bool _isDialogOpen = false;
+
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
         public event EventHandler<GamepadNavbarButtonEventArgs>? NavbarButtonRequested;
@@ -179,12 +182,12 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Activate gamepad navigation on first input
-            if (!_isGamepadActive)
+            // Activate gamepad navigation on first input (unless dialog is open)
+            if (!_isGamepadActive && !_isDialogOpen)
             {
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
-                
+
                 // Initialize focus on first input if we have a current frame
                 if (_currentFrame?.Content is FrameworkElement rootElement)
                 {
@@ -198,7 +201,7 @@ namespace HUDRA.Services
                         System.Diagnostics.Debug.WriteLine("dYZr Auto-focus on activation suppressed (non-gamepad navigation)");
                     }
                 }
-                
+
                 // Reset suppression after first activation regardless
                 _suppressAutoFocusOnActivation = false;
 
@@ -210,6 +213,14 @@ namespace HUDRA.Services
                 UpdatePressedButtonsState(reading.Buttons);
 
                 return;
+            }
+
+            // If dialog is open but gamepad not active, activate it without consuming input
+            if (!_isGamepadActive && _isDialogOpen)
+            {
+                SetGamepadActive(true);
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated for dialog - input will be processed");
+                // Don't return - let the input be processed below
             }
 
             // Get newly pressed buttons
@@ -868,6 +879,20 @@ namespace HUDRA.Services
                 _isPollingPaused = false;
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
             }
+        }
+
+        // Set dialog open state (prevents activation input from being consumed)
+        public void SetDialogOpen()
+        {
+            _isDialogOpen = true;
+            System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - activation input will not be consumed");
+        }
+
+        // Clear dialog open state
+        public void SetDialogClosed()
+        {
+            _isDialogOpen = false;
+            System.Diagnostics.Debug.WriteLine("🎮 Dialog closed - normal activation logic resumed");
         }
 
         public void Dispose()

@@ -632,9 +632,9 @@ namespace HUDRA
 
             try
             {
-                // Suspend gamepad polling to prevent background UI interaction
-                // Dialog will handle gamepad input natively (A = Primary, B = Close)
-                _gamepadNavigationService.SuspendPolling();
+                // Set dialog open state to allow gamepad input to reach dialog
+                // This prevents the activation logic from consuming the first button press
+                _gamepadNavigationService.SetDialogOpen();
 
                 try
                 {
@@ -660,8 +660,8 @@ namespace HUDRA
                 }
                 finally
                 {
-                    // Resume gamepad polling after dialog closes
-                    _gamepadNavigationService.ResumePolling();
+                    // Clear dialog state after dialog closes
+                    _gamepadNavigationService.SetDialogClosed();
                 }
 
                 // User confirmed - proceed with force quit
@@ -696,8 +696,8 @@ namespace HUDRA
                 {
                     System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
 
-                    // Suspend gamepad polling before showing error dialog
-                    _gamepadNavigationService.SuspendPolling();
+                    // Set dialog open state before showing error dialog
+                    _gamepadNavigationService.SetDialogOpen();
 
                     try
                     {
@@ -713,8 +713,8 @@ namespace HUDRA
                     }
                     finally
                     {
-                        // Resume gamepad polling after error dialog closes
-                        _gamepadNavigationService.ResumePolling();
+                        // Clear dialog state after error dialog closes
+                        _gamepadNavigationService.SetDialogClosed();
                     }
                 }
             }
