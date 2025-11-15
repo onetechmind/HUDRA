@@ -633,13 +633,14 @@ namespace HUDRA
             try
             {
                 // Show confirmation dialog
+                // Gamepad support: A button = Force Quit, B button = Cancel
                 var dialog = new ContentDialog()
                 {
                     Title = "Force Quit Game",
                     Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
                     PrimaryButtonText = "Force Quit",
                     CloseButtonText = "Cancel",
-                    DefaultButton = ContentDialogButton.Close,
+                    DefaultButton = ContentDialogButton.Close, // B button (safer default)
                     XamlRoot = this.Content.XamlRoot
                 };
 
@@ -1268,6 +1269,9 @@ namespace HUDRA
                     : gameInfo.ProcessName;
                 ToolTipService.SetToolTip(AltTabButton, $"Return to {gameName}");
 
+                // Update Force Quit tooltip
+                ToolTipService.SetToolTip(ForceQuitButton, $"Force Quit {gameName}");
+
                 // Update Lossless Scaling tooltip with game name
                 UpdateLosslessScalingTooltip();
             }
@@ -1285,6 +1289,7 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("Game stopped - hiding Alt+Tab button");
                 AltTabButton.Visibility = Visibility.Collapsed;
                 ToolTipService.SetToolTip(AltTabButton, "Return to Game");
+                ToolTipService.SetToolTip(ForceQuitButton, "Force Quit Game");
 
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
