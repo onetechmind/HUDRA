@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Gaming.Input;
 using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
 using HUDRA.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
 
 namespace HUDRA.Services
 {
@@ -44,6 +47,7 @@ namespace HUDRA.Services
 
         // Dialog state tracking (to bypass activation input consumption)
         private bool _isDialogOpen = false;
+        private ContentDialog? _currentDialog = null;
 
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
@@ -345,9 +349,34 @@ namespace HUDRA.Services
 
         private void ProcessNavigationInput(GamepadReading reading, List<GamepadButtons> newButtons, bool shouldProcessRepeats)
         {
-            // When dialog is open, don't process any navigation - let ContentDialog handle input natively
-            if (_isDialogOpen)
+            // When dialog is open, only process A/B buttons to control the dialog
+            if (_isDialogOpen && _currentDialog != null)
             {
+                if (newButtons.Contains(GamepadButtons.A))
+                {
+                    // A button = Primary button (Force Quit)
+                    System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        if (_currentDialog != null)
+                        {
+                            // Programmatically click the primary button
+                            TriggerDialogPrimaryButton(_currentDialog);
+                        }
+                    });
+                    return;
+                }
+                else if (newButtons.Contains(GamepadButtons.B))
+                {
+                    // B button = Close/Cancel button
+                    System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        _currentDialog?.Hide();
+                    });
+                    return;
+                }
+                // Ignore all other input when dialog is open
                 return;
             }
 
@@ -812,6 +841,58 @@ namespace HUDRA.Services
             }
         }
 
+        private void TriggerDialogPrimaryButton(ContentDialog dialog)
+        {
+            try
+            {
+                // Find the primary button in the ContentDialog's visual tree and invoke it
+                var primaryButton = FindPrimaryButtonInDialog(dialog);
+                if (primaryButton != null)
+                {
+                    // Use automation peer to invoke the button
+                    var peer = new ButtonAutomationPeer(primaryButton);
+                    var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
+                    invokeProvider?.Invoke();
+                    System.Diagnostics.Debug.WriteLine("🎮 Primary button invoked via automation");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 Warning: Could not find primary button in dialog");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Error triggering dialog primary button: {ex.Message}");
+            }
+        }
+
+        private Button? FindPrimaryButtonInDialog(DependencyObject parent)
+        {
+            // Search the visual tree for a button with specific names used by ContentDialog
+            int childCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+
+                // ContentDialog typically names its buttons "PrimaryButton", "SecondaryButton", "CloseButton"
+                if (child is Button button && child is FrameworkElement element)
+                {
+                    if (element.Name == "PrimaryButton")
+                    {
+                        return button;
+                    }
+                }
+
+                // Recursively search children
+                var result = FindPrimaryButtonInDialog(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
+
         // Keyboard fallback for testing
         public void OnKeyDown(object sender, KeyRoutedEventArgs e)
         {
@@ -888,9 +969,10 @@ namespace HUDRA.Services
         }
 
         // Set dialog open state (prevents activation input from being consumed and blocks UI navigation)
-        public void SetDialogOpen()
+        public void SetDialogOpen(ContentDialog dialog)
         {
             _isDialogOpen = true;
+            _currentDialog = dialog;
             // Clear focus from UI to prevent background controls from receiving input
             ClearFocus();
             System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - UI navigation blocked, dialog has exclusive input");
@@ -900,6 +982,7 @@ namespace HUDRA.Services
         public void SetDialogClosed()
         {
             _isDialogOpen = false;
+            _currentDialog = null;
             System.Diagnostics.Debug.WriteLine("🎮 Dialog closed - normal activation logic resumed");
         }
 

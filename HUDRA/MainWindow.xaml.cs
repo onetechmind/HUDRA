@@ -632,24 +632,24 @@ namespace HUDRA
 
             try
             {
-                // Set dialog open state to allow gamepad input to reach dialog
-                // This prevents the activation logic from consuming the first button press
-                _gamepadNavigationService.SetDialogOpen();
+                // Create confirmation dialog
+                // Gamepad support: A button = Force Quit, B button = Cancel
+                var dialog = new ContentDialog()
+                {
+                    Title = "Force Quit Game",
+                    Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
+                    PrimaryButtonText = "Ⓐ Force Quit",
+                    CloseButtonText = "Ⓑ Cancel",
+                    DefaultButton = ContentDialogButton.Close, // B button (safer default)
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                // Set dialog open state and pass dialog reference for gamepad handling
+                _gamepadNavigationService.SetDialogOpen(dialog);
 
                 try
                 {
-                    // Show confirmation dialog
-                    // Gamepad support: A button = Force Quit, B button = Cancel
-                    var dialog = new ContentDialog()
-                    {
-                        Title = "Force Quit Game",
-                        Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
-                        PrimaryButtonText = "Ⓐ Force Quit",
-                        CloseButtonText = "Ⓑ Cancel",
-                        DefaultButton = ContentDialogButton.Close, // B button (safer default)
-                        XamlRoot = this.Content.XamlRoot
-                    };
-
+                    // Show dialog
                     var result = await dialog.ShowAsync();
 
                     if (result != ContentDialogResult.Primary)
@@ -696,19 +696,21 @@ namespace HUDRA
                 {
                     System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
 
-                    // Set dialog open state before showing error dialog
-                    _gamepadNavigationService.SetDialogOpen();
+                    // Create error dialog
+                    var errorDialog = new ContentDialog()
+                    {
+                        Title = "Force Quit Failed",
+                        Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
+                        CloseButtonText = "OK",
+                        XamlRoot = this.Content.XamlRoot
+                    };
+
+                    // Set dialog open state and pass dialog reference for gamepad handling
+                    _gamepadNavigationService.SetDialogOpen(errorDialog);
 
                     try
                     {
                         // Show error dialog
-                        var errorDialog = new ContentDialog()
-                        {
-                            Title = "Force Quit Failed",
-                            Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
-                            CloseButtonText = "OK",
-                            XamlRoot = this.Content.XamlRoot
-                        };
                         await errorDialog.ShowAsync();
                     }
                     finally
