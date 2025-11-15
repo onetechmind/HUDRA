@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices.WindowsRuntime;
+using System;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Controls;
 using HUDRA.Services;
@@ -27,8 +27,8 @@ namespace HUDRA.Extensions
 
             try
             {
-                // Show the dialog and convert IAsyncOperation to Task
-                return await dialog.ShowAsync().AsTask();
+                // Show the dialog
+                return await dialog.ShowAsync();
             }
             finally
             {
