@@ -3,12 +3,24 @@ using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HUDRA
 {
     public partial class App : Application
     {
+        // Single instance detection
+        private static Mutex? _instanceMutex;
+        private const string MUTEX_NAME = "Global\\HUDRA_SingleInstance_Mutex";
+
+        // P/Invoke for MessageBox
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+        private const uint MB_OK = 0x00000000;
+        private const uint MB_ICONINFORMATION = 0x00000040;
+
         private TrayIconService? _trayIcon;
         private PowerEventService? _powerEventService;
         private readonly object _reinitializationLock = new object();
@@ -25,8 +37,41 @@ namespace HUDRA
 
         public App()
         {
+            // Check for existing instance BEFORE initializing components
+            if (!CheckSingleInstance())
+            {
+                // Another instance is already running - show message and exit
+                MessageBox(IntPtr.Zero,
+                    "HUDRA is already running. Please check your system tray.",
+                    "HUDRA",
+                    MB_OK | MB_ICONINFORMATION);
+
+                // Exit immediately
+                Environment.Exit(0);
+                return;
+            }
+
             InitializeComponent();
             this.UnhandledException += OnUnhandledException;
+        }
+
+        private static bool CheckSingleInstance()
+        {
+            try
+            {
+                // Try to create a mutex with a unique name
+                _instanceMutex = new Mutex(true, MUTEX_NAME, out bool createdNew);
+
+                // If createdNew is true, we're the first instance
+                // If false, another instance already owns this mutex
+                return createdNew;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error checking single instance: {ex.Message}");
+                // If there's an error, allow the app to run
+                return true;
+            }
         }
 
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
@@ -381,6 +426,10 @@ namespace HUDRA
                 TemperatureMonitor?.Dispose();
                 FanControlService?.Dispose();
                 TurboService?.Dispose();
+
+                // Release the single instance mutex
+                _instanceMutex?.ReleaseMutex();
+                _instanceMutex?.Dispose();
             }
             catch (Exception ex)
             {
