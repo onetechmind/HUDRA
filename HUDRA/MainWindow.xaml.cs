@@ -146,6 +146,13 @@ namespace HUDRA
             set { _losslessScalingButtonVisible = value; OnPropertyChanged(); }
         }
 
+        private bool _forceQuitButtonVisible = false;
+        public bool ForceQuitButtonVisible
+        {
+            get => _forceQuitButtonVisible;
+            set { _forceQuitButtonVisible = value; OnPropertyChanged(); }
+        }
+
         // FPS Limiter properties
         private FpsLimitSettings _fpsSettings = new();
         public FpsLimitSettings FpsSettings
@@ -607,6 +614,89 @@ namespace HUDRA
             {
                 System.Diagnostics.Debug.WriteLine("Game switching failed, using generic Alt+Tab");
                 SimulateAltTab();
+            }
+        }
+
+        private async void ForceQuitButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_enhancedGameDetectionService?.CurrentGame == null)
+            {
+                System.Diagnostics.Debug.WriteLine("No active game to force quit");
+                return;
+            }
+
+            var currentGame = _enhancedGameDetectionService.CurrentGame;
+            string gameName = !string.IsNullOrWhiteSpace(currentGame.WindowTitle)
+                ? currentGame.WindowTitle
+                : currentGame.ProcessName;
+
+            try
+            {
+                // Show confirmation dialog
+                var dialog = new ContentDialog()
+                {
+                    Title = "Force Quit Game",
+                    Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
+                    PrimaryButtonText = "Force Quit",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Close,
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                var result = await dialog.ShowAsync();
+
+                if (result != ContentDialogResult.Primary)
+                {
+                    System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
+                    return;
+                }
+
+                // User confirmed - proceed with force quit
+                System.Diagnostics.Debug.WriteLine($"Force quitting game: {gameName} (PID: {currentGame.ProcessId})");
+
+                try
+                {
+                    var process = System.Diagnostics.Process.GetProcessById(currentGame.ProcessId);
+
+                    // Try graceful close first
+                    process.CloseMainWindow();
+
+                    // Wait up to 3 seconds for graceful shutdown
+                    bool exited = process.WaitForExit(3000);
+
+                    if (!exited && !process.HasExited)
+                    {
+                        // Force kill if graceful didn't work
+                        System.Diagnostics.Debug.WriteLine("Graceful close failed, forcing termination");
+                        process.Kill();
+                        process.WaitForExit(2000);
+                    }
+
+                    process.Dispose();
+                    System.Diagnostics.Debug.WriteLine("Game successfully terminated");
+                }
+                catch (ArgumentException)
+                {
+                    System.Diagnostics.Debug.WriteLine("Process no longer exists");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
+
+                    // Show error dialog
+                    var errorDialog = new ContentDialog()
+                    {
+                        Title = "Force Quit Failed",
+                        Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
+                        CloseButtonText = "OK",
+                        XamlRoot = this.Content.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in force quit operation: {ex.Message}");
             }
         }
 
@@ -1162,6 +1252,9 @@ namespace HUDRA
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
 
+                // Update Force Quit button visibility
+                UpdateForceQuitButtonVisibility();
+
                 // Update FPS limiter for game detection
                 if (_mainPage?.FpsLimiter != null)
                 {
@@ -1195,6 +1288,9 @@ namespace HUDRA
 
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
+
+                // Update Force Quit button visibility
+                UpdateForceQuitButtonVisibility();
 
                 // Update FPS limiter for game stopped
                 if (_mainPage?.FpsLimiter != null)
@@ -1252,6 +1348,12 @@ namespace HUDRA
             {
                 UpdateLosslessScalingTooltip();
             }
+        }
+
+        private void UpdateForceQuitButtonVisibility()
+        {
+            bool hasGame = _enhancedGameDetectionService?.CurrentGame != null;
+            ForceQuitButtonVisible = hasGame;
         }
 
         private async Task ShowLosslessScalingError(string message)
