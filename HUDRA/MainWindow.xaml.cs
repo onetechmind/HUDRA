@@ -632,6 +632,10 @@ namespace HUDRA
 
             try
             {
+                // Deactivate gamepad navigation to prevent background UI interaction
+                // Dialog will handle gamepad input natively (A = Primary, B = Close)
+                _gamepadNavigationService.DeactivateGamepadMode();
+
                 // Show confirmation dialog
                 // Gamepad support: A button = Force Quit, B button = Cancel
                 var dialog = new ContentDialog()
@@ -683,6 +687,9 @@ namespace HUDRA
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
+
+                    // Deactivate gamepad navigation before showing error dialog
+                    _gamepadNavigationService.DeactivateGamepadMode();
 
                     // Show error dialog
                     var errorDialog = new ContentDialog()
