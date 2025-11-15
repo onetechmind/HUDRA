@@ -201,6 +201,9 @@ namespace HUDRA
 
             _navigationService.NavigateToMain();
 
+            // Register navbar buttons for spatial navigation
+            RegisterNavbarButtons();
+
             this.Closed += (s, e) => Cleanup();
         }
 
@@ -286,6 +289,21 @@ namespace HUDRA
                     }
                     break;
             }
+        }
+
+        private void RegisterNavbarButtons()
+        {
+            // Register navbar buttons in order: Back to Game, Force Quit, Lossless Scaling
+            // This order matches the recommended top-to-bottom layout for spatial navigation
+            var navbarButtons = new List<Button>
+            {
+                AltTabButton,          // Back to Game (top)
+                ForceQuitButton,       // Force Quit (middle)
+                LosslessScalingButton  // Lossless Scaling (bottom)
+            };
+
+            _gamepadNavigationService.RegisterNavbarButtons(navbarButtons);
+            System.Diagnostics.Debug.WriteLine("🎮 Registered navbar buttons for spatial navigation");
         }
 
         private void HandlePageSpecificInitialization(Type pageType)
