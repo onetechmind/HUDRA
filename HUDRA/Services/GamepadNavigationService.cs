@@ -1073,8 +1073,8 @@ namespace HUDRA.Services
             {
                 var button = _navbarButtons[i];
 
-                // Check if this is the Back to Game button and it's visible
-                if (button.Name == "BackToGameButton" && button.Visibility == Visibility.Visible)
+                // Check if this is the Back to Game button (AltTabButton) and it's visible
+                if (button.Name == "AltTabButton" && button.Visibility == Visibility.Visible)
                 {
                     return i; // Focus Back to Game if visible (game is running)
                 }
