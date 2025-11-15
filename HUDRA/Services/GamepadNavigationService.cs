@@ -345,6 +345,12 @@ namespace HUDRA.Services
 
         private void ProcessNavigationInput(GamepadReading reading, List<GamepadButtons> newButtons, bool shouldProcessRepeats)
         {
+            // When dialog is open, don't process any navigation - let ContentDialog handle input natively
+            if (_isDialogOpen)
+            {
+                return;
+            }
+
             // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
             if (newButtons.Contains(GamepadButtons.LeftShoulder))
             {
@@ -881,11 +887,13 @@ namespace HUDRA.Services
             }
         }
 
-        // Set dialog open state (prevents activation input from being consumed)
+        // Set dialog open state (prevents activation input from being consumed and blocks UI navigation)
         public void SetDialogOpen()
         {
             _isDialogOpen = true;
-            System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - activation input will not be consumed");
+            // Clear focus from UI to prevent background controls from receiving input
+            ClearFocus();
+            System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - UI navigation blocked, dialog has exclusive input");
         }
 
         // Clear dialog open state
