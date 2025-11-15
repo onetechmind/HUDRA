@@ -228,9 +228,7 @@
                             Click="AltTabButton_Click"
                             Style="{StaticResource GlowingGameButtonStyle}"
                             ToolTipService.ToolTip="Switch to Game &amp; Hide"
-                            Visibility="Collapsed"
-                            UseSystemFocusVisuals="True"
-                            FocusVisualMargin="-3">
+                            Visibility="Collapsed">
                             <FontIcon
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="20"
@@ -246,9 +244,7 @@
                             Click="ForceQuitButton_Click"
                             Style="{StaticResource GlowingGameButtonStyle}"
                             ToolTipService.ToolTip="Force Quit Game"
-                            Visibility="{x:Bind ForceQuitButtonVisible, Mode=OneWay}"
-                            UseSystemFocusVisuals="True"
-                            FocusVisualMargin="-3">
+                            Visibility="{x:Bind ForceQuitButtonVisible, Mode=OneWay}">
                             <FontIcon
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="20"
@@ -264,9 +260,7 @@
                             HorizontalAlignment="Center"
                             Click="LosslessScalingButton_Click"
                             Style="{StaticResource GlowingGameButtonStyle}"
-                            Visibility="{x:Bind LosslessScalingButtonVisible, Mode=OneWay}"
-                            UseSystemFocusVisuals="True"
-                            FocusVisualMargin="-3">
+                            Visibility="{x:Bind LosslessScalingButtonVisible, Mode=OneWay}">
                             <Image
                                 Width="25"
                                 Height="25"

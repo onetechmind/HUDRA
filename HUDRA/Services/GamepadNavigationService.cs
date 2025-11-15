@@ -54,6 +54,7 @@ namespace HUDRA.Services
         private FrameworkElement? _previousMainAppElement = null;
         private List<Button> _navbarButtons = new();
         private int _currentNavbarIndex = 0;
+        private Button? _currentNavbarButton = null;
 
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
@@ -1043,7 +1044,7 @@ namespace HUDRA.Services
             if (_currentNavbarIndex >= 0 && _currentNavbarIndex < _navbarButtons.Count)
             {
                 var button = _navbarButtons[_currentNavbarIndex];
-                button.Focus(FocusState.Programmatic);
+                SetNavbarButtonFocus(button);
                 System.Diagnostics.Debug.WriteLine($"🎮 Entered navbar mode, focused button {_currentNavbarIndex}: {button.Name}");
             }
         }
@@ -1054,6 +1055,9 @@ namespace HUDRA.Services
             if (!_isNavbarMode) return;
 
             _isNavbarMode = false;
+
+            // Clear navbar button focus
+            ClearNavbarButtonFocus();
 
             // Restore focus to previous element
             if (_previousMainAppElement != null)
@@ -1163,7 +1167,7 @@ namespace HUDRA.Services
                 {
                     // Focus this button
                     var button = _navbarButtons[_currentNavbarIndex];
-                    button.Focus(FocusState.Programmatic);
+                    SetNavbarButtonFocus(button);
                     System.Diagnostics.Debug.WriteLine($"🎮 Navbar navigation: focused button {_currentNavbarIndex}: {button.Name}");
                     return;
                 }
@@ -1172,6 +1176,30 @@ namespace HUDRA.Services
 
             // If we get here, no visible buttons found (shouldn't happen, but handle gracefully)
             System.Diagnostics.Debug.WriteLine("🎮 Warning: No visible navbar buttons found");
+        }
+
+        // Set focus border on navbar button (DarkViolet like other gamepad navigation)
+        private void SetNavbarButtonFocus(Button button)
+        {
+            // Clear previous navbar button focus
+            ClearNavbarButtonFocus();
+
+            // Set focus on new button
+            _currentNavbarButton = button;
+            button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+            button.BorderThickness = new Thickness(3);
+            button.Focus(FocusState.Programmatic);
+        }
+
+        // Clear focus border from navbar button
+        private void ClearNavbarButtonFocus()
+        {
+            if (_currentNavbarButton != null)
+            {
+                _currentNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                _currentNavbarButton.BorderThickness = new Thickness(0);
+                _currentNavbarButton = null;
+            }
         }
 
         public void Dispose()
