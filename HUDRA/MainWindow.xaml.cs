@@ -638,8 +638,8 @@ namespace HUDRA
                 {
                     Title = "Force Quit Game",
                     Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
-                    PrimaryButtonText = "Force Quit",
-                    CloseButtonText = "Cancel",
+                    PrimaryButtonText = "Ⓐ Force Quit",
+                    CloseButtonText = "Ⓑ Cancel",
                     DefaultButton = ContentDialogButton.Close, // B button (safer default)
                     XamlRoot = this.Content.XamlRoot
                 };
