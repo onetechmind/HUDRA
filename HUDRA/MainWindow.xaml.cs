@@ -293,13 +293,14 @@ namespace HUDRA
 
         private void RegisterNavbarButtons()
         {
-            // Register navbar buttons in order: Back to Game, Force Quit, Lossless Scaling
+            // Register navbar buttons in order: Back to Game, Force Quit, Lossless Scaling, Hide
             // This order matches the recommended top-to-bottom layout for spatial navigation
             var navbarButtons = new List<Button>
             {
                 AltTabButton,          // Back to Game (top)
-                ForceQuitButton,       // Force Quit (middle)
-                LosslessScalingButton  // Lossless Scaling (bottom)
+                ForceQuitButton,       // Force Quit
+                LosslessScalingButton, // Lossless Scaling
+                CloseButton            // Hide (bottom)
             };
 
             _gamepadNavigationService.RegisterNavbarButtons(navbarButtons);

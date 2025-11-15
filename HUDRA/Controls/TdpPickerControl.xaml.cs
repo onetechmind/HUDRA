@@ -125,9 +125,22 @@ namespace HUDRA.Controls
             }
         }
 
-        public Brush FocusBorderBrush => (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _autoSetEnabled)
-            ? new SolidColorBrush(Microsoft.UI.Colors.DarkViolet)
-            : new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+        public Brush FocusBorderBrush
+        {
+            get
+            {
+                // If not focused or gamepad not active, no border
+                if (!IsFocused || _gamepadNavigationService?.IsGamepadActive != true || !_autoSetEnabled)
+                    return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+
+                // If activated (like a slider), show DodgerBlue
+                if (IsSliderActivated)
+                    return new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue);
+
+                // If just focused, show DarkViolet
+                return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+            }
+        }
 
         public Thickness FocusBorderThickness => (IsFocused && _gamepadNavigationService?.IsGamepadActive == true && _autoSetEnabled)
             ? new Thickness(3)
@@ -709,16 +722,24 @@ namespace HUDRA.Controls
 
         public bool CanNavigateUp => false; // TDP picker only supports left/right navigation
         public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => _selectedTdp > HudraSettings.MIN_TDP;
-        public bool CanNavigateRight => _selectedTdp < HudraSettings.MAX_TDP;
-        public bool CanActivate => false; // TDP picker uses left/right for value changes
-        
+        public bool CanNavigateLeft => !IsSliderActivated; // Only navigate when NOT activated
+        public bool CanNavigateRight => !IsSliderActivated; // Only navigate when NOT activated
+        public bool CanActivate => true; // TDP picker can be activated like a slider
+
         public FrameworkElement NavigationElement => this;
-        
-        // Slider interface implementations - TDP picker is not a traditional slider
-        public bool IsSlider => false;
+
+        // Slider interface implementations - TDP picker works like a slider
+        public bool IsSlider => true;
         public bool IsSliderActivated { get; set; } = false;
-        public void AdjustSliderValue(int direction) { /* Not applicable for TDP picker */ }
+        public void AdjustSliderValue(int direction)
+        {
+            // Only adjust if activated
+            if (IsSliderActivated)
+            {
+                ChangeTdpBy(direction);
+                _audioHelper?.PlayTick();
+            }
+        }
         
         // ComboBox interface implementations - TdpPicker has no ComboBoxes
         public bool HasComboBoxes => false;
@@ -733,23 +754,23 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateLeft()
         {
-            if (CanNavigateLeft)
-            {
-                ChangeTdpBy(-1);
-                _audioHelper?.PlayTick();
-            }
+            // Left/Right navigation is now handled via slider activation
+            // This method intentionally left empty - navigation handled by AdjustSliderValue
         }
 
         public void OnGamepadNavigateRight()
         {
-            if (CanNavigateRight)
-            {
-                ChangeTdpBy(1);
-                _audioHelper?.PlayTick();
-            }
+            // Left/Right navigation is now handled via slider activation
+            // This method intentionally left empty - navigation handled by AdjustSliderValue
         }
 
-        public void OnGamepadActivate() { } // Not applicable
+        public void OnGamepadActivate()
+        {
+            // Toggle activation state (like sliders)
+            IsSliderActivated = !IsSliderActivated;
+            OnPropertyChanged(nameof(FocusBorderBrush)); // Update border color
+            System.Diagnostics.Debug.WriteLine($"🎮 TDP Picker activation toggled: {IsSliderActivated}");
+        }
 
         public void OnGamepadFocusReceived()
         {
@@ -765,6 +786,13 @@ namespace HUDRA.Controls
         public void OnGamepadFocusLost()
         {
             IsFocused = false;
+            // Deactivate slider when focus is lost
+            if (IsSliderActivated)
+            {
+                IsSliderActivated = false;
+                OnPropertyChanged(nameof(FocusBorderBrush));
+                System.Diagnostics.Debug.WriteLine("🎮 TDP Picker deactivated on focus lost");
+            }
         }
 
         public void FocusLastElement()
