@@ -27,8 +27,8 @@ namespace HUDRA.Extensions
 
             try
             {
-                // Show the dialog
-                return await dialog.ShowAsync();
+                // Show the dialog and convert IAsyncOperation to Task
+                return await dialog.ShowAsync().AsTask();
             }
             finally
             {
