@@ -1,5 +1,6 @@
 using HUDRA.Configuration;
 using HUDRA.Controls;
+using HUDRA.Extensions;
 using HUDRA.Models;
 using HUDRA.Pages;
 using HUDRA.Services;
@@ -644,24 +645,13 @@ namespace HUDRA
                     XamlRoot = this.Content.XamlRoot
                 };
 
-                // Set dialog open state and pass dialog reference for gamepad handling
-                _gamepadNavigationService.SetDialogOpen(dialog);
+                // Show dialog with automatic gamepad support
+                var result = await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
 
-                try
+                if (result != ContentDialogResult.Primary)
                 {
-                    // Show dialog
-                    var result = await dialog.ShowAsync();
-
-                    if (result != ContentDialogResult.Primary)
-                    {
-                        System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
-                        return;
-                    }
-                }
-                finally
-                {
-                    // Clear dialog state after dialog closes
-                    _gamepadNavigationService.SetDialogClosed();
+                    System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
+                    return;
                 }
 
                 // User confirmed - proceed with force quit
@@ -696,7 +686,7 @@ namespace HUDRA
                 {
                     System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
 
-                    // Create error dialog
+                    // Create and show error dialog with automatic gamepad support
                     var errorDialog = new ContentDialog()
                     {
                         Title = "Force Quit Failed",
@@ -705,19 +695,7 @@ namespace HUDRA
                         XamlRoot = this.Content.XamlRoot
                     };
 
-                    // Set dialog open state and pass dialog reference for gamepad handling
-                    _gamepadNavigationService.SetDialogOpen(errorDialog);
-
-                    try
-                    {
-                        // Show error dialog
-                        await errorDialog.ShowAsync();
-                    }
-                    finally
-                    {
-                        // Clear dialog state after error dialog closes
-                        _gamepadNavigationService.SetDialogClosed();
-                    }
+                    await errorDialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
                 }
             }
             catch (Exception ex)
@@ -1398,7 +1376,7 @@ namespace HUDRA
                     XamlRoot = this.Content.XamlRoot
                 };
 
-                await dialog.ShowAsync();
+                await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
             }
             catch (Exception ex)
             {
