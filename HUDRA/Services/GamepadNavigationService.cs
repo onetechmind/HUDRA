@@ -197,8 +197,11 @@ namespace HUDRA.Services
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
-                // Initialize focus on first input if we have a current frame
-                if (_currentFrame?.Content is FrameworkElement rootElement)
+                // Check if this is a trigger input (L2/R2 for navbar cycling)
+                bool isTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+
+                // Initialize focus on first input if we have a current frame (unless it's a trigger press)
+                if (_currentFrame?.Content is FrameworkElement rootElement && !isTriggerInput)
                 {
                     // Respect suppression flag set by non-gamepad navigation
                     if (!_suppressAutoFocusOnActivation)
@@ -207,21 +210,30 @@ namespace HUDRA.Services
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("dYZr Auto-focus on activation suppressed (non-gamepad navigation)");
+                        System.Diagnostics.Debug.WriteLine("🎮 Auto-focus on activation suppressed (non-gamepad navigation)");
                     }
                 }
 
                 // Reset suppression after first activation regardless
                 _suppressAutoFocusOnActivation = false;
 
-                // Don't process the activation input as navigation - just consume it for activation
-                // Set last input time to prevent repeat logic from triggering immediately
-                _lastInputTime = DateTime.Now;
+                // If this is a trigger input (L2/R2), don't consume it - let it be processed below
+                if (isTriggerInput)
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by trigger press - input will be processed for navbar cycling");
+                    // Don't return - let the trigger input be processed below
+                }
+                else
+                {
+                    // Don't process the activation input as navigation - just consume it for activation
+                    // Set last input time to prevent repeat logic from triggering immediately
+                    _lastInputTime = DateTime.Now;
 
-                // Update pressed buttons state to prevent next frame from treating held button as "new"
-                UpdatePressedButtonsState(reading.Buttons);
+                    // Update pressed buttons state to prevent next frame from treating held button as "new"
+                    UpdatePressedButtonsState(reading.Buttons);
 
-                return;
+                    return;
+                }
             }
 
             // If dialog is open but gamepad not active, activate it without consuming input
@@ -1115,24 +1127,43 @@ namespace HUDRA.Services
 
             _dispatcherQueue.TryEnqueue(() =>
             {
-                // Clear previous selection
-                if (_selectedNavbarButton != null && _selectedNavbarButton != button)
+                try
                 {
-                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                    _selectedNavbarButton.BorderThickness = new Thickness(0);
-                    System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
+                    // Clear previous selection
+                    if (_selectedNavbarButton != null && _selectedNavbarButton != button)
+                    {
+                        _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                        _selectedNavbarButton.BorderThickness = new Thickness(0);
+                        System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
+                    }
+
+                    // Clear main app focus so DarkViolet borders disappear from page controls
+                    ClearFocus();
+
+                    // Set new selection
+                    _selectedNavbarButton = button;
+
+                    // Create and set border properties
+                    var darkVioletBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                    var borderThickness = new Thickness(3); // Increased from 2 to 3 for better visibility
+
+                    button.BorderBrush = darkVioletBrush;
+                    button.BorderThickness = borderThickness;
+
+                    // Force focus to ensure visual state updates
+                    button.Focus(FocusState.Programmatic);
+
+                    // Validate the properties were set
+                    System.Diagnostics.Debug.WriteLine($"🎮 ✓ Navbar button selected: {button.Name}");
+                    System.Diagnostics.Debug.WriteLine($"🎮   BorderBrush: {button.BorderBrush} (expected: DarkViolet)");
+                    System.Diagnostics.Debug.WriteLine($"🎮   BorderThickness: {button.BorderThickness} (expected: 3,3,3,3)");
+                    System.Diagnostics.Debug.WriteLine($"🎮   Visibility: {button.Visibility}");
+                    System.Diagnostics.Debug.WriteLine($"🎮   IsEnabled: {button.IsEnabled}");
                 }
-
-                // Clear main app focus so DarkViolet borders disappear from page controls
-                ClearFocus();
-
-                // Set new selection
-                _selectedNavbarButton = button;
-                button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-                button.BorderThickness = new Thickness(2);
-                button.Focus(FocusState.Programmatic);
-
-                System.Diagnostics.Debug.WriteLine($"🎮 Navbar button selected: {button.Name}, BorderBrush={button.BorderBrush}, BorderThickness={button.BorderThickness}");
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 ERROR setting navbar button selection: {ex.Message}");
+                }
             });
         }
 
