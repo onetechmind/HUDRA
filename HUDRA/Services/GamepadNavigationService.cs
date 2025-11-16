@@ -414,12 +414,24 @@ namespace HUDRA.Services
             // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
             if (newButtons.Contains(GamepadButtons.LeftShoulder))
             {
+                // Clear navbar selection when using shoulder buttons for page navigation
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 L1 pressed - clearing navbar selection");
+                    ClearNavbarButtonSelection();
+                }
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
                 return;
             }
 
             if (newButtons.Contains(GamepadButtons.RightShoulder))
             {
+                // Clear navbar selection when using shoulder buttons for page navigation
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 R1 pressed - clearing navbar selection");
+                    ClearNavbarButtonSelection();
+                }
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
                 return;
             }
