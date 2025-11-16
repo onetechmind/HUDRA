@@ -182,8 +182,8 @@ namespace HUDRA.Services
                            Math.Abs(reading.LeftThumbstickY) > 0.1 ||
                            Math.Abs(reading.RightThumbstickX) > 0.1 ||
                            Math.Abs(reading.RightThumbstickY) > 0.1 ||
-                           reading.LeftTrigger > TRIGGER_THRESHOLD ||
-                           reading.RightTrigger > TRIGGER_THRESHOLD;
+                           reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD ||
+                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
 
             if (!hasInput) 
             {
@@ -199,7 +199,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
                 // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
-                bool isTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+                bool isTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
                 bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
                 bool isNavigationInput = isTriggerInput || isShoulderInput;
 
@@ -261,7 +261,7 @@ namespace HUDRA.Services
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
             // Include trigger input in addition to digital buttons and repeats
-            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
 
             if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput)
             {
@@ -436,6 +436,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"🎮 L2 trigger: NEW PRESS detected (value {reading.LeftTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar UP");
                 _leftTriggerPressed = true;
                 CycleNavbarButtonSelection(-1); // Cycle up (toward top)
+                TriggerHapticFeedback(); // Haptic feedback for trigger press
                 return;
             }
             else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
@@ -452,6 +453,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"🎮 R2 trigger: NEW PRESS detected (value {reading.RightTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar DOWN");
                 _rightTriggerPressed = true;
                 CycleNavbarButtonSelection(1); // Cycle down (toward bottom)
+                TriggerHapticFeedback(); // Haptic feedback for trigger press
                 return;
             }
             else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
@@ -514,15 +516,10 @@ namespace HUDRA.Services
             }
 
             // Add haptic feedback for important actions
-            // Check trigger state changes for haptic feedback
-            bool leftTriggerJustPressed = leftTriggerActive && !_leftTriggerPressed;
-            bool rightTriggerJustPressed = rightTriggerActive && !_rightTriggerPressed;
-
+            // Note: Trigger haptic feedback is handled directly in the hysteresis code above
             if (newButtons.Contains(GamepadButtons.A) ||
                 newButtons.Contains(GamepadButtons.LeftShoulder) ||
-                newButtons.Contains(GamepadButtons.RightShoulder) ||
-                leftTriggerJustPressed ||
-                rightTriggerJustPressed)
+                newButtons.Contains(GamepadButtons.RightShoulder))
             {
                 TriggerHapticFeedback();
             }
