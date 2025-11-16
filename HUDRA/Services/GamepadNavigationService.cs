@@ -26,11 +26,10 @@ namespace HUDRA.Services
         private const double INPUT_REPEAT_DELAY_MS = 150;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
-        // Trigger state tracking (analog triggers need separate tracking with hysteresis)
+        // Trigger state tracking - simple edge detection
         private bool _leftTriggerPressed = false;
         private bool _rightTriggerPressed = false;
-        private const double TRIGGER_PRESS_THRESHOLD = 0.85;  // Must exceed 0.85 to register as pressed
-        private const double TRIGGER_RELEASE_THRESHOLD = 0.7; // Must drop below 0.7 to register as released
+        private const double TRIGGER_THRESHOLD = 0.5;  // Simple threshold for press detection
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
@@ -182,8 +181,8 @@ namespace HUDRA.Services
                            Math.Abs(reading.LeftThumbstickY) > 0.1 ||
                            Math.Abs(reading.RightThumbstickX) > 0.1 ||
                            Math.Abs(reading.RightThumbstickY) > 0.1 ||
-                           reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD ||
-                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+                           reading.LeftTrigger > TRIGGER_THRESHOLD ||
+                           reading.RightTrigger > TRIGGER_THRESHOLD;
 
             if (!hasInput) 
             {
@@ -199,7 +198,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
                 // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
-                bool isTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+                bool isTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
                 bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
                 bool isNavigationInput = isTriggerInput || isShoulderInput;
 
@@ -261,7 +260,7 @@ namespace HUDRA.Services
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
             // Include trigger input in addition to digital buttons and repeats
-            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
 
             if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput)
             {
@@ -420,46 +419,37 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Handle navbar button cycling with L2/R2 triggers using hysteresis
-            // Hysteresis prevents false triggers with controllers that have high resting positions
+            // Handle navbar button cycling with L2/R2 triggers - simple edge detection
+            bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
+            bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
 
-            // Debug trigger state
-            if (reading.LeftTrigger > 0.1 || reading.RightTrigger > 0.1 || _leftTriggerPressed || _rightTriggerPressed)
+            // Left trigger (L2) - cycle up through navbar (detect rising edge)
+            if (leftTriggerActive && !_leftTriggerPressed)
             {
-                System.Diagnostics.Debug.WriteLine($"🎮 Trigger state: L2={reading.LeftTrigger:F2} (pressed:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (pressed:{_rightTriggerPressed})");
-            }
-
-            // Left trigger (L2) - cycle up through navbar
-            if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
-            {
-                // New press detected - value exceeded press threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 L2 trigger: NEW PRESS detected (value {reading.LeftTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar UP");
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 pressed ({reading.LeftTrigger:F2}) - cycling navbar UP");
                 _leftTriggerPressed = true;
                 CycleNavbarButtonSelection(-1); // Cycle up (toward top)
-                TriggerHapticFeedback(); // Haptic feedback for trigger press
+                TriggerHapticFeedback();
                 return;
             }
-            else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
+            else if (!leftTriggerActive && _leftTriggerPressed)
             {
-                // Release detected - value dropped below release threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 L2 trigger: RELEASED (value {reading.LeftTrigger:F2} < {TRIGGER_RELEASE_THRESHOLD}), resetting state");
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 released ({reading.LeftTrigger:F2})");
                 _leftTriggerPressed = false;
             }
 
-            // Right trigger (R2) - cycle down through navbar
-            if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
+            // Right trigger (R2) - cycle down through navbar (detect rising edge)
+            if (rightTriggerActive && !_rightTriggerPressed)
             {
-                // New press detected - value exceeded press threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 R2 trigger: NEW PRESS detected (value {reading.RightTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar DOWN");
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 pressed ({reading.RightTrigger:F2}) - cycling navbar DOWN");
                 _rightTriggerPressed = true;
                 CycleNavbarButtonSelection(1); // Cycle down (toward bottom)
-                TriggerHapticFeedback(); // Haptic feedback for trigger press
+                TriggerHapticFeedback();
                 return;
             }
-            else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
+            else if (!rightTriggerActive && _rightTriggerPressed)
             {
-                // Release detected - value dropped below release threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 R2 trigger: RELEASED (value {reading.RightTrigger:F2} < {TRIGGER_RELEASE_THRESHOLD}), resetting state");
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 released ({reading.RightTrigger:F2})");
                 _rightTriggerPressed = false;
             }
 
