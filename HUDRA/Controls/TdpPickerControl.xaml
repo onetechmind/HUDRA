@@ -53,8 +53,8 @@
 
         <!-- Focus Border around TDP picker -->
         <Border x:Name="FocusBorder"
-                BorderBrush="{Binding FocusBorderBrush, Mode=OneWay}"
-                BorderThickness="{Binding FocusBorderThickness, Mode=OneWay}"
+                BorderBrush="{x:Bind FocusBorderBrush, Mode=OneWay}"
+                BorderThickness="{x:Bind FocusBorderThickness, Mode=OneWay}"
                 CornerRadius="12">
             <Border
                 x:Name="TdpPickerBorder"
