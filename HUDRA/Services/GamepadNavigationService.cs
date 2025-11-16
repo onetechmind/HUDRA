@@ -1127,71 +1127,72 @@ namespace HUDRA.Services
         // Set visual selection on navbar button
         private void SetNavbarButtonSelection(Button button)
         {
-            // Ensure we're on UI thread
-            if (_dispatcherQueue == null)
+            try
             {
-                System.Diagnostics.Debug.WriteLine("🎮 WARNING: DispatcherQueue is null, cannot set navbar button selection");
-                return;
+                // Clear previous selection
+                if (_selectedNavbarButton != null && _selectedNavbarButton != button)
+                {
+                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _selectedNavbarButton.BorderThickness = new Thickness(0);
+                    System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
+                }
+
+                // Clear main app focus so DarkViolet borders disappear from page controls
+                ClearFocus();
+
+                // Set new selection
+                _selectedNavbarButton = button;
+
+                // Create border properties
+                var darkVioletBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                var borderThickness = new Thickness(3);
+
+                // Set properties directly (gamepad timer runs on UI thread)
+                button.BorderBrush = darkVioletBrush;
+                button.BorderThickness = borderThickness;
+
+                // Force focus to ensure visual state updates
+                button.Focus(FocusState.Programmatic);
+
+                // Force visual update
+                button.UpdateLayout();
+
+                // Validate the properties were set - read actual values back
+                var actualBrush = button.BorderBrush as SolidColorBrush;
+                var actualColor = actualBrush?.Color;
+
+                System.Diagnostics.Debug.WriteLine($"🎮 ✓ Navbar button selected: {button.Name}");
+                System.Diagnostics.Debug.WriteLine($"🎮   BorderBrush Color: {actualColor} (expected: #FF9400D3 DarkViolet)");
+                System.Diagnostics.Debug.WriteLine($"🎮   BorderThickness: {button.BorderThickness} (expected: 3,3,3,3)");
+                System.Diagnostics.Debug.WriteLine($"🎮   Visibility: {button.Visibility}");
+                System.Diagnostics.Debug.WriteLine($"🎮   IsEnabled: {button.IsEnabled}");
+                System.Diagnostics.Debug.WriteLine($"🎮   ActualWidth: {button.ActualWidth}, ActualHeight: {button.ActualHeight}");
+                System.Diagnostics.Debug.WriteLine($"🎮   Style: {button.Style?.GetType().Name ?? "null"}");
             }
-
-            _dispatcherQueue.TryEnqueue(() =>
+            catch (Exception ex)
             {
-                try
-                {
-                    // Clear previous selection
-                    if (_selectedNavbarButton != null && _selectedNavbarButton != button)
-                    {
-                        _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                        _selectedNavbarButton.BorderThickness = new Thickness(0);
-                        System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
-                    }
-
-                    // Clear main app focus so DarkViolet borders disappear from page controls
-                    ClearFocus();
-
-                    // Set new selection
-                    _selectedNavbarButton = button;
-
-                    // Create and set border properties
-                    var darkVioletBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-                    var borderThickness = new Thickness(3); // Increased from 2 to 3 for better visibility
-
-                    button.BorderBrush = darkVioletBrush;
-                    button.BorderThickness = borderThickness;
-
-                    // Force focus to ensure visual state updates
-                    button.Focus(FocusState.Programmatic);
-
-                    // Validate the properties were set
-                    System.Diagnostics.Debug.WriteLine($"🎮 ✓ Navbar button selected: {button.Name}");
-                    System.Diagnostics.Debug.WriteLine($"🎮   BorderBrush: {button.BorderBrush} (expected: DarkViolet)");
-                    System.Diagnostics.Debug.WriteLine($"🎮   BorderThickness: {button.BorderThickness} (expected: 3,3,3,3)");
-                    System.Diagnostics.Debug.WriteLine($"🎮   Visibility: {button.Visibility}");
-                    System.Diagnostics.Debug.WriteLine($"🎮   IsEnabled: {button.IsEnabled}");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"🎮 ERROR setting navbar button selection: {ex.Message}");
-                }
-            });
+                System.Diagnostics.Debug.WriteLine($"🎮 ERROR setting navbar button selection: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"🎮 Stack trace: {ex.StackTrace}");
+            }
         }
 
         // Clear navbar button selection
         private void ClearNavbarButtonSelection()
         {
-            if (_dispatcherQueue != null)
+            try
             {
-                _dispatcherQueue.TryEnqueue(() =>
+                if (_selectedNavbarButton != null)
                 {
-                    if (_selectedNavbarButton != null)
-                    {
-                        _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                        _selectedNavbarButton.BorderThickness = new Thickness(0);
-                        _selectedNavbarButton = null;
-                    }
-                    _selectedNavbarButtonIndex = null;
-                    System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
-                });
+                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _selectedNavbarButton.BorderThickness = new Thickness(0);
+                    _selectedNavbarButton = null;
+                }
+                _selectedNavbarButtonIndex = null;
+                System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 ERROR clearing navbar button selection: {ex.Message}");
             }
         }
 
