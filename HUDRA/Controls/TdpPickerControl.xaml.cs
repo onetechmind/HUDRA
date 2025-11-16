@@ -133,11 +133,7 @@ namespace HUDRA.Controls
                 if (!IsFocused || _gamepadNavigationService?.IsGamepadActive != true || !_autoSetEnabled)
                     return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
 
-                // If activated (like a slider), show DodgerBlue
-                if (IsSliderActivated)
-                    return new SolidColorBrush(Microsoft.UI.Colors.DodgerBlue);
-
-                // If just focused, show DarkViolet
+                // If focused, show DarkViolet
                 return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
             }
         }
@@ -723,23 +719,18 @@ namespace HUDRA.Controls
 
         public bool CanNavigateUp => false; // TDP picker only supports left/right navigation
         public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => !IsSliderActivated; // Only navigate when NOT activated
-        public bool CanNavigateRight => !IsSliderActivated; // Only navigate when NOT activated
-        public bool CanActivate => true; // TDP picker can be activated like a slider
+        public bool CanNavigateLeft => true; // Always navigable
+        public bool CanNavigateRight => true; // Always navigable
+        public bool CanActivate => false; // TDP picker doesn't use activation
 
         public FrameworkElement NavigationElement => this;
 
-        // Slider interface implementations - TDP picker works like a slider
-        public bool IsSlider => true;
+        // Slider interface implementations - TDP picker is not a slider
+        public bool IsSlider => false;
         public bool IsSliderActivated { get; set; } = false;
         public void AdjustSliderValue(int direction)
         {
-            // Only adjust if activated
-            if (IsSliderActivated)
-            {
-                ChangeTdpBy(direction);
-                _audioHelper?.PlayTick();
-            }
+            // Not used since IsSlider is false
         }
         
         // ComboBox interface implementations - TdpPicker has no ComboBoxes
@@ -755,22 +746,17 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateLeft()
         {
-            // Left/Right navigation is now handled via slider activation
-            // This method intentionally left empty - navigation handled by AdjustSliderValue
+            ChangeTdpBy(-1);
         }
 
         public void OnGamepadNavigateRight()
         {
-            // Left/Right navigation is now handled via slider activation
-            // This method intentionally left empty - navigation handled by AdjustSliderValue
+            ChangeTdpBy(1);
         }
 
         public void OnGamepadActivate()
         {
-            // Toggle activation state (like sliders)
-            IsSliderActivated = !IsSliderActivated;
-            OnPropertyChanged(nameof(FocusBorderBrush)); // Update border color
-            System.Diagnostics.Debug.WriteLine($"🎮 TDP Picker activation toggled: {IsSliderActivated}");
+            // Not used - TDP picker doesn't support activation
         }
 
         public void OnGamepadFocusReceived()
@@ -787,13 +773,6 @@ namespace HUDRA.Controls
         public void OnGamepadFocusLost()
         {
             IsFocused = false;
-            // Deactivate slider when focus is lost
-            if (IsSliderActivated)
-            {
-                IsSliderActivated = false;
-                OnPropertyChanged(nameof(FocusBorderBrush));
-                System.Diagnostics.Debug.WriteLine("🎮 TDP Picker deactivated on focus lost");
-            }
         }
 
         public void FocusLastElement()

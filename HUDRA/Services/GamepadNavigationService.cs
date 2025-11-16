@@ -49,12 +49,10 @@ namespace HUDRA.Services
         private bool _isDialogOpen = false;
         private ContentDialog? _currentDialog = null;
 
-        // Navbar spatial navigation state
-        private bool _isNavbarMode = false;
-        private FrameworkElement? _previousMainAppElement = null;
+        // Navbar button cycling with LT/RT
         private List<Button> _navbarButtons = new();
-        private int _currentNavbarIndex = 0;
-        private Button? _currentNavbarButton = null;
+        private int? _selectedNavbarButtonIndex = null; // null = no selection
+        private Button? _selectedNavbarButton = null;
 
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
@@ -387,27 +385,14 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
-            if (newButtons.Contains(GamepadButtons.LeftShoulder))
-            {
-                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
-                return;
-            }
-
-            if (newButtons.Contains(GamepadButtons.RightShoulder))
-            {
-                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
-                return;
-            }
-
-            // Handle navbar button shortcuts (L2/R2 triggers) - only on new presses
+            // Handle navbar button cycling with LT/RT triggers - only on new presses
             bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
             bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
 
             if (leftTriggerActive && !_leftTriggerPressed)
             {
                 _leftTriggerPressed = true;
-                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.BackToGame));
+                CycleNavbarButtonSelection(-1); // Cycle up (toward top)
                 return;
             }
             else if (!leftTriggerActive && _leftTriggerPressed)
@@ -418,7 +403,7 @@ namespace HUDRA.Services
             if (rightTriggerActive && !_rightTriggerPressed)
             {
                 _rightTriggerPressed = true;
-                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.LosslessScaling));
+                CycleNavbarButtonSelection(1); // Cycle down (toward bottom)
                 return;
             }
             else if (!rightTriggerActive && _rightTriggerPressed)
@@ -454,10 +439,22 @@ namespace HUDRA.Services
             // Action buttons (only on new presses)
             if (newButtons.Contains(GamepadButtons.A))
             {
+                // Check if a navbar button is selected - invoke it directly
+                if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
+                {
+                    InvokeSelectedNavbarButton();
+                    return;
+                }
                 action = GamepadNavigationAction.Activate;
             }
             else if (newButtons.Contains(GamepadButtons.B))
             {
+                // B button clears navbar selection if one exists
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    ClearNavbarButtonSelection();
+                    return;
+                }
                 action = GamepadNavigationAction.Back;
             }
 
@@ -472,8 +469,6 @@ namespace HUDRA.Services
             bool rightTriggerJustPressed = rightTriggerActive && !_rightTriggerPressed;
 
             if (newButtons.Contains(GamepadButtons.A) ||
-                newButtons.Contains(GamepadButtons.LeftShoulder) ||
-                newButtons.Contains(GamepadButtons.RightShoulder) ||
                 leftTriggerJustPressed ||
                 rightTriggerJustPressed)
             {
@@ -545,13 +540,6 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Handle navbar spatial navigation mode
-            if (_isNavbarMode)
-            {
-                HandleNavbarNavigation(action);
-                return;
-            }
-
             if (_currentFocusedElement != null)
             {
                 // Try to handle action with current focused element first
@@ -614,43 +602,6 @@ namespace HUDRA.Services
                     }
 
                     if (handled) return;
-                }
-            }
-
-            // Check if we should enter navbar mode (Left press at leftmost element)
-            if (action == GamepadNavigationAction.Left && _navbarButtons.Count > 0)
-            {
-                // Check if current element is at index 0 (leftmost) OR can't navigate left
-                bool isLeftmost = false;
-
-                if (_currentFrame?.Content is FrameworkElement rootElement)
-                {
-                    var navigableElements = GamepadNavigation.GetNavigableElements(rootElement).ToList();
-                    int currentIndex = _currentFocusedElement != null
-                        ? navigableElements.IndexOf(_currentFocusedElement)
-                        : -1;
-
-                    // Element is leftmost if it's at index 0
-                    if (currentIndex == 0)
-                    {
-                        isLeftmost = true;
-                    }
-                }
-
-                // Also check if the current element explicitly can't navigate left
-                if (!isLeftmost && _currentFocusedElement is IGamepadNavigable navigable)
-                {
-                    if (!navigable.CanNavigateLeft)
-                    {
-                        isLeftmost = true;
-                        System.Diagnostics.Debug.WriteLine($"🎮 Element {_currentFocusedElement.GetType().Name} can't navigate left, treating as leftmost");
-                    }
-                }
-
-                if (isLeftmost)
-                {
-                    EnterNavbarMode();
-                    return;
                 }
             }
 
@@ -1044,180 +995,119 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine($"🎮 Registered {_navbarButtons.Count} navbar buttons");
         }
 
-        // Enter navbar spatial navigation mode
-        private void EnterNavbarMode()
+        // Cycle through navbar buttons with LT/RT triggers
+        private void CycleNavbarButtonSelection(int direction)
         {
             if (_navbarButtons.Count == 0) return;
 
-            _isNavbarMode = true;
-            _previousMainAppElement = _currentFocusedElement;
-
-            // Clear main app focus
-            ClearFocus();
-
-            // Determine which navbar button to focus (context-aware)
-            _currentNavbarIndex = DetermineInitialNavbarFocus();
-
-            // Focus the selected navbar button
-            if (_currentNavbarIndex >= 0 && _currentNavbarIndex < _navbarButtons.Count)
+            // Check if any navbar buttons are visible
+            bool anyVisible = _navbarButtons.Any(b => b.Visibility == Visibility.Visible);
+            if (!anyVisible)
             {
-                var button = _navbarButtons[_currentNavbarIndex];
-                SetNavbarButtonFocus(button);
-                System.Diagnostics.Debug.WriteLine($"🎮 Entered navbar mode, focused button {_currentNavbarIndex}: {button.Name}");
-            }
-        }
-
-        // Exit navbar spatial navigation mode
-        private void ExitNavbarMode()
-        {
-            if (!_isNavbarMode) return;
-
-            _isNavbarMode = false;
-
-            // Clear navbar button focus
-            ClearNavbarButtonFocus();
-
-            // Restore focus to previous element
-            if (_previousMainAppElement != null)
-            {
-                SetFocus(_previousMainAppElement);
-                System.Diagnostics.Debug.WriteLine($"🎮 Exited navbar mode, restored focus to {_previousMainAppElement.GetType().Name}");
+                ClearNavbarButtonSelection();
+                return;
             }
 
-            _previousMainAppElement = null;
-        }
-
-        // Determine which navbar button should get initial focus (context-aware)
-        private int DetermineInitialNavbarFocus()
-        {
-            // If we have visible buttons, check if Back to Game button exists and should be focused
-            for (int i = 0; i < _navbarButtons.Count; i++)
+            // If no button currently selected, start from appropriate end
+            if (!_selectedNavbarButtonIndex.HasValue)
             {
-                var button = _navbarButtons[i];
-
-                // Check if this is the Back to Game button (AltTabButton) and it's visible
-                if (button.Name == "AltTabButton" && button.Visibility == Visibility.Visible)
-                {
-                    return i; // Focus Back to Game if visible (game is running)
-                }
+                // LT (-1) starts from top, RT (+1) starts from bottom
+                _selectedNavbarButtonIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
+            }
+            else
+            {
+                // Cycle to next/previous button
+                _selectedNavbarButtonIndex += direction;
             }
 
-            // Otherwise, focus first visible button
-            for (int i = 0; i < _navbarButtons.Count; i++)
+            // Wrap around
+            if (_selectedNavbarButtonIndex < 0)
             {
-                if (_navbarButtons[i].Visibility == Visibility.Visible)
-                {
-                    return i;
-                }
+                _selectedNavbarButtonIndex = _navbarButtons.Count - 1;
+            }
+            else if (_selectedNavbarButtonIndex >= _navbarButtons.Count)
+            {
+                _selectedNavbarButtonIndex = 0;
             }
 
-            return 0; // Fallback to first button
-        }
-
-        // Handle navigation while in navbar mode
-        private void HandleNavbarNavigation(GamepadNavigationAction action)
-        {
-            switch (action)
-            {
-                case GamepadNavigationAction.Up:
-                    // Navigate to previous navbar button (with wrapping)
-                    NavigateNavbarButtons(-1);
-                    break;
-
-                case GamepadNavigationAction.Down:
-                    // Navigate to next navbar button (with wrapping)
-                    NavigateNavbarButtons(1);
-                    break;
-
-                case GamepadNavigationAction.Activate:
-                    // Click the focused navbar button
-                    if (_currentNavbarIndex >= 0 && _currentNavbarIndex < _navbarButtons.Count)
-                    {
-                        var button = _navbarButtons[_currentNavbarIndex];
-                        System.Diagnostics.Debug.WriteLine($"🎮 Navbar A button - clicking {button.Name}");
-
-                        // Programmatically click the button
-                        var peer = new ButtonAutomationPeer(button);
-                        var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
-                        invokeProvider?.Invoke();
-
-                        // Exit navbar mode after activation
-                        ExitNavbarMode();
-                    }
-                    break;
-
-                case GamepadNavigationAction.Right:
-                case GamepadNavigationAction.Back:
-                    // Exit navbar mode
-                    ExitNavbarMode();
-                    break;
-            }
-        }
-
-        // Navigate between navbar buttons with wrapping
-        private void NavigateNavbarButtons(int direction)
-        {
-            if (_navbarButtons.Count == 0) return;
-
-            int startIndex = _currentNavbarIndex;
+            // Find next visible button (skip invisible ones)
+            int startIndex = _selectedNavbarButtonIndex.Value;
             int attempts = 0;
             int maxAttempts = _navbarButtons.Count;
 
-            // Find next visible button in the direction
-            do
+            while (attempts < maxAttempts)
             {
-                _currentNavbarIndex += direction;
-
-                // Wrap around
-                if (_currentNavbarIndex < 0)
+                var button = _navbarButtons[_selectedNavbarButtonIndex.Value];
+                if (button.Visibility == Visibility.Visible)
                 {
-                    _currentNavbarIndex = _navbarButtons.Count - 1;
-                }
-                else if (_currentNavbarIndex >= _navbarButtons.Count)
-                {
-                    _currentNavbarIndex = 0;
-                }
-
-                attempts++;
-
-                // Check if this button is visible
-                if (_navbarButtons[_currentNavbarIndex].Visibility == Visibility.Visible)
-                {
-                    // Focus this button
-                    var button = _navbarButtons[_currentNavbarIndex];
-                    SetNavbarButtonFocus(button);
-                    System.Diagnostics.Debug.WriteLine($"🎮 Navbar navigation: focused button {_currentNavbarIndex}: {button.Name}");
+                    // Found visible button - select it
+                    SetNavbarButtonSelection(button);
+                    System.Diagnostics.Debug.WriteLine($"🎮 LT/RT: Selected navbar button {_selectedNavbarButtonIndex}: {button.Name}");
                     return;
                 }
 
-            } while (_currentNavbarIndex != startIndex && attempts < maxAttempts);
+                // Not visible, continue cycling
+                _selectedNavbarButtonIndex += direction;
+                if (_selectedNavbarButtonIndex < 0)
+                {
+                    _selectedNavbarButtonIndex = _navbarButtons.Count - 1;
+                }
+                else if (_selectedNavbarButtonIndex >= _navbarButtons.Count)
+                {
+                    _selectedNavbarButtonIndex = 0;
+                }
 
-            // If we get here, no visible buttons found (shouldn't happen, but handle gracefully)
-            System.Diagnostics.Debug.WriteLine("🎮 Warning: No visible navbar buttons found");
+                attempts++;
+            }
+
+            // No visible buttons found
+            ClearNavbarButtonSelection();
         }
 
-        // Set focus border on navbar button (DarkViolet like other gamepad navigation)
-        private void SetNavbarButtonFocus(Button button)
+        // Set visual selection on navbar button
+        private void SetNavbarButtonSelection(Button button)
         {
-            // Clear previous navbar button focus
-            ClearNavbarButtonFocus();
+            // Clear previous selection
+            if (_selectedNavbarButton != null)
+            {
+                _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                _selectedNavbarButton.BorderThickness = new Thickness(0);
+            }
 
-            // Set focus on new button
-            _currentNavbarButton = button;
+            // Set new selection
+            _selectedNavbarButton = button;
             button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-            button.BorderThickness = new Thickness(2); // Reduced from 3 to 2 to avoid double-border effect with GlowingGameButtonStyle
+            button.BorderThickness = new Thickness(2);
             button.Focus(FocusState.Programmatic);
         }
 
-        // Clear focus border from navbar button
-        private void ClearNavbarButtonFocus()
+        // Clear navbar button selection
+        private void ClearNavbarButtonSelection()
         {
-            if (_currentNavbarButton != null)
+            if (_selectedNavbarButton != null)
             {
-                _currentNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                _currentNavbarButton.BorderThickness = new Thickness(0);
-                _currentNavbarButton = null;
+                _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                _selectedNavbarButton.BorderThickness = new Thickness(0);
+                _selectedNavbarButton = null;
             }
+            _selectedNavbarButtonIndex = null;
+            System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
+        }
+
+        // Invoke the currently selected navbar button
+        private void InvokeSelectedNavbarButton()
+        {
+            if (_selectedNavbarButton == null) return;
+
+            System.Diagnostics.Debug.WriteLine($"🎮 A button: Invoking selected navbar button {_selectedNavbarButton.Name}");
+
+            // Programmatically click the button using UI Automation
+            var peer = new ButtonAutomationPeer(_selectedNavbarButton);
+            var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
+            invokeProvider?.Invoke();
+
+            // Clear selection after invocation
+            ClearNavbarButtonSelection();
         }
 
         public void Dispose()
