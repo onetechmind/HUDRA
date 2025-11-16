@@ -219,7 +219,7 @@
                         Orientation="Vertical"
                         Spacing="8">
 
-                        <!--  Alt+Tab (Back to Game) button  -->
+                        <!--  Alt+Tab button  -->
                         <Button
                             x:Name="AltTabButton"
                             Width="50"
@@ -233,23 +233,6 @@
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="20"
                                 Glyph="&#xE8AB;" />
-                        </Button>
-
-                        <!--  Force Quit Game button  -->
-                        <Button
-                            x:Name="ForceQuitButton"
-                            Width="50"
-                            Height="50"
-                            HorizontalAlignment="Center"
-                            Click="ForceQuitButton_Click"
-                            Style="{StaticResource GlowingGameButtonStyle}"
-                            ToolTipService.ToolTip="Force Quit Game"
-                            Visibility="{x:Bind ForceQuitButtonVisible, Mode=OneWay}">
-                            <FontIcon
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="20"
-                                Foreground="#FF5555"
-                                Glyph="&#xE711;" />
                         </Button>
 
                         <!--  Lossless Scaling button  -->
@@ -276,7 +259,6 @@
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             Click="CloseButton_Click"
-                            Style="{StaticResource GlowingGameButtonStyle}"
                             ToolTipService.ToolTip="Hide">
                             <FontIcon
                                 HorizontalAlignment="Center"
