@@ -385,7 +385,20 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Handle navbar button cycling with LT/RT triggers - only on new presses
+            // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
+            if (newButtons.Contains(GamepadButtons.LeftShoulder))
+            {
+                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
+                return;
+            }
+
+            if (newButtons.Contains(GamepadButtons.RightShoulder))
+            {
+                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
+                return;
+            }
+
+            // Handle navbar button cycling with L2/R2 triggers - only on new presses
             bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
             bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
 
@@ -469,6 +482,8 @@ namespace HUDRA.Services
             bool rightTriggerJustPressed = rightTriggerActive && !_rightTriggerPressed;
 
             if (newButtons.Contains(GamepadButtons.A) ||
+                newButtons.Contains(GamepadButtons.LeftShoulder) ||
+                newButtons.Contains(GamepadButtons.RightShoulder) ||
                 leftTriggerJustPressed ||
                 rightTriggerJustPressed)
             {
