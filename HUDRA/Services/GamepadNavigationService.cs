@@ -425,6 +425,12 @@ namespace HUDRA.Services
             // Handle navbar button cycling with L2/R2 triggers - hysteresis edge detection
             // Hysteresis: press at >0.6, release at <0.4, maintain state in between (0.4-0.6 dead zone)
 
+            // VERBOSE DEBUG: Show trigger values whenever they're non-zero
+            if (reading.LeftTrigger > 0.05 || reading.RightTrigger > 0.05)
+            {
+                System.Diagnostics.Debug.WriteLine($"🔍 TRIGGER VALUES: L2={reading.LeftTrigger:F2} (state:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (state:{_rightTriggerPressed})");
+            }
+
             // Left trigger (L2) - cycle up through navbar
             if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
             {
