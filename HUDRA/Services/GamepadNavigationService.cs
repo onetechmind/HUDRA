@@ -443,7 +443,6 @@ namespace HUDRA.Services
             if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
             {
                 // Rising edge: trigger exceeded press threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 L2 pressed ({reading.LeftTrigger:F2}) - cycling navbar UP");
                 _leftTriggerPressed = true;
                 CycleNavbarButtonSelection(-1);
                 TriggerHapticFeedback();
@@ -452,7 +451,6 @@ namespace HUDRA.Services
             else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
                 // Falling edge: trigger dropped below release threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 L2 released ({reading.LeftTrigger:F2})");
                 _leftTriggerPressed = false;
             }
 
@@ -460,7 +458,6 @@ namespace HUDRA.Services
             if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
             {
                 // Rising edge: trigger exceeded press threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 R2 pressed ({reading.RightTrigger:F2}) - cycling navbar DOWN");
                 _rightTriggerPressed = true;
                 CycleNavbarButtonSelection(1);
                 TriggerHapticFeedback();
@@ -469,7 +466,6 @@ namespace HUDRA.Services
             else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
                 // Falling edge: trigger dropped below release threshold
-                System.Diagnostics.Debug.WriteLine($"🎮 R2 released ({reading.RightTrigger:F2})");
                 _rightTriggerPressed = false;
             }
 
@@ -1097,17 +1093,9 @@ namespace HUDRA.Services
                 .Where(x => x.button.Visibility == Visibility.Visible)
                 .ToList();
 
-            // Debug: Show which buttons are visible
-            System.Diagnostics.Debug.WriteLine($"🎮 Visible navbar buttons ({visibleButtons.Count}):");
-            foreach (var vb in visibleButtons)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮   [{vb.index}] {vb.button.Name}");
-            }
-
             if (visibleButtons.Count == 0)
             {
                 ClearNavbarButtonSelection();
-                System.Diagnostics.Debug.WriteLine("🎮 No visible navbar buttons found");
                 return;
             }
 
@@ -1117,12 +1105,10 @@ namespace HUDRA.Services
                 int singleIndex = visibleButtons[0].index;
                 if (_selectedNavbarButtonIndex == singleIndex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🎮 Only one visible button - already selected");
                     return; // Already selected, nothing to do
                 }
                 _selectedNavbarButtonIndex = singleIndex;
                 SetNavbarButtonSelection(_navbarButtons[singleIndex]);
-                System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected only visible navbar button [{singleIndex}]: {_navbarButtons[singleIndex].Name}");
                 return;
             }
 
@@ -1133,7 +1119,6 @@ namespace HUDRA.Services
             {
                 // Always start from the first visible button (top-most)
                 newIndex = visibleButtons[0].index;
-                System.Diagnostics.Debug.WriteLine($"🎮 No selection - starting from top-most visible button at index {newIndex}");
             }
             else
             {
@@ -1144,7 +1129,6 @@ namespace HUDRA.Services
                 {
                     // Current button no longer visible, start from top-most visible button
                     newIndex = visibleButtons[0].index;
-                    System.Diagnostics.Debug.WriteLine($"🎮 Current selection invisible - restarting from top-most visible button at {newIndex}");
                 }
                 else
                 {
@@ -1162,7 +1146,6 @@ namespace HUDRA.Services
                     }
 
                     newIndex = visibleButtons[nextVisibleIndex].index;
-                    System.Diagnostics.Debug.WriteLine($"🎮 Cycling from visible index {currentVisibleIndex} to {nextVisibleIndex} (button index {newIndex})");
                 }
             }
 
@@ -1176,7 +1159,6 @@ namespace HUDRA.Services
                 {
                     _selectedNavbarButtonIndex = searchIndex;
                     SetNavbarButtonSelection(_navbarButtons[searchIndex]);
-                    System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected navbar button [{searchIndex}]: {_navbarButtons[searchIndex].Name}");
                     return;
                 }
 
@@ -1197,7 +1179,6 @@ namespace HUDRA.Services
             }
 
             // Should never reach here since we checked for visible buttons above
-            System.Diagnostics.Debug.WriteLine("🎮 WARNING: Failed to find visible button despite visible count > 0");
             ClearNavbarButtonSelection();
         }
 
@@ -1211,7 +1192,6 @@ namespace HUDRA.Services
                 {
                     _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
                     _selectedNavbarButton.BorderThickness = new Thickness(0);
-                    System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
                 }
 
                 // Clear main app focus so DarkViolet borders disappear from page controls
@@ -1233,18 +1213,6 @@ namespace HUDRA.Services
 
                 // Force visual update
                 button.UpdateLayout();
-
-                // Validate the properties were set - read actual values back
-                var actualBrush = button.BorderBrush as SolidColorBrush;
-                var actualColor = actualBrush?.Color;
-
-                System.Diagnostics.Debug.WriteLine($"🎮 ✓ Navbar button selected: {button.Name}");
-                System.Diagnostics.Debug.WriteLine($"🎮   BorderBrush Color: {actualColor} (expected: #FF9400D3 DarkViolet)");
-                System.Diagnostics.Debug.WriteLine($"🎮   BorderThickness: {button.BorderThickness} (expected: 3,3,3,3)");
-                System.Diagnostics.Debug.WriteLine($"🎮   Visibility: {button.Visibility}");
-                System.Diagnostics.Debug.WriteLine($"🎮   IsEnabled: {button.IsEnabled}");
-                System.Diagnostics.Debug.WriteLine($"🎮   ActualWidth: {button.ActualWidth}, ActualHeight: {button.ActualHeight}");
-                System.Diagnostics.Debug.WriteLine($"🎮   Style: {button.Style?.GetType().Name ?? "null"}");
             }
             catch (Exception ex)
             {
@@ -1265,7 +1233,6 @@ namespace HUDRA.Services
                     _selectedNavbarButton = null;
                 }
                 _selectedNavbarButtonIndex = null;
-                System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
             }
             catch (Exception ex)
             {
@@ -1277,8 +1244,6 @@ namespace HUDRA.Services
         private void InvokeSelectedNavbarButton()
         {
             if (_selectedNavbarButton == null) return;
-
-            System.Diagnostics.Debug.WriteLine($"🎮 A button: Invoking selected navbar button {_selectedNavbarButton.Name}");
 
             // Programmatically click the button using UI Automation
             var peer = new ButtonAutomationPeer(_selectedNavbarButton);
