@@ -469,27 +469,59 @@ namespace HUDRA.Services
 
             // Handle standard navigation
             GamepadNavigationAction? action = null;
-            
+
             // D-pad navigation (both new presses and repeats)
             if (reading.Buttons.HasFlag(GamepadButtons.DPadUp) || reading.LeftThumbstickY > 0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadUp) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Up;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadDown) || reading.LeftThumbstickY < -0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadDown) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Down;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadLeft) || reading.LeftThumbstickX < -0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadLeft) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Left;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadRight) || reading.LeftThumbstickX > 0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadRight) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Right;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
 
             // Action buttons (only on new presses)
