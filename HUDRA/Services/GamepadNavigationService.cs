@@ -1090,12 +1090,12 @@ namespace HUDRA.Services
 
             int newIndex;
 
-            // If no button currently selected, start from appropriate end
+            // If no button currently selected, always start from top-most visible button
             if (!_selectedNavbarButtonIndex.HasValue)
             {
-                // L2 (-1) starts from top, R2 (+1) starts from bottom
-                newIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
-                System.Diagnostics.Debug.WriteLine($"🎮 No selection - starting from index {newIndex}");
+                // Always start from the first visible button (top-most)
+                newIndex = visibleButtons[0].index;
+                System.Diagnostics.Debug.WriteLine($"🎮 No selection - starting from top-most visible button at index {newIndex}");
             }
             else
             {
@@ -1104,9 +1104,9 @@ namespace HUDRA.Services
 
                 if (currentVisibleIndex == -1)
                 {
-                    // Current button no longer visible, start fresh
-                    newIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
-                    System.Diagnostics.Debug.WriteLine($"🎮 Current selection invisible - restarting from {newIndex}");
+                    // Current button no longer visible, start from top-most visible button
+                    newIndex = visibleButtons[0].index;
+                    System.Diagnostics.Debug.WriteLine($"🎮 Current selection invisible - restarting from top-most visible button at {newIndex}");
                 }
                 else
                 {
@@ -1190,8 +1190,8 @@ namespace HUDRA.Services
                 button.BorderBrush = darkVioletBrush;
                 button.BorderThickness = borderThickness;
 
-                // Force focus to ensure visual state updates
-                button.Focus(FocusState.Programmatic);
+                // DON'T call Focus() - it can cause WinUI to add its own focus visual
+                // creating a "double border" effect. We only need our custom border.
 
                 // Force visual update
                 button.UpdateLayout();
