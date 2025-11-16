@@ -628,7 +628,7 @@ namespace HUDRA.Services
                 if (!xboxGames.Any())
                     return null;
 
-                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
+                //System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - Looking for match for process '{processName}' (exe: '{processExeName}')");
 
                 // Check each Xbox game's alternative executables list
                 // This list was populated during scan by enumerating all .exe files up to 5 levels deep
@@ -638,9 +638,9 @@ namespace HUDRA.Services
                     string dbExeName = Path.GetFileNameWithoutExtension(xboxGame.ExecutablePath);
                     if (string.Equals(dbExeName, processExeName, StringComparison.OrdinalIgnoreCase))
                     {
-                        System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH (main exe)! Found '{xboxGame.DisplayName}'");
-                        System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
-                        System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
+                        //System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback EXACT MATCH (main exe)! Found '{xboxGame.DisplayName}'");
+                        //System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                        //System.Diagnostics.Debug.WriteLine($"  DB exe: {dbExeName}");
                         return xboxGame;
                     }
 
@@ -652,16 +652,16 @@ namespace HUDRA.Services
                             if (string.Equals(altExe, processExeName, StringComparison.OrdinalIgnoreCase))
                             {
                                 System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback ALTERNATIVE MATCH! Found '{xboxGame.DisplayName}'");
-                                System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
-                                System.Diagnostics.Debug.WriteLine($"  Matched alternative: {altExe}");
-                                System.Diagnostics.Debug.WriteLine($"  Total alternatives for this game: {xboxGame.AlternativeExecutables.Count}");
+                                //System.Diagnostics.Debug.WriteLine($"  Process exe: {processExeName}");
+                                //System.Diagnostics.Debug.WriteLine($"  Matched alternative: {altExe}");
+                                //System.Diagnostics.Debug.WriteLine($"  Total alternatives for this game: {xboxGame.AlternativeExecutables.Count}");
                                 return xboxGame;
                             }
                         }
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No match found for '{processExeName}'");
+                //System.Diagnostics.Debug.WriteLine($"Enhanced: Xbox fallback - No match found for '{processExeName}'");
                 return null;
             }
             catch (Exception ex)
