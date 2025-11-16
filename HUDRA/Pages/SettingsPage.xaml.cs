@@ -1,5 +1,6 @@
 using HUDRA.Services;
 using HUDRA.Controls;
+using HUDRA.Extensions;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -689,18 +690,25 @@ namespace HUDRA.Pages
         {
             try
             {
-                // Show confirmation dialog
+                // Get MainWindow for gamepad service access
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+
+                // Show confirmation dialog with automatic gamepad support
                 var dialog = new ContentDialog
                 {
                     Title = "Reset Game Database",
                     Content = "This will clear all detected games and perform a fresh scan. Continue?",
-                    PrimaryButtonText = "Yes",
-                    CloseButtonText = "No",
+                    PrimaryButtonText = "Ⓐ Yes",
+                    CloseButtonText = "Ⓑ No",
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = this.XamlRoot
                 };
 
-                var result = await dialog.ShowAsync();
+                var result = mainWindow != null
+                    ? await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService)
+                    : await dialog.ShowAsync();
+
                 if (result != ContentDialogResult.Primary)
                 {
                     return; // User cancelled
@@ -715,9 +723,6 @@ namespace HUDRA.Pages
                     // Force UI to render immediately before blocking database operations
                     await Task.Yield();
                 }
-
-                var app = App.Current as App;
-                var mainWindow = app?.MainWindow;
                 if (mainWindow != null)
                 {
                     var enhancedServiceField = typeof(MainWindow).GetField("_enhancedGameDetectionService",
