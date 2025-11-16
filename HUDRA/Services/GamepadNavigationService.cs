@@ -1010,103 +1010,149 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine($"🎮 Registered {_navbarButtons.Count} navbar buttons");
         }
 
-        // Cycle through navbar buttons with LT/RT triggers
+        // Cycle through navbar buttons with L2/R2 triggers
         private void CycleNavbarButtonSelection(int direction)
         {
             if (_navbarButtons.Count == 0) return;
 
             // Check if any navbar buttons are visible
-            bool anyVisible = _navbarButtons.Any(b => b.Visibility == Visibility.Visible);
-            if (!anyVisible)
+            var visibleButtons = _navbarButtons
+                .Select((button, index) => new { button, index })
+                .Where(x => x.button.Visibility == Visibility.Visible)
+                .ToList();
+
+            if (visibleButtons.Count == 0)
             {
                 ClearNavbarButtonSelection();
+                System.Diagnostics.Debug.WriteLine("🎮 No visible navbar buttons found");
                 return;
             }
+
+            int newIndex;
 
             // If no button currently selected, start from appropriate end
             if (!_selectedNavbarButtonIndex.HasValue)
             {
-                // LT (-1) starts from top, RT (+1) starts from bottom
-                _selectedNavbarButtonIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
+                // L2 (-1) starts from top, R2 (+1) starts from bottom
+                newIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
+                System.Diagnostics.Debug.WriteLine($"🎮 No selection - starting from index {newIndex}");
             }
             else
             {
-                // Cycle to next/previous button
-                _selectedNavbarButtonIndex += direction;
-            }
+                // Find current button in visible list
+                int currentVisibleIndex = visibleButtons.FindIndex(x => x.index == _selectedNavbarButtonIndex.Value);
 
-            // Wrap around
-            if (_selectedNavbarButtonIndex < 0)
-            {
-                _selectedNavbarButtonIndex = _navbarButtons.Count - 1;
-            }
-            else if (_selectedNavbarButtonIndex >= _navbarButtons.Count)
-            {
-                _selectedNavbarButtonIndex = 0;
-            }
-
-            // Find next visible button (skip invisible ones)
-            int startIndex = _selectedNavbarButtonIndex.Value;
-            int attempts = 0;
-            int maxAttempts = _navbarButtons.Count;
-
-            while (attempts < maxAttempts)
-            {
-                var button = _navbarButtons[_selectedNavbarButtonIndex.Value];
-                if (button.Visibility == Visibility.Visible)
+                if (currentVisibleIndex == -1)
                 {
-                    // Found visible button - select it
-                    SetNavbarButtonSelection(button);
-                    System.Diagnostics.Debug.WriteLine($"🎮 LT/RT: Selected navbar button {_selectedNavbarButtonIndex}: {button.Name}");
+                    // Current button no longer visible, start fresh
+                    newIndex = direction < 0 ? 0 : _navbarButtons.Count - 1;
+                    System.Diagnostics.Debug.WriteLine($"🎮 Current selection invisible - restarting from {newIndex}");
+                }
+                else
+                {
+                    // Move to next/previous visible button
+                    int nextVisibleIndex = currentVisibleIndex + direction;
+
+                    // Wrap around within visible buttons
+                    if (nextVisibleIndex < 0)
+                    {
+                        nextVisibleIndex = visibleButtons.Count - 1;
+                    }
+                    else if (nextVisibleIndex >= visibleButtons.Count)
+                    {
+                        nextVisibleIndex = 0;
+                    }
+
+                    newIndex = visibleButtons[nextVisibleIndex].index;
+                    System.Diagnostics.Debug.WriteLine($"🎮 Cycling from visible index {currentVisibleIndex} to {nextVisibleIndex} (button index {newIndex})");
+                }
+            }
+
+            // Find the actual visible button at newIndex (may need to search)
+            int searchAttempts = 0;
+            int searchIndex = newIndex;
+
+            while (searchAttempts < _navbarButtons.Count)
+            {
+                if (_navbarButtons[searchIndex].Visibility == Visibility.Visible)
+                {
+                    _selectedNavbarButtonIndex = searchIndex;
+                    SetNavbarButtonSelection(_navbarButtons[searchIndex]);
+                    System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected navbar button [{searchIndex}]: {_navbarButtons[searchIndex].Name}");
                     return;
                 }
 
-                // Not visible, continue cycling
-                _selectedNavbarButtonIndex += direction;
-                if (_selectedNavbarButtonIndex < 0)
+                // Not visible, continue searching in direction
+                searchIndex += direction;
+
+                // Wrap around
+                if (searchIndex < 0)
                 {
-                    _selectedNavbarButtonIndex = _navbarButtons.Count - 1;
+                    searchIndex = _navbarButtons.Count - 1;
                 }
-                else if (_selectedNavbarButtonIndex >= _navbarButtons.Count)
+                else if (searchIndex >= _navbarButtons.Count)
                 {
-                    _selectedNavbarButtonIndex = 0;
+                    searchIndex = 0;
                 }
 
-                attempts++;
+                searchAttempts++;
             }
 
-            // No visible buttons found
+            // Should never reach here since we checked for visible buttons above
+            System.Diagnostics.Debug.WriteLine("🎮 WARNING: Failed to find visible button despite visible count > 0");
             ClearNavbarButtonSelection();
         }
 
         // Set visual selection on navbar button
         private void SetNavbarButtonSelection(Button button)
         {
-            // Clear previous selection
-            if (_selectedNavbarButton != null)
+            // Ensure we're on UI thread
+            if (_dispatcherQueue == null)
             {
-                _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                _selectedNavbarButton.BorderThickness = new Thickness(0);
+                System.Diagnostics.Debug.WriteLine("🎮 WARNING: DispatcherQueue is null, cannot set navbar button selection");
+                return;
             }
 
-            // Set new selection
-            _selectedNavbarButton = button;
-            button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-            button.BorderThickness = new Thickness(2);
-            button.Focus(FocusState.Programmatic);
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                // Clear previous selection
+                if (_selectedNavbarButton != null && _selectedNavbarButton != button)
+                {
+                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _selectedNavbarButton.BorderThickness = new Thickness(0);
+                    System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
+                }
+
+                // Clear main app focus so DarkViolet borders disappear from page controls
+                ClearFocus();
+
+                // Set new selection
+                _selectedNavbarButton = button;
+                button.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                button.BorderThickness = new Thickness(2);
+                button.Focus(FocusState.Programmatic);
+
+                System.Diagnostics.Debug.WriteLine($"🎮 Navbar button selected: {button.Name}, BorderBrush={button.BorderBrush}, BorderThickness={button.BorderThickness}");
+            });
         }
 
         // Clear navbar button selection
         private void ClearNavbarButtonSelection()
         {
-            if (_selectedNavbarButton != null)
+            if (_dispatcherQueue != null)
             {
-                _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                _selectedNavbarButton.BorderThickness = new Thickness(0);
-                _selectedNavbarButton = null;
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (_selectedNavbarButton != null)
+                    {
+                        _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                        _selectedNavbarButton.BorderThickness = new Thickness(0);
+                        _selectedNavbarButton = null;
+                    }
+                    _selectedNavbarButtonIndex = null;
+                    System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
+                });
             }
-            _selectedNavbarButtonIndex = null;
-            System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
         }
 
         // Invoke the currently selected navbar button
