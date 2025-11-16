@@ -29,7 +29,7 @@ namespace HUDRA.Services
         // Trigger state tracking (analog triggers need separate tracking)
         private bool _leftTriggerPressed = false;
         private bool _rightTriggerPressed = false;
-        private const double TRIGGER_THRESHOLD = 0.5; // Lowered from 0.8 for easier release detection
+        private const double TRIGGER_THRESHOLD = 0.3; // Lowered to 0.3 (30%) for better release detection with analog triggers
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
