@@ -26,10 +26,11 @@ namespace HUDRA.Services
         private const double INPUT_REPEAT_DELAY_MS = 150;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
-        // Trigger state tracking (analog triggers need separate tracking)
+        // Trigger state tracking (analog triggers need separate tracking with hysteresis)
         private bool _leftTriggerPressed = false;
         private bool _rightTriggerPressed = false;
-        private const double TRIGGER_THRESHOLD = 0.2; // Lowered to 0.2 (20%) - controller rests around 0.3-0.4
+        private const double TRIGGER_PRESS_THRESHOLD = 0.6;   // Must exceed 0.6 to register as pressed
+        private const double TRIGGER_RELEASE_THRESHOLD = 0.6; // Must drop below 0.6 to register as released
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
@@ -419,39 +420,44 @@ namespace HUDRA.Services
                 return;
             }
 
-            // Handle navbar button cycling with L2/R2 triggers - only on new presses
-            bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
-            bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
+            // Handle navbar button cycling with L2/R2 triggers using hysteresis
+            // Hysteresis prevents false triggers with controllers that have high resting positions
 
             // Debug trigger state
-            if (leftTriggerActive || rightTriggerActive || _leftTriggerPressed || _rightTriggerPressed)
+            if (reading.LeftTrigger > 0.1 || reading.RightTrigger > 0.1 || _leftTriggerPressed || _rightTriggerPressed)
             {
-                System.Diagnostics.Debug.WriteLine($"🎮 Trigger state: L2={reading.LeftTrigger:F2} (active:{leftTriggerActive}, pressed:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (active:{rightTriggerActive}, pressed:{_rightTriggerPressed})");
+                System.Diagnostics.Debug.WriteLine($"🎮 Trigger state: L2={reading.LeftTrigger:F2} (pressed:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (pressed:{_rightTriggerPressed})");
             }
 
-            if (leftTriggerActive && !_leftTriggerPressed)
+            // Left trigger (L2) - cycle up through navbar
+            if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
             {
-                System.Diagnostics.Debug.WriteLine("🎮 L2 trigger: NEW PRESS detected, cycling navbar UP");
+                // New press detected - value exceeded press threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 trigger: NEW PRESS detected (value {reading.LeftTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar UP");
                 _leftTriggerPressed = true;
                 CycleNavbarButtonSelection(-1); // Cycle up (toward top)
                 return;
             }
-            else if (!leftTriggerActive && _leftTriggerPressed)
+            else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
-                System.Diagnostics.Debug.WriteLine("🎮 L2 trigger: RELEASED, resetting state");
+                // Release detected - value dropped below release threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 trigger: RELEASED (value {reading.LeftTrigger:F2} < {TRIGGER_RELEASE_THRESHOLD}), resetting state");
                 _leftTriggerPressed = false;
             }
 
-            if (rightTriggerActive && !_rightTriggerPressed)
+            // Right trigger (R2) - cycle down through navbar
+            if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
             {
-                System.Diagnostics.Debug.WriteLine("🎮 R2 trigger: NEW PRESS detected, cycling navbar DOWN");
+                // New press detected - value exceeded press threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 trigger: NEW PRESS detected (value {reading.RightTrigger:F2} > {TRIGGER_PRESS_THRESHOLD}), cycling navbar DOWN");
                 _rightTriggerPressed = true;
                 CycleNavbarButtonSelection(1); // Cycle down (toward bottom)
                 return;
             }
-            else if (!rightTriggerActive && _rightTriggerPressed)
+            else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
-                System.Diagnostics.Debug.WriteLine("🎮 R2 trigger: RELEASED, resetting state");
+                // Release detected - value dropped below release threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 trigger: RELEASED (value {reading.RightTrigger:F2} < {TRIGGER_RELEASE_THRESHOLD}), resetting state");
                 _rightTriggerPressed = false;
             }
 
