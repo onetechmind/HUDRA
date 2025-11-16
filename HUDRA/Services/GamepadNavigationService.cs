@@ -423,25 +423,35 @@ namespace HUDRA.Services
             bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
             bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
 
+            // Debug trigger state
+            if (leftTriggerActive || rightTriggerActive || _leftTriggerPressed || _rightTriggerPressed)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Trigger state: L2={reading.LeftTrigger:F2} (active:{leftTriggerActive}, pressed:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (active:{rightTriggerActive}, pressed:{_rightTriggerPressed})");
+            }
+
             if (leftTriggerActive && !_leftTriggerPressed)
             {
+                System.Diagnostics.Debug.WriteLine("🎮 L2 trigger: NEW PRESS detected, cycling navbar UP");
                 _leftTriggerPressed = true;
                 CycleNavbarButtonSelection(-1); // Cycle up (toward top)
                 return;
             }
             else if (!leftTriggerActive && _leftTriggerPressed)
             {
+                System.Diagnostics.Debug.WriteLine("🎮 L2 trigger: RELEASED, resetting state");
                 _leftTriggerPressed = false;
             }
 
             if (rightTriggerActive && !_rightTriggerPressed)
             {
+                System.Diagnostics.Debug.WriteLine("🎮 R2 trigger: NEW PRESS detected, cycling navbar DOWN");
                 _rightTriggerPressed = true;
                 CycleNavbarButtonSelection(1); // Cycle down (toward bottom)
                 return;
             }
             else if (!rightTriggerActive && _rightTriggerPressed)
             {
+                System.Diagnostics.Debug.WriteLine("🎮 R2 trigger: RELEASED, resetting state");
                 _rightTriggerPressed = false;
             }
 
