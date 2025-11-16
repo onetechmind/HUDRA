@@ -260,9 +260,11 @@ namespace HUDRA.Services
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
             // Include trigger input in addition to digital buttons and repeats
+            // Also need to process if trigger WAS pressed (to detect releases)
             bool hasTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+            bool needTriggerReleaseCheck = _leftTriggerPressed || _rightTriggerPressed;
 
-            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput)
+            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput || needTriggerReleaseCheck)
             {
                 ProcessNavigationInput(reading, newButtons, shouldProcessRepeats);
                 _lastInputTime = DateTime.Now;
