@@ -276,6 +276,7 @@
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             Click="CloseButton_Click"
+                            Style="{StaticResource GlowingGameButtonStyle}"
                             ToolTipService.ToolTip="Hide">
                             <FontIcon
                                 HorizontalAlignment="Center"
