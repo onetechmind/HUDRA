@@ -1042,10 +1042,32 @@ namespace HUDRA.Services
                 .Where(x => x.button.Visibility == Visibility.Visible)
                 .ToList();
 
+            // Debug: Show which buttons are visible
+            System.Diagnostics.Debug.WriteLine($"🎮 Visible navbar buttons ({visibleButtons.Count}):");
+            foreach (var vb in visibleButtons)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮   [{vb.index}] {vb.button.Name}");
+            }
+
             if (visibleButtons.Count == 0)
             {
                 ClearNavbarButtonSelection();
                 System.Diagnostics.Debug.WriteLine("🎮 No visible navbar buttons found");
+                return;
+            }
+
+            // If only one visible button, just select it and don't cycle
+            if (visibleButtons.Count == 1)
+            {
+                int singleIndex = visibleButtons[0].index;
+                if (_selectedNavbarButtonIndex == singleIndex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 Only one visible button - already selected");
+                    return; // Already selected, nothing to do
+                }
+                _selectedNavbarButtonIndex = singleIndex;
+                SetNavbarButtonSelection(_navbarButtons[singleIndex]);
+                System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected only visible navbar button [{singleIndex}]: {_navbarButtons[singleIndex].Name}");
                 return;
             }
 
