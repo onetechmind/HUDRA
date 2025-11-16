@@ -197,11 +197,13 @@ namespace HUDRA.Services
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
-                // Check if this is a trigger input (L2/R2 for navbar cycling)
+                // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
                 bool isTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+                bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
+                bool isNavigationInput = isTriggerInput || isShoulderInput;
 
-                // Initialize focus on first input if we have a current frame (unless it's a trigger press)
-                if (_currentFrame?.Content is FrameworkElement rootElement && !isTriggerInput)
+                // Initialize focus on first input if we have a current frame (unless it's a navigation button press)
+                if (_currentFrame?.Content is FrameworkElement rootElement && !isNavigationInput)
                 {
                     // Respect suppression flag set by non-gamepad navigation
                     if (!_suppressAutoFocusOnActivation)
@@ -217,11 +219,18 @@ namespace HUDRA.Services
                 // Reset suppression after first activation regardless
                 _suppressAutoFocusOnActivation = false;
 
-                // If this is a trigger input (L2/R2), don't consume it - let it be processed below
-                if (isTriggerInput)
+                // If this is a navigation input (L1/R1/L2/R2), don't consume it - let it be processed below
+                if (isNavigationInput)
                 {
-                    System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by trigger press - input will be processed for navbar cycling");
-                    // Don't return - let the trigger input be processed below
+                    if (isTriggerInput)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L2/R2 trigger press - input will be processed for navbar cycling");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L1/R1 shoulder press - input will be processed for page navigation");
+                    }
+                    // Don't return - let the input be processed below
                 }
                 else
                 {
