@@ -176,16 +176,18 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
-            // Check if any input is being received
+            // Check if any input is being received OR if we need to check for trigger releases
             bool hasInput = reading.Buttons != GamepadButtons.None ||
                            Math.Abs(reading.LeftThumbstickX) > 0.1 ||
                            Math.Abs(reading.LeftThumbstickY) > 0.1 ||
                            Math.Abs(reading.RightThumbstickX) > 0.1 ||
                            Math.Abs(reading.RightThumbstickY) > 0.1 ||
                            reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD ||
-                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD ||
+                           _leftTriggerPressed ||  // Need to check for L2 release
+                           _rightTriggerPressed;   // Need to check for R2 release
 
-            if (!hasInput) 
+            if (!hasInput)
             {
                 // Still need to update button state even when no input to clear released buttons
                 UpdatePressedButtonsState(reading.Buttons);
