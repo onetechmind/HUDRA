@@ -1,5 +1,6 @@
 using HUDRA.Configuration;
 using HUDRA.Controls;
+using HUDRA.Extensions;
 using HUDRA.Models;
 using HUDRA.Pages;
 using HUDRA.Services;
@@ -146,6 +147,13 @@ namespace HUDRA
             set { _losslessScalingButtonVisible = value; OnPropertyChanged(); }
         }
 
+        private bool _forceQuitButtonVisible = false;
+        public bool ForceQuitButtonVisible
+        {
+            get => _forceQuitButtonVisible;
+            set { _forceQuitButtonVisible = value; OnPropertyChanged(); }
+        }
+
         // FPS Limiter properties
         private FpsLimitSettings _fpsSettings = new();
         public FpsLimitSettings FpsSettings
@@ -192,6 +200,9 @@ namespace HUDRA
             SetupInputDetection();
 
             _navigationService.NavigateToMain();
+
+            // Register navbar buttons for spatial navigation
+            RegisterNavbarButtons();
 
             this.Closed += (s, e) => Cleanup();
         }
@@ -278,6 +289,22 @@ namespace HUDRA
                     }
                     break;
             }
+        }
+
+        private void RegisterNavbarButtons()
+        {
+            // Register navbar buttons in order: Back to Game, Force Quit, Lossless Scaling, Hide
+            // This order matches the recommended top-to-bottom layout for spatial navigation
+            var navbarButtons = new List<Button>
+            {
+                AltTabButton,          // Back to Game (top)
+                ForceQuitButton,       // Force Quit
+                LosslessScalingButton, // Lossless Scaling
+                CloseButton            // Hide (bottom)
+            };
+
+            _gamepadNavigationService.RegisterNavbarButtons(navbarButtons);
+            System.Diagnostics.Debug.WriteLine("🎮 Registered navbar buttons for spatial navigation");
         }
 
         private void HandlePageSpecificInitialization(Type pageType)
@@ -607,6 +634,92 @@ namespace HUDRA
             {
                 System.Diagnostics.Debug.WriteLine("Game switching failed, using generic Alt+Tab");
                 SimulateAltTab();
+            }
+        }
+
+        private async void ForceQuitButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_enhancedGameDetectionService?.CurrentGame == null)
+            {
+                System.Diagnostics.Debug.WriteLine("No active game to force quit");
+                return;
+            }
+
+            var currentGame = _enhancedGameDetectionService.CurrentGame;
+            string gameName = !string.IsNullOrWhiteSpace(currentGame.WindowTitle)
+                ? currentGame.WindowTitle
+                : currentGame.ProcessName;
+
+            try
+            {
+                // Create confirmation dialog
+                // Gamepad support: A button = Force Quit, B button = Cancel
+                var dialog = new ContentDialog()
+                {
+                    Title = "Force Quit Game",
+                    Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
+                    PrimaryButtonText = "Ⓐ Force Quit",
+                    CloseButtonText = "Ⓑ Cancel",
+                    DefaultButton = ContentDialogButton.Close, // B button (safer default)
+                    XamlRoot = this.Content.XamlRoot
+                };
+
+                // Show dialog with automatic gamepad support
+                var result = await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
+
+                if (result != ContentDialogResult.Primary)
+                {
+                    System.Diagnostics.Debug.WriteLine("Force quit cancelled by user");
+                    return;
+                }
+
+                // User confirmed - proceed with force quit
+                System.Diagnostics.Debug.WriteLine($"Force quitting game: {gameName} (PID: {currentGame.ProcessId})");
+
+                try
+                {
+                    var process = System.Diagnostics.Process.GetProcessById(currentGame.ProcessId);
+
+                    // Try graceful close first
+                    process.CloseMainWindow();
+
+                    // Wait up to 3 seconds for graceful shutdown
+                    bool exited = process.WaitForExit(3000);
+
+                    if (!exited && !process.HasExited)
+                    {
+                        // Force kill if graceful didn't work
+                        System.Diagnostics.Debug.WriteLine("Graceful close failed, forcing termination");
+                        process.Kill();
+                        process.WaitForExit(2000);
+                    }
+
+                    process.Dispose();
+                    System.Diagnostics.Debug.WriteLine("Game successfully terminated");
+                }
+                catch (ArgumentException)
+                {
+                    System.Diagnostics.Debug.WriteLine("Process no longer exists");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error terminating game process: {ex.Message}");
+
+                    // Create and show error dialog with automatic gamepad support
+                    var errorDialog = new ContentDialog()
+                    {
+                        Title = "Force Quit Failed",
+                        Content = $"Failed to terminate the game process.\n\nError: {ex.Message}",
+                        CloseButtonText = "OK",
+                        XamlRoot = this.Content.XamlRoot
+                    };
+
+                    await errorDialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in force quit operation: {ex.Message}");
             }
         }
 
@@ -1162,6 +1275,9 @@ namespace HUDRA
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
 
+                // Update Force Quit button visibility
+                UpdateForceQuitButtonVisibility();
+
                 // Update FPS limiter for game detection
                 if (_mainPage?.FpsLimiter != null)
                 {
@@ -1174,6 +1290,9 @@ namespace HUDRA
                     ? gameInfo.WindowTitle
                     : gameInfo.ProcessName;
                 ToolTipService.SetToolTip(AltTabButton, $"Return to {gameName}");
+
+                // Update Force Quit tooltip
+                ToolTipService.SetToolTip(ForceQuitButton, $"Force Quit {gameName}");
 
                 // Update Lossless Scaling tooltip with game name
                 UpdateLosslessScalingTooltip();
@@ -1192,9 +1311,13 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("Game stopped - hiding Alt+Tab button");
                 AltTabButton.Visibility = Visibility.Collapsed;
                 ToolTipService.SetToolTip(AltTabButton, "Return to Game");
+                ToolTipService.SetToolTip(ForceQuitButton, "Force Quit Game");
 
                 // Update Lossless Scaling button visibility
                 UpdateLosslessScalingButtonVisibility();
+
+                // Update Force Quit button visibility
+                UpdateForceQuitButtonVisibility();
 
                 // Update FPS limiter for game stopped
                 if (_mainPage?.FpsLimiter != null)
@@ -1254,6 +1377,12 @@ namespace HUDRA
             }
         }
 
+        private void UpdateForceQuitButtonVisibility()
+        {
+            bool hasGame = _enhancedGameDetectionService?.CurrentGame != null;
+            ForceQuitButtonVisible = hasGame;
+        }
+
         private async Task ShowLosslessScalingError(string message)
         {
             try
@@ -1266,7 +1395,7 @@ namespace HUDRA
                     XamlRoot = this.Content.XamlRoot
                 };
 
-                await dialog.ShowAsync();
+                await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
             }
             catch (Exception ex)
             {

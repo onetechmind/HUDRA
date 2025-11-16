@@ -3,12 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.Gaming.Input;
 using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
 using HUDRA.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Automation.Peers;
+using Microsoft.UI.Xaml.Automation.Provider;
 
 namespace HUDRA.Services
 {
@@ -23,10 +26,11 @@ namespace HUDRA.Services
         private const double INPUT_REPEAT_DELAY_MS = 150;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
 
-        // Trigger state tracking (analog triggers need separate tracking)
+        // Trigger state tracking - hysteresis prevents bouncing at threshold
         private bool _leftTriggerPressed = false;
         private bool _rightTriggerPressed = false;
-        private const double TRIGGER_THRESHOLD = 0.8;
+        private const double TRIGGER_PRESS_THRESHOLD = 0.6;    // Must exceed 0.6 to register press
+        private const double TRIGGER_RELEASE_THRESHOLD = 0.4;  // Must drop below 0.4 to register release
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
@@ -38,6 +42,18 @@ namespace HUDRA.Services
         // ComboBox activation state
         private bool _isComboBoxOpen = false;
         private IGamepadNavigable? _activeComboBoxControl = null;
+
+        // Polling suspension (for modal dialogs)
+        private bool _isPollingPaused = false;
+
+        // Dialog state tracking (to bypass activation input consumption)
+        private bool _isDialogOpen = false;
+        private ContentDialog? _currentDialog = null;
+
+        // Navbar button cycling with LT/RT
+        private List<Button> _navbarButtons = new();
+        private int? _selectedNavbarButtonIndex = null; // null = no selection
+        private Button? _selectedNavbarButton = null;
 
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
@@ -160,30 +176,37 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
-            // Check if any input is being received
+            // Check if any input is being received OR if we need to check for trigger releases
             bool hasInput = reading.Buttons != GamepadButtons.None ||
                            Math.Abs(reading.LeftThumbstickX) > 0.1 ||
                            Math.Abs(reading.LeftThumbstickY) > 0.1 ||
                            Math.Abs(reading.RightThumbstickX) > 0.1 ||
                            Math.Abs(reading.RightThumbstickY) > 0.1 ||
-                           reading.LeftTrigger > TRIGGER_THRESHOLD ||
-                           reading.RightTrigger > TRIGGER_THRESHOLD;
+                           reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD ||
+                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD ||
+                           _leftTriggerPressed ||  // Need to check for L2 release
+                           _rightTriggerPressed;   // Need to check for R2 release
 
-            if (!hasInput) 
+            if (!hasInput)
             {
                 // Still need to update button state even when no input to clear released buttons
                 UpdatePressedButtonsState(reading.Buttons);
                 return;
             }
 
-            // Activate gamepad navigation on first input
-            if (!_isGamepadActive)
+            // Activate gamepad navigation on first input (unless dialog is open)
+            if (!_isGamepadActive && !_isDialogOpen)
             {
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
-                
-                // Initialize focus on first input if we have a current frame
-                if (_currentFrame?.Content is FrameworkElement rootElement)
+
+                // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
+                bool isTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+                bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
+                bool isNavigationInput = isTriggerInput || isShoulderInput;
+
+                // Initialize focus on first input if we have a current frame (unless it's a navigation button press)
+                if (_currentFrame?.Content is FrameworkElement rootElement && !isNavigationInput)
                 {
                     // Respect suppression flag set by non-gamepad navigation
                     if (!_suppressAutoFocusOnActivation)
@@ -192,21 +215,45 @@ namespace HUDRA.Services
                     }
                     else
                     {
-                        System.Diagnostics.Debug.WriteLine("dYZr Auto-focus on activation suppressed (non-gamepad navigation)");
+                        System.Diagnostics.Debug.WriteLine("🎮 Auto-focus on activation suppressed (non-gamepad navigation)");
                     }
                 }
-                
+
                 // Reset suppression after first activation regardless
                 _suppressAutoFocusOnActivation = false;
 
-                // Don't process the activation input as navigation - just consume it for activation
-                // Set last input time to prevent repeat logic from triggering immediately
-                _lastInputTime = DateTime.Now;
+                // If this is a navigation input (L1/R1/L2/R2), don't consume it - let it be processed below
+                if (isNavigationInput)
+                {
+                    if (isTriggerInput)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L2/R2 trigger press - input will be processed for navbar cycling");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L1/R1 shoulder press - input will be processed for page navigation");
+                    }
+                    // Don't return - let the input be processed below
+                }
+                else
+                {
+                    // Don't process the activation input as navigation - just consume it for activation
+                    // Set last input time to prevent repeat logic from triggering immediately
+                    _lastInputTime = DateTime.Now;
 
-                // Update pressed buttons state to prevent next frame from treating held button as "new"
-                UpdatePressedButtonsState(reading.Buttons);
+                    // Update pressed buttons state to prevent next frame from treating held button as "new"
+                    UpdatePressedButtonsState(reading.Buttons);
 
-                return;
+                    return;
+                }
+            }
+
+            // If dialog is open but gamepad not active, activate it without consuming input
+            if (!_isGamepadActive && _isDialogOpen)
+            {
+                SetGamepadActive(true);
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated for dialog - input will be processed");
+                // Don't return - let the input be processed below
             }
 
             // Get newly pressed buttons
@@ -216,9 +263,11 @@ namespace HUDRA.Services
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
             // Include trigger input in addition to digital buttons and repeats
-            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_THRESHOLD || reading.RightTrigger > TRIGGER_THRESHOLD;
+            // Also need to process if trigger WAS pressed (to detect releases)
+            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
+            bool needTriggerReleaseCheck = _leftTriggerPressed || _rightTriggerPressed;
 
-            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput)
+            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput || needTriggerReleaseCheck)
             {
                 ProcessNavigationInput(reading, newButtons, shouldProcessRepeats);
                 _lastInputTime = DateTime.Now;
@@ -331,77 +380,181 @@ namespace HUDRA.Services
 
         private void ProcessNavigationInput(GamepadReading reading, List<GamepadButtons> newButtons, bool shouldProcessRepeats)
         {
+            // When dialog is open, only process A/B buttons to control the dialog
+            if (_isDialogOpen && _currentDialog != null)
+            {
+                if (newButtons.Contains(GamepadButtons.A))
+                {
+                    // A button = Primary button (Force Quit)
+                    System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        if (_currentDialog != null)
+                        {
+                            // Programmatically click the primary button
+                            TriggerDialogPrimaryButton(_currentDialog);
+                        }
+                    });
+                    return;
+                }
+                else if (newButtons.Contains(GamepadButtons.B))
+                {
+                    // B button = Close/Cancel button
+                    System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        _currentDialog?.Hide();
+                    });
+                    return;
+                }
+                // Ignore all other input when dialog is open
+                return;
+            }
+
             // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
             if (newButtons.Contains(GamepadButtons.LeftShoulder))
             {
+                // Clear navbar selection when using shoulder buttons for page navigation
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 L1 pressed - clearing navbar selection");
+                    ClearNavbarButtonSelection();
+                }
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
                 return;
             }
 
             if (newButtons.Contains(GamepadButtons.RightShoulder))
             {
+                // Clear navbar selection when using shoulder buttons for page navigation
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 R1 pressed - clearing navbar selection");
+                    ClearNavbarButtonSelection();
+                }
                 PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
                 return;
             }
 
-            // Handle navbar button shortcuts (L2/R2 triggers) - only on new presses
-            bool leftTriggerActive = reading.LeftTrigger > TRIGGER_THRESHOLD;
-            bool rightTriggerActive = reading.RightTrigger > TRIGGER_THRESHOLD;
+            // Handle navbar button cycling with L2/R2 triggers - hysteresis edge detection
+            // Hysteresis: press at >0.6, release at <0.4, maintain state in between (0.4-0.6 dead zone)
 
-            if (leftTriggerActive && !_leftTriggerPressed)
+            // VERBOSE DEBUG: Show trigger values whenever they're non-zero
+            if (reading.LeftTrigger > 0.05 || reading.RightTrigger > 0.05)
             {
+                System.Diagnostics.Debug.WriteLine($"🔍 TRIGGER VALUES: L2={reading.LeftTrigger:F2} (state:{_leftTriggerPressed}), R2={reading.RightTrigger:F2} (state:{_rightTriggerPressed})");
+            }
+
+            // Left trigger (L2) - cycle up through navbar
+            if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
+            {
+                // Rising edge: trigger exceeded press threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 pressed ({reading.LeftTrigger:F2}) - cycling navbar UP");
                 _leftTriggerPressed = true;
-                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.BackToGame));
+                CycleNavbarButtonSelection(-1);
+                TriggerHapticFeedback();
                 return;
             }
-            else if (!leftTriggerActive && _leftTriggerPressed)
+            else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
+                // Falling edge: trigger dropped below release threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 L2 released ({reading.LeftTrigger:F2})");
                 _leftTriggerPressed = false;
             }
 
-            if (rightTriggerActive && !_rightTriggerPressed)
+            // Right trigger (R2) - cycle down through navbar
+            if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
             {
+                // Rising edge: trigger exceeded press threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 pressed ({reading.RightTrigger:F2}) - cycling navbar DOWN");
                 _rightTriggerPressed = true;
-                NavbarButtonRequested?.Invoke(this, new GamepadNavbarButtonEventArgs(GamepadNavbarButton.LosslessScaling));
+                CycleNavbarButtonSelection(1);
+                TriggerHapticFeedback();
                 return;
             }
-            else if (!rightTriggerActive && _rightTriggerPressed)
+            else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
             {
+                // Falling edge: trigger dropped below release threshold
+                System.Diagnostics.Debug.WriteLine($"🎮 R2 released ({reading.RightTrigger:F2})");
                 _rightTriggerPressed = false;
             }
 
             // Handle standard navigation
             GamepadNavigationAction? action = null;
-            
+
             // D-pad navigation (both new presses and repeats)
             if (reading.Buttons.HasFlag(GamepadButtons.DPadUp) || reading.LeftThumbstickY > 0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadUp) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Up;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadDown) || reading.LeftThumbstickY < -0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadDown) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Down;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadLeft) || reading.LeftThumbstickX < -0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadLeft) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Left;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
             else if (reading.Buttons.HasFlag(GamepadButtons.DPadRight) || reading.LeftThumbstickX > 0.7)
             {
                 if (newButtons.Contains(GamepadButtons.DPadRight) || shouldProcessRepeats)
+                {
                     action = GamepadNavigationAction.Right;
+                    // Clear navbar selection when using d-pad/analog for main UI navigation
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
+                        ClearNavbarButtonSelection();
+                    }
+                }
             }
 
             // Action buttons (only on new presses)
             if (newButtons.Contains(GamepadButtons.A))
             {
+                // Check if a navbar button is selected - invoke it directly
+                if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
+                {
+                    InvokeSelectedNavbarButton();
+                    return;
+                }
                 action = GamepadNavigationAction.Activate;
             }
             else if (newButtons.Contains(GamepadButtons.B))
             {
+                // B button clears navbar selection if one exists
+                if (_selectedNavbarButtonIndex.HasValue)
+                {
+                    ClearNavbarButtonSelection();
+                    return;
+                }
                 action = GamepadNavigationAction.Back;
             }
 
@@ -411,15 +564,10 @@ namespace HUDRA.Services
             }
 
             // Add haptic feedback for important actions
-            // Check trigger state changes for haptic feedback
-            bool leftTriggerJustPressed = leftTriggerActive && !_leftTriggerPressed;
-            bool rightTriggerJustPressed = rightTriggerActive && !_rightTriggerPressed;
-
+            // Note: Trigger haptic feedback is handled directly in the hysteresis code above
             if (newButtons.Contains(GamepadButtons.A) ||
                 newButtons.Contains(GamepadButtons.LeftShoulder) ||
-                newButtons.Contains(GamepadButtons.RightShoulder) ||
-                leftTriggerJustPressed ||
-                rightTriggerJustPressed)
+                newButtons.Contains(GamepadButtons.RightShoulder))
             {
                 TriggerHapticFeedback();
             }
@@ -488,7 +636,7 @@ namespace HUDRA.Services
                 // Block all other navigation when ComboBox is open
                 return;
             }
-            
+
             if (_currentFocusedElement != null)
             {
                 // Try to handle action with current focused element first
@@ -555,7 +703,7 @@ namespace HUDRA.Services
             }
 
             // Handle focus movement between controls
-            if (action == GamepadNavigationAction.Up || 
+            if (action == GamepadNavigationAction.Up ||
                 action == GamepadNavigationAction.Down ||
                 action == GamepadNavigationAction.Left ||
                 action == GamepadNavigationAction.Right)
@@ -792,6 +940,58 @@ namespace HUDRA.Services
             }
         }
 
+        private void TriggerDialogPrimaryButton(ContentDialog dialog)
+        {
+            try
+            {
+                // Find the primary button in the ContentDialog's visual tree and invoke it
+                var primaryButton = FindPrimaryButtonInDialog(dialog);
+                if (primaryButton != null)
+                {
+                    // Use automation peer to invoke the button
+                    var peer = new ButtonAutomationPeer(primaryButton);
+                    var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
+                    invokeProvider?.Invoke();
+                    System.Diagnostics.Debug.WriteLine("🎮 Primary button invoked via automation");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("🎮 Warning: Could not find primary button in dialog");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Error triggering dialog primary button: {ex.Message}");
+            }
+        }
+
+        private Button? FindPrimaryButtonInDialog(DependencyObject parent)
+        {
+            // Search the visual tree for a button with specific names used by ContentDialog
+            int childCount = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+
+                // ContentDialog typically names its buttons "PrimaryButton", "SecondaryButton", "CloseButton"
+                if (child is Button button && child is FrameworkElement element)
+                {
+                    if (element.Name == "PrimaryButton")
+                    {
+                        return button;
+                    }
+                }
+
+                // Recursively search children
+                var result = FindPrimaryButtonInDialog(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
+        }
+
         // Keyboard fallback for testing
         public void OnKeyDown(object sender, KeyRoutedEventArgs e)
         {
@@ -844,17 +1044,268 @@ namespace HUDRA.Services
             }
         }
 
+        // Suspend gamepad polling (for modal dialogs)
+        public void SuspendPolling()
+        {
+            if (!_isPollingPaused && _gamepadTimer?.IsRunning == true)
+            {
+                _gamepadTimer.Stop();
+                _isPollingPaused = true;
+                DeactivateGamepadMode();
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling suspended (modal dialog)");
+            }
+        }
+
+        // Resume gamepad polling after modal dialog
+        public void ResumePolling()
+        {
+            if (_isPollingPaused && _connectedGamepads.Count > 0)
+            {
+                _gamepadTimer?.Start();
+                _isPollingPaused = false;
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
+            }
+        }
+
+        // Set dialog open state (prevents activation input from being consumed and blocks UI navigation)
+        public void SetDialogOpen(ContentDialog dialog)
+        {
+            _isDialogOpen = true;
+            _currentDialog = dialog;
+            // Clear focus from UI to prevent background controls from receiving input
+            ClearFocus();
+            System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - UI navigation blocked, dialog has exclusive input");
+        }
+
+        // Clear dialog open state
+        public void SetDialogClosed()
+        {
+            _isDialogOpen = false;
+            _currentDialog = null;
+            System.Diagnostics.Debug.WriteLine("🎮 Dialog closed - normal activation logic resumed");
+        }
+
+        // Register navbar buttons for spatial navigation
+        public void RegisterNavbarButtons(List<Button> buttons)
+        {
+            _navbarButtons = buttons ?? new List<Button>();
+            System.Diagnostics.Debug.WriteLine($"🎮 Registered {_navbarButtons.Count} navbar buttons");
+        }
+
+        // Cycle through navbar buttons with L2/R2 triggers
+        private void CycleNavbarButtonSelection(int direction)
+        {
+            if (_navbarButtons.Count == 0) return;
+
+            // Check if any navbar buttons are visible
+            var visibleButtons = _navbarButtons
+                .Select((button, index) => new { button, index })
+                .Where(x => x.button.Visibility == Visibility.Visible)
+                .ToList();
+
+            // Debug: Show which buttons are visible
+            System.Diagnostics.Debug.WriteLine($"🎮 Visible navbar buttons ({visibleButtons.Count}):");
+            foreach (var vb in visibleButtons)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮   [{vb.index}] {vb.button.Name}");
+            }
+
+            if (visibleButtons.Count == 0)
+            {
+                ClearNavbarButtonSelection();
+                System.Diagnostics.Debug.WriteLine("🎮 No visible navbar buttons found");
+                return;
+            }
+
+            // If only one visible button, just select it and don't cycle
+            if (visibleButtons.Count == 1)
+            {
+                int singleIndex = visibleButtons[0].index;
+                if (_selectedNavbarButtonIndex == singleIndex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 Only one visible button - already selected");
+                    return; // Already selected, nothing to do
+                }
+                _selectedNavbarButtonIndex = singleIndex;
+                SetNavbarButtonSelection(_navbarButtons[singleIndex]);
+                System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected only visible navbar button [{singleIndex}]: {_navbarButtons[singleIndex].Name}");
+                return;
+            }
+
+            int newIndex;
+
+            // If no button currently selected, always start from top-most visible button
+            if (!_selectedNavbarButtonIndex.HasValue)
+            {
+                // Always start from the first visible button (top-most)
+                newIndex = visibleButtons[0].index;
+                System.Diagnostics.Debug.WriteLine($"🎮 No selection - starting from top-most visible button at index {newIndex}");
+            }
+            else
+            {
+                // Find current button in visible list
+                int currentVisibleIndex = visibleButtons.FindIndex(x => x.index == _selectedNavbarButtonIndex.Value);
+
+                if (currentVisibleIndex == -1)
+                {
+                    // Current button no longer visible, start from top-most visible button
+                    newIndex = visibleButtons[0].index;
+                    System.Diagnostics.Debug.WriteLine($"🎮 Current selection invisible - restarting from top-most visible button at {newIndex}");
+                }
+                else
+                {
+                    // Move to next/previous visible button
+                    int nextVisibleIndex = currentVisibleIndex + direction;
+
+                    // Wrap around within visible buttons
+                    if (nextVisibleIndex < 0)
+                    {
+                        nextVisibleIndex = visibleButtons.Count - 1;
+                    }
+                    else if (nextVisibleIndex >= visibleButtons.Count)
+                    {
+                        nextVisibleIndex = 0;
+                    }
+
+                    newIndex = visibleButtons[nextVisibleIndex].index;
+                    System.Diagnostics.Debug.WriteLine($"🎮 Cycling from visible index {currentVisibleIndex} to {nextVisibleIndex} (button index {newIndex})");
+                }
+            }
+
+            // Find the actual visible button at newIndex (may need to search)
+            int searchAttempts = 0;
+            int searchIndex = newIndex;
+
+            while (searchAttempts < _navbarButtons.Count)
+            {
+                if (_navbarButtons[searchIndex].Visibility == Visibility.Visible)
+                {
+                    _selectedNavbarButtonIndex = searchIndex;
+                    SetNavbarButtonSelection(_navbarButtons[searchIndex]);
+                    System.Diagnostics.Debug.WriteLine($"🎮 L2/R2: Selected navbar button [{searchIndex}]: {_navbarButtons[searchIndex].Name}");
+                    return;
+                }
+
+                // Not visible, continue searching in direction
+                searchIndex += direction;
+
+                // Wrap around
+                if (searchIndex < 0)
+                {
+                    searchIndex = _navbarButtons.Count - 1;
+                }
+                else if (searchIndex >= _navbarButtons.Count)
+                {
+                    searchIndex = 0;
+                }
+
+                searchAttempts++;
+            }
+
+            // Should never reach here since we checked for visible buttons above
+            System.Diagnostics.Debug.WriteLine("🎮 WARNING: Failed to find visible button despite visible count > 0");
+            ClearNavbarButtonSelection();
+        }
+
+        // Set visual selection on navbar button
+        private void SetNavbarButtonSelection(Button button)
+        {
+            try
+            {
+                // Clear previous selection
+                if (_selectedNavbarButton != null && _selectedNavbarButton != button)
+                {
+                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _selectedNavbarButton.BorderThickness = new Thickness(0);
+                    System.Diagnostics.Debug.WriteLine($"🎮 Cleared previous selection: {_selectedNavbarButton.Name}");
+                }
+
+                // Clear main app focus so DarkViolet borders disappear from page controls
+                ClearFocus();
+
+                // Set new selection
+                _selectedNavbarButton = button;
+
+                // Create border properties
+                var darkVioletBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                var borderThickness = new Thickness(3);
+
+                // Set properties directly (gamepad timer runs on UI thread)
+                button.BorderBrush = darkVioletBrush;
+                button.BorderThickness = borderThickness;
+
+                // DON'T call Focus() - it can cause WinUI to add its own focus visual
+                // creating a "double border" effect. We only need our custom border.
+
+                // Force visual update
+                button.UpdateLayout();
+
+                // Validate the properties were set - read actual values back
+                var actualBrush = button.BorderBrush as SolidColorBrush;
+                var actualColor = actualBrush?.Color;
+
+                System.Diagnostics.Debug.WriteLine($"🎮 ✓ Navbar button selected: {button.Name}");
+                System.Diagnostics.Debug.WriteLine($"🎮   BorderBrush Color: {actualColor} (expected: #FF9400D3 DarkViolet)");
+                System.Diagnostics.Debug.WriteLine($"🎮   BorderThickness: {button.BorderThickness} (expected: 3,3,3,3)");
+                System.Diagnostics.Debug.WriteLine($"🎮   Visibility: {button.Visibility}");
+                System.Diagnostics.Debug.WriteLine($"🎮   IsEnabled: {button.IsEnabled}");
+                System.Diagnostics.Debug.WriteLine($"🎮   ActualWidth: {button.ActualWidth}, ActualHeight: {button.ActualHeight}");
+                System.Diagnostics.Debug.WriteLine($"🎮   Style: {button.Style?.GetType().Name ?? "null"}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 ERROR setting navbar button selection: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"🎮 Stack trace: {ex.StackTrace}");
+            }
+        }
+
+        // Clear navbar button selection
+        private void ClearNavbarButtonSelection()
+        {
+            try
+            {
+                if (_selectedNavbarButton != null)
+                {
+                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+                    _selectedNavbarButton.BorderThickness = new Thickness(0);
+                    _selectedNavbarButton = null;
+                }
+                _selectedNavbarButtonIndex = null;
+                System.Diagnostics.Debug.WriteLine("🎮 Cleared navbar button selection");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 ERROR clearing navbar button selection: {ex.Message}");
+            }
+        }
+
+        // Invoke the currently selected navbar button
+        private void InvokeSelectedNavbarButton()
+        {
+            if (_selectedNavbarButton == null) return;
+
+            System.Diagnostics.Debug.WriteLine($"🎮 A button: Invoking selected navbar button {_selectedNavbarButton.Name}");
+
+            // Programmatically click the button using UI Automation
+            var peer = new ButtonAutomationPeer(_selectedNavbarButton);
+            var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
+            invokeProvider?.Invoke();
+
+            // Clear selection after invocation
+            ClearNavbarButtonSelection();
+        }
+
         public void Dispose()
         {
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposing...");
 
             _gamepadTimer?.Stop();
-            
+
             Gamepad.GamepadAdded -= OnGamepadAdded;
             Gamepad.GamepadRemoved -= OnGamepadRemoved;
-            
+
             _connectedGamepads.Clear();
-            
+
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposed");
         }
     }
