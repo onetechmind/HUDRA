@@ -27,10 +27,13 @@ namespace HUDRA.Models
 
     public enum GameSource
     {
-        Steam,
+        BattleNet,
         Epic,
-        Origin,
         GOG,
+        Origin,
+        Riot,
+        Rockstar,
+        Steam,
         Ubisoft,
         Xbox,
         Directory,

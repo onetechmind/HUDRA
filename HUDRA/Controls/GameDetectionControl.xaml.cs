@@ -95,6 +95,147 @@ namespace HUDRA.Controls
             }
         }
 
+        // Launcher count properties for visual library stats
+        private int _battleNetCount;
+        public int BattleNetCount
+        {
+            get => _battleNetCount;
+            set
+            {
+                if (_battleNetCount != value)
+                {
+                    _battleNetCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _epicCount;
+        public int EpicCount
+        {
+            get => _epicCount;
+            set
+            {
+                if (_epicCount != value)
+                {
+                    _epicCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _gogCount;
+        public int GOGCount
+        {
+            get => _gogCount;
+            set
+            {
+                if (_gogCount != value)
+                {
+                    _gogCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _originCount;
+        public int OriginCount
+        {
+            get => _originCount;
+            set
+            {
+                if (_originCount != value)
+                {
+                    _originCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _riotCount;
+        public int RiotCount
+        {
+            get => _riotCount;
+            set
+            {
+                if (_riotCount != value)
+                {
+                    _riotCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _rockstarCount;
+        public int RockstarCount
+        {
+            get => _rockstarCount;
+            set
+            {
+                if (_rockstarCount != value)
+                {
+                    _rockstarCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _steamCount;
+        public int SteamCount
+        {
+            get => _steamCount;
+            set
+            {
+                if (_steamCount != value)
+                {
+                    _steamCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _ubisoftCount;
+        public int UbisoftCount
+        {
+            get => _ubisoftCount;
+            set
+            {
+                if (_ubisoftCount != value)
+                {
+                    _ubisoftCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private int _xboxCount;
+        public int XboxCount
+        {
+            get => _xboxCount;
+            set
+            {
+                if (_xboxCount != value)
+                {
+                    _xboxCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _lastUpdatedText = "Last updated: Never";
+        public string LastUpdatedText
+        {
+            get => _lastUpdatedText;
+            set
+            {
+                if (_lastUpdatedText != value)
+                {
+                    _lastUpdatedText = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public GameDetectionControl()
         {
             this.InitializeComponent();
