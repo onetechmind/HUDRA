@@ -1,6 +1,7 @@
 using HUDRA.Services;
 using HUDRA.Controls;
 using HUDRA.Extensions;
+using HUDRA.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -567,25 +568,25 @@ namespace HUDRA.Pages
                     }
                     else
                     {
-                        if (GameDetectionControl?.DatabaseStatusText != null)
+                        if (GameDetectionControl != null)
                         {
-                            GameDetectionControl.DatabaseStatusText.Text = "Enhanced game detection service not available";
+                            GameDetectionControl.LastUpdatedText = "Enhanced game detection service not available";
                         }
                     }
                 }
                 else
                 {
-                    if (GameDetectionControl?.DatabaseStatusText != null)
+                    if (GameDetectionControl != null)
                     {
-                        GameDetectionControl.DatabaseStatusText.Text = "MainWindow not available";
+                        GameDetectionControl.LastUpdatedText = "MainWindow not available";
                     }
                 }
             }
             catch (Exception ex)
             {
-                if (GameDetectionControl?.DatabaseStatusText != null)
+                if (GameDetectionControl != null)
                 {
-                    GameDetectionControl.DatabaseStatusText.Text = $"Error loading database status: {ex.Message}";
+                    GameDetectionControl.LastUpdatedText = $"Error loading database status: {ex.Message}";
                 }
                 System.Diagnostics.Debug.WriteLine($"Error loading database status: {ex.Message}");
             }
@@ -596,35 +597,35 @@ namespace HUDRA.Pages
             try
             {
                 var stats = enhancedService.DatabaseStats;
-                var statusLines = new List<string>
-                {
-                    $"Total Games: {stats.TotalGames}"
-                };
 
-                if (stats.GamesBySource.Any())
-                {
-                    statusLines.Add("Games by Source:");
-                    foreach (var sourceGroup in stats.GamesBySource.OrderByDescending(kvp => kvp.Value))
-                    {
-                        statusLines.Add($"  {sourceGroup.Key}: {sourceGroup.Value}");
-                    }
-                }
+                if (GameDetectionControl == null) return;
 
+                // Update launcher counts from stats
+                GameDetectionControl.BattleNetCount = stats.GamesBySource.TryGetValue(GameSource.BattleNet, out var battleNetCount) ? battleNetCount : 0;
+                GameDetectionControl.EpicCount = stats.GamesBySource.TryGetValue(GameSource.Epic, out var epicCount) ? epicCount : 0;
+                GameDetectionControl.GOGCount = stats.GamesBySource.TryGetValue(GameSource.GOG, out var gogCount) ? gogCount : 0;
+                GameDetectionControl.OriginCount = stats.GamesBySource.TryGetValue(GameSource.Origin, out var originCount) ? originCount : 0;
+                GameDetectionControl.RiotCount = stats.GamesBySource.TryGetValue(GameSource.Riot, out var riotCount) ? riotCount : 0;
+                GameDetectionControl.RockstarCount = stats.GamesBySource.TryGetValue(GameSource.Rockstar, out var rockstarCount) ? rockstarCount : 0;
+                GameDetectionControl.SteamCount = stats.GamesBySource.TryGetValue(GameSource.Steam, out var steamCount) ? steamCount : 0;
+                GameDetectionControl.UbisoftCount = stats.GamesBySource.TryGetValue(GameSource.Ubisoft, out var ubisoftCount) ? ubisoftCount : 0;
+                GameDetectionControl.XboxCount = stats.GamesBySource.TryGetValue(GameSource.Xbox, out var xboxCount) ? xboxCount : 0;
+
+                // Update last updated text
                 if (stats.LastUpdated != DateTime.MinValue)
                 {
-                    statusLines.Add($"Last Updated: {stats.LastUpdated:g}");
+                    GameDetectionControl.LastUpdatedText = $"Last updated: {stats.LastUpdated:g}";
                 }
-
-                if (GameDetectionControl?.DatabaseStatusText != null)
+                else
                 {
-                    GameDetectionControl.DatabaseStatusText.Text = string.Join("\n", statusLines);
+                    GameDetectionControl.LastUpdatedText = "Last updated: Never";
                 }
             }
             catch (Exception ex)
             {
-                if (GameDetectionControl?.DatabaseStatusText != null)
+                if (GameDetectionControl != null)
                 {
-                    GameDetectionControl.DatabaseStatusText.Text = $"Error updating database status: {ex.Message}";
+                    GameDetectionControl.LastUpdatedText = $"Error: {ex.Message}";
                 }
                 System.Diagnostics.Debug.WriteLine($"Error updating database status: {ex.Message}");
             }
@@ -670,9 +671,9 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error refreshing database: {ex.Message}");
-                if (GameDetectionControl?.DatabaseStatusText != null)
+                if (GameDetectionControl != null)
                 {
-                    GameDetectionControl.DatabaseStatusText.Text = $"Error refreshing database: {ex.Message}";
+                    GameDetectionControl.LastUpdatedText = $"Error refreshing database: {ex.Message}";
                 }
             }
             finally
@@ -747,9 +748,9 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error resetting database: {ex.Message}");
-                if (GameDetectionControl?.DatabaseStatusText != null)
+                if (GameDetectionControl != null)
                 {
-                    GameDetectionControl.DatabaseStatusText.Text = $"Error resetting database: {ex.Message}";
+                    GameDetectionControl.LastUpdatedText = $"Error resetting database: {ex.Message}";
                 }
             }
             finally

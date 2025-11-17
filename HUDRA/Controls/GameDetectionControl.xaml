@@ -97,11 +97,76 @@
                 Style="{StaticResource SettingsLabelStyle}"
                 Text="Library Stats" />
 
+            <!-- Visual Library Stats Grid -->
+            <Grid HorizontalAlignment="Center" RowSpacing="8" ColumnSpacing="12" Margin="0,8,0,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Row 1: Battle.Net and Epic -->
+                <Image Grid.Row="0" Grid.Column="0" Source="/Assets/Launcher Logos/BattleNetLogo128px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="{x:Bind BattleNetCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,16,0" />
+                <Image Grid.Row="0" Grid.Column="2" Source="/Assets/Launcher Logos/EpicLogo128px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="0" Grid.Column="3" Text="{x:Bind EpicCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,0,0" />
+
+                <!-- Row 2: GOG and Origin -->
+                <Image Grid.Row="1" Grid.Column="0" Source="/Assets/Launcher Logos/GOGLogo128px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="{x:Bind GOGCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,16,0" />
+                <Image Grid.Row="1" Grid.Column="2" Source="/Assets/Launcher Logos/OriginLogo256px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="1" Grid.Column="3" Text="{x:Bind OriginCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,0,0" />
+
+                <!-- Row 3: Riot and Rockstar -->
+                <Image Grid.Row="2" Grid.Column="0" Source="/Assets/Launcher Logos/RiotLogo750px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="{x:Bind RiotCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,16,0" />
+                <Image Grid.Row="2" Grid.Column="2" Source="/Assets/Launcher Logos/RockstarLogo128px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="2" Grid.Column="3" Text="{x:Bind RockstarCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,0,0" />
+
+                <!-- Row 4: Steam and Ubisoft -->
+                <Image Grid.Row="3" Grid.Column="0" Source="/Assets/Launcher Logos/SteamLogo512px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="{x:Bind SteamCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,16,0" />
+                <Image Grid.Row="3" Grid.Column="2" Source="/Assets/Launcher Logos/UbisoftLogo96px.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="3" Grid.Column="3" Text="{x:Bind UbisoftCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="4,0,0,0" />
+
+                <!-- Row 5: Xbox (centered with column span) -->
+                <Image Grid.Row="4" Grid.Column="0" Grid.ColumnSpan="2" Source="/Assets/Launcher Logos/XboxLogo512.png"
+                       Width="40" Height="40" Stretch="Uniform" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,4,0" />
+                <TextBlock Grid.Row="4" Grid.Column="2" Grid.ColumnSpan="2" Text="{x:Bind XboxCount, Mode=OneWay}"
+                           FontSize="16" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0,0,0" />
+            </Grid>
+
+            <!-- Last Updated Text -->
             <TextBlock
-                x:Name="DatabaseStatusText"
+                x:Name="LastUpdatedTextBlock"
                 x:FieldModifier="public"
+                Text="{x:Bind LastUpdatedText, Mode=OneWay}"
                 Style="{StaticResource SettingsDescriptionStyle}"
-                Text="Loading database information..." />
+                HorizontalAlignment="Center" />
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
                 <Border

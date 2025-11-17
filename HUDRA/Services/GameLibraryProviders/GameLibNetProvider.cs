@@ -269,10 +269,13 @@ namespace HUDRA.Services.GameLibraryProviders
         {
             return launcherName.ToLowerInvariant() switch
             {
-                var name when name.Contains("steam") => GameSource.Steam,
+                var name when name.Contains("battlenet") || name.Contains("battle.net") || name.Contains("battle net") => GameSource.BattleNet,
                 var name when name.Contains("epic") => GameSource.Epic,
-                var name when name.Contains("origin") => GameSource.Origin,
                 var name when name.Contains("gog") => GameSource.GOG,
+                var name when name.Contains("origin") => GameSource.Origin,
+                var name when name.Contains("riot") => GameSource.Riot,
+                var name when name.Contains("rockstar") => GameSource.Rockstar,
+                var name when name.Contains("steam") => GameSource.Steam,
                 var name when name.Contains("ubisoft") || name.Contains("uplay") => GameSource.Ubisoft,
                 _ => GameSource.Directory
             };
