@@ -115,12 +115,20 @@ namespace HUDRA.Services
 
                 var providerResults = await Task.WhenAll(providerTasks);
 
+                // Collect all currently found games from providers
+                var currentlyFoundGames = new Dictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
+
                 foreach (var result in providerResults)
                 {
                     if (result.Success)
                     {
                         foreach (var kvp in result.Games)
                         {
+                            if (!currentlyFoundGames.ContainsKey(kvp.Key))
+                            {
+                                currentlyFoundGames[kvp.Key] = kvp.Value;
+                            }
+
                             if (!existingGames.ContainsKey(kvp.Key) && !newGames.ContainsKey(kvp.Key))
                             {
                                 newGames[kvp.Key] = kvp.Value;
@@ -134,11 +142,29 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Remove games from database that are no longer found (except Manual and Unknown sources)
+                var gamesToRemove = existingGames.Values
+                    .Where(g => !currentlyFoundGames.ContainsKey(g.ProcessName) &&
+                                g.Source != GameSource.Manual &&
+                                g.Source != GameSource.Unknown)
+                    .ToList();
+
+                if (gamesToRemove.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Removing {gamesToRemove.Count} uninstalled games from database..."));
+
+                    foreach (var game in gamesToRemove)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Removing uninstalled game from DB - Name: {game.DisplayName}, ProcessName: {game.ProcessName}");
+                        _gameDatabase.DeleteGame(game.ProcessName);
+                    }
+                }
+
                 // Save new games to database and add to learning inclusion list
                 if (newGames.Any())
                 {
                     _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Saving {newGames.Count} new games to database..."));
-                    
+
                     foreach (var game in newGames.Values)
                     {
                         System.Diagnostics.Debug.WriteLine($"Enhanced: Saving game to DB - Name: {game.DisplayName}, ProcessName: {game.ProcessName}, ExecutablePath: {game.ExecutablePath}");
@@ -154,7 +180,11 @@ namespace HUDRA.Services
 
                 _dispatcher.TryEnqueue(() =>
                 {
-                    ScanProgressChanged?.Invoke(this, $"Scan complete - {_cachedGames.Count} games in database ({newGames.Count} new)");
+                    var statusParts = new List<string> { $"{_cachedGames.Count} games in database" };
+                    if (newGames.Any()) statusParts.Add($"{newGames.Count} new");
+                    if (gamesToRemove.Any()) statusParts.Add($"{gamesToRemove.Count} removed");
+
+                    ScanProgressChanged?.Invoke(this, $"Scan complete - {string.Join(", ", statusParts)}");
                     DatabaseReady?.Invoke(this, EventArgs.Empty);
                 });
 
