@@ -53,8 +53,8 @@
                             CornerRadius="8"
                             ToolTipService.ToolTip="Drag me!">
                             <Image
-                                Width="50"
-                                Height="50"
+                                Width="35"
+                                Height="35"
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
                                 Source="/Assets/HUDRA-logo-violet.png"
