@@ -13,6 +13,7 @@
 	  <WindowsPackageType>None</WindowsPackageType>
 
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\HUDRA_Logo.ico</ApplicationIcon>
 
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
