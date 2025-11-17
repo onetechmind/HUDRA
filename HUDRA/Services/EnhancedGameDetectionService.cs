@@ -172,6 +172,22 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Update LastDetected timestamp for existing games that are still found
+                var existingGamesToUpdate = existingGames.Values
+                    .Where(g => currentlyFoundGames.ContainsKey(g.ProcessName))
+                    .ToList();
+
+                if (existingGamesToUpdate.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Updating {existingGamesToUpdate.Count} existing games..."));
+
+                    foreach (var game in existingGamesToUpdate)
+                    {
+                        game.LastDetected = DateTime.Now;
+                        _gameDatabase.SaveGame(game);
+                    }
+                }
+
                 // Build in-memory cache from all games (existing + new)
                 var allGames = await _gameDatabase.GetAllGamesAsync();
                 _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
