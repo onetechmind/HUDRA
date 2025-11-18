@@ -53,19 +53,24 @@ namespace HUDRA.Services.GameLibraryProviders
 
                                 System.Diagnostics.Debug.WriteLine($"GameLib.NET: Processing game from {launcherName}, available properties: {string.Join(", ", properties.Keys)}");
 
-                                // Try to get executable path (Steam has special handling)
+                                // Try to get executable path (Steam and Ubisoft have special handling)
                                 string? executablePath = null;
-                                
+
                                 // For Steam games, construct path from InstallDir + executable info
                                 if (launcherName.ToLowerInvariant().Contains("steam"))
                                 {
                                     executablePath = GetSteamExecutablePath(game, properties);
                                 }
+                                // For Ubisoft games, use similar special handling
+                                else if (launcherName.ToLowerInvariant().Contains("ubisoft") || launcherName.ToLowerInvariant().Contains("uplay"))
+                                {
+                                    executablePath = GetUbisoftExecutablePath(game, properties);
+                                }
                                 else
                                 {
                                     // For other launchers, try standard properties
                                     var executableProperties = new[] { "ExecutablePath", "ExePath", "Executable", "Path", "LaunchPath", "Target", "Command" };
-                                    
+
                                     foreach (var propName in executableProperties)
                                     {
                                         if (properties.ContainsKey(propName))
@@ -261,6 +266,121 @@ namespace HUDRA.Services.GameLibraryProviders
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"GameLib.NET: Error getting Steam executable path: {ex.Message}");
+                return null;
+            }
+        }
+
+        private string? GetUbisoftExecutablePath(object game, Dictionary<string, System.Reflection.PropertyInfo> properties)
+        {
+            try
+            {
+                // Get base install directory
+                string? installDir = null;
+                if (properties.ContainsKey("InstallDir"))
+                    installDir = properties["InstallDir"].GetValue(game)?.ToString();
+
+                System.Diagnostics.Debug.WriteLine($"GameLib.NET: Ubisoft InstallDir: '{installDir}'");
+
+                if (string.IsNullOrWhiteSpace(installDir))
+                    return null;
+
+                // Try to get executable name from various sources
+                string? executableName = null;
+
+                // Method 1: Check Executables (plural) property
+                if (properties.ContainsKey("Executables"))
+                {
+                    var executables = properties["Executables"].GetValue(game);
+                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Ubisoft Executables property type: {executables?.GetType()}");
+
+                    if (executables != null)
+                    {
+                        // Try to handle as collection
+                        if (executables is System.Collections.IEnumerable enumerable && !(executables is string))
+                        {
+                            foreach (var item in enumerable)
+                            {
+                                var itemStr = item?.ToString();
+                                System.Diagnostics.Debug.WriteLine($"GameLib.NET: Ubisoft Executables item: '{itemStr}'");
+                                if (!string.IsNullOrWhiteSpace(itemStr) && itemStr.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    executableName = itemStr;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            executableName = executables.ToString();
+                        }
+                    }
+                }
+
+                // Method 2: Parse LaunchString if no executable found yet
+                if (string.IsNullOrWhiteSpace(executableName) && properties.ContainsKey("LaunchString"))
+                {
+                    var launchString = properties["LaunchString"].GetValue(game)?.ToString();
+                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Ubisoft LaunchString: '{launchString}'");
+
+                    if (!string.IsNullOrWhiteSpace(launchString))
+                    {
+                        // Extract executable from launch string (usually first .exe file mentioned)
+                        var parts = launchString.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var part in parts)
+                        {
+                            var cleanPart = part.Trim('"', '\'');
+                            if (cleanPart.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                            {
+                                // Check if it's a full path or just filename
+                                if (Path.IsPathRooted(cleanPart))
+                                {
+                                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Found full path in LaunchString: '{cleanPart}'");
+                                    return cleanPart; // Return full path directly
+                                }
+                                else
+                                {
+                                    executableName = Path.GetFileName(cleanPart);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Method 3: Try Executable (singular) property as fallback
+                if (string.IsNullOrWhiteSpace(executableName) && properties.ContainsKey("Executable"))
+                {
+                    executableName = properties["Executable"].GetValue(game)?.ToString();
+                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Ubisoft Executable (singular): '{executableName}'");
+                }
+
+                // Method 4: Look for common executable patterns in install directory
+                if (string.IsNullOrWhiteSpace(executableName))
+                {
+                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Trying to find .exe files in Ubisoft install directory");
+                    if (Directory.Exists(installDir))
+                    {
+                        var exeFiles = Directory.GetFiles(installDir, "*.exe", SearchOption.TopDirectoryOnly);
+                        if (exeFiles.Length > 0)
+                        {
+                            executableName = Path.GetFileName(exeFiles[0]);
+                            System.Diagnostics.Debug.WriteLine($"GameLib.NET: Found exe file in directory: '{executableName}'");
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(executableName))
+                {
+                    var fullPath = Path.Combine(installDir, executableName);
+                    System.Diagnostics.Debug.WriteLine($"GameLib.NET: Constructed Ubisoft executable path: '{fullPath}'");
+                    return fullPath;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GameLib.NET: Error getting Ubisoft executable path: {ex.Message}");
                 return null;
             }
         }
