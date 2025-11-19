@@ -809,29 +809,50 @@ namespace HUDRA.Pages
                 var browseButton = new Button
                 {
                     Content = "Browse...",
-                    HorizontalAlignment = HorizontalAlignment.Left,
-                    Padding = new Thickness(20, 8, 20, 8)
+                    MinWidth = 100,
+                    MinHeight = 40,
+                    Padding = new Thickness(10),
+                    Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 74, 74, 74)), // #4A4A4A
+                    BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 102, 102, 102)), // #666666
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    HorizontalAlignment = HorizontalAlignment.Left
                 };
 
                 browseButton.Click += async (s, e) =>
                 {
-                    var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                    picker.FileTypeFilter.Add(".exe");
-
-                    // Initialize the picker with the window handle
-                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mainWindow);
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                    var file = await picker.PickSingleFileAsync();
-                    if (file != null)
+                    try
                     {
-                        locationTextBox.Text = file.Path;
+                        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                        picker.FileTypeFilter.Add(".exe");
 
-                        // Auto-populate game name from exe filename if name is empty
-                        if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                        // Get window handle - ensure we have a valid window
+                        var currentMainWindow = (Application.Current as App)?.MainWindow;
+                        if (currentMainWindow == null)
                         {
-                            nameTextBox.Text = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                            System.Diagnostics.Debug.WriteLine("MainWindow is null");
+                            return;
                         }
+
+                        // Initialize the picker with the window handle
+                        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
+                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+                        var file = await picker.PickSingleFileAsync();
+                        if (file != null)
+                        {
+                            locationTextBox.Text = file.Path;
+
+                            // Auto-populate game name from exe filename if name is empty
+                            if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                            {
+                                nameTextBox.Text = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
                     }
                 };
 
