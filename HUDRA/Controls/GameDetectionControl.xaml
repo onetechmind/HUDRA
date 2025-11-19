@@ -279,25 +279,15 @@
                     VerticalAlignment="Center"
                     FontSize="20"
                     Text="{x:Bind XboxCount, Mode=OneWay}" />
-                <Border
-                    x:Name="ManualGamesIconBorder"
+                <TextBlock
                     Grid.Row="4"
                     Grid.Column="2"
-                    Width="40"
-                    Height="40"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Background="Transparent"
-                    CornerRadius="8"
-                    PointerPressed="ManualGamesIcon_PointerPressed">
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="32"
-                        Foreground="White"
-                        Text="&#xE8B7;" />
-                </Border>
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="32"
+                    Foreground="White"
+                    Text="&#xE8DA;" />
                 <TextBlock
                     Grid.Row="4"
                     Grid.Column="3"
@@ -307,6 +297,30 @@
                     FontSize="20"
                     Text="{x:Bind ManualCount, Mode=OneWay}" />
             </Grid>
+
+            <!--  Add Manual Game Button  -->
+            <Border
+                x:Name="AddManualGameButtonBorder"
+                Margin="0,8,0,0"
+                BorderBrush="{x:Bind AddManualGameButtonFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="10">
+                <Button
+                    x:Name="AddManualGameButton"
+                    MinWidth="150"
+                    MinHeight="40"
+                    Padding="10"
+                    HorizontalAlignment="Center"
+                    x:FieldModifier="public"
+                    Background="#4A4A4A"
+                    BorderBrush="#666666"
+                    BorderThickness="1"
+                    Click="AddManualGameButton_Click"
+                    Content="Add Manual Game"
+                    CornerRadius="10"
+                    IsTabStop="False"
+                    UseSystemFocusVisuals="False" />
+            </Border>
 
             <!--  Last Updated Text  -->
             <TextBlock
