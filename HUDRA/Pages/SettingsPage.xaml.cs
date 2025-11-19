@@ -773,8 +773,40 @@ namespace HUDRA.Pages
                 // Get MainWindow for gamepad service access
                 var app = Application.Current as App;
                 var mainWindow = app?.MainWindow;
+                if (mainWindow == null) return;
 
-                // Create dialog content
+                // FIRST: Show file picker to select .exe
+                string? selectedPath = null;
+                string? suggestedName = null;
+
+                try
+                {
+                    var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                    picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+                    picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+                    picker.FileTypeFilter.Add(".exe");
+
+                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mainWindow);
+                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+                    var file = await picker.PickSingleFileAsync();
+                    if (file == null)
+                    {
+                        // User canceled file picker
+                        return;
+                    }
+
+                    selectedPath = file.Path;
+                    suggestedName = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+                    await ShowErrorDialog($"Failed to open file picker: {ex.Message}");
+                    return;
+                }
+
+                // SECOND: Now show dialog with pre-filled path
                 var dialogContent = new StackPanel { Spacing = 12, MaxWidth = 450 };
 
                 // Game Name input
@@ -788,10 +820,11 @@ namespace HUDRA.Pages
                 var nameTextBox = new TextBox
                 {
                     PlaceholderText = "Enter game name",
+                    Text = suggestedName ?? "",
                     Margin = new Thickness(0, 0, 0, 8)
                 };
 
-                // Executable location input
+                // Executable location display (read-only, pre-filled)
                 var locationLabel = new TextBlock
                 {
                     Text = "Executable Location:",
@@ -800,33 +833,19 @@ namespace HUDRA.Pages
                     Margin = new Thickness(0, 0, 0, 5)
                 };
 
-                var locationTextBox = new TextBox
+                var locationTextBox = new TextBlock
                 {
-                    PlaceholderText = "Path to .exe file",
-                    IsReadOnly = true,
-                    Margin = new Thickness(0, 0, 0, 8)
-                };
-
-                var browseButton = new Button
-                {
-                    Content = "Browse...",
-                    MinWidth = 100,
-                    MinHeight = 40,
-                    Padding = new Thickness(10),
-                    Background = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 74, 74, 74)), // #4A4A4A
-                    BorderBrush = new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(255, 102, 102, 102)), // #666666
-                    BorderThickness = new Thickness(1),
-                    CornerRadius = new CornerRadius(10),
-                    HorizontalAlignment = HorizontalAlignment.Left
+                    Text = selectedPath ?? "",
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.LightGray)
                 };
 
                 dialogContent.Children.Add(nameLabel);
                 dialogContent.Children.Add(nameTextBox);
                 dialogContent.Children.Add(locationLabel);
                 dialogContent.Children.Add(locationTextBox);
-                dialogContent.Children.Add(browseButton);
 
-                // Create dialog BEFORE setting up the button click handler
                 var dialog = new ContentDialog
                 {
                     Title = "Add Manual Game",
@@ -837,72 +856,12 @@ namespace HUDRA.Pages
                     XamlRoot = this.XamlRoot
                 };
 
-                // Set up browse button click handler AFTER dialog is created
-                browseButton.Click += (s, e) =>
-                {
-                    // Close the dialog temporarily to show file picker
-                    dialog.Hide();
-
-                    // Show file picker on UI thread after dialog closes
-                    _ = DispatcherQueue.TryEnqueue(async () =>
-                    {
-                        try
-                        {
-                            var currentMainWindow = (Application.Current as App)?.MainWindow;
-                            if (currentMainWindow == null)
-                            {
-                                System.Diagnostics.Debug.WriteLine("MainWindow is null");
-                                // Reshow dialog
-                                await dialog.ShowAsync();
-                                return;
-                            }
-
-                            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-
-                            // Configure picker properties
-                            picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-                            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-                            picker.FileTypeFilter.Add(".exe");
-
-                            // Initialize with window handle
-                            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
-                            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                            var file = await picker.PickSingleFileAsync();
-                            if (file != null)
-                            {
-                                locationTextBox.Text = file.Path;
-
-                                // Auto-populate game name from exe filename if name is empty
-                                if (string.IsNullOrWhiteSpace(nameTextBox.Text))
-                                {
-                                    nameTextBox.Text = System.IO.Path.GetFileNameWithoutExtension(file.Path);
-                                }
-                            }
-
-                            // Reshow the dialog after file picker closes
-                            await dialog.ShowAsync();
-                        }
-                        catch (Exception ex)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
-                            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-
-                            // Reshow dialog even if picker failed
-                            await dialog.ShowAsync();
-                        }
-                    });
-                };
-
-                var result = mainWindow != null
-                    ? await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService)
-                    : await dialog.ShowAsync();
+                var result = await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService);
 
                 if (result == ContentDialogResult.Primary)
                 {
                     // Validate inputs
                     var gameName = nameTextBox.Text?.Trim();
-                    var exePath = locationTextBox.Text?.Trim();
 
                     if (string.IsNullOrWhiteSpace(gameName))
                     {
@@ -910,26 +869,14 @@ namespace HUDRA.Pages
                         return;
                     }
 
-                    if (string.IsNullOrWhiteSpace(exePath))
+                    if (string.IsNullOrWhiteSpace(selectedPath))
                     {
-                        await ShowErrorDialog("Please select an executable file.");
-                        return;
-                    }
-
-                    if (!System.IO.File.Exists(exePath))
-                    {
-                        await ShowErrorDialog("The selected executable file does not exist.");
-                        return;
-                    }
-
-                    if (!exePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
-                    {
-                        await ShowErrorDialog("Please select a valid .exe file.");
+                        await ShowErrorDialog("No executable file selected.");
                         return;
                     }
 
                     // Add the game to the database
-                    await AddManualGameToDatabase(gameName, exePath);
+                    await AddManualGameToDatabase(gameName, selectedPath);
                 }
             }
             catch (Exception ex)
