@@ -20,6 +20,10 @@
     <Nullable>enable</Nullable>
 	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+  </ItemGroup>
   <ItemGroup>
     <None Remove="Assets\HUDRA_Logo.ico" />
     <None Remove="Assets\HUDRA_Logo_64x64.ico" />

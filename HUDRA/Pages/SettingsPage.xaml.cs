@@ -4,6 +4,7 @@ using HUDRA.Extensions;
 using HUDRA.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Navigation;
 using System;
 using System.Collections.Generic;
@@ -610,6 +611,7 @@ namespace HUDRA.Pages
                 GameDetectionControl.SteamCount = stats.GamesBySource.TryGetValue(GameSource.Steam, out var steamCount) ? steamCount : 0;
                 GameDetectionControl.UbisoftCount = stats.GamesBySource.TryGetValue(GameSource.Ubisoft, out var ubisoftCount) ? ubisoftCount : 0;
                 GameDetectionControl.XboxCount = stats.GamesBySource.TryGetValue(GameSource.Xbox, out var xboxCount) ? xboxCount : 0;
+                GameDetectionControl.ManualCount = stats.GamesBySource.TryGetValue(GameSource.Manual, out var manualCount) ? manualCount : 0;
 
                 // Update last updated text
                 if (stats.LastUpdated != DateTime.MinValue)
@@ -762,6 +764,224 @@ namespace HUDRA.Pages
                     button.Content = "Reset";
                 }
             }
+        }
+
+        private async Task ShowAddManualGameDialog()
+        {
+            try
+            {
+                // Get MainWindow for gamepad service access
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow == null) return;
+
+                // FIRST: Show file picker to select .exe
+                // Use Windows Forms OpenFileDialog because WinUI FileOpenPicker doesn't work in Admin mode
+                string? selectedPath = null;
+                string? suggestedName = null;
+
+                try
+                {
+                    using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+                    {
+                        Title = "Select Game Executable",
+                        Filter = "Executable Files (*.exe)|*.exe",
+                        FilterIndex = 1,
+                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
+                    };
+
+                    var dialogResult = openFileDialog.ShowDialog();
+                    if (dialogResult != System.Windows.Forms.DialogResult.OK)
+                    {
+                        // User canceled file picker
+                        return;
+                    }
+
+                    selectedPath = openFileDialog.FileName;
+                    suggestedName = System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+                    await ShowErrorDialog($"Failed to open file picker: {ex.Message}");
+                    return;
+                }
+
+                // SECOND: Now show dialog with pre-filled path
+                var dialogContent = new StackPanel { Spacing = 12, MaxWidth = 450 };
+
+                // Game Name input
+                var nameLabel = new TextBlock
+                {
+                    Text = "Game Name:",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14,
+                    Margin = new Thickness(0, 0, 0, 5)
+                };
+                var nameTextBox = new TextBox
+                {
+                    PlaceholderText = "Enter game name",
+                    Text = suggestedName ?? "",
+                    Margin = new Thickness(0, 0, 0, 8)
+                };
+
+                // Executable location display (read-only, pre-filled)
+                var locationLabel = new TextBlock
+                {
+                    Text = "Executable Location:",
+                    FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14,
+                    Margin = new Thickness(0, 0, 0, 5)
+                };
+
+                var locationTextBox = new TextBlock
+                {
+                    Text = selectedPath ?? "",
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Foreground = new SolidColorBrush(Microsoft.UI.Colors.LightGray)
+                };
+
+                dialogContent.Children.Add(nameLabel);
+                dialogContent.Children.Add(nameTextBox);
+                dialogContent.Children.Add(locationLabel);
+                dialogContent.Children.Add(locationTextBox);
+
+                var dialog = new ContentDialog
+                {
+                    Title = "Add Manual Game",
+                    Content = dialogContent,
+                    PrimaryButtonText = "Ⓐ Add",
+                    CloseButtonText = "Ⓑ Cancel",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.XamlRoot
+                };
+
+                var result = await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService);
+
+                if (result == ContentDialogResult.Primary)
+                {
+                    // Validate inputs
+                    var gameName = nameTextBox.Text?.Trim();
+
+                    if (string.IsNullOrWhiteSpace(gameName))
+                    {
+                        await ShowErrorDialog("Please enter a game name.");
+                        return;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(selectedPath))
+                    {
+                        await ShowErrorDialog("No executable file selected.");
+                        return;
+                    }
+
+                    // Add the game to the database
+                    await AddManualGameToDatabase(gameName, selectedPath);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error showing add manual game dialog: {ex.Message}");
+                await ShowErrorDialog($"An error occurred: {ex.Message}");
+            }
+        }
+
+        private async Task AddManualGameToDatabase(string gameName, string exePath)
+        {
+            try
+            {
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow == null) return;
+
+                var enhancedServiceField = typeof(MainWindow).GetField("_enhancedGameDetectionService",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (enhancedServiceField?.GetValue(mainWindow) is EnhancedGameDetectionService enhancedService)
+                {
+                    // Create a DetectedGame object for the manual game
+                    var manualGame = new DetectedGame
+                    {
+                        ProcessName = System.IO.Path.GetFileNameWithoutExtension(exePath),
+                        DisplayName = gameName,
+                        ExecutablePath = exePath,
+                        InstallLocation = System.IO.Path.GetDirectoryName(exePath) ?? string.Empty,
+                        Source = GameSource.Manual,
+                        FirstDetected = DateTime.Now,
+                        LastDetected = DateTime.Now
+                    };
+
+                    // Access the game database through reflection
+                    var databaseField = typeof(EnhancedGameDetectionService).GetField("_gameDatabase",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (databaseField?.GetValue(enhancedService) is EnhancedGameDatabase database)
+                    {
+                        database.SaveGame(manualGame);
+
+                        // Update the cached games dictionary
+                        var cachedGamesField = typeof(EnhancedGameDetectionService).GetField("_cachedGames",
+                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                        if (cachedGamesField?.GetValue(enhancedService) is Dictionary<string, DetectedGame> cachedGames)
+                        {
+                            cachedGames[manualGame.ProcessName] = manualGame;
+                        }
+
+                        // Update the display
+                        UpdateDatabaseStatusDisplay(enhancedService);
+
+                        System.Diagnostics.Debug.WriteLine($"Manual game added: {gameName} ({exePath})");
+
+                        // Show success message
+                        await ShowSuccessDialog($"Game '{gameName}' has been added successfully!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding manual game to database: {ex.Message}");
+                await ShowErrorDialog($"Failed to add game: {ex.Message}");
+            }
+        }
+
+        private async Task ShowErrorDialog(string message)
+        {
+            var app = Application.Current as App;
+            var mainWindow = app?.MainWindow;
+
+            var errorDialog = new ContentDialog
+            {
+                Title = "Error",
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+
+            if (mainWindow != null)
+                await errorDialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService);
+            else
+                await errorDialog.ShowAsync();
+        }
+
+        private async Task ShowSuccessDialog(string message)
+        {
+            var app = Application.Current as App;
+            var mainWindow = app?.MainWindow;
+
+            var successDialog = new ContentDialog
+            {
+                Title = "Success",
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+
+            if (mainWindow != null)
+                await successDialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService);
+            else
+                await successDialog.ShowAsync();
         }
 
     }

@@ -1,5 +1,6 @@
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
+using HUDRA.Pages;
 using HUDRA.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -15,12 +16,12 @@ namespace HUDRA.Controls
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=RefreshButton, 3=ResetButton
+        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=RefreshButton, 3=ResetButton, 4=AddManualGameButton
         private bool _isFocused = false;
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0;
-        public bool CanNavigateDown => _currentFocusedElement < 3;
+        public bool CanNavigateDown => _currentFocusedElement < 4;
         public bool CanNavigateLeft => false;
         public bool CanNavigateRight => false;
         public bool CanActivate => true;
@@ -88,6 +89,18 @@ namespace HUDRA.Controls
             get
             {
                 if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 3)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush AddManualGameButtonFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 4)
                 {
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                 }
@@ -222,6 +235,20 @@ namespace HUDRA.Controls
             }
         }
 
+        private int _manualCount;
+        public int ManualCount
+        {
+            get => _manualCount;
+            set
+            {
+                if (_manualCount != value)
+                {
+                    _manualCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         private string _lastUpdatedText = "Last updated: Never";
         public string LastUpdatedText
         {
@@ -281,7 +308,7 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateDown()
         {
-            if (_currentFocusedElement < 3)
+            if (_currentFocusedElement < 4)
             {
                 // Skip ScanInterval ComboBox if library scanning is disabled
                 if (_currentFocusedElement == 0 && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
@@ -386,6 +413,18 @@ namespace HUDRA.Controls
                         System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Reset button");
                     }
                     break;
+
+                case 4: // AddManualGameButton
+                    if (AddManualGameButton != null && AddManualGameButton.IsEnabled)
+                    {
+                        // Programmatically invoke the button's Click event using automation peer
+                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(AddManualGameButton);
+                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
+                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
+                        invokeProv?.Invoke();
+                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Add Manual Game button");
+                    }
+                    break;
             }
         }
 
@@ -414,11 +453,11 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 3: Display notification toggle)
-            _currentFocusedElement = 3;
+            // Focus the last element (element 4: Add Manual Game button)
+            _currentFocusedElement = 4;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Display notification)");
+            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Add Manual Game button)");
         }
 
         public void AdjustSliderValue(int direction)
@@ -435,7 +474,33 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(ScanIntervalFocusBrush));
                 OnPropertyChanged(nameof(RefreshButtonFocusBrush));
                 OnPropertyChanged(nameof(ResetButtonFocusBrush));
+                OnPropertyChanged(nameof(AddManualGameButtonFocusBrush));
             });
+        }
+
+        private async void AddManualGameButton_Click(object sender, RoutedEventArgs e)
+        {
+            System.Diagnostics.Debug.WriteLine("Add Manual Game button clicked");
+
+            // Get the parent SettingsPage to call the dialog handler
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                // Find SettingsPage in the navigation
+                var settingsPageField = typeof(MainWindow).GetField("_settingsPage",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (settingsPageField?.GetValue(mainWindow) is SettingsPage settingsPage)
+                {
+                    // Call the method to show the add manual game dialog
+                    var showDialogMethod = typeof(SettingsPage).GetMethod("ShowAddManualGameDialog",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (showDialogMethod != null)
+                    {
+                        await (System.Threading.Tasks.Task)showDialogMethod.Invoke(settingsPage, null);
+                    }
+                }
+            }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
