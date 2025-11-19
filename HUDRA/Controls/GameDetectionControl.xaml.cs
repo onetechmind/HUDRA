@@ -222,6 +222,20 @@ namespace HUDRA.Controls
             }
         }
 
+        private int _manualCount;
+        public int ManualCount
+        {
+            get => _manualCount;
+            set
+            {
+                if (_manualCount != value)
+                {
+                    _manualCount = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         private string _lastUpdatedText = "Last updated: Never";
         public string LastUpdatedText
         {
@@ -436,6 +450,32 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(RefreshButtonFocusBrush));
                 OnPropertyChanged(nameof(ResetButtonFocusBrush));
             });
+        }
+
+        private async void ManualGamesIcon_PointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+        {
+            // This will be implemented to show the AddManualGameDialog
+            System.Diagnostics.Debug.WriteLine("Manual games icon clicked");
+
+            // Get the parent SettingsPage to call the dialog handler
+            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+            {
+                // Find SettingsPage in the navigation
+                var settingsPageField = typeof(MainWindow).GetField("_settingsPage",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (settingsPageField?.GetValue(mainWindow) is SettingsPage settingsPage)
+                {
+                    // Call the method to show the add manual game dialog
+                    var showDialogMethod = typeof(SettingsPage).GetMethod("ShowAddManualGameDialog",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (showDialogMethod != null)
+                    {
+                        await (System.Threading.Tasks.Task)showDialogMethod.Invoke(settingsPage, null);
+                    }
+                }
+            }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

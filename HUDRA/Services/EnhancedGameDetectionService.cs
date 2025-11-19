@@ -142,12 +142,33 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Validate manual games - check if exe files still exist
+                var manualGamesToRemove = existingGames.Values
+                    .Where(g => g.Source == GameSource.Manual &&
+                                !string.IsNullOrEmpty(g.ExecutablePath) &&
+                                !System.IO.File.Exists(g.ExecutablePath))
+                    .ToList();
+
+                if (manualGamesToRemove.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Removing {manualGamesToRemove.Count} manual games with missing executables..."));
+
+                    foreach (var game in manualGamesToRemove)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Removing manual game with missing exe - Name: {game.DisplayName}, Path: {game.ExecutablePath}");
+                        _gameDatabase.DeleteGame(game.ProcessName);
+                    }
+                }
+
                 // Remove games from database that are no longer found (except Manual and Unknown sources)
                 var gamesToRemove = existingGames.Values
                     .Where(g => !currentlyFoundGames.ContainsKey(g.ProcessName) &&
                                 g.Source != GameSource.Manual &&
                                 g.Source != GameSource.Unknown)
                     .ToList();
+
+                // Combine both removal lists for reporting
+                var totalGamesToRemove = gamesToRemove.Concat(manualGamesToRemove).ToList();
 
                 if (gamesToRemove.Any())
                 {
@@ -198,7 +219,7 @@ namespace HUDRA.Services
                 {
                     var statusParts = new List<string> { $"{_cachedGames.Count} games in database" };
                     if (newGames.Any()) statusParts.Add($"{newGames.Count} new");
-                    if (gamesToRemove.Any()) statusParts.Add($"{gamesToRemove.Count} removed");
+                    if (totalGamesToRemove.Any()) statusParts.Add($"{totalGamesToRemove.Count} removed");
 
                     ScanProgressChanged?.Invoke(this, $"Scan complete - {string.Join(", ", statusParts)}");
                     DatabaseReady?.Invoke(this, EventArgs.Empty);

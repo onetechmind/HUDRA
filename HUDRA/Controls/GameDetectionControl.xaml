@@ -261,27 +261,51 @@
                     FontSize="20"
                     Text="{x:Bind UbisoftCount, Mode=OneWay}" />
 
-                <!--  Row 5: Xbox (centered with column span)  -->
+                <!--  Row 5: Xbox and Manual  -->
                 <Image
                     Grid.Row="4"
                     Grid.Column="0"
-                    Grid.ColumnSpan="2"
                     Width="40"
                     Height="40"
-                    Margin="0,0,4,0"
-                    HorizontalAlignment="Right"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Source="/Assets/Launcher Logos/XboxLogo512.png"
                     Stretch="Uniform" />
                 <TextBlock
                     Grid.Row="4"
-                    Grid.Column="2"
-                    Grid.ColumnSpan="2"
-                    Margin="4,0,0,0"
-                    HorizontalAlignment="Left"
+                    Grid.Column="1"
+                    Margin="4,0,16,0"
+                    HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     FontSize="20"
                     Text="{x:Bind XboxCount, Mode=OneWay}" />
+                <Border
+                    x:Name="ManualGamesIconBorder"
+                    Grid.Row="4"
+                    Grid.Column="2"
+                    Width="40"
+                    Height="40"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="Transparent"
+                    CornerRadius="8"
+                    PointerPressed="ManualGamesIcon_PointerPressed">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="32"
+                        Foreground="White"
+                        Text="&#xE8B7;" />
+                </Border>
+                <TextBlock
+                    Grid.Row="4"
+                    Grid.Column="3"
+                    Margin="4,0,0,0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    FontSize="20"
+                    Text="{x:Bind ManualCount, Mode=OneWay}" />
             </Grid>
 
             <!--  Last Updated Text  -->
