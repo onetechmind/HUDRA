@@ -287,7 +287,7 @@
                     FontFamily="Segoe MDL2 Assets"
                     FontSize="32"
                     Foreground="White"
-                    Text="&#xE8DA;" />
+                    Text="&#xED25;" />
                 <TextBlock
                     Grid.Row="4"
                     Grid.Column="3"
