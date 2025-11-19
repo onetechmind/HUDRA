@@ -316,7 +316,7 @@
                     BorderBrush="#666666"
                     BorderThickness="1"
                     Click="AddManualGameButton_Click"
-                    Content="Add Manual Game"
+                    Content="Add Game..."
                     CornerRadius="10"
                     IsTabStop="False"
                     UseSystemFocusVisuals="False" />
