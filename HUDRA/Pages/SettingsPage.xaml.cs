@@ -774,19 +774,20 @@ namespace HUDRA.Pages
                 var mainWindow = app?.MainWindow;
 
                 // Create dialog content
-                var dialogContent = new StackPanel { Spacing = 15 };
+                var dialogContent = new StackPanel { Spacing = 12, MaxWidth = 450 };
 
                 // Game Name input
                 var nameLabel = new TextBlock
                 {
                     Text = "Game Name:",
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14,
                     Margin = new Thickness(0, 0, 0, 5)
                 };
                 var nameTextBox = new TextBox
                 {
                     PlaceholderText = "Enter game name",
-                    Margin = new Thickness(0, 0, 0, 10)
+                    Margin = new Thickness(0, 0, 0, 8)
                 };
 
                 // Executable location input
@@ -794,21 +795,22 @@ namespace HUDRA.Pages
                 {
                     Text = "Executable Location:",
                     FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    FontSize = 14,
                     Margin = new Thickness(0, 0, 0, 5)
                 };
 
-                var locationPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
                 var locationTextBox = new TextBox
                 {
                     PlaceholderText = "Path to .exe file",
                     IsReadOnly = true,
-                    Width = 350
+                    Margin = new Thickness(0, 0, 0, 8)
                 };
 
                 var browseButton = new Button
                 {
                     Content = "Browse...",
-                    MinWidth = 100
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    Padding = new Thickness(20, 8, 20, 8)
                 };
 
                 browseButton.Click += async (s, e) =>
@@ -833,13 +835,11 @@ namespace HUDRA.Pages
                     }
                 };
 
-                locationPanel.Children.Add(locationTextBox);
-                locationPanel.Children.Add(browseButton);
-
                 dialogContent.Children.Add(nameLabel);
                 dialogContent.Children.Add(nameTextBox);
                 dialogContent.Children.Add(locationLabel);
-                dialogContent.Children.Add(locationPanel);
+                dialogContent.Children.Add(locationTextBox);
+                dialogContent.Children.Add(browseButton);
 
                 // Create dialog
                 var dialog = new ContentDialog
