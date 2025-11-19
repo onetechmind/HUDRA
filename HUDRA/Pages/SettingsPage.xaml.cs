@@ -824,9 +824,6 @@ namespace HUDRA.Pages
                 {
                     try
                     {
-                        var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                        picker.FileTypeFilter.Add(".exe");
-
                         // Get window handle - ensure we have a valid window
                         var currentMainWindow = (Application.Current as App)?.MainWindow;
                         if (currentMainWindow == null)
@@ -835,9 +832,16 @@ namespace HUDRA.Pages
                             return;
                         }
 
-                        // Initialize the picker with the window handle
+                        var picker = new Windows.Storage.Pickers.FileOpenPicker();
+
+                        // Initialize the picker with the window handle BEFORE setting properties
                         var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
                         WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+                        // Configure picker properties AFTER initialization
+                        picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+                        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+                        picker.FileTypeFilter.Add(".exe");
 
                         var file = await picker.PickSingleFileAsync();
                         if (file != null)
@@ -854,6 +858,7 @@ namespace HUDRA.Pages
                     catch (Exception ex)
                     {
                         System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
                     }
                 };
 
