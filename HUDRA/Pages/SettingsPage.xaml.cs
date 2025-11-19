@@ -834,14 +834,14 @@ namespace HUDRA.Pages
 
                         var picker = new Windows.Storage.Pickers.FileOpenPicker();
 
-                        // Initialize the picker with the window handle BEFORE setting properties
-                        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
-                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                        // Configure picker properties AFTER initialization
+                        // Configure picker properties FIRST
                         picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
                         picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
                         picker.FileTypeFilter.Add(".exe");
+
+                        // Initialize the picker with the window handle AFTER setting properties
+                        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
+                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
 
                         var file = await picker.PickSingleFileAsync();
                         if (file != null)
