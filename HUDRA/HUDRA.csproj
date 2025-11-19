@@ -130,6 +130,7 @@
     <PackageReference Include="GameLib.NET" Version="1.4.1" />
     <PackageReference Include="LiteDB" Version="5.0.21" />
 	<PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
+	<PackageReference Include="System.Windows.Forms" Version="8.0.0" />
 	  <Reference Include="RTSSSharedMemoryNET">
 		  <HintPath>Tools\RTSSSharedMemoryNET.dll</HintPath>
 	  </Reference>

@@ -776,28 +776,29 @@ namespace HUDRA.Pages
                 if (mainWindow == null) return;
 
                 // FIRST: Show file picker to select .exe
+                // Use Windows Forms OpenFileDialog because WinUI FileOpenPicker doesn't work in Admin mode
                 string? selectedPath = null;
                 string? suggestedName = null;
 
                 try
                 {
-                    var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                    picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-                    picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-                    picker.FileTypeFilter.Add(".exe");
+                    using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+                    {
+                        Title = "Select Game Executable",
+                        Filter = "Executable Files (*.exe)|*.exe",
+                        FilterIndex = 1,
+                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
+                    };
 
-                    var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(mainWindow);
-                    WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                    var file = await picker.PickSingleFileAsync();
-                    if (file == null)
+                    var dialogResult = openFileDialog.ShowDialog();
+                    if (dialogResult != System.Windows.Forms.DialogResult.OK)
                     {
                         // User canceled file picker
                         return;
                     }
 
-                    selectedPath = file.Path;
-                    suggestedName = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                    selectedPath = openFileDialog.FileName;
+                    suggestedName = System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName);
                 }
                 catch (Exception ex)
                 {
