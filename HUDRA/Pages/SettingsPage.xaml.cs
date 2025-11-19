@@ -820,46 +820,64 @@ namespace HUDRA.Pages
                     HorizontalAlignment = HorizontalAlignment.Left
                 };
 
-                browseButton.Click += async (s, e) =>
+                browseButton.Click += (s, e) =>
                 {
-                    try
+                    // Store the current values before closing dialog
+                    var currentName = nameTextBox.Text;
+                    var currentPath = locationTextBox.Text;
+
+                    // Close the dialog temporarily to show file picker
+                    dialog.Hide();
+
+                    // Show file picker on UI thread after dialog closes
+                    _ = DispatcherQueue.TryEnqueue(async () =>
                     {
-                        // Get window handle - ensure we have a valid window
-                        var currentMainWindow = (Application.Current as App)?.MainWindow;
-                        if (currentMainWindow == null)
+                        try
                         {
-                            System.Diagnostics.Debug.WriteLine("MainWindow is null");
-                            return;
-                        }
-
-                        var picker = new Windows.Storage.Pickers.FileOpenPicker();
-
-                        // Configure picker properties FIRST
-                        picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
-                        picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
-                        picker.FileTypeFilter.Add(".exe");
-
-                        // Initialize the picker with the window handle AFTER setting properties
-                        var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
-                        WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-
-                        var file = await picker.PickSingleFileAsync();
-                        if (file != null)
-                        {
-                            locationTextBox.Text = file.Path;
-
-                            // Auto-populate game name from exe filename if name is empty
-                            if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                            var currentMainWindow = (Application.Current as App)?.MainWindow;
+                            if (currentMainWindow == null)
                             {
-                                nameTextBox.Text = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                                System.Diagnostics.Debug.WriteLine("MainWindow is null");
+                                // Reshow dialog
+                                await dialog.ShowAsync();
+                                return;
                             }
+
+                            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+
+                            // Configure picker properties
+                            picker.ViewMode = Windows.Storage.Pickers.PickerViewMode.List;
+                            picker.SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.ComputerFolder;
+                            picker.FileTypeFilter.Add(".exe");
+
+                            // Initialize with window handle
+                            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(currentMainWindow);
+                            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
+
+                            var file = await picker.PickSingleFileAsync();
+                            if (file != null)
+                            {
+                                locationTextBox.Text = file.Path;
+
+                                // Auto-populate game name from exe filename if name is empty
+                                if (string.IsNullOrWhiteSpace(nameTextBox.Text))
+                                {
+                                    nameTextBox.Text = System.IO.Path.GetFileNameWithoutExtension(file.Path);
+                                }
+                            }
+
+                            // Reshow the dialog after file picker closes
+                            await dialog.ShowAsync();
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
-                        System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
-                    }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+
+                            // Reshow dialog even if picker failed
+                            await dialog.ShowAsync();
+                        }
+                    });
                 };
 
                 dialogContent.Children.Add(nameLabel);
