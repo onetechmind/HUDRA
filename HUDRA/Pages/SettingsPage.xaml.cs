@@ -820,12 +820,26 @@ namespace HUDRA.Pages
                     HorizontalAlignment = HorizontalAlignment.Left
                 };
 
+                dialogContent.Children.Add(nameLabel);
+                dialogContent.Children.Add(nameTextBox);
+                dialogContent.Children.Add(locationLabel);
+                dialogContent.Children.Add(locationTextBox);
+                dialogContent.Children.Add(browseButton);
+
+                // Create dialog BEFORE setting up the button click handler
+                var dialog = new ContentDialog
+                {
+                    Title = "Add Manual Game",
+                    Content = dialogContent,
+                    PrimaryButtonText = "Ⓐ Add",
+                    CloseButtonText = "Ⓑ Cancel",
+                    DefaultButton = ContentDialogButton.Primary,
+                    XamlRoot = this.XamlRoot
+                };
+
+                // Set up browse button click handler AFTER dialog is created
                 browseButton.Click += (s, e) =>
                 {
-                    // Store the current values before closing dialog
-                    var currentName = nameTextBox.Text;
-                    var currentPath = locationTextBox.Text;
-
                     // Close the dialog temporarily to show file picker
                     dialog.Hide();
 
@@ -878,23 +892,6 @@ namespace HUDRA.Pages
                             await dialog.ShowAsync();
                         }
                     });
-                };
-
-                dialogContent.Children.Add(nameLabel);
-                dialogContent.Children.Add(nameTextBox);
-                dialogContent.Children.Add(locationLabel);
-                dialogContent.Children.Add(locationTextBox);
-                dialogContent.Children.Add(browseButton);
-
-                // Create dialog
-                var dialog = new ContentDialog
-                {
-                    Title = "Add Manual Game",
-                    Content = dialogContent,
-                    PrimaryButtonText = "Ⓐ Add",
-                    CloseButtonText = "Ⓑ Cancel",
-                    DefaultButton = ContentDialogButton.Primary,
-                    XamlRoot = this.XamlRoot
                 };
 
                 var result = mainWindow != null
