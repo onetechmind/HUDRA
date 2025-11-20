@@ -331,6 +331,78 @@ All controls are in `HUDRA/Controls/` and follow the pattern:
 - **FpsLimiterControl:** FPS limit configuration
 - **HotkeySelector:** Keyboard shortcut configuration
 
+#### Gamepad Navigation Order Requirements
+
+**CRITICAL:** When adding new UI controls to any page, you MUST configure them for proper gamepad navigation order. The `NavigationOrder` attached property determines the sequence in which controls receive focus when users navigate with D-pad/analog stick.
+
+**Required Steps for Every New Control:**
+
+1. **Implement IGamepadNavigable Interface**
+   ```csharp
+   public sealed partial class YourControl : UserControl, IGamepadNavigable, INotifyPropertyChanged
+   ```
+
+2. **Initialize Gamepad Navigation in Constructor**
+   ```csharp
+   public YourControl()
+   {
+       this.InitializeComponent();
+       InitializeGamepadNavigation(); // CRITICAL: Must call this!
+   }
+
+   private void InitializeGamepadNavigation()
+   {
+       GamepadNavigation.SetIsEnabled(this, true);
+       GamepadNavigation.SetNavigationGroup(this, "MainControls");
+       GamepadNavigation.SetNavigationOrder(this, X); // Set unique order number
+   }
+   ```
+
+3. **Assign Navigation Order Based on Visual Layout**
+   - Navigation order should match the top-to-bottom, left-to-right visual flow of the UI
+   - Use consecutive integers (1, 2, 3, 4, etc.) for clarity
+   - **Example ordering for MainPage:**
+     - TdpPickerControl: 1
+     - ResolutionPickerControl: 2
+     - AudioControlsControl: 3
+     - BrightnessControlControl: 4
+     - PowerProfileControl: 5
+     - FanCurveControl: 6
+     - FpsLimiterControl: 7
+
+4. **Alternative: Set in XAML** (if not using code-behind initialization)
+   ```xml
+   <UserControl
+       x:Class="HUDRA.Controls.YourControl"
+       xmlns:ap="using:HUDRA.AttachedProperties"
+       ap:GamepadNavigation.IsEnabled="True"
+       ap:GamepadNavigation.NavigationGroup="MainControls"
+       ap:GamepadNavigation.NavigationOrder="10">
+   ```
+
+**Navigation Groups:**
+- `"MainControls"` - Primary page controls (most common)
+- `"SecondaryControls"` - Nested or conditional controls
+- Use the same group for controls that should be navigable together
+
+**Testing Navigation Order:**
+After adding a new control, test with a gamepad:
+1. Navigate to the page containing the new control
+2. Press D-pad Down repeatedly - focus should move in the expected visual order
+3. Press D-pad Up repeatedly - focus should move in reverse visual order
+4. Verify the new control appears in the correct position in the navigation sequence
+
+**Common Issues:**
+- ❌ Forgetting to call `InitializeGamepadNavigation()` → Control won't be navigable
+- ❌ Using duplicate `NavigationOrder` values → Unpredictable navigation sequence
+- ❌ Large gaps in order numbers → Works but harder to maintain
+- ❌ Wrong `NavigationGroup` → Control won't appear in navigation flow
+- ✅ Sequential, logical order numbers matching visual layout
+- ✅ Calling initialization in constructor before any UI interaction
+- ✅ Testing with actual gamepad after implementation
+
+**See Also:** `Architecture/winui3-gamepad-navigation.md` for complete implementation guide and troubleshooting.
+
 ### Pages
 
 - **MainPage:** Primary interface with performance controls
@@ -614,6 +686,15 @@ public void Dispose()
    - `README.md` is user-facing documentation
    - `AGENTS.md` has additional repository guidelines
 
+9. **Gamepad Navigation for New Controls**
+   - ALWAYS configure `GamepadNavigation.NavigationOrder` when adding new UI controls
+   - Call `InitializeGamepadNavigation()` in the control constructor
+   - Set `NavigationOrder` values that match the visual top-to-bottom layout
+   - Use sequential integers (1, 2, 3...) for controls on the same page
+   - Test with gamepad D-pad to verify navigation flows in expected order
+   - See "Gamepad Navigation Order Requirements" section for complete implementation guide
+   - Reference `Architecture/winui3-gamepad-navigation.md` for troubleshooting
+
 ### Before Committing
 
 - [ ] Code builds successfully (`dotnet build`)
@@ -625,6 +706,8 @@ public void Dispose()
 - [ ] No modifications to Tools/ or External Resources/ binaries
 - [ ] Thread-safe operations for background services
 - [ ] Proper IDisposable implementation for new services
+- [ ] **New UI controls have gamepad navigation configured with proper NavigationOrder**
+- [ ] **Gamepad navigation tested with D-pad/analog stick to verify control order**
 - [ ] Updated relevant documentation if adding new features
 
 ### Common Pitfalls to Avoid
@@ -649,6 +732,12 @@ public void Dispose()
 
 ❌ **Don't:** Commit bin/, obj/, or .vs/ directories
 ✅ **Do:** Check .gitignore is working correctly
+
+❌ **Don't:** Add UI controls without configuring GamepadNavigation.NavigationOrder
+✅ **Do:** Set NavigationOrder in constructor to match visual layout order
+
+❌ **Don't:** Use random or duplicate NavigationOrder values
+✅ **Do:** Use sequential integers matching top-to-bottom UI flow
 
 ## Additional Resources
 
