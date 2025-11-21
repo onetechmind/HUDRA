@@ -178,6 +178,8 @@
             <HyperlinkButton.Resources>
                 <Style TargetType="HyperlinkButton">
                     <Setter Property="Foreground" Value="#99FFFFFF" />
+                    <Setter Property="UseSystemFocusVisuals" Value="False" />
+                    <Setter Property="IsTabStop" Value="False" />
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="HyperlinkButton">

@@ -193,6 +193,8 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="16" />
                 <Setter Property="Padding" Value="0" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
                 <!--  Note: NO Template setter - this allows direct property changes  -->
             </Style>
 
