@@ -875,8 +875,11 @@ namespace HUDRA
             // Clear gamepad focus when mouse/keyboard/touch is used
             if (_gamepadNavigationService?.IsGamepadActive == true)
             {
+                // CRITICAL: Clear gamepad focus borders before deactivating
+                // This prevents lingering gamepad focus from showing alongside keyboard focus
+                _gamepadNavigationService.ClearFocus();
                 _gamepadNavigationService.DeactivateGamepadMode();
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad focus cleared due to mouse/keyboard/touch input");
+                System.Diagnostics.Debug.WriteLine("🎮 Cleared gamepad focus due to mouse/keyboard/touch input");
             }
         }
 
