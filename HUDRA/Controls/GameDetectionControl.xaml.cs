@@ -16,7 +16,7 @@ namespace HUDRA.Controls
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=RefreshButton, 3=ResetButton, 4=AddManualGameButton
+        private int _currentFocusedElement = 0; // 0=LibraryScanning, 1=ScanInterval, 2=AddManualGameButton, 3=RefreshButton, 4=ResetButton
         private bool _isFocused = false;
 
         // IGamepadNavigable implementation
@@ -72,7 +72,7 @@ namespace HUDRA.Controls
             }
         }
 
-        public Brush RefreshButtonFocusBrush
+        public Brush AddManualGameButtonFocusBrush
         {
             get
             {
@@ -84,7 +84,7 @@ namespace HUDRA.Controls
             }
         }
 
-        public Brush ResetButtonFocusBrush
+        public Brush RefreshButtonFocusBrush
         {
             get
             {
@@ -96,7 +96,7 @@ namespace HUDRA.Controls
             }
         }
 
-        public Brush AddManualGameButtonFocusBrush
+        public Brush ResetButtonFocusBrush
         {
             get
             {
@@ -292,8 +292,8 @@ namespace HUDRA.Controls
         {
             if (_currentFocusedElement > 0)
             {
-                // Skip ScanInterval ComboBox and buttons if library scanning is disabled
-                if ((_currentFocusedElement == 2 || _currentFocusedElement == 3) && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
+                // Skip ScanInterval ComboBox if library scanning is disabled and we're at AddManualGameButton
+                if (_currentFocusedElement == 2 && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
                 {
                     _currentFocusedElement = 0; // Jump directly to LibraryScanning
                 }
@@ -313,7 +313,7 @@ namespace HUDRA.Controls
                 // Skip ScanInterval ComboBox if library scanning is disabled
                 if (_currentFocusedElement == 0 && (!EnhancedLibraryScanningToggle?.IsOn ?? false))
                 {
-                    _currentFocusedElement = 2; // Jump directly to RefreshButton
+                    _currentFocusedElement = 2; // Jump directly to AddManualGameButton
                 }
                 else
                 {
@@ -390,7 +390,19 @@ namespace HUDRA.Controls
                     }
                     break;
 
-                case 2: // RefreshDatabaseButton
+                case 2: // AddManualGameButton
+                    if (AddManualGameButton != null && AddManualGameButton.IsEnabled)
+                    {
+                        // Programmatically invoke the button's Click event using automation peer
+                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(AddManualGameButton);
+                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
+                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
+                        invokeProv?.Invoke();
+                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Add Game button");
+                    }
+                    break;
+
+                case 3: // RefreshDatabaseButton
                     if (RefreshDatabaseButton != null && RefreshDatabaseButton.IsEnabled)
                     {
                         // Programmatically invoke the button's Click event using automation peer
@@ -402,7 +414,7 @@ namespace HUDRA.Controls
                     }
                     break;
 
-                case 3: // ResetDatabaseButton
+                case 4: // ResetDatabaseButton
                     if (ResetDatabaseButton != null && ResetDatabaseButton.IsEnabled)
                     {
                         // Programmatically invoke the button's Click event using automation peer
@@ -411,18 +423,6 @@ namespace HUDRA.Controls
                             as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
                         invokeProv?.Invoke();
                         System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Reset button");
-                    }
-                    break;
-
-                case 4: // AddManualGameButton
-                    if (AddManualGameButton != null && AddManualGameButton.IsEnabled)
-                    {
-                        // Programmatically invoke the button's Click event using automation peer
-                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(AddManualGameButton);
-                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
-                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
-                        invokeProv?.Invoke();
-                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Add Manual Game button");
                     }
                     break;
             }
@@ -453,11 +453,11 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 4: Add Manual Game button)
+            // Focus the last element (element 4: Reset button)
             _currentFocusedElement = 4;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Add Manual Game button)");
+            System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Focused last element (Reset button)");
         }
 
         public void AdjustSliderValue(int direction)

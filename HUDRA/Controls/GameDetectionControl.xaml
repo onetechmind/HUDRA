@@ -302,6 +302,7 @@
             <Border
                 x:Name="AddManualGameButtonBorder"
                 Margin="0,8,0,0"
+                HorizontalAlignment="Center"
                 BorderBrush="{x:Bind AddManualGameButtonFocusBrush, Mode=OneWay}"
                 BorderThickness="2"
                 CornerRadius="10">
@@ -310,7 +311,6 @@
                     MinWidth="150"
                     MinHeight="40"
                     Padding="10"
-                    HorizontalAlignment="Center"
                     x:FieldModifier="public"
                     Background="#4A4A4A"
                     BorderBrush="#666666"
