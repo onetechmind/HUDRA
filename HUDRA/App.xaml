@@ -204,6 +204,8 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="0" />
                 <Setter Property="Padding" Value="0" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -255,6 +257,8 @@
                 <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -305,6 +309,8 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <!--  Reduced from 4 to 1  -->
                 <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -365,6 +371,11 @@
                 </Setter>
             </Style>
 
+            <!--  Global HyperlinkButton Style - disable system focus visuals  -->
+            <Style TargetType="HyperlinkButton">
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
+            </Style>
 
         </ResourceDictionary>
     </Application.Resources>
