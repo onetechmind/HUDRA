@@ -31,7 +31,9 @@
                 x:Name="TdpSettingsExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                IsTabStop="True"
+                TabIndex="1">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -58,7 +60,9 @@
                 x:Name="PowerProfileExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                IsTabStop="True"
+                TabIndex="2">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -87,7 +91,9 @@
                 x:Name="GameDetectionExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                IsTabStop="True"
+                TabIndex="3">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -113,7 +119,9 @@
                 x:Name="StartupSettingsExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                IsTabStop="True"
+                TabIndex="4">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock

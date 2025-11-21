@@ -37,7 +37,9 @@
                 Margin="0"
                 Padding="0"
                 HorizontalAlignment="Stretch"
-                ap:GamepadNavigation.NavigationOrder="10">
+                ap:GamepadNavigation.NavigationOrder="10"
+                IsTabStop="True"
+                TabIndex="1">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
@@ -66,7 +68,9 @@
                 Margin="0"
                 Padding="0"
                 HorizontalAlignment="Stretch"
-                ap:GamepadNavigation.NavigationOrder="20">
+                ap:GamepadNavigation.NavigationOrder="20"
+                IsTabStop="True"
+                TabIndex="2">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"

@@ -26,7 +26,11 @@
                     Text="COOLING" />
             </Border>
 
-            <controls:FanCurveControl x:Name="FanCurveControl" x:FieldModifier="public" />
+            <controls:FanCurveControl
+                x:Name="FanCurveControl"
+                x:FieldModifier="public"
+                IsTabStop="True"
+                TabIndex="1" />
 
         </StackPanel>
     </Grid>
