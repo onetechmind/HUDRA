@@ -44,6 +44,7 @@
                     Grid.Column="1"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     x:FieldModifier="public" />
             </Grid>
         </Border>
@@ -98,6 +99,7 @@
                     Margin="10,0,0,0"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     x:FieldModifier="public" />
             </Grid>
         </Border>
