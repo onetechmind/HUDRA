@@ -147,6 +147,8 @@
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="OnContent" Value="" />
                 <Setter Property="OffContent" Value="" />
+                <Setter Property="UseSystemFocusVisuals" Value="False" />
+                <Setter Property="IsTabStop" Value="False" />
             </Style>
 
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#777777" />
