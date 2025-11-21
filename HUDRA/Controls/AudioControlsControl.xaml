@@ -25,9 +25,7 @@
                     CornerRadius="6">
             <Button x:Name="MuteButton"
                         Width="50"
-                        Height="50"
-                        UseSystemFocusVisuals="False"
-                        IsTabStop="False">
+                        Height="50">
                 <FontIcon x:Name="MuteButtonIcon"
                               FontFamily="Segoe MDL2 Assets"
                               Glyph="&#xE767;"
@@ -43,9 +41,7 @@
             <Slider x:Name="VolumeSlider"
                         Margin="8,0"
                         Minimum="0"
-                        Maximum="100"
-                        UseSystemFocusVisuals="False"
-                        IsTabStop="False"/>
+                        Maximum="100"/>
         </Border>
     </Grid>
 

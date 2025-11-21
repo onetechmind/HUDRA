@@ -23,7 +23,7 @@
             Grid.Column="0"
             BorderThickness="2"
             CornerRadius="6">
-            <Button Width="50" Height="50">
+            <Button Width="50" Height="50" IsTabStop="False">
                 <FontIcon
                     x:Name="MuteButtonIcon"
                     FontFamily="Segoe MDL2 Assets"
@@ -42,9 +42,7 @@
                 x:Name="BrightnessSlider"
                 Margin="8,0"
                 Maximum="100"
-                Minimum="0"
-                UseSystemFocusVisuals="False"
-                IsTabStop="False" />
+                Minimum="0" />
         </Border>
     </Grid>
 
