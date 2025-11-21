@@ -49,7 +49,6 @@
                     Grid.Column="1"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
-                    IsTabStop="False"
                     x:FieldModifier="public" />
             </Grid>
         </Border>

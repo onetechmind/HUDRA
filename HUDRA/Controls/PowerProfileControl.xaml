@@ -124,7 +124,6 @@
                     Grid.Column="1"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
-                    IsTabStop="False"
                     Toggled="OnIntelligentSwitchingToggled" />
             </Grid>
         </Border>
@@ -155,7 +154,6 @@
                     Grid.Column="1"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
-                    IsTabStop="False"
                     Toggled="OnCpuBoostToggled" />
             </Grid>
         </Border>
