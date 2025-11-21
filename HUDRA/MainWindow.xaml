@@ -117,8 +117,7 @@
                             VerticalContentAlignment="Center"
                             Click="MainPageNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Performance Controls"
-                            UseSystemFocusVisuals="False">
+                            ToolTipService.ToolTip="Performance Controls">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -137,8 +136,7 @@
                             VerticalContentAlignment="Center"
                             Click="FanCurveNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Fan Curve Configuration"
-                            UseSystemFocusVisuals="False">
+                            ToolTipService.ToolTip="Fan Curve Configuration">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -157,8 +155,7 @@
                             VerticalContentAlignment="Center"
                             Click="ScalingNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Scaling"
-                            UseSystemFocusVisuals="False">
+                            ToolTipService.ToolTip="Scaling">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -177,8 +174,7 @@
                             VerticalContentAlignment="Center"
                             Click="SettingsNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Settings"
-                            UseSystemFocusVisuals="False">
+                            ToolTipService.ToolTip="Settings">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"

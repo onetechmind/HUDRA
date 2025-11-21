@@ -147,7 +147,6 @@
                 <Setter Property="Foreground" Value="White" />
                 <Setter Property="OnContent" Value="" />
                 <Setter Property="OffContent" Value="" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
             </Style>
 
             <SolidColorBrush x:Key="ToggleSwitchStrokeOffPointerOver" Color="#777777" />
@@ -192,7 +191,6 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="16" />
                 <Setter Property="Padding" Value="0" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
                 <!--  Note: NO Template setter - this allows direct property changes  -->
             </Style>
 
@@ -204,7 +202,6 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="0" />
                 <Setter Property="Padding" Value="0" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -256,7 +253,6 @@
                 <Setter Property="BorderBrush" Value="Transparent" />
                 <Setter Property="BorderThickness" Value="0" />
                 <Setter Property="CornerRadius" Value="16" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -307,7 +303,6 @@
                 <Setter Property="BorderThickness" Value="0" />
                 <!--  Reduced from 4 to 1  -->
                 <Setter Property="CornerRadius" Value="16" />
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
@@ -368,10 +363,7 @@
                 </Setter>
             </Style>
 
-            <!--  Global HyperlinkButton Style - disable system focus visuals  -->
-            <Style TargetType="HyperlinkButton">
-                <Setter Property="UseSystemFocusVisuals" Value="False" />
-            </Style>
+            <!--  Global HyperlinkButton Style - no overrides needed, use defaults  -->
 
         </ResourceDictionary>
     </Application.Resources>
