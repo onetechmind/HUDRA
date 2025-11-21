@@ -200,6 +200,11 @@ namespace HUDRA.Services
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
+                // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
+                // This prevents lingering keyboard Tab focus from showing alongside gamepad focus
+                ClearFocus();
+                System.Diagnostics.Debug.WriteLine("🎮 Cleared existing keyboard focus on gamepad activation");
+
                 // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
                 bool isTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
                 bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
