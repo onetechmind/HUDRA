@@ -619,11 +619,19 @@ namespace HUDRA
         // Existing event handlers
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            // Clear gamepad focus to prevent lingering borders
+            _gamepadNavigationService?.ClearFocus();
+            _gamepadNavigationService?.DeactivateGamepadMode();
+
             _windowManager.ToggleVisibility();
         }
 
         private void AltTabButton_Click(object sender, RoutedEventArgs e)
         {
+            // Clear gamepad focus to prevent lingering borders
+            _gamepadNavigationService?.ClearFocus();
+            _gamepadNavigationService?.DeactivateGamepadMode();
+
             _windowManager.ToggleVisibility();
 
             if (_enhancedGameDetectionService?.SwitchToGame() == true)
@@ -730,6 +738,10 @@ namespace HUDRA
 
             try
             {
+                // Clear gamepad focus to prevent lingering borders
+                _gamepadNavigationService?.ClearFocus();
+                _gamepadNavigationService?.DeactivateGamepadMode();
+
                 // 1. Hide HUDRA
                 _windowManager.ToggleVisibility();
 
@@ -1098,7 +1110,18 @@ namespace HUDRA
             _powerProfileService?.Dispose();
         }
 
-        public void ToggleWindowVisibility() => _windowManager.ToggleVisibility();
+        public void ToggleWindowVisibility()
+        {
+            // Clear gamepad focus before toggling to prevent lingering focus borders
+            if (_gamepadNavigationService != null)
+            {
+                _gamepadNavigationService.ClearFocus();
+                _gamepadNavigationService.DeactivateGamepadMode();
+                System.Diagnostics.Debug.WriteLine("🎮 Cleared gamepad focus before window visibility toggle");
+            }
+
+            _windowManager.ToggleVisibility();
+        }
 
         public void HandleHibernationResume()
         {

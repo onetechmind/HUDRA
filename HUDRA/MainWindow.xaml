@@ -117,7 +117,9 @@
                             VerticalContentAlignment="Center"
                             Click="MainPageNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Performance Controls">
+                            ToolTipService.ToolTip="Performance Controls"
+                            UseSystemFocusVisuals="False"
+                            IsTabStop="False">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -136,7 +138,9 @@
                             VerticalContentAlignment="Center"
                             Click="FanCurveNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Fan Curve Configuration">
+                            ToolTipService.ToolTip="Fan Curve Configuration"
+                            UseSystemFocusVisuals="False"
+                            IsTabStop="False">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -155,7 +159,9 @@
                             VerticalContentAlignment="Center"
                             Click="ScalingNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Scaling">
+                            ToolTipService.ToolTip="Scaling"
+                            UseSystemFocusVisuals="False"
+                            IsTabStop="False">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
@@ -174,7 +180,9 @@
                             VerticalContentAlignment="Center"
                             Click="SettingsNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            ToolTipService.ToolTip="Settings">
+                            ToolTipService.ToolTip="Settings"
+                            UseSystemFocusVisuals="False"
+                            IsTabStop="False">
                             <FontIcon
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center"
