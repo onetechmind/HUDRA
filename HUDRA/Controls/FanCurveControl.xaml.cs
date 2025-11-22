@@ -1657,20 +1657,28 @@ namespace HUDRA.Controls
         
         private void AdjustControlPoint(int direction)
         {
+            System.Diagnostics.Debug.WriteLine($"🎮 AdjustControlPoint: dir={direction}, active={_isControlPointActivated}, idx={_activeControlPointIndex}");
+
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
 
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
+            System.Diagnostics.Debug.WriteLine($"🎮 Current: T={currentPoint.Temperature}°C, F={currentPoint.FanSpeed}%");
+
             var newPoint = currentPoint;
 
             // Adjust temperature (use direction directly, no need for abs check)
             newPoint.Temperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
+            System.Diagnostics.Debug.WriteLine($"🎮 After constrain: T={newPoint.Temperature}°C (delta={newPoint.Temperature - currentPoint.Temperature})");
 
             // Only update if temperature actually changed
             if (Math.Abs(newPoint.Temperature - currentPoint.Temperature) > 0.01)
             {
                 // Apply constraints and update if valid
-                if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
+                bool valid = IsValidControlPointPosition(newPoint, _activeControlPointIndex);
+                System.Diagnostics.Debug.WriteLine($"🎮 Validation: {valid}");
+
+                if (valid)
                 {
                     _currentCurve.Points[_activeControlPointIndex] = newPoint;
                     UpdateControlPointPosition(_activeControlPointIndex, newPoint);
@@ -1679,21 +1687,30 @@ namespace HUDRA.Controls
                     // Save changes and apply to fan
                     SaveAndApplyGamepadChanges();
 
-                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C, F:{newPoint.FanSpeed}%");
+                    System.Diagnostics.Debug.WriteLine($"✅ Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C");
                 }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ No change detected");
             }
         }
         
         private void AdjustControlPointVertically(int direction)
         {
+            System.Diagnostics.Debug.WriteLine($"🎮 AdjustVertical: dir={direction}, active={_isControlPointActivated}, idx={_activeControlPointIndex}");
+
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
 
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
+            System.Diagnostics.Debug.WriteLine($"🎮 Current: F={currentPoint.FanSpeed}%, T={currentPoint.Temperature}°C");
+
             var newPoint = currentPoint;
 
             // Adjust fan speed: positive direction = up = increase fan speed, negative = down = decrease
             newPoint.FanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
+            System.Diagnostics.Debug.WriteLine($"🎮 After clamp: F={newPoint.FanSpeed}% (delta={newPoint.FanSpeed - currentPoint.FanSpeed})");
 
             // Only update if fan speed actually changed
             if (Math.Abs(newPoint.FanSpeed - currentPoint.FanSpeed) > 0.01)
@@ -1705,7 +1722,11 @@ namespace HUDRA.Controls
                 // Save changes and apply to fan
                 SaveAndApplyGamepadChanges();
 
-                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}% (T:{newPoint.Temperature}°C)");
+                System.Diagnostics.Debug.WriteLine($"✅ Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}%");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"❌ No change detected");
             }
         }
         
