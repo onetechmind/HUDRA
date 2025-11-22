@@ -21,6 +21,7 @@ namespace HUDRA.Services
         private readonly List<Gamepad> _connectedGamepads = new();
         private FrameworkElement? _currentFocusedElement;
         private Frame? _currentFrame;
+        private UIElement? _layoutRoot;
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
@@ -110,6 +111,12 @@ namespace HUDRA.Services
         {
             _currentFrame = frame;
             System.Diagnostics.Debug.WriteLine($"🎮 Set current frame: {frame?.GetType().Name}");
+        }
+
+        public void SetLayoutRoot(UIElement layoutRoot)
+        {
+            _layoutRoot = layoutRoot;
+            System.Diagnostics.Debug.WriteLine($"🎮 Set layout root: {layoutRoot?.GetType().Name}");
         }
 
         private void CheckForConnectedGamepads()
@@ -805,7 +812,35 @@ namespace HUDRA.Services
             if (_currentFocusedElement != null)
             {
                 GamepadNavigation.SetIsCurrentFocus(_currentFocusedElement, true);
-                _currentFocusedElement.Focus(FocusState.Programmatic);
+
+                if (_isGamepadActive)
+                {
+                    // When gamepad is active, clear any existing WinUI focus on inner controls
+                    // to prevent double borders (Tab focus lingering + gamepad focus)
+                    try
+                    {
+                        if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
+                        {
+                            var winuiFocusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
+                            if (winuiFocusedElement != null)
+                            {
+                                // Focus LayoutRoot using Pointer state to mimic clicking in open space
+                                // LayoutRoot now has Background="Transparent" so it can accept focus
+                                _layoutRoot.Focus(FocusState.Pointer);
+                                System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI focus from: {winuiFocusedElement.GetType().Name}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"🎮 Failed to clear WinUI focus: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // Only set WinUI focus when gamepad is NOT active
+                    _currentFocusedElement.Focus(FocusState.Programmatic);
+                }
 
                 // Scroll element into view if it's out of viewport
                 try
@@ -832,13 +867,13 @@ namespace HUDRA.Services
             // Also clear any WinUI system focus (keyboard Tab focus) to prevent double borders
             try
             {
-                if (_currentFrame?.XamlRoot != null)
+                if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
                 {
                     var focusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
                     if (focusedElement != null)
                     {
-                        // Focus the frame itself which has IsTabStop=False, effectively clearing interactive focus
-                        _currentFrame.Focus(FocusState.Programmatic);
+                        // Focus LayoutRoot using Pointer state to mimic clicking in open space
+                        _layoutRoot.Focus(FocusState.Pointer);
                         System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI system focus from: {focusedElement.GetType().Name}");
                     }
                 }
