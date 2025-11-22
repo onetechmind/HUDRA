@@ -1680,27 +1680,19 @@ namespace HUDRA.Controls
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
 
-            var currentPoint = _currentCurve.Points[_activeControlPointIndex];
-
-            // Calculate new temperature (constrain to valid range, matching mouse behavior)
-            double newTemperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
+            // Calculate new temperature (constrain to valid range)
+            double currentTemp = _currentCurve.Points[_activeControlPointIndex].Temperature;
+            double newTemperature = ConstrainTemperature(currentTemp + direction, _activeControlPointIndex);
 
             // Only update if temperature actually changed
-            if (Math.Abs(newTemperature - currentPoint.Temperature) > 0.01)
+            if (Math.Abs(newTemperature - currentTemp) > 0.01)
             {
-                // Create new point with updated temperature (matching mouse mode - no extra validation)
-                var newPoint = new FanCurvePoint
-                {
-                    Temperature = newTemperature,
-                    FanSpeed = currentPoint.FanSpeed
-                };
+                // DIRECTLY modify point in array (EXACTLY like mouse mode)
+                _currentCurve.Points[_activeControlPointIndex].Temperature = newTemperature;
 
-                // Direct update - visual feedback only (matching mouse drag behavior)
-                _currentCurve.Points[_activeControlPointIndex] = newPoint;
-                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                // Update visual position
+                UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
                 UpdateCurveLineOnly();
-
-                // NOTE: Do NOT save here - save only when deactivating (like mouse release)
             }
         }
         
@@ -1717,19 +1709,12 @@ namespace HUDRA.Controls
             // Only update if fan speed actually changed
             if (Math.Abs(newFanSpeed - currentPoint.FanSpeed) > 0.01)
             {
-                // Create new point with updated fan speed (matching mouse mode - no extra validation)
-                var newPoint = new FanCurvePoint
-                {
-                    Temperature = currentPoint.Temperature,
-                    FanSpeed = newFanSpeed
-                };
+                // DIRECTLY modify point in array (EXACTLY like mouse mode)
+                _currentCurve.Points[_activeControlPointIndex].FanSpeed = newFanSpeed;
 
-                // Direct update - visual feedback only (matching mouse drag behavior)
-                _currentCurve.Points[_activeControlPointIndex] = newPoint;
-                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                // Update visual position
+                UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
                 UpdateCurveLineOnly();
-
-                // NOTE: Do NOT save here - save only when deactivating (like mouse release)
             }
         }
         
