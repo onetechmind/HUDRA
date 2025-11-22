@@ -303,11 +303,13 @@
                     HorizontalScrollMode="Disabled"
                     VerticalScrollBarVisibility="Auto"
                     VerticalScrollMode="Auto"
-                    ZoomMode="Disabled">
+                    ZoomMode="Disabled"
+                    IsTabStop="False">
                     <Frame
                         x:Name="ContentFrame"
                         MaxWidth="320"
-                        HorizontalAlignment="Center" />
+                        HorizontalAlignment="Center"
+                        IsTabStop="False" />
                 </ScrollViewer>
             </Grid>
 
