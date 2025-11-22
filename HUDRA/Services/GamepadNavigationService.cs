@@ -806,12 +806,31 @@ namespace HUDRA.Services
             {
                 GamepadNavigation.SetIsCurrentFocus(_currentFocusedElement, true);
 
-                // Only set WinUI focus when gamepad is NOT active
-                // Gamepad navigation uses custom focus tracking and doesn't need WinUI focus
-                // Setting WinUI focus causes it to delegate to inner controls (ToggleSwitch, ComboBox, etc.)
-                // which creates double borders (outer gamepad border + inner WinUI focus visual)
-                if (!_isGamepadActive)
+                if (_isGamepadActive)
                 {
+                    // When gamepad is active, clear any existing WinUI focus on inner controls
+                    // to prevent double borders (Tab focus lingering + gamepad focus)
+                    try
+                    {
+                        if (_currentFrame?.XamlRoot != null)
+                        {
+                            var winuiFocusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
+                            if (winuiFocusedElement != null)
+                            {
+                                // Focus the frame (IsTabStop=False) to clear any inner control focus
+                                _currentFrame.Focus(FocusState.Programmatic);
+                                System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI focus from: {winuiFocusedElement.GetType().Name}");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"🎮 Failed to clear WinUI focus: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // Only set WinUI focus when gamepad is NOT active
                     _currentFocusedElement.Focus(FocusState.Programmatic);
                 }
 
