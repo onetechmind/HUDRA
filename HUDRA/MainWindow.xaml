@@ -12,7 +12,7 @@
         x:Name="MainBorder"
         Background="Transparent"
         CornerRadius="20">
-        <Grid x:Name="LayoutRoot">
+        <Grid x:Name="LayoutRoot" IsTabStop="False">
             <Grid.ColumnDefinitions>
                 <!--  Navigation bar column  -->
                 <ColumnDefinition Width="60" />
