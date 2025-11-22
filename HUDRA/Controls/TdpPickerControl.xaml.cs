@@ -780,12 +780,6 @@ namespace HUDRA.Controls
             // Not used - TdpPickerControl is not in a NavigableExpander
         }
 
-        public void SetInitialFocus()
-        {
-            // Set keyboard focus to the ScrollViewer when the page loads
-            TdpScrollViewer.Focus(FocusState.Keyboard);
-        }
-
         private void OnGamepadActiveStateChanged(object? sender, bool isActive)
         {
             // Update focus border properties when gamepad active state changes

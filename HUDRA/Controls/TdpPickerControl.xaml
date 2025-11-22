@@ -69,6 +69,7 @@
                     HorizontalScrollBarVisibility="Hidden"
                     HorizontalScrollMode="Enabled"
                     IsTabStop="True"
+                    TabIndex="1"
                     ManipulationMode="All"
                     Tapped="TdpScrollViewer_Tapped"
                     VerticalScrollBarVisibility="Disabled"
