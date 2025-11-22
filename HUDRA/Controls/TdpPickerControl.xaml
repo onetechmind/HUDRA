@@ -48,6 +48,7 @@
             FontSize="14"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
+            IsTabStop="False"
             Text="TDP"
             Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
 

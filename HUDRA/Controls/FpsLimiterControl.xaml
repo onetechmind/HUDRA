@@ -66,6 +66,7 @@
             FontSize="14"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
+            IsTabStop="False"
             Text="FPS Limit" />
 
         <!--  ComboBox with focus border  -->

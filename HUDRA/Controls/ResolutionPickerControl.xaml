@@ -22,18 +22,20 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Text="Resolution" 
-                       FontSize="14" 
+            <TextBlock Text="Resolution"
+                       FontSize="14"
                        Foreground="#CCFFFFFF"
                        FontWeight="SemiBold"
                        HorizontalAlignment="Center"
+                       IsTabStop="False"
                        Grid.Column="0"/>
 
-            <TextBlock Text="Refresh Rate" 
-                       FontSize="14" 
+            <TextBlock Text="Refresh Rate"
+                       FontSize="14"
                        Foreground="#CCFFFFFF"
                        FontWeight="SemiBold"
                        HorizontalAlignment="Center"
+                       IsTabStop="False"
                        Grid.Column="2"/>
         </Grid>
 
