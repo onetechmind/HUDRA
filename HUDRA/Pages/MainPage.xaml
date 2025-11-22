@@ -23,6 +23,7 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="HOME" />
             </Border>
             <controls:TdpPickerControl
@@ -31,7 +32,7 @@
                 Width="280"
                 IsTabStop="True"
                 TabIndex="1" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:ResolutionPickerControl
                 x:Name="ResolutionPicker"
                 x:FieldModifier="public"
@@ -42,7 +43,7 @@
                 x:FieldModifier="public"
                 IsTabStop="True"
                 TabIndex="3" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:AudioControlsControl
                 x:Name="AudioControls"
                 x:FieldModifier="public"
