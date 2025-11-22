@@ -1657,86 +1657,61 @@ namespace HUDRA.Controls
         
         private void AdjustControlPoint(int direction)
         {
-            System.Diagnostics.Debug.WriteLine($"🎮 AdjustControlPoint: dir={direction}, active={_isControlPointActivated}, idx={_activeControlPointIndex}");
-
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
 
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
-            System.Diagnostics.Debug.WriteLine($"🎮 Current: T={currentPoint.Temperature}°C, F={currentPoint.FanSpeed}%");
 
-            // Calculate new temperature (don't modify currentPoint reference!)
+            // Calculate new temperature (constrain to valid range, matching mouse behavior)
             double newTemperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
-            System.Diagnostics.Debug.WriteLine($"🎮 After constrain: T={newTemperature}°C (delta={newTemperature - currentPoint.Temperature})");
 
             // Only update if temperature actually changed
             if (Math.Abs(newTemperature - currentPoint.Temperature) > 0.01)
             {
-                // Create new point with updated temperature
+                // Create new point with updated temperature (matching mouse mode - no extra validation)
                 var newPoint = new FanCurvePoint
                 {
                     Temperature = newTemperature,
                     FanSpeed = currentPoint.FanSpeed
                 };
 
-                // Apply constraints and update if valid
-                bool valid = IsValidControlPointPosition(newPoint, _activeControlPointIndex);
-                System.Diagnostics.Debug.WriteLine($"🎮 Validation: {valid}");
-
-                if (valid)
-                {
-                    _currentCurve.Points[_activeControlPointIndex] = newPoint;
-                    UpdateControlPointPosition(_activeControlPointIndex, newPoint);
-                    UpdateCurveLineOnly();
-
-                    // Save changes and apply to fan
-                    SaveAndApplyGamepadChanges();
-
-                    System.Diagnostics.Debug.WriteLine($"✅ Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C");
-                }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"❌ No change detected (at boundary)");
-            }
-        }
-        
-        private void AdjustControlPointVertically(int direction)
-        {
-            System.Diagnostics.Debug.WriteLine($"🎮 AdjustVertical: dir={direction}, active={_isControlPointActivated}, idx={_activeControlPointIndex}");
-
-            if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
-                return;
-
-            var currentPoint = _currentCurve.Points[_activeControlPointIndex];
-            System.Diagnostics.Debug.WriteLine($"🎮 Current: F={currentPoint.FanSpeed}%, T={currentPoint.Temperature}°C");
-
-            // Calculate new fan speed (don't modify currentPoint reference!)
-            double newFanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
-            System.Diagnostics.Debug.WriteLine($"🎮 After clamp: F={newFanSpeed}% (delta={newFanSpeed - currentPoint.FanSpeed})");
-
-            // Only update if fan speed actually changed
-            if (Math.Abs(newFanSpeed - currentPoint.FanSpeed) > 0.01)
-            {
-                // Create new point with updated fan speed
-                var newPoint = new FanCurvePoint
-                {
-                    Temperature = currentPoint.Temperature,
-                    FanSpeed = newFanSpeed
-                };
-
+                // Direct update, matching mouse behavior
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
 
                 // Save changes and apply to fan
                 SaveAndApplyGamepadChanges();
-
-                System.Diagnostics.Debug.WriteLine($"✅ Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}%");
             }
-            else
+        }
+        
+        private void AdjustControlPointVertically(int direction)
+        {
+            if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
+                return;
+
+            var currentPoint = _currentCurve.Points[_activeControlPointIndex];
+
+            // Calculate new fan speed (clamp to 0-100, matching mouse behavior)
+            double newFanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
+
+            // Only update if fan speed actually changed
+            if (Math.Abs(newFanSpeed - currentPoint.FanSpeed) > 0.01)
             {
-                System.Diagnostics.Debug.WriteLine($"❌ No change detected (at boundary)");
+                // Create new point with updated fan speed (matching mouse mode - no extra validation)
+                var newPoint = new FanCurvePoint
+                {
+                    Temperature = currentPoint.Temperature,
+                    FanSpeed = newFanSpeed
+                };
+
+                // Direct update, matching mouse behavior
+                _currentCurve.Points[_activeControlPointIndex] = newPoint;
+                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                UpdateCurveLineOnly();
+
+                // Save changes and apply to fan
+                SaveAndApplyGamepadChanges();
             }
         }
         
