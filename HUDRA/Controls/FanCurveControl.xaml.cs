@@ -1472,11 +1472,11 @@ namespace HUDRA.Controls
             }
             else if (_currentFocusedElement >= 5 && _currentFocusedElement <= 9) // Control points
             {
-                // Only allow editing control points in Custom mode
+                // Auto-switch to Custom mode if not already in it (required for editing)
                 if (_currentCurve.ActivePreset != "Custom")
                 {
-                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Control points can only be edited in Custom mode");
-                    return;
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Auto-switching to Custom mode for control point editing");
+                    CustomPresetButton_Click(CustomPresetButton, new RoutedEventArgs());
                 }
 
                 int controlPointIndex = _currentFocusedElement - 5;
