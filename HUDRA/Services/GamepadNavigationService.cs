@@ -819,15 +819,15 @@ namespace HUDRA.Services
                     // to prevent double borders (Tab focus lingering + gamepad focus)
                     try
                     {
-                        if (_currentFrame?.XamlRoot != null)
+                        if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
                         {
-                            var winuiFocusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as Control;
+                            var winuiFocusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
                             if (winuiFocusedElement != null)
                             {
-                                // Try to move focus to nothing using TryMoveFocus with None direction
-                                // This is more reliable than focusing another element
-                                var moved = FocusManager.TryMoveFocus(FocusNavigationDirection.None);
-                                System.Diagnostics.Debug.WriteLine($"🎮 Attempted to clear WinUI focus from: {winuiFocusedElement.GetType().Name}, success: {moved}");
+                                // Focus LayoutRoot using Pointer state to mimic clicking in open space
+                                // LayoutRoot now has Background="Transparent" so it can accept focus
+                                _layoutRoot.Focus(FocusState.Pointer);
+                                System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI focus from: {winuiFocusedElement.GetType().Name}");
                             }
                         }
                     }
@@ -867,14 +867,14 @@ namespace HUDRA.Services
             // Also clear any WinUI system focus (keyboard Tab focus) to prevent double borders
             try
             {
-                if (_currentFrame?.XamlRoot != null)
+                if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
                 {
                     var focusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
                     if (focusedElement != null)
                     {
-                        // Move focus to nothing - this clears focus without focusing another element
-                        var moved = FocusManager.TryMoveFocus(FocusNavigationDirection.None);
-                        System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI system focus from: {focusedElement.GetType().Name}, success: {moved}");
+                        // Focus LayoutRoot using Pointer state to mimic clicking in open space
+                        _layoutRoot.Focus(FocusState.Pointer);
+                        System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI system focus from: {focusedElement.GetType().Name}");
                     }
                 }
             }
