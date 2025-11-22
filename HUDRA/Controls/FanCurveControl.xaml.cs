@@ -1472,6 +1472,13 @@ namespace HUDRA.Controls
             }
             else if (_currentFocusedElement >= 5 && _currentFocusedElement <= 9) // Control points
             {
+                // Only allow editing control points in Custom mode
+                if (_currentCurve.ActivePreset != "Custom")
+                {
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Control points can only be edited in Custom mode");
+                    return;
+                }
+
                 int controlPointIndex = _currentFocusedElement - 5;
                 if (!_isControlPointActivated)
                 {
@@ -1479,10 +1486,10 @@ namespace HUDRA.Controls
                     _isControlPointActivated = true;
                     _activeControlPointIndex = controlPointIndex;
                     _originalControlPointPosition = _currentCurve.Points[controlPointIndex];
-                    
+
                     // Set slider activated state for GamepadNavigationService
                     IsSliderActivated = true;
-                    
+
                     UpdateFocusVisuals();
                     System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Activated control point {controlPointIndex} for editing");
                 }
@@ -1491,9 +1498,9 @@ namespace HUDRA.Controls
                     // Confirm changes and deactivate
                     _isControlPointActivated = false;
                     _activeControlPointIndex = -1;
-                    
+
                     IsSliderActivated = false;
-                    
+
                     UpdateFocusVisuals();
                     System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Confirmed control point {controlPointIndex} changes");
                 }
@@ -1652,33 +1659,28 @@ namespace HUDRA.Controls
         {
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
-                
+
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
             var newPoint = currentPoint;
-            
-            // Determine movement direction based on input
-            // For D-pad: Up/Down = fan speed, Left/Right = temperature
-            // We'll use a simple mapping: negative = left/down, positive = right/up
-            
-            if (Math.Abs(direction) == 1) // Simple directional input
+
+            // Adjust temperature (use direction directly, no need for abs check)
+            newPoint.Temperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
+
+            // Only update if temperature actually changed
+            if (Math.Abs(newPoint.Temperature - currentPoint.Temperature) > 0.01)
             {
-                // For now, treat as temperature adjustment
-                newPoint.Temperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
-            }
-            else
-            {
-                // Could be extended for more complex movement patterns
-                return;
-            }
-            
-            // Apply constraints and update if valid
-            if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
-            {
-                _currentCurve.Points[_activeControlPointIndex] = newPoint;
-                UpdateControlPointPosition(_activeControlPointIndex, newPoint);
-                UpdateCurveLineOnly();
-                
-                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C, F:{newPoint.FanSpeed}%");
+                // Apply constraints and update if valid
+                if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
+                {
+                    _currentCurve.Points[_activeControlPointIndex] = newPoint;
+                    UpdateControlPointPosition(_activeControlPointIndex, newPoint);
+                    UpdateCurveLineOnly();
+
+                    // Save changes and apply to fan
+                    SaveAndApplyGamepadChanges();
+
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved control point {_activeControlPointIndex} to T:{newPoint.Temperature}°C, F:{newPoint.FanSpeed}%");
+                }
             }
         }
         
@@ -1693,12 +1695,15 @@ namespace HUDRA.Controls
             // Adjust fan speed: positive direction = up = increase fan speed, negative = down = decrease
             newPoint.FanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
 
-            // For vertical movement, only validate fan speed bounds (temperature isn't changing)
-            if (newPoint.FanSpeed >= 0 && newPoint.FanSpeed <= 100)
+            // Only update if fan speed actually changed
+            if (Math.Abs(newPoint.FanSpeed - currentPoint.FanSpeed) > 0.01)
             {
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
+
+                // Save changes and apply to fan
+                SaveAndApplyGamepadChanges();
 
                 System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}% (T:{newPoint.Temperature}°C)");
             }
@@ -1745,16 +1750,48 @@ namespace HUDRA.Controls
             {
                 var ellipse = _controlPoints[pointIndex];
                 var focusBorder = _controlPointFocusBorders[pointIndex];
-                
+
                 double x = TemperatureToX(newPoint.Temperature) - POINT_RADIUS;
                 double y = FanSpeedToY(newPoint.FanSpeed) - POINT_RADIUS;
                 double borderX = x - 4; // Updated for thicker border
                 double borderY = y - 4;
-                
+
                 Canvas.SetLeft(ellipse, x);
                 Canvas.SetTop(ellipse, y);
                 Canvas.SetLeft(focusBorder, borderX);
                 Canvas.SetTop(focusBorder, borderY);
+            }
+        }
+
+        private void SaveAndApplyGamepadChanges()
+        {
+            try
+            {
+                // Save custom curve if in Custom mode
+                if (_currentCurve.ActivePreset == "Custom")
+                {
+                    SettingsService.SetCustomFanCurve(_currentCurve.Points);
+                }
+
+                // Save the current curve state
+                SettingsService.SetFanCurve(_currentCurve);
+
+                // Apply to fan hardware if enabled
+                if (_currentCurve.IsEnabled && _fanControlService != null)
+                {
+                    if (_temperatureControlEnabled && _currentTemperature != null && _currentTemperature.MaxTemperature > 0)
+                    {
+                        ApplyTemperatureBasedFanControl(_currentTemperature.MaxTemperature);
+                    }
+                    else
+                    {
+                        ApplyFanCurve();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving/applying gamepad changes: {ex.Message}");
             }
         }
         
