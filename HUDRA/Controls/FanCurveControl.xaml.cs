@@ -1495,14 +1495,34 @@ namespace HUDRA.Controls
                 }
                 else
                 {
-                    // Confirm changes and deactivate
+                    // Confirm changes and deactivate (matching mouse release behavior)
                     _isControlPointActivated = false;
                     _activeControlPointIndex = -1;
 
                     IsSliderActivated = false;
 
                     UpdateFocusVisuals();
-                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Confirmed control point {controlPointIndex} changes");
+
+                    // NOW save and apply (matching mouse release - save once when done)
+                    if (_currentCurve.ActivePreset == "Custom")
+                    {
+                        SettingsService.SetCustomFanCurve(_currentCurve.Points);
+                    }
+                    SettingsService.SetFanCurve(_currentCurve);
+
+                    if (_currentCurve.IsEnabled && _fanControlService != null)
+                    {
+                        if (_temperatureControlEnabled && _currentTemperature != null && _currentTemperature.MaxTemperature > 0)
+                        {
+                            ApplyTemperatureBasedFanControl(_currentTemperature.MaxTemperature);
+                        }
+                        else
+                        {
+                            ApplyFanCurve();
+                        }
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Confirmed and saved control point {controlPointIndex} changes");
                 }
             }
         }
@@ -1675,13 +1695,12 @@ namespace HUDRA.Controls
                     FanSpeed = currentPoint.FanSpeed
                 };
 
-                // Direct update, matching mouse behavior
+                // Direct update - visual feedback only (matching mouse drag behavior)
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
 
-                // Save changes and apply to fan
-                SaveAndApplyGamepadChanges();
+                // NOTE: Do NOT save here - save only when deactivating (like mouse release)
             }
         }
         
@@ -1705,13 +1724,12 @@ namespace HUDRA.Controls
                     FanSpeed = newFanSpeed
                 };
 
-                // Direct update, matching mouse behavior
+                // Direct update - visual feedback only (matching mouse drag behavior)
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
 
-                // Save changes and apply to fan
-                SaveAndApplyGamepadChanges();
+                // NOTE: Do NOT save here - save only when deactivating (like mouse release)
             }
         }
         
