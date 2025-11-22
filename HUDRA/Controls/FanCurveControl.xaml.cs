@@ -1684,16 +1684,11 @@ namespace HUDRA.Controls
             double currentTemp = _currentCurve.Points[_activeControlPointIndex].Temperature;
             double newTemperature = ConstrainTemperature(currentTemp + direction, _activeControlPointIndex);
 
-            // Only update if temperature actually changed
-            if (Math.Abs(newTemperature - currentTemp) > 0.01)
-            {
-                // DIRECTLY modify point in array (EXACTLY like mouse mode)
-                _currentCurve.Points[_activeControlPointIndex].Temperature = newTemperature;
-
-                // Update visual position
-                UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
-                UpdateCurveLineOnly();
-            }
+            // Update point and visuals (no delta check - matches mouse mode)
+            // Even if constrained value equals current value (at boundary), update visual to provide feedback
+            _currentCurve.Points[_activeControlPointIndex].Temperature = newTemperature;
+            UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
+            UpdateCurveLineOnly();
         }
         
         private void AdjustControlPointVertically(int direction)
@@ -1706,16 +1701,11 @@ namespace HUDRA.Controls
             // Calculate new fan speed (clamp to 0-100, matching mouse behavior)
             double newFanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
 
-            // Only update if fan speed actually changed
-            if (Math.Abs(newFanSpeed - currentPoint.FanSpeed) > 0.01)
-            {
-                // DIRECTLY modify point in array (EXACTLY like mouse mode)
-                _currentCurve.Points[_activeControlPointIndex].FanSpeed = newFanSpeed;
-
-                // Update visual position
-                UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
-                UpdateCurveLineOnly();
-            }
+            // Update point and visuals (no delta check - matches mouse mode)
+            // Even if clamped value equals current value (at 0% or 100%), update visual to provide feedback
+            _currentCurve.Points[_activeControlPointIndex].FanSpeed = newFanSpeed;
+            UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
+            UpdateCurveLineOnly();
         }
         
         private double ConstrainTemperature(double temperature, int pointIndex)
