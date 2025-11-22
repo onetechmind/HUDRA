@@ -116,6 +116,7 @@
                 <TextBlock
                     Grid.Column="0"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Auto Switch Profile" />
 
@@ -146,6 +147,7 @@
                 <TextBlock
                     Grid.Column="0"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="CPU Boost" />
 

@@ -40,6 +40,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Library Scanning" />
 
@@ -65,6 +66,7 @@
                     HorizontalAlignment="Center"
                     FontWeight="SemiBold"
                     Foreground="#CCFFFFFF"
+                    IsTabStop="False"
                     Text="Scan Interval" />
 
                 <Border
@@ -87,11 +89,12 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Style="{StaticResource SettingsDescriptionStyle}">Automatically scans games from the following launchers to support dynamic actions.</TextBlock>
+        <TextBlock IsTabStop="False" Style="{StaticResource SettingsDescriptionStyle}">Automatically scans games from the following launchers to support dynamic actions.</TextBlock>
 
         <StackPanel Spacing="8" Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}">
             <TextBlock
                 HorizontalAlignment="Center"
+                IsTabStop="False"
                 Style="{StaticResource SettingsLabelStyle}"
                 Text="Library Stats" />
 

@@ -36,6 +36,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Use Default TDP" />
 
@@ -66,6 +67,7 @@
         <TextBlock
             Margin="0"
             Padding="10,0,10,0"
+            IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Sets a default TDP for HUDRA to start with each time." />
 
@@ -89,6 +91,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Sticky TDP" />
 
@@ -105,6 +108,7 @@
         <TextBlock
             Margin="0"
             Padding="10,0,10,0"
+            IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Sets whether your custom TDP will be managed more aggressively." />
     </StackPanel>
