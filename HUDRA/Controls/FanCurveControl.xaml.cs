@@ -1708,13 +1708,14 @@ namespace HUDRA.Controls
         {
             double minTemp = 30;
             double maxTemp = 90;
-            
-            // Ensure temperature stays between adjacent points
+
+            // Ensure temperature stays between adjacent points with 5-degree minimum gap
+            // (matching the mouse/touch dragging behavior for consistency)
             if (pointIndex > 0)
-                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 1);
+                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 5);
             if (pointIndex < _currentCurve.Points.Length - 1)
-                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 1);
-                
+                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 5);
+
             return Math.Clamp(temperature, minTemp, maxTemp);
         }
         
@@ -1725,16 +1726,17 @@ namespace HUDRA.Controls
         
         private bool IsValidControlPointPosition(FanCurvePoint point, int pointIndex)
         {
-            // Check temperature ordering constraints
-            if (pointIndex > 0 && point.Temperature <= _currentCurve.Points[pointIndex - 1].Temperature)
+            // Check temperature ordering constraints with 5-degree minimum gap
+            // (matching the mouse/touch dragging behavior)
+            if (pointIndex > 0 && point.Temperature < _currentCurve.Points[pointIndex - 1].Temperature + 5)
                 return false;
-            if (pointIndex < _currentCurve.Points.Length - 1 && point.Temperature >= _currentCurve.Points[pointIndex + 1].Temperature)
+            if (pointIndex < _currentCurve.Points.Length - 1 && point.Temperature > _currentCurve.Points[pointIndex + 1].Temperature - 5)
                 return false;
-                
+
             // Check fan speed bounds
             if (point.FanSpeed < 0 || point.FanSpeed > 100)
                 return false;
-                
+
             return true;
         }
         
