@@ -58,9 +58,6 @@ namespace HUDRA.Services
                     appWindow.Show();
                     _isWindowVisible = true;
 
-                    // CRITICAL: Clear all focus before activating to prevent errant borders
-                    ClearAllFocus();
-
                     // CRITICAL: Activate the window to bring it to foreground
                     _window.Activate();
 
@@ -81,30 +78,6 @@ namespace HUDRA.Services
             }
         }
 
-        private void ClearAllFocus()
-        {
-            try
-            {
-                // Clear focus from any currently focused element by setting focus to the window's content
-                // This prevents any lingering focus borders when the window reappears
-                if (_window.Content is FrameworkElement rootElement)
-                {
-                    // Set focus to the root element temporarily, then clear it
-                    rootElement.Focus(FocusState.Programmatic);
-
-                    // Immediately remove focus by setting it to null target
-                    // This ensures no element has visual focus when window appears
-                    Microsoft.UI.Xaml.Input.FocusManager.TryMoveFocus(
-                        Microsoft.UI.Xaml.Input.FocusNavigationDirection.None);
-
-                    System.Diagnostics.Debug.WriteLine("🔷 Cleared all focus on window show");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to clear focus: {ex.Message}");
-            }
-        }
         public void SetInitialVisibilityState(bool isVisible)
         {
             _isWindowVisible = isVisible;
