@@ -29,31 +29,21 @@
             <controls:TdpPickerControl
                 x:Name="TdpPicker"
                 x:FieldModifier="public"
-                Width="280"
-                IsTabStop="True"
-                TabIndex="1" />
+                Width="280" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:ResolutionPickerControl
                 x:Name="ResolutionPicker"
-                x:FieldModifier="public"
-                IsTabStop="True"
-                TabIndex="2" />
+                x:FieldModifier="public" />
             <controls:FpsLimiterControl
                 x:Name="FpsLimiter"
-                x:FieldModifier="public"
-                IsTabStop="True"
-                TabIndex="3" />
+                x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:AudioControlsControl
                 x:Name="AudioControls"
-                x:FieldModifier="public"
-                IsTabStop="True"
-                TabIndex="4" />
+                x:FieldModifier="public" />
             <controls:BrightnessControlControl
                 x:Name="BrightnessControls"
-                x:FieldModifier="public"
-                IsTabStop="True"
-                TabIndex="5" />
+                x:FieldModifier="public" />
 
         </StackPanel>
     </Grid>
