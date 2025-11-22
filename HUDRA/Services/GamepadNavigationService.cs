@@ -825,8 +825,27 @@ namespace HUDRA.Services
             if (_currentFocusedElement != null)
             {
                 GamepadNavigation.SetIsCurrentFocus(_currentFocusedElement, false);
-                System.Diagnostics.Debug.WriteLine($"🎮 Cleared focus from: {_currentFocusedElement.GetType().Name}");
+                System.Diagnostics.Debug.WriteLine($"🎮 Cleared gamepad focus from: {_currentFocusedElement.GetType().Name}");
                 _currentFocusedElement = null;
+            }
+
+            // Also clear any WinUI system focus (keyboard Tab focus) to prevent double borders
+            try
+            {
+                if (_currentFrame?.XamlRoot != null)
+                {
+                    var focusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
+                    if (focusedElement != null)
+                    {
+                        // Focus the frame itself which has IsTabStop=False, effectively clearing interactive focus
+                        _currentFrame.Focus(FocusState.Programmatic);
+                        System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI system focus from: {focusedElement.GetType().Name}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Failed to clear WinUI focus: {ex.Message}");
             }
         }
 
