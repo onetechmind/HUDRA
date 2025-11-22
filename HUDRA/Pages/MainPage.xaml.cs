@@ -23,13 +23,16 @@ namespace HUDRA.Pages
             {
                 _hasScrollPositioned = true;
 
-                // Wait for navigation to complete before positioning scroll
+                // Wait for navigation to complete before positioning scroll and setting focus
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     // Check if navigation service indicates we're still navigating
                     if (Application.Current is App app && app.MainWindow?.NavigationService.IsNavigating == false)
                     {
                         TdpPicker.EnsureScrollPositionAfterLayout();
+
+                        // Set initial keyboard focus to TDP Picker
+                        TdpPicker.SetInitialFocus();
                     }
                 });
             }
