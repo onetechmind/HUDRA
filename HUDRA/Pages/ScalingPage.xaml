@@ -28,6 +28,7 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="SCALING" />
             </Border>
 

@@ -37,6 +37,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Start with Windows" />
 
@@ -51,6 +52,7 @@
         </Border>
         <TextBlock
             Padding="10,0,10,0"
+            IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Automatically launches HUDRA with admin privileges when Windows starts." />
 
@@ -75,6 +77,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Start Minimized" />
 
@@ -90,6 +93,7 @@
 
         <TextBlock
             Padding="10,0,10,0"
+            IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Starts HUDRA minimized to tray." />
 
@@ -113,6 +117,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Auto-Start RTSS" />
 
@@ -127,6 +132,7 @@
         </Border>
 
         <TextBlock Padding="10,0,10,0"
+            IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting." />
 
@@ -141,6 +147,7 @@
             <StackPanel Spacing="8">
                 <TextBlock
                     HorizontalAlignment="Center"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Hide/Show Hotkey" />
 

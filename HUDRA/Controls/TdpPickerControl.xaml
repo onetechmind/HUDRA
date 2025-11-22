@@ -48,6 +48,7 @@
             FontSize="14"
             FontWeight="SemiBold"
             Foreground="#CCFFFFFF"
+            IsTabStop="False"
             Text="TDP"
             Visibility="{x:Bind LabelVisibility, Mode=OneWay}" />
 
@@ -67,6 +68,8 @@
                     Padding="0,10"
                     HorizontalScrollBarVisibility="Hidden"
                     HorizontalScrollMode="Enabled"
+                    IsTabStop="True"
+                    TabIndex="10"
                     ManipulationMode="All"
                     Tapped="TdpScrollViewer_Tapped"
                     VerticalScrollBarVisibility="Disabled"

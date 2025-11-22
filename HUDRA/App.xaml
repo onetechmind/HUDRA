@@ -363,6 +363,7 @@
                 </Setter>
             </Style>
 
+            <!--  Global HyperlinkButton Style - no overrides needed, use defaults  -->
 
         </ResourceDictionary>
     </Application.Resources>

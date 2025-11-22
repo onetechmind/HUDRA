@@ -23,10 +23,13 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="COOLING" />
             </Border>
 
-            <controls:FanCurveControl x:Name="FanCurveControl" x:FieldModifier="public" />
+            <controls:FanCurveControl
+                x:Name="FanCurveControl"
+                x:FieldModifier="public" />
 
         </StackPanel>
     </Grid>

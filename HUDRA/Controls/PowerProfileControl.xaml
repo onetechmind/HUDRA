@@ -41,8 +41,6 @@
             <ComboBox
                 x:Name="DefaultProfileComboBox"
                 HorizontalAlignment="Stretch"
-                UseSystemFocusVisuals="False"
-                IsTabStop="False"
                 helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
                 ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
                 SelectionChanged="OnDefaultProfileSelectionChanged"
@@ -78,8 +76,6 @@
             <ComboBox
                 x:Name="GamingProfileComboBox"
                 HorizontalAlignment="Stretch"
-                UseSystemFocusVisuals="False"
-                IsTabStop="False"
                 helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
                 ItemContainerStyle="{StaticResource PowerProfileComboBoxItemStyle}"
                 SelectionChanged="OnGamingProfileSelectionChanged"
@@ -120,6 +116,7 @@
                 <TextBlock
                     Grid.Column="0"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Auto Switch Profile" />
 
@@ -150,6 +147,7 @@
                 <TextBlock
                     Grid.Column="0"
                     VerticalAlignment="Center"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="CPU Boost" />
 

@@ -77,6 +77,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"Failed to toggle window visibility: {ex.Message}");
             }
         }
+
         public void SetInitialVisibilityState(bool isVisible)
         {
             _isWindowVisible = isVisible;

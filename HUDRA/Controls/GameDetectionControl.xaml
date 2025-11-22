@@ -40,6 +40,7 @@
                 <TextBlock
                     Grid.Row="0"
                     Grid.Column="0"
+                    IsTabStop="False"
                     Style="{StaticResource SettingsLabelStyle}"
                     Text="Library Scanning" />
 
@@ -65,6 +66,7 @@
                     HorizontalAlignment="Center"
                     FontWeight="SemiBold"
                     Foreground="#CCFFFFFF"
+                    IsTabStop="False"
                     Text="Scan Interval" />
 
                 <Border
@@ -76,10 +78,8 @@
                         HorizontalAlignment="Stretch"
                         x:FieldModifier="public"
                         IsEnabled="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}"
-                        IsTabStop="False"
                         ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                        Style="{StaticResource HudraComboBoxStyle}"
-                        UseSystemFocusVisuals="False">
+                        Style="{StaticResource HudraComboBoxStyle}">
                         <ComboBoxItem Content="5 mins" Tag="5" />
                         <ComboBoxItem Content="15 mins" Tag="15" />
                         <ComboBoxItem Content="30 mins" Tag="30" />
@@ -89,11 +89,12 @@
             </StackPanel>
         </Border>
 
-        <TextBlock Style="{StaticResource SettingsDescriptionStyle}">Automatically scans games from the following launchers to support dynamic actions.</TextBlock>
+        <TextBlock IsTabStop="False" Style="{StaticResource SettingsDescriptionStyle}">Automatically scans games from the following launchers to support dynamic actions.</TextBlock>
 
         <StackPanel Spacing="8" Visibility="{x:Bind EnhancedLibraryScanningToggle.IsOn, Mode=OneWay}">
             <TextBlock
                 HorizontalAlignment="Center"
+                IsTabStop="False"
                 Style="{StaticResource SettingsLabelStyle}"
                 Text="Library Stats" />
 
@@ -317,9 +318,7 @@
                     BorderThickness="1"
                     Click="AddManualGameButton_Click"
                     Content="Add Game..."
-                    CornerRadius="10"
-                    IsTabStop="False"
-                    UseSystemFocusVisuals="False" />
+                    CornerRadius="10" />
             </Border>
 
             <!--  Last Updated Text  -->
@@ -349,9 +348,7 @@
                         BorderBrush="#666666"
                         BorderThickness="1"
                         Content="Re-Scan"
-                        CornerRadius="10"
-                        IsTabStop="False"
-                        UseSystemFocusVisuals="False" />
+                        CornerRadius="10" />
                 </Border>
 
                 <Border
@@ -369,9 +366,7 @@
                         BorderBrush="#666666"
                         BorderThickness="1"
                         Content="Reset"
-                        CornerRadius="10"
-                        IsTabStop="False"
-                        UseSystemFocusVisuals="False" />
+                        CornerRadius="10" />
                 </Border>
             </StackPanel>
         </StackPanel>

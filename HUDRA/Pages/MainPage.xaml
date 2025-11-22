@@ -23,15 +23,27 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="HOME" />
             </Border>
-            <controls:TdpPickerControl x:Name="TdpPicker" x:FieldModifier="public" Width="280" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
-            <controls:ResolutionPickerControl x:Name="ResolutionPicker" x:FieldModifier="public" />
-            <controls:FpsLimiterControl x:Name="FpsLimiter" x:FieldModifier="public" />
-            <Rectangle Style="{StaticResource HudraHorizontalRule}" />
-            <controls:AudioControlsControl x:Name="AudioControls" x:FieldModifier="public" />
-            <controls:BrightnessControlControl x:Name="BrightnessControls" x:FieldModifier="public" />
+            <controls:TdpPickerControl
+                x:Name="TdpPicker"
+                x:FieldModifier="public"
+                Width="280" />
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
+            <controls:ResolutionPickerControl
+                x:Name="ResolutionPicker"
+                x:FieldModifier="public" />
+            <controls:FpsLimiterControl
+                x:Name="FpsLimiter"
+                x:FieldModifier="public" />
+            <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
+            <controls:AudioControlsControl
+                x:Name="AudioControls"
+                x:FieldModifier="public" />
+            <controls:BrightnessControlControl
+                x:Name="BrightnessControls"
+                x:FieldModifier="public" />
 
         </StackPanel>
     </Grid>
