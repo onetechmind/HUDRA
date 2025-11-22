@@ -23,6 +23,7 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="SETTINGS" />
             </Border>
 
@@ -31,9 +32,7 @@
                 x:Name="TdpSettingsExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0"
-                IsTabStop="True"
-                TabIndex="1">
+                Padding="0">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -60,9 +59,7 @@
                 x:Name="PowerProfileExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0"
-                IsTabStop="True"
-                TabIndex="2">
+                Padding="0">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -91,9 +88,7 @@
                 x:Name="GameDetectionExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0"
-                IsTabStop="True"
-                TabIndex="3">
+                Padding="0">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -119,9 +114,7 @@
                 x:Name="StartupSettingsExpander"
                 HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0"
-                IsTabStop="True"
-                TabIndex="4">
+                Padding="0">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock

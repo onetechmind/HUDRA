@@ -28,6 +28,7 @@
                     FontFamily="Cascadia Code"
                     FontSize="18"
                     FontWeight="SemiBold"
+                    IsTabStop="False"
                     Text="SCALING" />
             </Border>
 
@@ -37,9 +38,7 @@
                 Margin="0"
                 Padding="0"
                 HorizontalAlignment="Stretch"
-                ap:GamepadNavigation.NavigationOrder="10"
-                IsTabStop="True"
-                TabIndex="1">
+                ap:GamepadNavigation.NavigationOrder="10">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
@@ -68,9 +67,7 @@
                 Margin="0"
                 Padding="0"
                 HorizontalAlignment="Stretch"
-                ap:GamepadNavigation.NavigationOrder="20"
-                IsTabStop="True"
-                TabIndex="2">
+                ap:GamepadNavigation.NavigationOrder="20">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
