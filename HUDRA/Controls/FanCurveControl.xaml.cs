@@ -1665,15 +1665,20 @@ namespace HUDRA.Controls
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
             System.Diagnostics.Debug.WriteLine($"🎮 Current: T={currentPoint.Temperature}°C, F={currentPoint.FanSpeed}%");
 
-            var newPoint = currentPoint;
-
-            // Adjust temperature (use direction directly, no need for abs check)
-            newPoint.Temperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
-            System.Diagnostics.Debug.WriteLine($"🎮 After constrain: T={newPoint.Temperature}°C (delta={newPoint.Temperature - currentPoint.Temperature})");
+            // Calculate new temperature (don't modify currentPoint reference!)
+            double newTemperature = ConstrainTemperature(currentPoint.Temperature + direction, _activeControlPointIndex);
+            System.Diagnostics.Debug.WriteLine($"🎮 After constrain: T={newTemperature}°C (delta={newTemperature - currentPoint.Temperature})");
 
             // Only update if temperature actually changed
-            if (Math.Abs(newPoint.Temperature - currentPoint.Temperature) > 0.01)
+            if (Math.Abs(newTemperature - currentPoint.Temperature) > 0.01)
             {
+                // Create new point with updated temperature
+                var newPoint = new FanCurvePoint
+                {
+                    Temperature = newTemperature,
+                    FanSpeed = currentPoint.FanSpeed
+                };
+
                 // Apply constraints and update if valid
                 bool valid = IsValidControlPointPosition(newPoint, _activeControlPointIndex);
                 System.Diagnostics.Debug.WriteLine($"🎮 Validation: {valid}");
@@ -1692,7 +1697,7 @@ namespace HUDRA.Controls
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"❌ No change detected");
+                System.Diagnostics.Debug.WriteLine($"❌ No change detected (at boundary)");
             }
         }
         
@@ -1706,15 +1711,20 @@ namespace HUDRA.Controls
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
             System.Diagnostics.Debug.WriteLine($"🎮 Current: F={currentPoint.FanSpeed}%, T={currentPoint.Temperature}°C");
 
-            var newPoint = currentPoint;
-
-            // Adjust fan speed: positive direction = up = increase fan speed, negative = down = decrease
-            newPoint.FanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
-            System.Diagnostics.Debug.WriteLine($"🎮 After clamp: F={newPoint.FanSpeed}% (delta={newPoint.FanSpeed - currentPoint.FanSpeed})");
+            // Calculate new fan speed (don't modify currentPoint reference!)
+            double newFanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
+            System.Diagnostics.Debug.WriteLine($"🎮 After clamp: F={newFanSpeed}% (delta={newFanSpeed - currentPoint.FanSpeed})");
 
             // Only update if fan speed actually changed
-            if (Math.Abs(newPoint.FanSpeed - currentPoint.FanSpeed) > 0.01)
+            if (Math.Abs(newFanSpeed - currentPoint.FanSpeed) > 0.01)
             {
+                // Create new point with updated fan speed
+                var newPoint = new FanCurvePoint
+                {
+                    Temperature = currentPoint.Temperature,
+                    FanSpeed = newFanSpeed
+                };
+
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
@@ -1726,7 +1736,7 @@ namespace HUDRA.Controls
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"❌ No change detected");
+                System.Diagnostics.Debug.WriteLine($"❌ No change detected (at boundary)");
             }
         }
         
