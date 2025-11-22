@@ -844,11 +844,11 @@ namespace HUDRA.Controls
             double newTemp = XToTemperature(position.X);
             double newSpeed = YToFanSpeed(position.Y);
 
-            // Constrain temperature to valid range for this point
+            // Constrain temperature to valid range for this point (2-degree minimum gap)
             if (_dragPointIndex > 0)
-                newTemp = Math.Max(newTemp, _currentCurve.Points[_dragPointIndex - 1].Temperature + 5);
+                newTemp = Math.Max(newTemp, _currentCurve.Points[_dragPointIndex - 1].Temperature + 2);
             if (_dragPointIndex < _currentCurve.Points.Length - 1)
-                newTemp = Math.Min(newTemp, _currentCurve.Points[_dragPointIndex + 1].Temperature - 5);
+                newTemp = Math.Min(newTemp, _currentCurve.Points[_dragPointIndex + 1].Temperature - 2);
 
             // Update the curve point
             _currentCurve.Points[_dragPointIndex].Temperature = newTemp;
@@ -1686,20 +1686,20 @@ namespace HUDRA.Controls
         {
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
                 return;
-                
+
             var currentPoint = _currentCurve.Points[_activeControlPointIndex];
             var newPoint = currentPoint;
-            
+
             // Adjust fan speed: positive direction = up = increase fan speed, negative = down = decrease
             newPoint.FanSpeed = Math.Clamp(currentPoint.FanSpeed + direction, 0, 100);
-            
-            // Apply constraints and update if valid
-            if (IsValidControlPointPosition(newPoint, _activeControlPointIndex))
+
+            // For vertical movement, only validate fan speed bounds (temperature isn't changing)
+            if (newPoint.FanSpeed >= 0 && newPoint.FanSpeed <= 100)
             {
                 _currentCurve.Points[_activeControlPointIndex] = newPoint;
                 UpdateControlPointPosition(_activeControlPointIndex, newPoint);
                 UpdateCurveLineOnly();
-                
+
                 System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Adjusted control point {_activeControlPointIndex} fan speed to {newPoint.FanSpeed}% (T:{newPoint.Temperature}°C)");
             }
         }
@@ -1709,12 +1709,12 @@ namespace HUDRA.Controls
             double minTemp = 30;
             double maxTemp = 90;
 
-            // Ensure temperature stays between adjacent points with 5-degree minimum gap
-            // (matching the mouse/touch dragging behavior for consistency)
+            // Ensure temperature stays between adjacent points with 2-degree minimum gap
+            // This provides a balance between precision and preventing points from overlapping
             if (pointIndex > 0)
-                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 5);
+                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 2);
             if (pointIndex < _currentCurve.Points.Length - 1)
-                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 5);
+                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 2);
 
             return Math.Clamp(temperature, minTemp, maxTemp);
         }
@@ -1726,11 +1726,10 @@ namespace HUDRA.Controls
         
         private bool IsValidControlPointPosition(FanCurvePoint point, int pointIndex)
         {
-            // Check temperature ordering constraints with 5-degree minimum gap
-            // (matching the mouse/touch dragging behavior)
-            if (pointIndex > 0 && point.Temperature < _currentCurve.Points[pointIndex - 1].Temperature + 5)
+            // Check temperature ordering constraints with 2-degree minimum gap
+            if (pointIndex > 0 && point.Temperature < _currentCurve.Points[pointIndex - 1].Temperature + 2)
                 return false;
-            if (pointIndex < _currentCurve.Points.Length - 1 && point.Temperature > _currentCurve.Points[pointIndex + 1].Temperature - 5)
+            if (pointIndex < _currentCurve.Points.Length - 1 && point.Temperature > _currentCurve.Points[pointIndex + 1].Temperature - 2)
                 return false;
 
             // Check fan speed bounds
