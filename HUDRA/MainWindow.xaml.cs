@@ -204,15 +204,24 @@ namespace HUDRA
             // Register navbar buttons for spatial navigation
             RegisterNavbarButtons();
 
-            // Set initial focus to navbar after a short delay to ensure UI is loaded
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                // Focus the Home button to establish correct tab order from start
-                // Use Programmatic state so it doesn't show focus visual initially
-                MainPageNavButton.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
-            });
+            // Set initial focus when window is activated (fully loaded and visible)
+            this.Activated += OnFirstActivated;
 
             this.Closed += (s, e) => Cleanup();
+        }
+
+        private void OnFirstActivated(object sender, WindowActivatedEventArgs args)
+        {
+            // Only set focus on first activation when window is fully loaded
+            if (args.WindowActivationState != WindowActivationState.Deactivated)
+            {
+                // Unsubscribe immediately - we only need this once
+                this.Activated -= OnFirstActivated;
+
+                // Set focus to Home button to establish correct tab order
+                // Use Programmatic state so it doesn't show focus visual initially
+                MainPageNavButton.Focus(Microsoft.UI.Xaml.FocusState.Programmatic);
+            }
         }
 
         private void InitializeWindow()
