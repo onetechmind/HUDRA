@@ -184,6 +184,7 @@ namespace HUDRA
             _navigationService = new NavigationService(ContentFrame);
             _gamepadNavigationService = new GamepadNavigationService();
             _gamepadNavigationService.SetCurrentFrame(ContentFrame);
+            _gamepadNavigationService.SetLayoutRoot(LayoutRoot);
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
             _fpsLimiterService = new RtssFpsLimiterService();

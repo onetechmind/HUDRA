@@ -21,6 +21,7 @@ namespace HUDRA.Services
         private readonly List<Gamepad> _connectedGamepads = new();
         private FrameworkElement? _currentFocusedElement;
         private Frame? _currentFrame;
+        private UIElement? _layoutRoot;
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
@@ -110,6 +111,12 @@ namespace HUDRA.Services
         {
             _currentFrame = frame;
             System.Diagnostics.Debug.WriteLine($"🎮 Set current frame: {frame?.GetType().Name}");
+        }
+
+        public void SetLayoutRoot(UIElement layoutRoot)
+        {
+            _layoutRoot = layoutRoot;
+            System.Diagnostics.Debug.WriteLine($"🎮 Set layout root: {layoutRoot?.GetType().Name}");
         }
 
         private void CheckForConnectedGamepads()
@@ -810,15 +817,17 @@ namespace HUDRA.Services
                 {
                     // When gamepad is active, clear any existing WinUI focus on inner controls
                     // to prevent double borders (Tab focus lingering + gamepad focus)
+                    // Focus LayoutRoot (like when clicking in open space) instead of Frame
                     try
                     {
-                        if (_currentFrame?.XamlRoot != null)
+                        if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
                         {
                             var winuiFocusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
                             if (winuiFocusedElement != null)
                             {
-                                // Focus the frame (IsTabStop=False) to clear any inner control focus
-                                _currentFrame.Focus(FocusState.Programmatic);
+                                // Focus the LayoutRoot (parent of Frame) to clear any descendant focus
+                                // This matches what happens when clicking in open space
+                                _layoutRoot.Focus(FocusState.Programmatic);
                                 System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI focus from: {winuiFocusedElement.GetType().Name}");
                             }
                         }
@@ -857,15 +866,16 @@ namespace HUDRA.Services
             }
 
             // Also clear any WinUI system focus (keyboard Tab focus) to prevent double borders
+            // Use LayoutRoot (like clicking in open space) for more reliable focus clearing
             try
             {
-                if (_currentFrame?.XamlRoot != null)
+                if (_layoutRoot != null && _currentFrame?.XamlRoot != null)
                 {
                     var focusedElement = FocusManager.GetFocusedElement(_currentFrame.XamlRoot) as UIElement;
                     if (focusedElement != null)
                     {
-                        // Focus the frame itself which has IsTabStop=False, effectively clearing interactive focus
-                        _currentFrame.Focus(FocusState.Programmatic);
+                        // Focus the LayoutRoot (parent of everything) to clear all descendant focus
+                        _layoutRoot.Focus(FocusState.Programmatic);
                         System.Diagnostics.Debug.WriteLine($"🎮 Cleared WinUI system focus from: {focusedElement.GetType().Name}");
                     }
                 }
