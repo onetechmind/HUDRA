@@ -805,7 +805,15 @@ namespace HUDRA.Services
             if (_currentFocusedElement != null)
             {
                 GamepadNavigation.SetIsCurrentFocus(_currentFocusedElement, true);
-                _currentFocusedElement.Focus(FocusState.Programmatic);
+
+                // Only set WinUI focus when gamepad is NOT active
+                // Gamepad navigation uses custom focus tracking and doesn't need WinUI focus
+                // Setting WinUI focus causes it to delegate to inner controls (ToggleSwitch, ComboBox, etc.)
+                // which creates double borders (outer gamepad border + inner WinUI focus visual)
+                if (!_isGamepadActive)
+                {
+                    _currentFocusedElement.Focus(FocusState.Programmatic);
+                }
 
                 // Scroll element into view if it's out of viewport
                 try
