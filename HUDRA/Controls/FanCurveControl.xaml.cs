@@ -1727,17 +1727,16 @@ namespace HUDRA.Controls
         
         private double ConstrainTemperature(double temperature, int pointIndex)
         {
-            double minTemp = 30;
-            double maxTemp = 90;
+            // Match mouse behavior exactly - only constrain based on adjacent points
+            // No hard-coded min/max - those are canvas boundaries handled by XToTemperature
 
-            // Ensure temperature stays between adjacent points with 2-degree minimum gap
-            // This provides a balance between precision and preventing points from overlapping
+            // Constrain to stay 2 degrees away from adjacent points
             if (pointIndex > 0)
-                minTemp = Math.Max(minTemp, _currentCurve.Points[pointIndex - 1].Temperature + 2);
+                temperature = Math.Max(temperature, _currentCurve.Points[pointIndex - 1].Temperature + 2);
             if (pointIndex < _currentCurve.Points.Length - 1)
-                maxTemp = Math.Min(maxTemp, _currentCurve.Points[pointIndex + 1].Temperature - 2);
+                temperature = Math.Min(temperature, _currentCurve.Points[pointIndex + 1].Temperature - 2);
 
-            return Math.Clamp(temperature, minTemp, maxTemp);
+            return temperature;
         }
         
         private double ConstrainFanSpeed(double fanSpeed)
