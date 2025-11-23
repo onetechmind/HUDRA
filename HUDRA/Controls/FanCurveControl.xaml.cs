@@ -94,11 +94,16 @@ namespace HUDRA.Controls
         // Slider interface implementations - FanCurve is not a slider control
         public bool IsSlider => false;
         public bool IsSliderActivated { get; set; } = false;
-        public void AdjustSliderValue(int direction) 
+        public void AdjustSliderValue(int direction)
         {
+            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustSliderValue({direction}) called - isActivated={_isControlPointActivated}, activeIndex={_activeControlPointIndex}");
             if (_isControlPointActivated && _activeControlPointIndex >= 0)
             {
                 AdjustControlPoint(direction);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustSliderValue condition FAILED - isActivated={_isControlPointActivated}, activeIndex={_activeControlPointIndex}");
             }
         }
         
@@ -1679,18 +1684,28 @@ namespace HUDRA.Controls
         
         private void AdjustControlPoint(int direction)
         {
+            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustControlPoint({direction}) - activeIndex={_activeControlPointIndex}, isActivated={_isControlPointActivated}");
+
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustControlPoint EARLY RETURN - isActivated={_isControlPointActivated}, index={_activeControlPointIndex}, length={_currentCurve.Points.Length}");
                 return;
+            }
 
             // Calculate new temperature (constrain to valid range)
             double currentTemp = _currentCurve.Points[_activeControlPointIndex].Temperature;
+            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] currentTemp={currentTemp:F1}°C");
+
             double newTemperature = ConstrainTemperature(currentTemp + direction, _activeControlPointIndex);
+            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] newTemp={newTemperature:F1}°C (delta={newTemperature - currentTemp:F1})");
 
             // Update point and visuals (no delta check - matches mouse mode)
             // Even if constrained value equals current value (at boundary), update visual to provide feedback
             _currentCurve.Points[_activeControlPointIndex].Temperature = newTemperature;
             UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
             UpdateCurveLineOnly();
+
+            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] updated successfully");
         }
         
         private void AdjustControlPointVertically(int direction)
