@@ -85,7 +85,7 @@ namespace HUDRA.Controls
         // When a control point is activated, allow all directional navigation so the OnGamepadNavigate methods can handle point movement
         // Otherwise, these properties control navigation BETWEEN UI elements
         public bool CanNavigateUp => _isControlPointActivated || _currentFocusedElement >= 1;
-        public bool CanNavigateDown => _isControlPointActivated || (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) || (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible);
+        public bool CanNavigateDown => _isControlPointActivated || (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) || (_currentFocusedElement >= 1 && _currentFocusedElement <= 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible);
         public bool CanNavigateLeft => _isControlPointActivated || (_currentFocusedElement > 1 && _currentFocusedElement <= 4) || (_currentFocusedElement > 5);
         public bool CanNavigateRight => _isControlPointActivated || (_currentFocusedElement == 0) || (_currentFocusedElement >= 1 && _currentFocusedElement < 4) || (_currentFocusedElement >= 5 && _currentFocusedElement < 9);
         public bool CanActivate => true;
@@ -96,14 +96,9 @@ namespace HUDRA.Controls
         public bool IsSliderActivated { get; set; } = false;
         public void AdjustSliderValue(int direction)
         {
-            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustSliderValue({direction}) called - isActivated={_isControlPointActivated}, activeIndex={_activeControlPointIndex}");
             if (_isControlPointActivated && _activeControlPointIndex >= 0)
             {
                 AdjustControlPoint(direction);
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustSliderValue condition FAILED - isActivated={_isControlPointActivated}, activeIndex={_activeControlPointIndex}");
             }
         }
         
@@ -1378,11 +1373,11 @@ namespace HUDRA.Controls
                 UpdateFocusVisuals();
                 System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved down to preset buttons");
             }
-            else if (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible) // From Custom button to middle control point
+            else if (_currentFocusedElement >= 1 && _currentFocusedElement <= 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible) // From any preset button to middle control point when Custom is active
             {
                 _currentFocusedElement = 7; // Middle control point (index 2, so element 5+2=7)
                 UpdateFocusVisuals();
-                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved down to control points");
+                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Moved down to control points from preset button");
             }
         }
         
@@ -1684,28 +1679,18 @@ namespace HUDRA.Controls
         
         private void AdjustControlPoint(int direction)
         {
-            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustControlPoint({direction}) - activeIndex={_activeControlPointIndex}, isActivated={_isControlPointActivated}");
-
             if (!_isControlPointActivated || _activeControlPointIndex < 0 || _activeControlPointIndex >= _currentCurve.Points.Length)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: AdjustControlPoint EARLY RETURN - isActivated={_isControlPointActivated}, index={_activeControlPointIndex}, length={_currentCurve.Points.Length}");
                 return;
-            }
 
             // Calculate new temperature (constrain to valid range)
             double currentTemp = _currentCurve.Points[_activeControlPointIndex].Temperature;
-            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] currentTemp={currentTemp:F1}°C");
-
             double newTemperature = ConstrainTemperature(currentTemp + direction, _activeControlPointIndex);
-            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] newTemp={newTemperature:F1}°C (delta={newTemperature - currentTemp:F1})");
 
             // Update point and visuals (no delta check - matches mouse mode)
             // Even if constrained value equals current value (at boundary), update visual to provide feedback
             _currentCurve.Points[_activeControlPointIndex].Temperature = newTemperature;
             UpdateControlPointPosition(_activeControlPointIndex, _currentCurve.Points[_activeControlPointIndex]);
             UpdateCurveLineOnly();
-
-            System.Diagnostics.Debug.WriteLine($"🎮 FanCurve: Point[{_activeControlPointIndex}] updated successfully");
         }
         
         private void AdjustControlPointVertically(int direction)
