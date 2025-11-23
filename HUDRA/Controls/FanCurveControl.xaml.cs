@@ -82,10 +82,12 @@ namespace HUDRA.Controls
         private uint _touchPointerId = 0;
 
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => _currentFocusedElement >= 1; // Can move up from preset buttons/control points to previous level
-        public bool CanNavigateDown => (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) || (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible); // Can move down from toggle to buttons OR from Custom button to control points
-        public bool CanNavigateLeft => (_currentFocusedElement > 1 && _currentFocusedElement <= 4) || (_currentFocusedElement > 5); // Can move left from preset buttons or between control points
-        public bool CanNavigateRight => (_currentFocusedElement == 0) || (_currentFocusedElement >= 1 && _currentFocusedElement < 4) || (_currentFocusedElement >= 5 && _currentFocusedElement < 9); // Can move right from toggle, between preset buttons, or between control points
+        // When a control point is activated, allow all directional navigation so the OnGamepadNavigate methods can handle point movement
+        // Otherwise, these properties control navigation BETWEEN UI elements
+        public bool CanNavigateUp => _isControlPointActivated || _currentFocusedElement >= 1;
+        public bool CanNavigateDown => _isControlPointActivated || (_currentFocusedElement == 0 && PresetButtonsPanel?.Visibility == Visibility.Visible) || (_currentFocusedElement == 4 && _currentCurve.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible);
+        public bool CanNavigateLeft => _isControlPointActivated || (_currentFocusedElement > 1 && _currentFocusedElement <= 4) || (_currentFocusedElement > 5);
+        public bool CanNavigateRight => _isControlPointActivated || (_currentFocusedElement == 0) || (_currentFocusedElement >= 1 && _currentFocusedElement < 4) || (_currentFocusedElement >= 5 && _currentFocusedElement < 9);
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
         
