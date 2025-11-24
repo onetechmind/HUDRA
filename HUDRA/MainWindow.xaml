@@ -107,6 +107,26 @@
                                 Text="{x:Bind BatteryPercentageText, Mode=OneWay}" />
                         </StackPanel>
 
+                        <!--  LB/RB Glyphs - Navigate page buttons  -->
+                        <StackPanel
+                            Margin="0,5,0,5"
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="03">
+                            <Image
+                                Width="20"
+                                Height="20"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_lb_outline.png"
+                                Stretch="Uniform" />
+                            <Image
+                                Width="20"
+                                Height="20"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_rb_outline.png"
+                                Stretch="Uniform" />
+                        </StackPanel>
+
                         <!--  Main Page Navigation Item (Home icon)  -->
                         <Button
                             x:Name="MainPageNavButton"
@@ -223,6 +243,29 @@
                         Orientation="Vertical"
                         Spacing="8">
 
+                        <!--  LT Glyph - Navigate dynamic buttons  -->
+                        <StackPanel
+                            Margin="0,5,0,5"
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal"
+                            Spacing="03">
+                            <Image
+                                Width="20"
+                                Height="20"
+                                HorizontalAlignment="Center"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_lt_outline.png"
+                                Stretch="Uniform" />
+
+                            <Image
+                                Width="20"
+                                Height="20"
+                                HorizontalAlignment="Center"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_rt_outline.png"
+                                Stretch="Uniform" />
+                        </StackPanel>
+
                         <!--  Alt+Tab (Back to Game) button  -->
                         <Button
                             x:Name="AltTabButton"
@@ -301,10 +344,10 @@
                     Padding="0,10,0,10"
                     HorizontalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Disabled"
+                    IsTabStop="False"
                     VerticalScrollBarVisibility="Auto"
                     VerticalScrollMode="Auto"
-                    ZoomMode="Disabled"
-                    IsTabStop="False">
+                    ZoomMode="Disabled">
                     <Frame
                         x:Name="ContentFrame"
                         MaxWidth="320"
