@@ -107,15 +107,25 @@
                                 Text="{x:Bind BatteryPercentageText, Mode=OneWay}" />
                         </StackPanel>
 
-                        <!--  LB Glyph - Navigate page buttons  -->
-                        <Image
-                            Width="24"
-                            Height="24"
-                            Margin="0,5,0,5"
+                        <!--  LB/RB Glyphs - Navigate page buttons  -->
+                        <StackPanel
+                            Orientation="Horizontal"
                             HorizontalAlignment="Center"
-                            Opacity="0.6"
-                            Source="/Assets/Glyphs/xbox_lb_outline.png"
-                            Stretch="Uniform" />
+                            Spacing="4"
+                            Margin="0,5,0,5">
+                            <Image
+                                Width="24"
+                                Height="24"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_lb_outline.png"
+                                Stretch="Uniform" />
+                            <Image
+                                Width="24"
+                                Height="24"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_rb_outline.png"
+                                Stretch="Uniform" />
+                        </StackPanel>
 
                         <!--  Main Page Navigation Item (Home icon)  -->
                         <Button
@@ -197,16 +207,6 @@
                                 Glyph="&#xE713;" />
                         </Button>
 
-                        <!--  RB Glyph - Navigate page buttons  -->
-                        <Image
-                            Width="24"
-                            Height="24"
-                            Margin="0,5,0,5"
-                            HorizontalAlignment="Center"
-                            Opacity="0.6"
-                            Source="/Assets/Glyphs/xbox_rb_outline.png"
-                            Stretch="Uniform" />
-
                         <!--  Game Library Scanning Progress Indicator  -->
                         <StackPanel
                             x:Name="ScanProgressPanel"
@@ -249,7 +249,7 @@
                             Height="24"
                             Margin="0,0,0,5"
                             HorizontalAlignment="Center"
-                            Opacity="0.6"
+                            Opacity="0.7"
                             Source="/Assets/Glyphs/xbox_lt_outline.png"
                             Stretch="Uniform" />
 
@@ -326,7 +326,7 @@
                             Height="24"
                             Margin="0,5,0,0"
                             HorizontalAlignment="Center"
-                            Opacity="0.6"
+                            Opacity="0.7"
                             Source="/Assets/Glyphs/xbox_rt_outline.png"
                             Stretch="Uniform" />
 
