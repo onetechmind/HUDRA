@@ -109,19 +109,19 @@
 
                         <!--  LB/RB Glyphs - Navigate page buttons  -->
                         <StackPanel
-                            Orientation="Horizontal"
+                            Margin="0,5,0,5"
                             HorizontalAlignment="Center"
-                            Spacing="4"
-                            Margin="0,5,0,5">
+                            Orientation="Horizontal"
+                            Spacing="03">
                             <Image
-                                Width="24"
-                                Height="24"
+                                Width="20"
+                                Height="20"
                                 Opacity="0.7"
                                 Source="/Assets/Glyphs/xbox_lb_outline.png"
                                 Stretch="Uniform" />
                             <Image
-                                Width="24"
-                                Height="24"
+                                Width="20"
+                                Height="20"
                                 Opacity="0.7"
                                 Source="/Assets/Glyphs/xbox_rb_outline.png"
                                 Stretch="Uniform" />
@@ -244,14 +244,27 @@
                         Spacing="8">
 
                         <!--  LT Glyph - Navigate dynamic buttons  -->
-                        <Image
-                            Width="24"
-                            Height="24"
-                            Margin="0,0,0,5"
+                        <StackPanel
+                            Margin="0,5,0,5"
                             HorizontalAlignment="Center"
-                            Opacity="0.7"
-                            Source="/Assets/Glyphs/xbox_lt_outline.png"
-                            Stretch="Uniform" />
+                            Orientation="Horizontal"
+                            Spacing="03">
+                            <Image
+                                Width="20"
+                                Height="20"
+                                HorizontalAlignment="Center"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_lt_outline.png"
+                                Stretch="Uniform" />
+
+                            <Image
+                                Width="20"
+                                Height="20"
+                                HorizontalAlignment="Center"
+                                Opacity="0.7"
+                                Source="/Assets/Glyphs/xbox_rt_outline.png"
+                                Stretch="Uniform" />
+                        </StackPanel>
 
                         <!--  Alt+Tab (Back to Game) button  -->
                         <Button
@@ -320,16 +333,6 @@
                                 Glyph="&#xE70D;" />
                         </Button>
 
-                        <!--  RT Glyph - Navigate dynamic buttons  -->
-                        <Image
-                            Width="24"
-                            Height="24"
-                            Margin="0,5,0,0"
-                            HorizontalAlignment="Center"
-                            Opacity="0.7"
-                            Source="/Assets/Glyphs/xbox_rt_outline.png"
-                            Stretch="Uniform" />
-
                     </StackPanel>
                 </Grid>
             </Border>
@@ -341,10 +344,10 @@
                     Padding="0,10,0,10"
                     HorizontalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Disabled"
+                    IsTabStop="False"
                     VerticalScrollBarVisibility="Auto"
                     VerticalScrollMode="Auto"
-                    ZoomMode="Disabled"
-                    IsTabStop="False">
+                    ZoomMode="Disabled">
                     <Frame
                         x:Name="ContentFrame"
                         MaxWidth="320"
