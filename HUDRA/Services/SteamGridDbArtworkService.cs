@@ -1,6 +1,6 @@
 using HUDRA.Models;
-using SteamGridDB.Net;
-using SteamGridDB.Net.Exceptions;
+using Craftersmine.SteamGridDB.Net;
+using Craftersmine.SteamGridDB.Net.Exceptions;
 using System;
 using System.IO;
 using System.Linq;
@@ -11,14 +11,14 @@ namespace HUDRA.Services
 {
     public class SteamGridDbArtworkService : IDisposable
     {
-        private readonly SteamGridDb _client;
+        private readonly SteamGridDbClient _client;
         private readonly string _artworkDirectory;
         private readonly HttpClient _httpClient;
         private bool _disposed = false;
 
         public SteamGridDbArtworkService(string apiKey)
         {
-            _client = new SteamGridDb(apiKey);
+            _client = new SteamGridDbClient(apiKey);
             _httpClient = new HttpClient();
 
             // Create artwork directory in HUDRA AppData folder
@@ -54,7 +54,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB: Searching for artwork for {game.DisplayName}");
 
                 // Search for the game by name
-                var searchResults = await _client.SearchForGamesAsync(game.DisplayName);
+                var searchResults = await _client.SearchGamesAsync(game.DisplayName);
 
                 if (searchResults == null || !searchResults.Any())
                 {
@@ -64,10 +64,10 @@ namespace HUDRA.Services
 
                 // Get the first matching game
                 var steamGridGame = searchResults.First();
-                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Found game: {steamGridGame.Name} (ID: {steamGridGame.Id})");
+                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Found game: {steamGridGame.Name} (ID: {steamGridGame.GameId})");
 
                 // Get grid images for this game
-                var grids = await _client.GetGridsForGameAsync(steamGridGame.Id);
+                var grids = await _client.GetGridsByGameIdAsync(steamGridGame.GameId);
 
                 if (grids == null || !grids.Any())
                 {
@@ -94,7 +94,7 @@ namespace HUDRA.Services
 
                 return filePath;
             }
-            catch (SteamGridDbNotFoundException)
+            catch (SteamGridDbException)
             {
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB: Game not found: {game.DisplayName}");
                 return null;
