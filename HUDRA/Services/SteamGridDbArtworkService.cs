@@ -1,6 +1,5 @@
 using HUDRA.Models;
-using Craftersmine.SteamGridDB.Net;
-using Craftersmine.SteamGridDB.Net.Exceptions;
+using SteamGridDB;
 using System;
 using System.IO;
 using System.Linq;
@@ -93,11 +92,6 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB: Saved artwork to {filePath}");
 
                 return filePath;
-            }
-            catch (SteamGridDbException)
-            {
-                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Game not found: {game.DisplayName}");
-                return null;
             }
             catch (Exception ex)
             {
