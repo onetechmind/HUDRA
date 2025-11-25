@@ -67,6 +67,7 @@ namespace HUDRA
         private SettingsPage? _settingsPage;
         private FanCurvePage? _fanCurvePage;
         private ScalingPage? _scalingPage;
+        private LibraryPage? _libraryPage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -237,6 +238,7 @@ namespace HUDRA
                 typeof(MainPage),
                 typeof(FanCurvePage),
                 typeof(ScalingPage),
+                typeof(LibraryPage),
                 typeof(SettingsPage)
             };
 
@@ -368,6 +370,21 @@ namespace HUDRA
                     else
                     {
                         System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not ScalingPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
+                    }
+                });
+            }
+            else if (pageType == typeof(LibraryPage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is LibraryPage libraryPage)
+                    {
+                        _libraryPage = libraryPage;
+                        InitializeLibraryPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not LibraryPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
                     }
                 });
             }
@@ -555,12 +572,46 @@ namespace HUDRA
             }
         }
 
+        private void InitializeLibraryPage()
+        {
+            if (_libraryPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== InitializeLibraryPage called ===");
+
+            try
+            {
+                _libraryPage.Initialize(_enhancedGameDetectionService!);
+                System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
+
+                // After initialization, apply gamepad navigation focus consistent with current nav origin
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                {
+                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    {
+                        _gamepadNavigationService.DeactivateGamepadMode();
+                    }
+
+                    if (_libraryPage?.LibraryRootPanel is FrameworkElement root)
+                    {
+                        _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                    }
+
+                    _isGamepadNavForCurrentPage = false;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeLibraryPage: {ex.Message}");
+            }
+        }
+
         private void UpdateNavigationButtonStates()
         {
             // Update visual states of navigation buttons based on current page
             UpdateButtonState(MainPageNavButton, _currentPageType == typeof(MainPage));
             UpdateButtonState(FanCurveNavButton, _currentPageType == typeof(FanCurvePage));
             UpdateButtonState(ScalingNavButton, _currentPageType == typeof(ScalingPage));
+            UpdateButtonState(LibraryNavButton, _currentPageType == typeof(LibraryPage));
             UpdateButtonState(SettingsNavButton, _currentPageType == typeof(SettingsPage));
         }
 
@@ -608,6 +659,13 @@ namespace HUDRA
             // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
             _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToScaling();
+        }
+
+        private void LibraryNavButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
+            _navigationService.NavigateToLibrary();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)

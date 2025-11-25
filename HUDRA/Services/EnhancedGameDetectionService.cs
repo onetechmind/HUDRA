@@ -19,6 +19,7 @@ namespace HUDRA.Services
         private Timer? _refreshTimer;
         private readonly Timer _detectionTimer;
         private readonly EnhancedGameDatabase _gameDatabase;
+        private readonly SteamGridDbArtworkService? _artworkService;
 
         private Dictionary<string, DetectedGame> _cachedGames = new(StringComparer.OrdinalIgnoreCase);
         private GameInfo? _currentGame;
@@ -50,7 +51,18 @@ namespace HUDRA.Services
 
             // Initialize database
             _gameDatabase = new EnhancedGameDatabase();
-            
+
+            // Initialize SteamGridDB artwork service
+            try
+            {
+                _artworkService = new SteamGridDbArtworkService("89b83ee6250e718cb40766bde7bcdf1d");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Failed to initialize artwork service: {ex.Message}");
+                _artworkService = null;
+            }
+
             // Create providers
             _providers = new List<IGameLibraryProvider>
             {
@@ -212,8 +224,26 @@ namespace HUDRA.Services
                 // Build in-memory cache from all games (existing + new)
                 var allGames = await _gameDatabase.GetAllGamesAsync();
                 _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
-                
+
                 _isDatabaseReady = true;
+
+                // Download artwork for games that don't have it yet
+                if (_artworkService != null && _cachedGames.Any())
+                {
+                    var gamesNeedingArtwork = _cachedGames.Values.Where(g => string.IsNullOrEmpty(g.ArtworkPath)).ToList();
+                    if (gamesNeedingArtwork.Any())
+                    {
+                        await _artworkService.DownloadArtworkForGamesAsync(
+                            gamesNeedingArtwork,
+                            _gameDatabase,
+                            progress => _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, progress))
+                        );
+
+                        // Reload cache after artwork update
+                        allGames = await _gameDatabase.GetAllGamesAsync();
+                        _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                    }
+                }
 
                 _dispatcher.TryEnqueue(() =>
                 {
@@ -1213,6 +1243,17 @@ namespace HUDRA.Services
             }
         }
 
+        /// <summary>
+        /// Get all games from the database (public method for UI consumption)
+        /// </summary>
+        public async Task<IEnumerable<DetectedGame>> GetAllGamesAsync()
+        {
+            if (!_isDatabaseReady || _gameDatabase == null)
+                return Enumerable.Empty<DetectedGame>();
+
+            return await _gameDatabase.GetAllGamesAsync();
+        }
+
         public async Task<int> ForceXboxGameRescanAsync()
         {
             try
@@ -1258,13 +1299,14 @@ namespace HUDRA.Services
             if (!_disposed)
             {
                 _disposed = true;
-                
+
                 try
                 {
                     _refreshTimer?.Dispose();
                     _detectionTimer?.Dispose();
                     _gameDatabase?.Dispose();
-                    
+                    _artworkService?.Dispose();
+
                     foreach (var provider in _providers)
                     {
                         provider.ScanProgressChanged -= OnProviderProgressChanged;

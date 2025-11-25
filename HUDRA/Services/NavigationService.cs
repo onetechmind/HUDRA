@@ -42,6 +42,11 @@ namespace HUDRA.Services
             Navigate(typeof(ScalingPage));
         }
 
+        public void NavigateToLibrary()
+        {
+            Navigate(typeof(LibraryPage));
+        }
+
         public void Navigate(Type pageType)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));
