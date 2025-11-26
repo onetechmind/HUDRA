@@ -417,19 +417,37 @@ namespace HUDRA.Pages
             return buttons;
         }
 
-        public void FocusFirstGameButton()
+        public async void FocusFirstGameButton()
         {
             try
             {
-                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
-                if (allButtons.Count > 0)
+                // Wait for all buttons to be rendered in the visual tree
+                // Sometimes buttons render gradually, so we retry
+                List<Button>? allButtons = null;
+                int expectedCount = _games.Count;
+
+                for (int attempt = 0; attempt < 10; attempt++)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button (found {allButtons.Count} buttons)");
+                    allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+
+                    if (allButtons.Count >= expectedCount)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Found all {allButtons.Count} buttons on attempt {attempt + 1}");
+                        break;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempt {attempt + 1}: Found {allButtons.Count}/{expectedCount} buttons, waiting...");
+                    await Task.Delay(50);
+                }
+
+                if (allButtons != null && allButtons.Count > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button: {((DetectedGame)allButtons[0].Tag).DisplayName} (found {allButtons.Count} total buttons)");
                     allButtons[0].Focus(FocusState.Programmatic);
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No game buttons found to focus");
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No game buttons found to focus after retries");
                 }
             }
             catch (Exception ex)
