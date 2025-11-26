@@ -71,14 +71,17 @@
     </Page.Resources>
 
     <Grid Margin="0">
-        <StackPanel
-            x:Name="LibraryRootPanel"
-            x:FieldModifier="public"
-            MaxWidth="320"
-            Margin="0,15,0,0"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Top"
-            Spacing="20">
+        <ScrollViewer
+            x:Name="LibraryScrollViewer"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Disabled">
+            <StackPanel
+                x:Name="LibraryRootPanel"
+                x:FieldModifier="public"
+                MaxWidth="320"
+                Margin="0,15,0,15"
+                HorizontalAlignment="Center"
+                Spacing="20">
 
             <!-- Header -->
             <Border>
@@ -226,5 +229,6 @@
             </Border>
 
         </StackPanel>
+        </ScrollViewer>
     </Grid>
 </Page>
