@@ -30,7 +30,7 @@ namespace HUDRA.Pages
         // Gamepad navigation
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
         private DateTime _lastInputTime = DateTime.MinValue;
-        private const double INPUT_REPEAT_DELAY_MS = 150;
+        private const double INPUT_REPEAT_DELAY_MS = 50;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -45,8 +45,6 @@ namespace HUDRA.Pages
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-
-            System.Diagnostics.Debug.WriteLine("LibraryPage: OnNavigatedTo called");
 
             // Only load games if not already loaded (to preserve scroll position)
             if (!_gamesLoaded)
@@ -75,12 +73,10 @@ namespace HUDRA.Pages
             if (_gamepadNavigationService != null)
             {
                 _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Unsubscribed from raw gamepad input");
             }
 
             // Save scroll position
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Saving scroll offset: {_savedScrollOffset}");
 
             // Save focused game for gamepad navigation
             if (FocusManager.GetFocusedElement(this.XamlRoot) is FrameworkElement focusedElement)
@@ -92,7 +88,6 @@ namespace HUDRA.Pages
                     if (current is Button button && button.Tag is DetectedGame game)
                     {
                         _savedFocusedGameProcessName = game.ProcessName;
-                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Saving focused game: {game.DisplayName}");
                         break;
                     }
                     current = current.Parent as FrameworkElement;
@@ -111,11 +106,9 @@ namespace HUDRA.Pages
         {
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
-            System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection and gamepad navigation services");
 
             // Subscribe to raw gamepad input immediately upon receiving the service reference
             _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
-            System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribed to raw gamepad input");
 
             // Subscribe to scan events for reactive updates
             _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
@@ -135,11 +128,8 @@ namespace HUDRA.Pages
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync started");
-
                 if (_gameDetectionService == null)
                 {
-                    System.Diagnostics.Debug.WriteLine("LibraryPage: _gameDetectionService is null");
                     ShowEmptyState();
                     return;
                 }
@@ -148,11 +138,8 @@ namespace HUDRA.Pages
                 var allGames = await _gameDetectionService.GetAllGamesAsync();
                 var gamesList = allGames?.ToList() ?? new List<DetectedGame>();
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Retrieved {gamesList.Count} games from database");
-
                 if (!gamesList.Any())
                 {
-                    System.Diagnostics.Debug.WriteLine("LibraryPage: No games found in database");
                     ShowEmptyState();
                     return;
                 }
@@ -160,14 +147,11 @@ namespace HUDRA.Pages
                 // Sort alphabetically by display name
                 gamesList = gamesList.OrderBy(g => g.DisplayName).ToList();
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Populating UI with {gamesList.Count} games");
-
                 // Update the ObservableCollection
                 _games.Clear();
                 foreach (var game in gamesList)
                 {
                     _games.Add(game);
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Added game: {game.DisplayName}, Artwork: {game.ArtworkPath}");
                 }
 
                 // Set ItemsSource
@@ -178,14 +162,10 @@ namespace HUDRA.Pages
 
                 // Mark games as loaded
                 _gamesLoaded = true;
-
-                // Don't auto-focus here - MainWindow will handle it for gamepad navigation
-                System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync completed successfully");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error loading games: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Stack trace: {ex.StackTrace}");
                 ShowEmptyState();
             }
         }
@@ -298,33 +278,23 @@ namespace HUDRA.Pages
 
         private async Task RestoreScrollPositionAsync()
         {
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: RestoreScrollPosition called with offset: {_savedScrollOffset}");
-
-            // Always try to restore, even if offset is 0
             // Force layout update first
             LibraryScrollViewer.UpdateLayout();
 
             // Wait for layout to complete
             await Task.Delay(300);
 
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Before restore - ExtentHeight: {LibraryScrollViewer.ExtentHeight}, ViewportHeight: {LibraryScrollViewer.ViewportHeight}, CurrentOffset: {LibraryScrollViewer.VerticalOffset}");
-
             // Restore the scroll position
-            bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
-
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: ChangeView({_savedScrollOffset}) returned: {success}");
+            LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
 
             // Verify restoration worked
             await Task.Delay(100);
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: After restore - Current offset: {LibraryScrollViewer.VerticalOffset}");
         }
 
         private async Task RestoreFocusedGameAsync()
         {
             if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
             {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempting to restore focus to game: {_savedFocusedGameProcessName}");
-
                 // Wait for UI to be fully rendered
                 await Task.Delay(100);
 
@@ -332,12 +302,7 @@ namespace HUDRA.Pages
                 var gameButton = FindGameButton(_savedFocusedGameProcessName);
                 if (gameButton != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Restoring focus to button");
                     gameButton.Focus(FocusState.Programmatic);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Could not find button for game: {_savedFocusedGameProcessName}");
                 }
             }
         }
@@ -389,25 +354,13 @@ namespace HUDRA.Pages
                         var transform = b.TransformToVisual(GamesItemsControl);
                         var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
                         // Sort by Y position first (row), then X position (column)
-                        double sortKey = position.Y * 10000 + position.X;
-                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Button at position Y={position.Y:F1}, X={position.X:F1}, sortKey={sortKey:F1}, Tag={((DetectedGame)b.Tag).DisplayName}");
-                        return sortKey;
+                        return position.Y * 10000 + position.X;
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Error getting button position: {ex.Message}");
                         return double.MaxValue; // Put errored buttons at the end
                     }
                 }).ToList();
-
-                if (buttons.Count > 0)
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Sorted {buttons.Count} buttons, first button: {((DetectedGame)buttons[0].Tag).DisplayName}");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No buttons found to sort");
-                }
             }
             catch (Exception ex)
             {
@@ -421,33 +374,26 @@ namespace HUDRA.Pages
         {
             try
             {
-                // Wait for all buttons to be rendered in the visual tree
-                // Sometimes buttons render gradually, so we retry
+                // Wait for buttons to be rendered in the visual tree
+                // Don't wait for ALL buttons since some may be virtualized/outside viewport
                 List<Button>? allButtons = null;
-                int expectedCount = _games.Count;
 
-                for (int attempt = 0; attempt < 10; attempt++)
+                for (int attempt = 0; attempt < 5; attempt++)
                 {
                     allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
 
-                    if (allButtons.Count >= expectedCount)
+                    // Just need at least one button to focus
+                    if (allButtons.Count > 0)
                     {
-                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Found all {allButtons.Count} buttons on attempt {attempt + 1}");
                         break;
                     }
 
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempt {attempt + 1}: Found {allButtons.Count}/{expectedCount} buttons, waiting...");
                     await Task.Delay(50);
                 }
 
                 if (allButtons != null && allButtons.Count > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button: {((DetectedGame)allButtons[0].Tag).DisplayName} (found {allButtons.Count} total buttons)");
                     allButtons[0].Focus(FocusState.Programmatic);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No game buttons found to focus after retries");
                 }
             }
             catch (Exception ex)
@@ -460,12 +406,6 @@ namespace HUDRA.Pages
         {
             try
             {
-                // Log when we receive input (only log when buttons are pressed to avoid spam)
-                if (reading.Buttons != GamepadButtons.None)
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Received gamepad input - Buttons: {reading.Buttons}");
-                }
-
                 ProcessGamepadInput(reading);
             }
             catch (Exception ex)
@@ -691,11 +631,9 @@ namespace HUDRA.Pages
         private void ScrollWithAnalogStick(double yValue)
         {
             // Invert Y axis (positive thumbstick = scroll up)
-            double scrollAmount = -yValue * 10;
+            double scrollAmount = -yValue * 15; // Increased for more responsive scrolling
             double currentOffset = LibraryScrollViewer.VerticalOffset;
             double newOffset = currentOffset + scrollAmount;
-
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Analog scroll - yValue: {yValue:F2}, scrollAmount: {scrollAmount:F2}, current: {currentOffset:F1}, new: {newOffset:F1}");
 
             LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: true);
         }
@@ -714,9 +652,6 @@ namespace HUDRA.Pages
                 double buttonTop = position.Y;
                 double buttonBottom = buttonTop + button.ActualHeight;
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - ScrollViewer ActualHeight={viewportHeight:F1}, ViewportHeight={LibraryScrollViewer.ViewportHeight:F1}, ExtentHeight={LibraryScrollViewer.ExtentHeight:F1}");
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - currentOffset: {currentOffset:F1}, buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}");
-
                 // Add padding for better UX
                 const double PADDING = 20;
 
@@ -728,19 +663,13 @@ namespace HUDRA.Pages
                 if (buttonTop < PADDING)
                 {
                     double newOffset = currentOffset + buttonTop - PADDING;
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button above viewport - scrolling UP to offset {Math.Max(0, newOffset):F1}");
                     LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null, disableAnimation: false);
                 }
                 // If button is below viewport (needs to scroll down to see it)
                 else if (buttonBottom > viewportHeight - PADDING)
                 {
                     double newOffset = currentOffset + (buttonBottom - viewportHeight) + PADDING;
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button below viewport - scrolling DOWN to offset {newOffset:F1}");
                     LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: false);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button fully visible in viewport - no scroll needed");
                 }
             }
             catch (Exception ex)
