@@ -52,10 +52,11 @@ namespace HUDRA.Pages
                 await LoadGamesAsync();
             }
 
-            // Restore scroll position after layout is complete
+            // Restore scroll position FIRST, before any focus operations
             await RestoreScrollPositionAsync();
 
-            // Restore focused game if gamepad was being used
+            // Restore focused game if we have one saved
+            // This will prevent FocusFirstGameButton from being needed
             await RestoreFocusedGameAsync();
 
             // If scanning is already in progress, show the indicator
@@ -396,6 +397,13 @@ namespace HUDRA.Pages
         {
             try
             {
+                // Don't override if we already have a saved focus position
+                if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
+                {
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: Skipping FocusFirstGameButton - saved focus exists");
+                    return;
+                }
+
                 // Wait for buttons to be rendered and positioned
                 await Task.Delay(300);
 
@@ -403,8 +411,9 @@ namespace HUDRA.Pages
 
                 if (allButtons.Count > 0)
                 {
-                    // Focus the first button
+                    // Focus the first button WITHOUT scrolling to preserve scroll position
                     allButtons[0].Focus(FocusState.Programmatic);
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: Focused first game button");
                 }
             }
             catch (Exception ex)
@@ -515,6 +524,11 @@ namespace HUDRA.Pages
                 allButtons[targetIndex].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[targetIndex]);
             }
+            else
+            {
+                // Already at top row - scroll to absolute top to show header
+                LibraryScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+            }
         }
 
         private void NavigateDown()
@@ -539,6 +553,12 @@ namespace HUDRA.Pages
             {
                 allButtons[targetIndex].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[targetIndex]);
+            }
+            else
+            {
+                // Already at bottom row - scroll to absolute bottom to show game labels
+                double maxScroll = LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight;
+                LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
             }
         }
 
