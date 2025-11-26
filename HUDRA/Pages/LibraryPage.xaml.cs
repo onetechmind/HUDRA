@@ -175,10 +175,16 @@ namespace HUDRA.Pages
             if (sender is not Button button || button.Tag is not DetectedGame game)
                 return;
 
+            Border? overlay = null;
+
             try
             {
-                // Show launching indicator
-                ShowLaunchingIndicator(game.DisplayName);
+                // Find the launching overlay in this button's visual tree
+                overlay = FindTileLaunchingOverlay(button);
+                if (overlay != null)
+                {
+                    overlay.Visibility = Visibility.Visible;
+                }
 
                 // Launch the game
                 bool success = _gameLauncherService?.LaunchGame(game) ?? false;
@@ -190,24 +196,40 @@ namespace HUDRA.Pages
 
                 // Hide launching indicator after a delay
                 await Task.Delay(3000);
-                HideLaunchingIndicator();
+                if (overlay != null)
+                {
+                    overlay.Visibility = Visibility.Collapsed;
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error launching game: {ex.Message}");
-                HideLaunchingIndicator();
+                if (overlay != null)
+                {
+                    overlay.Visibility = Visibility.Collapsed;
+                }
             }
         }
 
-        private void ShowLaunchingIndicator(string gameName)
+        private Border? FindTileLaunchingOverlay(DependencyObject parent)
         {
-            LaunchingText.Text = $"Launching {gameName}...";
-            LaunchingIndicator.Visibility = Visibility.Visible;
-        }
+            int childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
 
-        private void HideLaunchingIndicator()
-        {
-            LaunchingIndicator.Visibility = Visibility.Collapsed;
+                if (child is Border border && border.Name == "TileLaunchingOverlay")
+                {
+                    return border;
+                }
+
+                var result = FindTileLaunchingOverlay(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
         }
 
         private void OnScanningStateChanged(object? sender, bool isScanning)

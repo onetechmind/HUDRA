@@ -121,43 +121,31 @@
                 </StackPanel>
             </Border>
 
-            <!-- Launching Indicator -->
-            <Border
-                x:Name="LaunchingIndicator"
-                Padding="15"
-                HorizontalAlignment="Center"
-                Background="#670195"
-                CornerRadius="12"
-                Visibility="Collapsed">
-                <TextBlock
-                    x:Name="LaunchingText"
-                    HorizontalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="14"
-                    FontWeight="SemiBold"
-                    Foreground="White"
-                    Text="Launching..." />
-            </Border>
-
             <!-- Game Grid -->
             <ItemsControl
                 x:Name="GamesItemsControl"
-                HorizontalAlignment="Center">
+                HorizontalAlignment="Center"
+                MaxWidth="320">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                        <StackPanel Spacing="15" />
+                        <ItemsWrapGrid
+                            MaximumRowsOrColumns="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center" />
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="models:DetectedGame">
-                        <StackPanel Spacing="8">
+                        <StackPanel Spacing="5" Margin="5">
                             <!-- Game Tile Button -->
                             <Button
-                                Width="280"
-                                Height="180"
+                                Width="145"
+                                Height="95"
                                 Click="GameTile_Click"
                                 Style="{StaticResource GameTileButtonStyle}"
-                                Tag="{x:Bind}">
+                                Tag="{x:Bind}"
+                                IsTabStop="True"
+                                TabIndex="0">
                                 <Grid>
                                     <!-- Artwork Image -->
                                     <Image
@@ -174,23 +162,48 @@
                                             HorizontalAlignment="Center"
                                             VerticalAlignment="Center"
                                             FontFamily="Cascadia Code"
-                                            FontSize="16"
+                                            FontSize="12"
                                             FontWeight="SemiBold"
                                             Foreground="White"
                                             Text="{x:Bind DisplayName, Mode=OneWay}"
                                             TextAlignment="Center"
                                             TextWrapping="Wrap"
-                                            Padding="10" />
+                                            Padding="8" />
+                                    </Border>
+
+                                    <!-- Launching Overlay -->
+                                    <Border
+                                        x:Name="TileLaunchingOverlay"
+                                        Background="#CC670195"
+                                        Visibility="Collapsed"
+                                        CornerRadius="12">
+                                        <StackPanel
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="5">
+                                            <ProgressRing
+                                                Width="24"
+                                                Height="24"
+                                                IsActive="True"
+                                                Foreground="White" />
+                                            <TextBlock
+                                                FontFamily="Cascadia Code"
+                                                FontSize="10"
+                                                FontWeight="SemiBold"
+                                                Foreground="White"
+                                                Text="Launching..."
+                                                TextAlignment="Center" />
+                                        </StackPanel>
                                     </Border>
                                 </Grid>
                             </Button>
 
                             <!-- Game Name Below Tile -->
                             <TextBlock
-                                Width="280"
+                                Width="145"
                                 HorizontalAlignment="Center"
                                 FontFamily="Cascadia Code"
-                                FontSize="13"
+                                FontSize="11"
                                 Foreground="White"
                                 Text="{x:Bind DisplayName, Mode=OneWay}"
                                 TextAlignment="Center"

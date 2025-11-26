@@ -74,8 +74,24 @@ namespace HUDRA.Services
                     return null;
                 }
 
-                // Get the first grid image
-                var gridImage = grids.First();
+                // Filter for best quality official artwork:
+                // 1. Prefer static (non-animated) images
+                // 2. Prefer images with "official" or no specific style tag
+                // 3. Prefer higher resolution images
+                var gridImage = grids
+                    .Where(g => !g.IsAnimated) // Static images only
+                    .OrderByDescending(g => g.Style?.ToLower() == "official" ? 2 : 0) // Official first
+                    .ThenByDescending(g => string.IsNullOrEmpty(g.Style) ? 1 : 0) // Then untagged
+                    .ThenByDescending(g => g.Width * g.Height) // Then by resolution
+                    .FirstOrDefault();
+
+                // Fallback to any grid if filtering returned nothing
+                if (gridImage == null)
+                {
+                    gridImage = grids.First();
+                }
+
+                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Selected grid - Style: {gridImage.Style ?? "default"}, Animated: {gridImage.IsAnimated}, Resolution: {gridImage.Width}x{gridImage.Height}");
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB: Downloading grid image from {gridImage.FullImageUrl}");
 
                 // Download the image
