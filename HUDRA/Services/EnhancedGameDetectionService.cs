@@ -136,6 +136,13 @@ namespace HUDRA.Services
                     {
                         foreach (var kvp in result.Games)
                         {
+                            // Skip non-game utilities
+                            if (IsExcludedUtility(kvp.Value.DisplayName))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility: {kvp.Value.DisplayName}");
+                                continue;
+                            }
+
                             if (!currentlyFoundGames.ContainsKey(kvp.Key))
                             {
                                 currentlyFoundGames[kvp.Key] = kvp.Value;
@@ -1244,6 +1251,24 @@ namespace HUDRA.Services
         }
 
         /// <summary>
+        /// Check if a game name matches a non-game utility that should be excluded
+        /// </summary>
+        private bool IsExcludedUtility(string displayName)
+        {
+            var excludedNames = new[]
+            {
+                "Steamworks Common Redistributables",
+                "Steam Linux Runtime",
+                "Proton",
+                "DirectX",
+                "Visual C++ Redistributable"
+            };
+
+            return excludedNames.Any(excluded =>
+                displayName.Contains(excluded, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
         /// Get all games from the database (public method for UI consumption)
         /// </summary>
         public async Task<IEnumerable<DetectedGame>> GetAllGamesAsync()
@@ -1261,29 +1286,8 @@ namespace HUDRA.Services
             try
             {
                 var games = await _gameDatabase.GetAllGamesAsync();
-
-                // Filter out non-game utilities (Steam redistributables, etc.)
-                var excludedNames = new[]
-                {
-                    "Steamworks Common Redistributables",
-                    "Steam Linux Runtime",
-                    "Proton",
-                    "DirectX",
-                    "Visual C++ Redistributable"
-                };
-
-                var filteredGames = games.Where(g =>
-                    !excludedNames.Any(excluded =>
-                        g.DisplayName.Contains(excluded, StringComparison.OrdinalIgnoreCase))).ToList();
-
-                int excludedCount = games.Count() - filteredGames.Count;
-                if (excludedCount > 0)
-                {
-                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Excluded {excludedCount} non-game utilities");
-                }
-
-                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {filteredGames.Count} games from database");
-                return filteredGames;
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {games.Count()} games from database");
+                return games;
             }
             catch (Exception ex)
             {
@@ -1312,15 +1316,24 @@ namespace HUDRA.Services
                 if (xboxProvider != null && xboxProvider.IsAvailable)
                 {
                     var newXboxGames = await xboxProvider.GetGamesAsync();
-                    
-                    // Save new Xbox games to database
+
+                    // Save new Xbox games to database (excluding non-game utilities)
+                    int savedCount = 0;
                     foreach (var game in newXboxGames.Values)
                     {
+                        // Skip non-game utilities
+                        if (IsExcludedUtility(game.DisplayName))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility during Xbox rescan: {game.DisplayName}");
+                            continue;
+                        }
+
                         _gameDatabase.SaveGame(game);
                         _cachedGames[game.ProcessName] = game;
+                        savedCount++;
                     }
-                    
-                    return newXboxGames.Count;
+
+                    return savedCount;
                 }
                 
                 return 0;
