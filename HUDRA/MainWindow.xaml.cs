@@ -582,20 +582,33 @@ namespace HUDRA
 
             try
             {
+                // Track if this navigation came from gamepad L1/R1
+                bool wasGamepadNav = _isGamepadNavForCurrentPage;
+
                 _libraryPage.Initialize(_enhancedGameDetectionService!);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
-                // After initialization, apply gamepad navigation focus consistent with current nav origin
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                // Library page uses dynamic buttons with XYFocus, not the standard gamepad navigation service
+                // We just need to ensure gamepad mode state is correct and focus the first button if needed
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, async () =>
                 {
-                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    // If not navigated via gamepad but gamepad was active, deactivate it
+                    if (!wasGamepadNav && _gamepadNavigationService.IsGamepadActive)
                     {
                         _gamepadNavigationService.DeactivateGamepadMode();
                     }
 
-                    if (_libraryPage?.LibraryRootPanel is FrameworkElement root)
+                    // If navigated via gamepad (L1/R1), activate gamepad mode and focus first button
+                    if (wasGamepadNav)
                     {
-                        _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                        _gamepadNavigationService.SetGamepadActive(true);
+
+                        // Wait for buttons to be fully rendered
+                        await Task.Delay(300);
+
+                        // Focus the first game button for gamepad navigation
+                        _libraryPage.FocusFirstGameButton();
+                        System.Diagnostics.Debug.WriteLine("=== Library page: Focused first button for gamepad ===");
                     }
 
                     _isGamepadNavForCurrentPage = false;

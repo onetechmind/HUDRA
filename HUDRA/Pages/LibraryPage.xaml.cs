@@ -154,10 +154,7 @@ namespace HUDRA.Pages
                 // Hide empty state
                 EmptyStatePanel.Visibility = Visibility.Collapsed;
 
-                // Auto-focus first game button for gamepad navigation (after a short delay for rendering)
-                await Task.Delay(100);
-                TryFocusFirstGameButton();
-
+                // Don't auto-focus here - MainWindow will handle it for gamepad navigation
                 System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync completed successfully");
             }
             catch (Exception ex)
@@ -361,14 +358,14 @@ namespace HUDRA.Pages
             return buttons;
         }
 
-        private void TryFocusFirstGameButton()
+        public void FocusFirstGameButton()
         {
             try
             {
                 var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
                 if (allButtons.Count > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button");
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button (found {allButtons.Count} buttons)");
                     allButtons[0].Focus(FocusState.Programmatic);
                 }
                 else
