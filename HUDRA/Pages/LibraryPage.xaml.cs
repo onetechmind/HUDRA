@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using Windows.Gaming.Input;
 
 namespace HUDRA.Pages
 {
@@ -24,6 +25,12 @@ namespace HUDRA.Pages
         private double _savedScrollOffset = 0;
         private string? _savedFocusedGameProcessName = null;
 
+        // Gamepad navigation
+        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _gamepadTimer;
+        private readonly HashSet<GamepadButtons> _pressedButtons = new();
+        private DateTime _lastInputTime = DateTime.MinValue;
+        private const double INPUT_REPEAT_DELAY_MS = 150;
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public LibraryPage()
@@ -33,12 +40,23 @@ namespace HUDRA.Pages
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
 
-            // Don't add Loaded event handler - use OnNavigatedTo instead
+            // Initialize gamepad timer for D-pad navigation
+            var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+            if (dispatcherQueue != null)
+            {
+                _gamepadTimer = dispatcherQueue.CreateTimer();
+                _gamepadTimer.Interval = TimeSpan.FromMilliseconds(16); // ~60 FPS
+                _gamepadTimer.Tick += OnGamepadTimerTick;
+            }
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            // Start gamepad polling for D-pad navigation
+            _gamepadTimer?.Start();
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Started gamepad polling");
 
             // Load games when navigating to this page
             // By this time, Initialize() should have been called by MainWindow
@@ -60,6 +78,10 @@ namespace HUDRA.Pages
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
+            // Stop gamepad polling
+            _gamepadTimer?.Stop();
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Stopped gamepad polling");
 
             // Save scroll position
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
@@ -376,6 +398,208 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error focusing first button: {ex.Message}");
+            }
+        }
+
+        private void OnGamepadTimerTick(object? sender, object e)
+        {
+            var gamepads = Gamepad.Gamepads;
+            if (gamepads.Count == 0) return;
+
+            try
+            {
+                var reading = gamepads[0].GetCurrentReading();
+                ProcessGamepadInput(reading);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error reading gamepad: {ex.Message}");
+            }
+        }
+
+        private void ProcessGamepadInput(GamepadReading reading)
+        {
+            // Check for new button presses
+            var newButtons = new List<GamepadButtons>();
+            foreach (GamepadButtons button in Enum.GetValues(typeof(GamepadButtons)))
+            {
+                if (reading.Buttons.HasFlag(button) && !_pressedButtons.Contains(button))
+                {
+                    newButtons.Add(button);
+                    _pressedButtons.Add(button);
+                }
+                else if (!reading.Buttons.HasFlag(button) && _pressedButtons.Contains(button))
+                {
+                    _pressedButtons.Remove(button);
+                }
+            }
+
+            // Check for repeat navigation
+            bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
+
+            // Handle D-pad navigation
+            if (newButtons.Contains(GamepadButtons.DPadUp) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadUp)))
+            {
+                NavigateUp();
+                _lastInputTime = DateTime.Now;
+            }
+            else if (newButtons.Contains(GamepadButtons.DPadDown) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadDown)))
+            {
+                NavigateDown();
+                _lastInputTime = DateTime.Now;
+            }
+            else if (newButtons.Contains(GamepadButtons.DPadLeft) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadLeft)))
+            {
+                NavigateLeft();
+                _lastInputTime = DateTime.Now;
+            }
+            else if (newButtons.Contains(GamepadButtons.DPadRight) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadRight)))
+            {
+                NavigateRight();
+                _lastInputTime = DateTime.Now;
+            }
+
+            // Handle A button to launch game
+            if (newButtons.Contains(GamepadButtons.A))
+            {
+                InvokeFocusedButton();
+            }
+
+            // Handle right analog stick for scrolling
+            if (Math.Abs(reading.RightThumbstickY) > 0.2)
+            {
+                ScrollWithAnalogStick(reading.RightThumbstickY);
+            }
+        }
+
+        private void NavigateUp()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0) return;
+
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton == null) return;
+
+            int currentIndex = allButtons.IndexOf(focusedButton);
+            // In a 2-column grid, move up 2 positions
+            int targetIndex = currentIndex - 2;
+            if (targetIndex >= 0)
+            {
+                allButtons[targetIndex].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[targetIndex]);
+            }
+        }
+
+        private void NavigateDown()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0) return;
+
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton == null) return;
+
+            int currentIndex = allButtons.IndexOf(focusedButton);
+            // In a 2-column grid, move down 2 positions
+            int targetIndex = currentIndex + 2;
+            if (targetIndex < allButtons.Count)
+            {
+                allButtons[targetIndex].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[targetIndex]);
+            }
+        }
+
+        private void NavigateLeft()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0) return;
+
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton == null) return;
+
+            int currentIndex = allButtons.IndexOf(focusedButton);
+            // Move left 1 position (only if not in first column)
+            if (currentIndex % 2 != 0) // If in second column
+            {
+                allButtons[currentIndex - 1].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[currentIndex - 1]);
+            }
+        }
+
+        private void NavigateRight()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0) return;
+
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton == null) return;
+
+            int currentIndex = allButtons.IndexOf(focusedButton);
+            // Move right 1 position (only if not in second column and next button exists)
+            if (currentIndex % 2 == 0 && currentIndex + 1 < allButtons.Count) // If in first column
+            {
+                allButtons[currentIndex + 1].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[currentIndex + 1]);
+            }
+        }
+
+        private Button? FindFocusedButton(List<Button> buttons)
+        {
+            var focusedElement = FocusManager.GetFocusedElement(this.XamlRoot);
+            foreach (var button in buttons)
+            {
+                if (button == focusedElement)
+                    return button;
+            }
+            return null;
+        }
+
+        private void InvokeFocusedButton()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton != null && focusedButton.Tag is DetectedGame game)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: A button pressed - launching {game.DisplayName}");
+                GameTile_Click(focusedButton, new RoutedEventArgs());
+            }
+        }
+
+        private void ScrollWithAnalogStick(double yValue)
+        {
+            // Invert Y axis (positive thumbstick = scroll up)
+            double scrollAmount = -yValue * 10;
+            double newOffset = LibraryScrollViewer.VerticalOffset + scrollAmount;
+            LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: true);
+        }
+
+        private void EnsureButtonVisible(Button button)
+        {
+            // Get button position relative to ScrollViewer
+            try
+            {
+                var transform = button.TransformToVisual(LibraryScrollViewer);
+                var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+
+                double viewportHeight = LibraryScrollViewer.ViewportHeight;
+                double buttonTop = position.Y;
+                double buttonBottom = buttonTop + button.ActualHeight;
+
+                // If button is above viewport, scroll up to show it
+                if (buttonTop < 0)
+                {
+                    double newOffset = LibraryScrollViewer.VerticalOffset + buttonTop - 20; // 20px padding
+                    LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null);
+                }
+                // If button is below viewport, scroll down to show it
+                else if (buttonBottom > viewportHeight)
+                {
+                    double newOffset = LibraryScrollViewer.VerticalOffset + (buttonBottom - viewportHeight) + 20; // 20px padding
+                    LibraryScrollViewer.ChangeView(null, newOffset, null);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error ensuring button visible: {ex.Message}");
             }
         }
 
