@@ -389,13 +389,18 @@ namespace HUDRA.Pages
                         var transform = b.TransformToVisual(GamesItemsControl);
                         var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
                         // Sort by Y position first (row), then X position (column)
-                        return position.Y * 10000 + position.X;
+                        double sortKey = position.Y * 10000 + position.X;
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Button at position Y={position.Y:F1}, X={position.X:F1}, sortKey={sortKey:F1}, Tag={((DetectedGame)b.Tag).DisplayName}");
+                        return sortKey;
                     }
-                    catch
+                    catch (Exception ex)
                     {
-                        return 0;
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Error getting button position: {ex.Message}");
+                        return double.MaxValue; // Put errored buttons at the end
                     }
                 }).ToList();
+
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Sorted {buttons.Count} buttons, first button: {((DetectedGame)buttons[0].Tag).DisplayName}");
             }
             catch (Exception ex)
             {
@@ -672,30 +677,36 @@ namespace HUDRA.Pages
 
         private void EnsureButtonVisible(Button button)
         {
-            // Get button position relative to ScrollViewer
+            // Get button position relative to ScrollViewer's viewport
             try
             {
                 var transform = button.TransformToVisual(LibraryScrollViewer);
                 var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
 
-                double viewportHeight = LibraryScrollViewer.ViewportHeight;
+                // Use ActualHeight as the visible viewport height (ViewportHeight can be unreliable)
+                double viewportHeight = LibraryScrollViewer.ActualHeight;
                 double currentOffset = LibraryScrollViewer.VerticalOffset;
                 double buttonTop = position.Y;
                 double buttonBottom = buttonTop + button.ActualHeight;
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - currentOffset: {currentOffset:F1}, buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}, viewportHeight: {viewportHeight:F1}");
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - ScrollViewer ActualHeight={viewportHeight:F1}, ViewportHeight={LibraryScrollViewer.ViewportHeight:F1}, ExtentHeight={LibraryScrollViewer.ExtentHeight:F1}");
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - currentOffset: {currentOffset:F1}, buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}");
 
                 // Add padding for better UX
                 const double PADDING = 20;
 
-                // If button is above viewport (or partially above), scroll up to show it
+                // Button position is relative to ScrollViewer viewport, so:
+                // - If buttonTop < 0, button is scrolled above the viewport
+                // - If buttonTop > viewportHeight, button is scrolled below the viewport
+
+                // If button is above viewport (scrolled up past the top)
                 if (buttonTop < PADDING)
                 {
                     double newOffset = currentOffset + buttonTop - PADDING;
                     System.Diagnostics.Debug.WriteLine($"LibraryPage: Button above viewport - scrolling UP to offset {Math.Max(0, newOffset):F1}");
                     LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null, disableAnimation: false);
                 }
-                // If button is below viewport (or partially below), scroll down to show it
+                // If button is below viewport (needs to scroll down to see it)
                 else if (buttonBottom > viewportHeight - PADDING)
                 {
                     double newOffset = currentOffset + (buttonBottom - viewportHeight) + PADDING;
@@ -704,7 +715,7 @@ namespace HUDRA.Pages
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button already fully visible - no scroll needed");
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button fully visible in viewport - no scroll needed");
                 }
             }
             catch (Exception ex)
