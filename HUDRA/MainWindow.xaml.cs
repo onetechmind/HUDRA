@@ -266,6 +266,8 @@ namespace HUDRA
                 _navigationService.NavigateToFanCurve();
             else if (targetPageType == typeof(ScalingPage))
                 _navigationService.NavigateToScaling();
+            else if (targetPageType == typeof(LibraryPage))
+                _navigationService.NavigateToLibrary();
             else if (targetPageType == typeof(SettingsPage))
                 _navigationService.NavigateToSettings();
         }
