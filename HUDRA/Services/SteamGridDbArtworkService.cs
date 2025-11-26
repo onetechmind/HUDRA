@@ -1,5 +1,5 @@
 using HUDRA.Models;
-using SteamGridDB;
+using craftersmine.SteamGridDBNet;
 using System;
 using System.IO;
 using System.Linq;
@@ -10,14 +10,14 @@ namespace HUDRA.Services
 {
     public class SteamGridDbArtworkService : IDisposable
     {
-        private readonly SteamGridDbClient _client;
+        private readonly SteamGridDb _client;
         private readonly string _artworkDirectory;
         private readonly HttpClient _httpClient;
         private bool _disposed = false;
 
         public SteamGridDbArtworkService(string apiKey)
         {
-            _client = new SteamGridDbClient(apiKey);
+            _client = new SteamGridDb(apiKey);
             _httpClient = new HttpClient();
 
             // Create artwork directory in HUDRA AppData folder
@@ -53,7 +53,7 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"SteamGridDB: Searching for artwork for {game.DisplayName}");
 
                 // Search for the game by name
-                var searchResults = await _client.SearchGamesAsync(game.DisplayName);
+                var searchResults = await _client.SearchForGamesAsync(game.DisplayName);
 
                 if (searchResults == null || !searchResults.Any())
                 {
@@ -63,10 +63,10 @@ namespace HUDRA.Services
 
                 // Get the first matching game
                 var steamGridGame = searchResults.First();
-                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Found game: {steamGridGame.Name} (ID: {steamGridGame.GameId})");
+                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Found game: {steamGridGame.Name} (ID: {steamGridGame.Id})");
 
                 // Get grid images for this game
-                var grids = await _client.GetGridsByGameIdAsync(steamGridGame.GameId);
+                var grids = await _client.GetGridsByGameIdAsync(steamGridGame.Id);
 
                 if (grids == null || !grids.Any())
                 {
