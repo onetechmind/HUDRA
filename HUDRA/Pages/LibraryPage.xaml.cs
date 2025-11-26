@@ -298,26 +298,25 @@ namespace HUDRA.Pages
 
         private async Task RestoreScrollPositionAsync()
         {
-            if (_savedScrollOffset > 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Restoring scroll offset: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: RestoreScrollPosition called with offset: {_savedScrollOffset}");
 
-                // Force layout update
-                LibraryScrollViewer.UpdateLayout();
+            // Always try to restore, even if offset is 0
+            // Force layout update first
+            LibraryScrollViewer.UpdateLayout();
 
-                // Wait for layout to complete before restoring scroll position
-                await Task.Delay(200);
+            // Wait for layout to complete
+            await Task.Delay(300);
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: ScrollViewer ExtentHeight: {LibraryScrollViewer.ExtentHeight}, ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Before restore - ExtentHeight: {LibraryScrollViewer.ExtentHeight}, ViewportHeight: {LibraryScrollViewer.ViewportHeight}, CurrentOffset: {LibraryScrollViewer.VerticalOffset}");
 
-                // Restore the scroll position
-                bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: ChangeView returned: {success}, Current offset after restore: {LibraryScrollViewer.VerticalOffset}");
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: No saved scroll offset to restore");
-            }
+            // Restore the scroll position
+            bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
+
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: ChangeView({_savedScrollOffset}) returned: {success}");
+
+            // Verify restoration worked
+            await Task.Delay(100);
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: After restore - Current offset: {LibraryScrollViewer.VerticalOffset}");
         }
 
         private async Task RestoreFocusedGameAsync()
@@ -378,6 +377,29 @@ namespace HUDRA.Pages
 
                 // Recursively search children
                 buttons.AddRange(FindAllGameButtonsInVisualTree(child));
+            }
+
+            // Sort buttons by position (top-to-bottom, left-to-right) to ensure correct navigation order
+            try
+            {
+                buttons = buttons.OrderBy(b =>
+                {
+                    try
+                    {
+                        var transform = b.TransformToVisual(GamesItemsControl);
+                        var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+                        // Sort by Y position first (row), then X position (column)
+                        return position.Y * 10000 + position.X;
+                    }
+                    catch
+                    {
+                        return 0;
+                    }
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error sorting buttons: {ex.Message}");
             }
 
             return buttons;
@@ -442,26 +464,38 @@ namespace HUDRA.Pages
             // Check for repeat navigation
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
-            // Handle D-pad navigation
-            if (newButtons.Contains(GamepadButtons.DPadUp) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadUp)))
+            // Track if we navigated (to prevent scroll conflict)
+            bool navigated = false;
+
+            // Handle D-pad AND left analog stick navigation (both new presses and repeats)
+            if (newButtons.Contains(GamepadButtons.DPadUp) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadUp)) ||
+                (shouldProcessRepeats && reading.LeftThumbstickY > 0.7))
             {
                 NavigateUp();
                 _lastInputTime = DateTime.Now;
+                navigated = true;
             }
-            else if (newButtons.Contains(GamepadButtons.DPadDown) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadDown)))
+            else if (newButtons.Contains(GamepadButtons.DPadDown) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadDown)) ||
+                     (shouldProcessRepeats && reading.LeftThumbstickY < -0.7))
             {
                 NavigateDown();
                 _lastInputTime = DateTime.Now;
+                navigated = true;
             }
-            else if (newButtons.Contains(GamepadButtons.DPadLeft) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadLeft)))
+
+            if (newButtons.Contains(GamepadButtons.DPadLeft) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadLeft)) ||
+                (shouldProcessRepeats && reading.LeftThumbstickX < -0.7))
             {
                 NavigateLeft();
                 _lastInputTime = DateTime.Now;
+                navigated = true;
             }
-            else if (newButtons.Contains(GamepadButtons.DPadRight) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadRight)))
+            else if (newButtons.Contains(GamepadButtons.DPadRight) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadRight)) ||
+                     (shouldProcessRepeats && reading.LeftThumbstickX > 0.7))
             {
                 NavigateRight();
                 _lastInputTime = DateTime.Now;
+                navigated = true;
             }
 
             // Handle A button to launch game
@@ -470,8 +504,8 @@ namespace HUDRA.Pages
                 InvokeFocusedButton();
             }
 
-            // Handle right analog stick for scrolling
-            if (Math.Abs(reading.RightThumbstickY) > 0.2)
+            // Handle right analog stick for scrolling (only when not navigating with left stick)
+            if (!navigated && Math.Abs(reading.RightThumbstickY) > 0.2)
             {
                 ScrollWithAnalogStick(reading.RightThumbstickY);
             }
@@ -645,24 +679,32 @@ namespace HUDRA.Pages
                 var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
 
                 double viewportHeight = LibraryScrollViewer.ViewportHeight;
+                double currentOffset = LibraryScrollViewer.VerticalOffset;
                 double buttonTop = position.Y;
                 double buttonBottom = buttonTop + button.ActualHeight;
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}, viewportHeight: {viewportHeight:F1}");
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - currentOffset: {currentOffset:F1}, buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}, viewportHeight: {viewportHeight:F1}");
 
-                // If button is above viewport, scroll up to show it
-                if (buttonTop < 0)
+                // Add padding for better UX
+                const double PADDING = 20;
+
+                // If button is above viewport (or partially above), scroll up to show it
+                if (buttonTop < PADDING)
                 {
-                    double newOffset = LibraryScrollViewer.VerticalOffset + buttonTop - 20; // 20px padding
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Scrolling up to offset {Math.Max(0, newOffset):F1}");
-                    LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null);
+                    double newOffset = currentOffset + buttonTop - PADDING;
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button above viewport - scrolling UP to offset {Math.Max(0, newOffset):F1}");
+                    LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null, disableAnimation: false);
                 }
-                // If button is below viewport, scroll down to show it
-                else if (buttonBottom > viewportHeight)
+                // If button is below viewport (or partially below), scroll down to show it
+                else if (buttonBottom > viewportHeight - PADDING)
                 {
-                    double newOffset = LibraryScrollViewer.VerticalOffset + (buttonBottom - viewportHeight) + 20; // 20px padding
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Scrolling down to offset {newOffset:F1}");
-                    LibraryScrollViewer.ChangeView(null, newOffset, null);
+                    double newOffset = currentOffset + (buttonBottom - viewportHeight) + PADDING;
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button below viewport - scrolling DOWN to offset {newOffset:F1}");
+                    LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: false);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Button already fully visible - no scroll needed");
                 }
             }
             catch (Exception ex)
