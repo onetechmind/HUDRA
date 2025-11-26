@@ -222,12 +222,15 @@ namespace HUDRA
             _isGamepadNavForCurrentPage = _isGamepadPageNavPending;
             _isGamepadPageNavPending = false;
 
-            // Resume gamepad input processing when leaving Library page
+            // Save state and resume gamepad input processing when leaving Library page
             // (Library pauses it to allow native XYFocus to work)
             if (_currentPageType == typeof(LibraryPage) && pageType != typeof(LibraryPage))
             {
+                // Save scroll position before leaving (OnNavigatedFrom may not fire due to page caching)
+                _libraryPage?.SaveScrollPosition();
+
                 _gamepadNavigationService.ResumeInputProcessing();
-                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - resumed GamepadNavigationService");
+                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - saved scroll position and resumed GamepadNavigationService");
             }
 
             _currentPageType = pageType;

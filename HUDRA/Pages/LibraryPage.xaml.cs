@@ -73,12 +73,29 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedFrom(e);
 
+            // Save state when navigating away
+            SaveScrollPosition();
+
             // Unsubscribe from raw gamepad input
             if (_gamepadNavigationService != null)
             {
                 _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
+            // Unsubscribe from events to prevent memory leaks
+            if (_gameDetectionService != null)
+            {
+                _gameDetectionService.ScanningStateChanged -= OnScanningStateChanged;
+                _gameDetectionService.ScanProgressChanged -= OnScanProgressChanged;
+            }
+        }
+
+        /// <summary>
+        /// Saves the current scroll position and focused game. Called when navigating away from the page.
+        /// This is public so it can be called from MainWindow when page caching prevents OnNavigatedFrom from firing.
+        /// </summary>
+        public void SaveScrollPosition()
+        {
             // Save scroll position
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
 
@@ -98,12 +115,7 @@ namespace HUDRA.Pages
                 }
             }
 
-            // Unsubscribe from events to prevent memory leaks
-            if (_gameDetectionService != null)
-            {
-                _gameDetectionService.ScanningStateChanged -= OnScanningStateChanged;
-                _gameDetectionService.ScanProgressChanged -= OnScanProgressChanged;
-            }
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: SaveScrollPosition - saved offset={_savedScrollOffset}, focused game={_savedFocusedGameProcessName}");
         }
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService)
@@ -589,10 +601,8 @@ namespace HUDRA.Pages
                 LibraryScrollViewer.UpdateLayout();
                 double maxScroll = Math.Max(0, LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight);
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: At bottom edge - scrolling to bottom (currentIndex={currentIndex}, ExtentHeight={LibraryScrollViewer.ExtentHeight}, ViewportHeight={LibraryScrollViewer.ViewportHeight}, maxScroll={maxScroll})");
-                if (maxScroll > 0)
-                {
-                    LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
-                }
+                // Always try to scroll to bottom (ChangeView will clamp to valid range)
+                LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
             }
         }
 
