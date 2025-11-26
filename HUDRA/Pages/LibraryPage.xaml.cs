@@ -25,6 +25,7 @@ namespace HUDRA.Pages
         // State preservation
         private double _savedScrollOffset = 0;
         private string? _savedFocusedGameProcessName = null;
+        private bool _gamesLoaded = false;
 
         // Gamepad navigation
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
@@ -47,9 +48,11 @@ namespace HUDRA.Pages
 
             System.Diagnostics.Debug.WriteLine("LibraryPage: OnNavigatedTo called");
 
-            // Load games when navigating to this page
-            // By this time, Initialize() should have been called by MainWindow
-            await LoadGamesAsync();
+            // Only load games if not already loaded (to preserve scroll position)
+            if (!_gamesLoaded)
+            {
+                await LoadGamesAsync();
+            }
 
             // Restore scroll position after layout is complete
             await RestoreScrollPositionAsync();
@@ -172,6 +175,9 @@ namespace HUDRA.Pages
 
                 // Hide empty state
                 EmptyStatePanel.Visibility = Visibility.Collapsed;
+
+                // Mark games as loaded
+                _gamesLoaded = true;
 
                 // Don't auto-focus here - MainWindow will handle it for gamepad navigation
                 System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync completed successfully");
@@ -567,7 +573,11 @@ namespace HUDRA.Pages
         {
             // Invert Y axis (positive thumbstick = scroll up)
             double scrollAmount = -yValue * 10;
-            double newOffset = LibraryScrollViewer.VerticalOffset + scrollAmount;
+            double currentOffset = LibraryScrollViewer.VerticalOffset;
+            double newOffset = currentOffset + scrollAmount;
+
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Analog scroll - yValue: {yValue:F2}, scrollAmount: {scrollAmount:F2}, current: {currentOffset:F1}, new: {newOffset:F1}");
+
             LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: true);
         }
 
@@ -583,16 +593,20 @@ namespace HUDRA.Pages
                 double buttonTop = position.Y;
                 double buttonBottom = buttonTop + button.ActualHeight;
 
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: EnsureVisible - buttonTop: {buttonTop:F1}, buttonBottom: {buttonBottom:F1}, viewportHeight: {viewportHeight:F1}");
+
                 // If button is above viewport, scroll up to show it
                 if (buttonTop < 0)
                 {
                     double newOffset = LibraryScrollViewer.VerticalOffset + buttonTop - 20; // 20px padding
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Scrolling up to offset {Math.Max(0, newOffset):F1}");
                     LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null);
                 }
                 // If button is below viewport, scroll down to show it
                 else if (buttonBottom > viewportHeight)
                 {
                     double newOffset = LibraryScrollViewer.VerticalOffset + (buttonBottom - viewportHeight) + 20; // 20px padding
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Scrolling down to offset {newOffset:F1}");
                     LibraryScrollViewer.ChangeView(null, newOffset, null);
                 }
             }

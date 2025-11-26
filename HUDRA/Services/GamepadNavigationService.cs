@@ -202,10 +202,30 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
-            // If input processing is paused, forward raw input to subscribers (e.g., Library page)
+            // If input processing is paused, check for shoulder buttons first (for page navigation)
+            // Then forward remaining input to subscribers (e.g., Library page)
             if (_inputProcessingPaused)
             {
+                // Still handle shoulder buttons for page navigation even when paused
+                var newButtons = GetNewlyPressedButtons(reading.Buttons);
+
+                if (newButtons.Contains(GamepadButtons.LeftShoulder))
+                {
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+
+                if (newButtons.Contains(GamepadButtons.RightShoulder))
+                {
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+
+                // Forward all other input to subscribers
                 RawGamepadInput?.Invoke(this, reading);
+                UpdatePressedButtonsState(reading.Buttons);
                 return;
             }
 
