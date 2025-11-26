@@ -125,7 +125,9 @@
             <ItemsControl
                 x:Name="GamesItemsControl"
                 HorizontalAlignment="Center"
-                MaxWidth="320">
+                MaxWidth="320"
+                XYFocusKeyboardNavigation="Enabled"
+                TabNavigation="Once">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
                         <ItemsWrapGrid

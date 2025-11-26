@@ -154,6 +154,10 @@ namespace HUDRA.Pages
                 // Hide empty state
                 EmptyStatePanel.Visibility = Visibility.Collapsed;
 
+                // Auto-focus first game button for gamepad navigation (after a short delay for rendering)
+                await Task.Delay(100);
+                TryFocusFirstGameButton();
+
                 System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync completed successfully");
             }
             catch (Exception ex)
@@ -276,11 +280,21 @@ namespace HUDRA.Pages
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Restoring scroll offset: {_savedScrollOffset}");
 
+                // Force layout update
+                LibraryScrollViewer.UpdateLayout();
+
                 // Wait for layout to complete before restoring scroll position
-                await Task.Delay(50);
+                await Task.Delay(200);
+
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: ScrollViewer ExtentHeight: {LibraryScrollViewer.ExtentHeight}, ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
 
                 // Restore the scroll position
-                LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
+                bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: ChangeView returned: {success}, Current offset after restore: {LibraryScrollViewer.VerticalOffset}");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: No saved scroll offset to restore");
             }
         }
 
@@ -345,6 +359,27 @@ namespace HUDRA.Pages
             }
 
             return buttons;
+        }
+
+        private void TryFocusFirstGameButton()
+        {
+            try
+            {
+                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+                if (allButtons.Count > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting focus to first game button");
+                    allButtons[0].Focus(FocusState.Programmatic);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No game buttons found to focus");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error focusing first button: {ex.Message}");
+            }
         }
 
         private void OnPropertyChanged(string propertyName)
