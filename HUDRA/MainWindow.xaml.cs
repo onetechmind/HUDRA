@@ -589,24 +589,21 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
                 // Library page uses dynamic buttons with XYFocus, not the standard gamepad navigation service
-                // We just need to ensure gamepad mode state is correct and focus the first button if needed
+                // CRITICAL: Deactivate gamepad navigation service so D-pad input flows through to XYFocus
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, async () =>
                 {
-                    // If not navigated via gamepad but gamepad was active, deactivate it
-                    if (!wasGamepadNav && _gamepadNavigationService.IsGamepadActive)
-                    {
-                        _gamepadNavigationService.DeactivateGamepadMode();
-                    }
+                    // Always deactivate the custom gamepad navigation service for Library page
+                    // This allows native WinUI XYFocus to handle D-pad navigation
+                    _gamepadNavigationService.DeactivateGamepadMode();
+                    System.Diagnostics.Debug.WriteLine("=== Library page: Deactivated GamepadNavigationService for XYFocus ===");
 
-                    // If navigated via gamepad (L1/R1), activate gamepad mode and focus first button
+                    // If navigated via gamepad (L1/R1), focus first button after a delay
                     if (wasGamepadNav)
                     {
-                        _gamepadNavigationService.SetGamepadActive(true);
-
                         // Wait for buttons to be fully rendered
                         await Task.Delay(300);
 
-                        // Focus the first game button for gamepad navigation
+                        // Focus the first game button for immediate gamepad navigation
                         _libraryPage.FocusFirstGameButton();
                         System.Diagnostics.Debug.WriteLine("=== Library page: Focused first button for gamepad ===");
                     }
