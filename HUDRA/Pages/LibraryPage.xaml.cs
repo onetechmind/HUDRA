@@ -38,6 +38,24 @@ namespace HUDRA.Pages
             // Load games when navigating to this page
             // By this time, Initialize() should have been called by MainWindow
             await LoadGamesAsync();
+
+            // If scanning is already in progress, show the indicator
+            if (_gameDetectionService != null && _gameDetectionService.IsScanning)
+            {
+                ShowScanProgress("Scanning...");
+            }
+        }
+
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+
+            // Unsubscribe from events to prevent memory leaks
+            if (_gameDetectionService != null)
+            {
+                _gameDetectionService.ScanningStateChanged -= OnScanningStateChanged;
+                _gameDetectionService.ScanProgressChanged -= OnScanProgressChanged;
+            }
         }
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService)
@@ -45,8 +63,18 @@ namespace HUDRA.Pages
             _gameDetectionService = gameDetectionService;
             System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection service");
 
+            // Subscribe to scan events for reactive updates
+            _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
+            _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
+
             // Load games immediately after initialization
             await LoadGamesAsync();
+
+            // If scanning is already in progress, show the indicator
+            if (_gameDetectionService.IsScanning)
+            {
+                ShowScanProgress("Scanning...");
+            }
         }
 
         private async Task LoadGamesAsync()
@@ -148,6 +176,44 @@ namespace HUDRA.Pages
         private void HideLaunchingIndicator()
         {
             LaunchingIndicator.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnScanningStateChanged(object? sender, bool isScanning)
+        {
+            // Update UI on the UI thread
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (isScanning)
+                {
+                    ShowScanProgress("Scanning...");
+                }
+                else
+                {
+                    HideScanProgress();
+                    // Scan completed - refresh the game list
+                    _ = LoadGamesAsync();
+                }
+            });
+        }
+
+        private void OnScanProgressChanged(object? sender, string progress)
+        {
+            // Update progress text on the UI thread
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                ShowScanProgress(progress);
+            });
+        }
+
+        private void ShowScanProgress(string message)
+        {
+            ScanProgressText.Text = message;
+            ScanProgressIndicator.Visibility = Visibility.Visible;
+        }
+
+        private void HideScanProgress()
+        {
+            ScanProgressIndicator.Visibility = Visibility.Collapsed;
         }
 
         private void OnPropertyChanged(string propertyName)

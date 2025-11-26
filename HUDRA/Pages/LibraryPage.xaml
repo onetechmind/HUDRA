@@ -92,6 +92,32 @@
                     Text="LIBRARY" />
             </Border>
 
+            <!-- Scan Progress Indicator -->
+            <Border
+                x:Name="ScanProgressIndicator"
+                Padding="12,10"
+                HorizontalAlignment="Center"
+                Background="#2d2d2d"
+                BorderBrush="#670195"
+                BorderThickness="1"
+                CornerRadius="10"
+                Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                    <ProgressRing
+                        Width="20"
+                        Height="20"
+                        IsActive="True"
+                        Foreground="#670195" />
+                    <TextBlock
+                        x:Name="ScanProgressText"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Foreground="#CCCCCC"
+                        Text="Scanning..." />
+                </StackPanel>
+            </Border>
+
             <!-- Launching Indicator -->
             <Border
                 x:Name="LaunchingIndicator"
