@@ -252,6 +252,18 @@ namespace HUDRA.Services
                     _rightTriggerPressed = false;
                 }
 
+                // Handle A button to invoke selected navbar button (if one is selected)
+                if (pausedNewButtons.Contains(GamepadButtons.A))
+                {
+                    if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
+                    {
+                        InvokeSelectedNavbarButton();
+                        UpdatePressedButtonsState(reading.Buttons);
+                        return; // Don't forward this input
+                    }
+                    // If no navbar button selected, forward A button to page (will invoke focused game)
+                }
+
                 // Forward all other input to subscribers
                 RawGamepadInput?.Invoke(this, reading);
                 UpdatePressedButtonsState(reading.Buttons);
