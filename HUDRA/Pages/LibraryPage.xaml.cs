@@ -400,7 +400,14 @@ namespace HUDRA.Pages
                     }
                 }).ToList();
 
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Sorted {buttons.Count} buttons, first button: {((DetectedGame)buttons[0].Tag).DisplayName}");
+                if (buttons.Count > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Sorted {buttons.Count} buttons, first button: {((DetectedGame)buttons[0].Tag).DisplayName}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: No buttons found to sort");
+                }
             }
             catch (Exception ex)
             {
