@@ -287,52 +287,42 @@ namespace HUDRA.Pages
 
         private Button? FindGameButton(string processName)
         {
-            // Iterate through the games in the ItemsControl to find the matching button
-            if (GamesItemsControl.ItemsSource is IEnumerable<DetectedGame> games)
+            // Search through the visual tree to find all game buttons
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+
+            // Find the button with matching ProcessName
+            foreach (var button in allButtons)
             {
-                int index = 0;
-                foreach (var game in games)
+                if (button.Tag is DetectedGame game &&
+                    game.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (game.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Try to get the container for this item
-                        var container = GamesItemsControl.ItemsSourceView?.GetAt(index);
-                        if (container != null)
-                        {
-                            // Find the button in the visual tree
-                            var button = FindButtonInVisualTree(GamesItemsControl);
-                            if (button != null && button.Tag is DetectedGame taggedGame &&
-                                taggedGame.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
-                            {
-                                return button;
-                            }
-                        }
-                    }
-                    index++;
+                    return button;
                 }
             }
+
             return null;
         }
 
-        private Button? FindButtonInVisualTree(DependencyObject parent)
+        private List<Button> FindAllGameButtonsInVisualTree(DependencyObject parent)
         {
+            var buttons = new List<Button>();
             int childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+
             for (int i = 0; i < childCount; i++)
             {
                 var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
 
+                // If this is a game button, add it to the list
                 if (child is Button button && button.Tag is DetectedGame)
                 {
-                    return button;
+                    buttons.Add(button);
                 }
 
-                var result = FindButtonInVisualTree(child);
-                if (result != null)
-                {
-                    return result;
-                }
+                // Recursively search children
+                buttons.AddRange(FindAllGameButtonsInVisualTree(child));
             }
-            return null;
+
+            return buttons;
         }
 
         private void OnPropertyChanged(string propertyName)
