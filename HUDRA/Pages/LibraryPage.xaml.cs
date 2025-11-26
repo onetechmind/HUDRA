@@ -24,28 +24,29 @@ namespace HUDRA.Pages
         public LibraryPage()
         {
             this.InitializeComponent();
-            this.Loaded += LibraryPage_Loaded;
 
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
-        }
 
-        private async void LibraryPage_Loaded(object sender, RoutedEventArgs e)
-        {
-            await LoadGamesAsync();
+            // Don't add Loaded event handler - use OnNavigatedTo instead
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            // Reload games every time we navigate to this page
+            // Load games when navigating to this page
+            // By this time, Initialize() should have been called by MainWindow
             await LoadGamesAsync();
         }
 
-        public void Initialize(EnhancedGameDetectionService gameDetectionService)
+        public async void Initialize(EnhancedGameDetectionService gameDetectionService)
         {
             _gameDetectionService = gameDetectionService;
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection service");
+
+            // Load games immediately after initialization
+            await LoadGamesAsync();
         }
 
         private async Task LoadGamesAsync()
