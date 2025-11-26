@@ -46,18 +46,21 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedTo(e);
 
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: OnNavigatedTo - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}");
+
             // Only load games if not already loaded (to preserve scroll position)
             if (!_gamesLoaded)
             {
                 await LoadGamesAsync();
             }
 
-            // Restore scroll position FIRST, before any focus operations
-            await RestoreScrollPositionAsync();
-
-            // Restore focused game if we have one saved
-            // This will prevent FocusFirstGameButton from being needed
+            // Restore focused game first (if any) - this may scroll
             await RestoreFocusedGameAsync();
+
+            // THEN restore scroll position to override any focus-induced scrolling
+            // Wait a bit for focus to settle before restoring scroll
+            await Task.Delay(200);
+            await RestoreScrollPositionAsync();
 
             // If scanning is already in progress, show the indicator
             if (_gameDetectionService != null && _gameDetectionService.IsScanning)
@@ -318,6 +321,8 @@ namespace HUDRA.Pages
         {
             if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
             {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: RestoreFocusedGameAsync - Restoring focus to: {_savedFocusedGameProcessName}");
+
                 // Wait for UI to be fully rendered
                 await Task.Delay(100);
 
@@ -325,8 +330,17 @@ namespace HUDRA.Pages
                 var gameButton = FindGameButton(_savedFocusedGameProcessName);
                 if (gameButton != null)
                 {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Found button, focusing it (this may scroll)");
                     gameButton.Focus(FocusState.Programmatic);
                 }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Could not find button for {_savedFocusedGameProcessName}");
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: No saved focus to restore");
             }
         }
 
@@ -527,6 +541,7 @@ namespace HUDRA.Pages
             else
             {
                 // Already at top row - scroll to absolute top to show header
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: At top edge - scrolling to top (currentIndex={currentIndex})");
                 LibraryScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
             }
         }
@@ -558,6 +573,7 @@ namespace HUDRA.Pages
             {
                 // Already at bottom row - scroll to absolute bottom to show game labels
                 double maxScroll = LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight;
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: At bottom edge - scrolling to bottom (currentIndex={currentIndex}, maxScroll={maxScroll})");
                 LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
             }
         }
