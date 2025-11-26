@@ -483,7 +483,14 @@ namespace HUDRA.Pages
             if (allButtons.Count == 0) return;
 
             var focusedButton = FindFocusedButton(allButtons);
-            if (focusedButton == null) return;
+
+            // If no button is focused, focus the first button
+            if (focusedButton == null)
+            {
+                allButtons[0].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[0]);
+                return;
+            }
 
             int currentIndex = allButtons.IndexOf(focusedButton);
             // In a 2-column grid, move up 2 positions
@@ -501,7 +508,14 @@ namespace HUDRA.Pages
             if (allButtons.Count == 0) return;
 
             var focusedButton = FindFocusedButton(allButtons);
-            if (focusedButton == null) return;
+
+            // If no button is focused, focus the first button
+            if (focusedButton == null)
+            {
+                allButtons[0].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[0]);
+                return;
+            }
 
             int currentIndex = allButtons.IndexOf(focusedButton);
             // In a 2-column grid, move down 2 positions
@@ -519,14 +533,33 @@ namespace HUDRA.Pages
             if (allButtons.Count == 0) return;
 
             var focusedButton = FindFocusedButton(allButtons);
-            if (focusedButton == null) return;
+
+            // If no button is focused, focus the first button
+            if (focusedButton == null)
+            {
+                allButtons[0].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[0]);
+                return;
+            }
 
             int currentIndex = allButtons.IndexOf(focusedButton);
-            // Move left 1 position (only if not in first column)
-            if (currentIndex % 2 != 0) // If in second column
+
+            // Left: move left in same row, or wrap to right column of previous row
+            if (currentIndex % 2 != 0) // If in second column (right)
             {
+                // Move left to first column (same row)
                 allButtons[currentIndex - 1].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[currentIndex - 1]);
+            }
+            else // If in first column (left)
+            {
+                // Wrap to second column of previous row
+                int targetIndex = currentIndex - 1;
+                if (targetIndex >= 0)
+                {
+                    allButtons[targetIndex].Focus(FocusState.Programmatic);
+                    EnsureButtonVisible(allButtons[targetIndex]);
+                }
             }
         }
 
@@ -536,14 +569,36 @@ namespace HUDRA.Pages
             if (allButtons.Count == 0) return;
 
             var focusedButton = FindFocusedButton(allButtons);
-            if (focusedButton == null) return;
+
+            // If no button is focused, focus the first button
+            if (focusedButton == null)
+            {
+                allButtons[0].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(allButtons[0]);
+                return;
+            }
 
             int currentIndex = allButtons.IndexOf(focusedButton);
-            // Move right 1 position (only if not in second column and next button exists)
-            if (currentIndex % 2 == 0 && currentIndex + 1 < allButtons.Count) // If in first column
+
+            // Right: move right in same row, or wrap to left column of next row
+            if (currentIndex % 2 == 0) // If in first column (left)
             {
-                allButtons[currentIndex + 1].Focus(FocusState.Programmatic);
-                EnsureButtonVisible(allButtons[currentIndex + 1]);
+                // Move right to second column if it exists (same row)
+                if (currentIndex + 1 < allButtons.Count)
+                {
+                    allButtons[currentIndex + 1].Focus(FocusState.Programmatic);
+                    EnsureButtonVisible(allButtons[currentIndex + 1]);
+                }
+            }
+            else // If in second column (right)
+            {
+                // Wrap to first column of next row
+                int targetIndex = currentIndex + 1;
+                if (targetIndex < allButtons.Count)
+                {
+                    allButtons[targetIndex].Focus(FocusState.Programmatic);
+                    EnsureButtonVisible(allButtons[targetIndex]);
+                }
             }
         }
 
