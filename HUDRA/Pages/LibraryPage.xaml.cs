@@ -396,55 +396,15 @@ namespace HUDRA.Pages
         {
             try
             {
-                // Wait for layout and ensure buttons are properly positioned
-                // Keep checking until we get a stable sorted list
-                List<Button>? allButtons = null;
-                string? firstGameName = null;
+                // Wait for buttons to be rendered and positioned
+                await Task.Delay(300);
 
-                // Retry up to 10 times, waiting for buttons to stabilize
-                for (int attempt = 0; attempt < 10; attempt++)
+                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+
+                if (allButtons.Count > 0)
                 {
-                    await Task.Delay(100);
-                    GamesItemsControl.UpdateLayout();
-                    await Task.Delay(50);
-
-                    allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
-
-                    if (allButtons.Count > 0)
-                    {
-                        var game = allButtons[0].Tag as DetectedGame;
-                        var currentFirstName = game?.DisplayName;
-
-                        // Check if the sort order is stable (same first button as last check)
-                        if (currentFirstName == firstGameName && attempt > 2)
-                        {
-                            System.Diagnostics.Debug.WriteLine($"LibraryPage: Button order stabilized after {attempt + 1} attempts");
-                            break;
-                        }
-
-                        firstGameName = currentFirstName;
-                    }
-                }
-
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: FocusFirstGameButton found {allButtons?.Count ?? 0} buttons");
-
-                if (allButtons != null && allButtons.Count > 0)
-                {
-                    // Log first 3 buttons to see the sort order
-                    for (int i = 0; i < Math.Min(3, allButtons.Count); i++)
-                    {
-                        var game = allButtons[i].Tag as DetectedGame;
-                        System.Diagnostics.Debug.WriteLine($"LibraryPage:   Button[{i}] = {game?.DisplayName}");
-                    }
-
                     // Focus the first button
-                    var firstGame = allButtons[0].Tag as DetectedGame;
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempting to focus: {firstGame?.DisplayName}");
-                    bool focusResult = allButtons[0].Focus(FocusState.Programmatic);
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Focus() returned: {focusResult}");
-
-                    // Force the button to bring itself into view to ensure it's visible
-                    allButtons[0].StartBringIntoView();
+                    allButtons[0].Focus(FocusState.Programmatic);
                 }
             }
             catch (Exception ex)
