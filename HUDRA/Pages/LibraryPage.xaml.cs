@@ -30,7 +30,7 @@ namespace HUDRA.Pages
         // Gamepad navigation
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
         private DateTime _lastInputTime = DateTime.MinValue;
-        private const double INPUT_REPEAT_DELAY_MS = 50;
+        private const double INPUT_REPEAT_DELAY_MS = 150;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -374,22 +374,11 @@ namespace HUDRA.Pages
         {
             try
             {
-                // Wait for buttons to be rendered in the visual tree
-                // Don't wait for ALL buttons since some may be virtualized/outside viewport
-                List<Button>? allButtons = null;
+                // Wait for buttons to be rendered and properly positioned
+                // Give the UI time to layout all buttons to ensure we get the actual top-left one
+                await Task.Delay(300);
 
-                for (int attempt = 0; attempt < 5; attempt++)
-                {
-                    allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
-
-                    // Just need at least one button to focus
-                    if (allButtons.Count > 0)
-                    {
-                        break;
-                    }
-
-                    await Task.Delay(50);
-                }
+                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
 
                 if (allButtons != null && allButtons.Count > 0)
                 {
@@ -640,37 +629,10 @@ namespace HUDRA.Pages
 
         private void EnsureButtonVisible(Button button)
         {
-            // Get button position relative to ScrollViewer's viewport
+            // Use WinUI's built-in bring into view - same approach as GamepadNavigationService
             try
             {
-                var transform = button.TransformToVisual(LibraryScrollViewer);
-                var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
-
-                // Use ActualHeight as the visible viewport height (ViewportHeight can be unreliable)
-                double viewportHeight = LibraryScrollViewer.ActualHeight;
-                double currentOffset = LibraryScrollViewer.VerticalOffset;
-                double buttonTop = position.Y;
-                double buttonBottom = buttonTop + button.ActualHeight;
-
-                // Add padding for better UX
-                const double PADDING = 20;
-
-                // Button position is relative to ScrollViewer viewport, so:
-                // - If buttonTop < 0, button is scrolled above the viewport
-                // - If buttonTop > viewportHeight, button is scrolled below the viewport
-
-                // If button is above viewport (scrolled up past the top)
-                if (buttonTop < PADDING)
-                {
-                    double newOffset = currentOffset + buttonTop - PADDING;
-                    LibraryScrollViewer.ChangeView(null, Math.Max(0, newOffset), null, disableAnimation: false);
-                }
-                // If button is below viewport (needs to scroll down to see it)
-                else if (buttonBottom > viewportHeight - PADDING)
-                {
-                    double newOffset = currentOffset + (buttonBottom - viewportHeight) + PADDING;
-                    LibraryScrollViewer.ChangeView(null, newOffset, null, disableAnimation: false);
-                }
+                button.StartBringIntoView();
             }
             catch (Exception ex)
             {
