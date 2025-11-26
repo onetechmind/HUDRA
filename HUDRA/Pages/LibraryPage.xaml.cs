@@ -278,17 +278,35 @@ namespace HUDRA.Pages
 
         private async Task RestoreScrollPositionAsync()
         {
-            // Force layout update first
-            LibraryScrollViewer.UpdateLayout();
+            if (_savedScrollOffset == 0)
+            {
+                return; // No need to restore if at top
+            }
 
-            // Wait for layout to complete
-            await Task.Delay(300);
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempting to restore scroll to: {_savedScrollOffset}");
+
+            // Wait for content to be fully loaded and measured
+            // Retry a few times until the extent height is calculated
+            for (int attempt = 0; attempt < 5; attempt++)
+            {
+                LibraryScrollViewer.UpdateLayout();
+                await Task.Delay(100);
+
+                // Check if the ScrollViewer has measured its content
+                if (LibraryScrollViewer.ExtentHeight > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: ScrollViewer ready - ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+                    break;
+                }
+            }
 
             // Restore the scroll position
-            LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
+            bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Scroll restore ChangeView() returned: {success}, target: {_savedScrollOffset}");
 
             // Verify restoration worked
             await Task.Delay(100);
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Current scroll position: {LibraryScrollViewer.VerticalOffset}");
         }
 
         private async Task RestoreFocusedGameAsync()
@@ -380,9 +398,22 @@ namespace HUDRA.Pages
 
                 var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
 
-                if (allButtons != null && allButtons.Count > 0)
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: FocusFirstGameButton found {allButtons.Count} buttons");
+
+                if (allButtons.Count > 0)
                 {
-                    allButtons[0].Focus(FocusState.Programmatic);
+                    // Log first 3 buttons to see the sort order
+                    for (int i = 0; i < Math.Min(3, allButtons.Count); i++)
+                    {
+                        var game = allButtons[i].Tag as DetectedGame;
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage:   Button[{i}] = {game?.DisplayName}");
+                    }
+
+                    // Focus the first button
+                    var firstGame = allButtons[0].Tag as DetectedGame;
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempting to focus: {firstGame?.DisplayName}");
+                    bool focusResult = allButtons[0].Focus(FocusState.Programmatic);
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Focus() returned: {focusResult}");
                 }
             }
             catch (Exception ex)

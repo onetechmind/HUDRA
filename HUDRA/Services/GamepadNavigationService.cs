@@ -203,7 +203,7 @@ namespace HUDRA.Services
         private void ProcessGamepadInput(GamepadReading reading)
         {
             // If input processing is paused, check for shoulder buttons first (for page navigation)
-            // Then forward remaining input to subscribers (e.g., Library page)
+            // and triggers for navbar cycling, then forward remaining input to subscribers (e.g., Library page)
             if (_inputProcessingPaused)
             {
                 // Still handle shoulder buttons for page navigation even when paused
@@ -221,6 +221,35 @@ namespace HUDRA.Services
                     PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
                     UpdatePressedButtonsState(reading.Buttons);
                     return; // Don't forward this input
+                }
+
+                // Handle navbar button cycling with L2/R2 triggers even when paused
+                // Left trigger (L2) - cycle up through navbar
+                if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
+                {
+                    _leftTriggerPressed = true;
+                    CycleNavbarButtonSelection(-1);
+                    TriggerHapticFeedback();
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+                else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
+                {
+                    _leftTriggerPressed = false;
+                }
+
+                // Right trigger (R2) - cycle down through navbar
+                if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
+                {
+                    _rightTriggerPressed = true;
+                    CycleNavbarButtonSelection(1);
+                    TriggerHapticFeedback();
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+                else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
+                {
+                    _rightTriggerPressed = false;
                 }
 
                 // Forward all other input to subscribers
