@@ -1261,8 +1261,29 @@ namespace HUDRA.Services
             try
             {
                 var games = await _gameDatabase.GetAllGamesAsync();
-                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {games.Count()} games from database");
-                return games;
+
+                // Filter out non-game utilities (Steam redistributables, etc.)
+                var excludedNames = new[]
+                {
+                    "Steamworks Common Redistributables",
+                    "Steam Linux Runtime",
+                    "Proton",
+                    "DirectX",
+                    "Visual C++ Redistributable"
+                };
+
+                var filteredGames = games.Where(g =>
+                    !excludedNames.Any(excluded =>
+                        g.DisplayName.Contains(excluded, StringComparison.OrdinalIgnoreCase))).ToList();
+
+                int excludedCount = games.Count() - filteredGames.Count;
+                if (excludedCount > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Excluded {excludedCount} non-game utilities");
+                }
+
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {filteredGames.Count} games from database");
+                return filteredGames;
             }
             catch (Exception ex)
             {
