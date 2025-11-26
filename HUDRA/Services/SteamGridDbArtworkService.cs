@@ -76,14 +76,14 @@ namespace HUDRA.Services
 
                 // Get the first grid image
                 var gridImage = grids.First();
-                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Downloading grid image from {gridImage.Url}");
+                System.Diagnostics.Debug.WriteLine($"SteamGridDB: Downloading grid image from {gridImage.FullImageUrl}");
 
                 // Download the image
-                var imageBytes = await _httpClient.GetByteArrayAsync(gridImage.Url);
+                var imageBytes = await _httpClient.GetByteArrayAsync(gridImage.FullImageUrl);
 
                 // Generate filename based on game process name (sanitize for filesystem)
                 var safeFileName = SanitizeFileName(game.ProcessName);
-                var extension = Path.GetExtension(gridImage.Url.ToString()) ?? ".png";
+                var extension = Path.GetExtension(gridImage.FullImageUrl.ToString()) ?? ".png";
                 var fileName = $"{safeFileName}{extension}";
                 var filePath = Path.Combine(_artworkDirectory, fileName);
 
