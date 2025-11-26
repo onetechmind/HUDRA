@@ -40,6 +40,16 @@ namespace HUDRA.Pages
 
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
+
+            // Subscribe to scroll changes to continuously track position
+            LibraryScrollViewer.ViewChanged += OnScrollViewChanged;
+        }
+
+        private void OnScrollViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
+        {
+            // Continuously update saved scroll position as user scrolls
+            // This ensures we always have the latest position, regardless of when navigation occurs
+            _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -91,19 +101,19 @@ namespace HUDRA.Pages
         }
 
         /// <summary>
-        /// Saves the current scroll position and focused game. Called when navigating away from the page.
-        /// This is public so it can be called from MainWindow when page caching prevents OnNavigatedFrom from firing.
+        /// Saves the focused game state. Called when navigating away from the page.
+        /// Note: Scroll position is continuously tracked via ViewChanged event.
         /// </summary>
         public void SaveScrollPosition()
         {
-            // Save scroll position
-            _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
+            // Scroll position is already being tracked continuously via ViewChanged event
+            // Just save the focused game here
 
-            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage: SaveScrollPosition CALLED");
-            System.Diagnostics.Debug.WriteLine($"📜   Current scroll offset: {LibraryScrollViewer.VerticalOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜 SaveScrollPosition CALLED (leaving Library page)");
+            System.Diagnostics.Debug.WriteLine($"📜   Already tracked scroll: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   Current scroll: {LibraryScrollViewer.VerticalOffset}");
             System.Diagnostics.Debug.WriteLine($"📜   ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
             System.Diagnostics.Debug.WriteLine($"📜   ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
-            System.Diagnostics.Debug.WriteLine($"📜   Saved to _savedScrollOffset: {_savedScrollOffset}");
 
             // Save focused game for gamepad navigation
             if (FocusManager.GetFocusedElement(this.XamlRoot) is FrameworkElement focusedElement)
@@ -115,7 +125,7 @@ namespace HUDRA.Pages
                     if (current is Button button && button.Tag is DetectedGame game)
                     {
                         _savedFocusedGameProcessName = game.ProcessName;
-                        System.Diagnostics.Debug.WriteLine($"📜   Focused game saved: {game.ProcessName}");
+                        System.Diagnostics.Debug.WriteLine($"📜   Focused game: {game.ProcessName}");
                         break;
                     }
                     current = current.Parent as FrameworkElement;
@@ -124,7 +134,7 @@ namespace HUDRA.Pages
             else
             {
                 _savedFocusedGameProcessName = null;
-                System.Diagnostics.Debug.WriteLine($"📜   No focused element found");
+                System.Diagnostics.Debug.WriteLine($"📜   No focused game");
             }
         }
 
