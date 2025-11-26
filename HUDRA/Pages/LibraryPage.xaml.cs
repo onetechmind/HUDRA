@@ -99,6 +99,12 @@ namespace HUDRA.Pages
             // Save scroll position
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
 
+            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage: SaveScrollPosition CALLED");
+            System.Diagnostics.Debug.WriteLine($"📜   Current scroll offset: {LibraryScrollViewer.VerticalOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+            System.Diagnostics.Debug.WriteLine($"📜   ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
+            System.Diagnostics.Debug.WriteLine($"📜   Saved to _savedScrollOffset: {_savedScrollOffset}");
+
             // Save focused game for gamepad navigation
             if (FocusManager.GetFocusedElement(this.XamlRoot) is FrameworkElement focusedElement)
             {
@@ -109,13 +115,17 @@ namespace HUDRA.Pages
                     if (current is Button button && button.Tag is DetectedGame game)
                     {
                         _savedFocusedGameProcessName = game.ProcessName;
+                        System.Diagnostics.Debug.WriteLine($"📜   Focused game saved: {game.ProcessName}");
                         break;
                     }
                     current = current.Parent as FrameworkElement;
                 }
             }
-
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: SaveScrollPosition - saved offset={_savedScrollOffset}, focused game={_savedFocusedGameProcessName}");
+            else
+            {
+                _savedFocusedGameProcessName = null;
+                System.Diagnostics.Debug.WriteLine($"📜   No focused element found");
+            }
         }
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService)
@@ -306,15 +316,15 @@ namespace HUDRA.Pages
 
         private async Task RestoreScrollPositionAsync()
         {
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: RestoreScrollPositionAsync called - _savedScrollOffset={_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜 RestoreScrollPositionAsync - _savedScrollOffset={_savedScrollOffset}");
 
             if (_savedScrollOffset == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Skipping scroll restore - already at top");
+                System.Diagnostics.Debug.WriteLine($"📜   Skipping restore - offset is 0");
                 return; // No need to restore if at top
             }
 
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Attempting to restore scroll to: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   Will restore scroll to: {_savedScrollOffset}");
 
             // Wait for content to be fully loaded and measured
             // Retry a few times until the extent height is calculated
@@ -326,19 +336,22 @@ namespace HUDRA.Pages
                 // Check if the ScrollViewer has measured its content
                 if (LibraryScrollViewer.ExtentHeight > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: ScrollViewer ready on attempt {attempt + 1} - ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+                    System.Diagnostics.Debug.WriteLine($"📜   ScrollViewer ready on attempt {attempt + 1}");
+                    System.Diagnostics.Debug.WriteLine($"📜     ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+                    System.Diagnostics.Debug.WriteLine($"📜     ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
+                    System.Diagnostics.Debug.WriteLine($"📜     Current offset: {LibraryScrollViewer.VerticalOffset}");
                     break;
                 }
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Waiting for ScrollViewer layout... attempt {attempt + 1}");
+                System.Diagnostics.Debug.WriteLine($"📜   Waiting for layout... attempt {attempt + 1}");
             }
 
             // Restore the scroll position
             bool success = LibraryScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Scroll restore ChangeView() returned: {success}, target: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   ChangeView() returned: {success}, target: {_savedScrollOffset}");
 
             // Verify restoration worked
             await Task.Delay(100);
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Actual scroll position after restore: {LibraryScrollViewer.VerticalOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   FINAL scroll position: {LibraryScrollViewer.VerticalOffset}");
         }
 
         private async Task RestoreFocusedGameAsync()
@@ -566,8 +579,11 @@ namespace HUDRA.Pages
             {
                 // Already at top row - scroll to absolute top to show header
                 LibraryScrollViewer.UpdateLayout();
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: At top edge - scrolling to top (currentIndex={currentIndex}, current scroll={LibraryScrollViewer.VerticalOffset})");
-                LibraryScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+                System.Diagnostics.Debug.WriteLine($"⬆️ EDGE SCROLL UP - At top row (index={currentIndex})");
+                System.Diagnostics.Debug.WriteLine($"⬆️   Current scroll: {LibraryScrollViewer.VerticalOffset}");
+                System.Diagnostics.Debug.WriteLine($"⬆️   Scrolling to: 0");
+                bool scrolled = LibraryScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+                System.Diagnostics.Debug.WriteLine($"⬆️   ChangeView returned: {scrolled}");
             }
         }
 
@@ -597,12 +613,18 @@ namespace HUDRA.Pages
             else
             {
                 // Already at bottom row - scroll to absolute bottom to show game labels
-                // Force layout update to ensure ExtentHeight is calculated
                 LibraryScrollViewer.UpdateLayout();
                 double maxScroll = Math.Max(0, LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight);
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: At bottom edge - scrolling to bottom (currentIndex={currentIndex}, ExtentHeight={LibraryScrollViewer.ExtentHeight}, ViewportHeight={LibraryScrollViewer.ViewportHeight}, maxScroll={maxScroll})");
+
+                System.Diagnostics.Debug.WriteLine($"⬇️ EDGE SCROLL DOWN - At bottom row (index={currentIndex})");
+                System.Diagnostics.Debug.WriteLine($"⬇️   ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+                System.Diagnostics.Debug.WriteLine($"⬇️   ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
+                System.Diagnostics.Debug.WriteLine($"⬇️   Current scroll: {LibraryScrollViewer.VerticalOffset}");
+                System.Diagnostics.Debug.WriteLine($"⬇️   Max scroll (target): {maxScroll}");
+
                 // Always try to scroll to bottom (ChangeView will clamp to valid range)
-                LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
+                bool scrolled = LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
+                System.Diagnostics.Debug.WriteLine($"⬇️   ChangeView returned: {scrolled}");
             }
         }
 
