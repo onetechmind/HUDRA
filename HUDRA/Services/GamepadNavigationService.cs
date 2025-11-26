@@ -207,16 +207,16 @@ namespace HUDRA.Services
             if (_inputProcessingPaused)
             {
                 // Still handle shoulder buttons for page navigation even when paused
-                var newButtons = GetNewlyPressedButtons(reading.Buttons);
+                var pausedNewButtons = GetNewlyPressedButtons(reading.Buttons);
 
-                if (newButtons.Contains(GamepadButtons.LeftShoulder))
+                if (pausedNewButtons.Contains(GamepadButtons.LeftShoulder))
                 {
                     PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
                     UpdatePressedButtonsState(reading.Buttons);
                     return; // Don't forward this input
                 }
 
-                if (newButtons.Contains(GamepadButtons.RightShoulder))
+                if (pausedNewButtons.Contains(GamepadButtons.RightShoulder))
                 {
                     PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
                     UpdatePressedButtonsState(reading.Buttons);
