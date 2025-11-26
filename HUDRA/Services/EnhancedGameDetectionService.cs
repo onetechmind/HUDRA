@@ -1248,10 +1248,27 @@ namespace HUDRA.Services
         /// </summary>
         public async Task<IEnumerable<DetectedGame>> GetAllGamesAsync()
         {
-            if (!_isDatabaseReady || _gameDatabase == null)
-                return Enumerable.Empty<DetectedGame>();
+            System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: GetAllGamesAsync called - _isDatabaseReady={_isDatabaseReady}, _gameDatabase={(_gameDatabase != null ? "not null" : "null")}");
 
-            return await _gameDatabase.GetAllGamesAsync();
+            if (_gameDatabase == null)
+            {
+                System.Diagnostics.Debug.WriteLine("EnhancedGameDetection: Database is null, returning empty");
+                return Enumerable.Empty<DetectedGame>();
+            }
+
+            // Always try to get games from database, even if _isDatabaseReady is false
+            // This allows the Library page to show games that were previously scanned
+            try
+            {
+                var games = await _gameDatabase.GetAllGamesAsync();
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {games.Count()} games from database");
+                return games;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Error getting games from database: {ex.Message}");
+                return Enumerable.Empty<DetectedGame>();
+            }
         }
 
         public async Task<int> ForceXboxGameRescanAsync()

@@ -35,9 +35,12 @@ namespace HUDRA.Pages
             await LoadGamesAsync();
         }
 
-        protected override void OnNavigatedTo(NavigationEventArgs e)
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            // Reload games every time we navigate to this page
+            await LoadGamesAsync();
         }
 
         public void Initialize(EnhancedGameDetectionService gameDetectionService)
@@ -49,8 +52,11 @@ namespace HUDRA.Pages
         {
             try
             {
-                if (_gameDetectionService == null || Application.Current is not App app)
+                System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync started");
+
+                if (_gameDetectionService == null)
                 {
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: _gameDetectionService is null");
                     ShowEmptyState();
                     return;
                 }
@@ -59,8 +65,11 @@ namespace HUDRA.Pages
                 var allGames = await _gameDetectionService.GetAllGamesAsync();
                 var gamesList = allGames?.ToList() ?? new List<DetectedGame>();
 
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Retrieved {gamesList.Count} games from database");
+
                 if (!gamesList.Any())
                 {
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: No games found in database");
                     ShowEmptyState();
                     return;
                 }
@@ -68,11 +77,14 @@ namespace HUDRA.Pages
                 // Sort alphabetically by display name
                 gamesList = gamesList.OrderBy(g => g.DisplayName).ToList();
 
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Populating UI with {gamesList.Count} games");
+
                 // Update the ObservableCollection
                 _games.Clear();
                 foreach (var game in gamesList)
                 {
                     _games.Add(game);
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Added game: {game.DisplayName}, Artwork: {game.ArtworkPath}");
                 }
 
                 // Set ItemsSource
@@ -80,10 +92,13 @@ namespace HUDRA.Pages
 
                 // Hide empty state
                 EmptyStatePanel.Visibility = Visibility.Collapsed;
+
+                System.Diagnostics.Debug.WriteLine("LibraryPage: LoadGamesAsync completed successfully");
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error loading games: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Stack trace: {ex.StackTrace}");
                 ShowEmptyState();
             }
         }
