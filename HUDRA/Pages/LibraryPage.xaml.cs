@@ -19,6 +19,7 @@ namespace HUDRA.Pages
     {
         private EnhancedGameDetectionService? _gameDetectionService;
         private GameLauncherService? _gameLauncherService;
+        private GamepadNavigationService? _gamepadNavigationService;
         private ObservableCollection<DetectedGame> _games = new ObservableCollection<DetectedGame>();
 
         // State preservation
@@ -26,7 +27,6 @@ namespace HUDRA.Pages
         private string? _savedFocusedGameProcessName = null;
 
         // Gamepad navigation
-        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _gamepadTimer;
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
@@ -39,24 +39,18 @@ namespace HUDRA.Pages
 
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
-
-            // Initialize gamepad timer for D-pad navigation
-            var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            if (dispatcherQueue != null)
-            {
-                _gamepadTimer = dispatcherQueue.CreateTimer();
-                _gamepadTimer.Interval = TimeSpan.FromMilliseconds(16); // ~60 FPS
-                _gamepadTimer.Tick += OnGamepadTimerTick;
-            }
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
 
-            // Start gamepad polling for D-pad navigation
-            _gamepadTimer?.Start();
-            System.Diagnostics.Debug.WriteLine("LibraryPage: Started gamepad polling");
+            // Subscribe to raw gamepad input from GamepadNavigationService
+            if (_gamepadNavigationService != null)
+            {
+                _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribed to raw gamepad input");
+            }
 
             // Load games when navigating to this page
             // By this time, Initialize() should have been called by MainWindow
@@ -79,9 +73,12 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedFrom(e);
 
-            // Stop gamepad polling
-            _gamepadTimer?.Stop();
-            System.Diagnostics.Debug.WriteLine("LibraryPage: Stopped gamepad polling");
+            // Unsubscribe from raw gamepad input
+            if (_gamepadNavigationService != null)
+            {
+                _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Unsubscribed from raw gamepad input");
+            }
 
             // Save scroll position
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
@@ -112,10 +109,11 @@ namespace HUDRA.Pages
             }
         }
 
-        public async void Initialize(EnhancedGameDetectionService gameDetectionService)
+        public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService)
         {
             _gameDetectionService = gameDetectionService;
-            System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection service");
+            _gamepadNavigationService = gamepadNavigationService;
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection and gamepad navigation services");
 
             // Subscribe to scan events for reactive updates
             _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
@@ -401,19 +399,15 @@ namespace HUDRA.Pages
             }
         }
 
-        private void OnGamepadTimerTick(object? sender, object e)
+        private void OnRawGamepadInput(object? sender, GamepadReading reading)
         {
-            var gamepads = Gamepad.Gamepads;
-            if (gamepads.Count == 0) return;
-
             try
             {
-                var reading = gamepads[0].GetCurrentReading();
                 ProcessGamepadInput(reading);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error reading gamepad: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error processing gamepad input: {ex.Message}");
             }
         }
 

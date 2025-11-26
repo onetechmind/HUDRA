@@ -78,14 +78,17 @@ namespace HUDRA.Services
             }
         }
 
-        // Flag to pause all input processing (for pages that use native XYFocus like Library)
+        // Flag to pause all input processing (for pages that use custom navigation like Library)
         private bool _inputProcessingPaused = false;
         public bool IsInputProcessingPaused => _inputProcessingPaused;
+
+        // Delegate for forwarding raw gamepad input to custom pages
+        public event EventHandler<GamepadReading>? RawGamepadInput;
 
         public void PauseInputProcessing()
         {
             _inputProcessingPaused = true;
-            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED");
+            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED - will forward raw input");
         }
 
         public void ResumeInputProcessing()
@@ -199,9 +202,10 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
-            // If input processing is paused (e.g., on Library page with XYFocus), return early
+            // If input processing is paused, forward raw input to subscribers (e.g., Library page)
             if (_inputProcessingPaused)
             {
+                RawGamepadInput?.Invoke(this, reading);
                 return;
             }
 

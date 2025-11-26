@@ -593,14 +593,13 @@ namespace HUDRA
                 // Track if this navigation came from gamepad L1/R1
                 bool wasGamepadNav = _isGamepadNavForCurrentPage;
 
-                _libraryPage.Initialize(_enhancedGameDetectionService!);
+                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
-                // Library page uses dynamic buttons with XYFocus, not the standard gamepad navigation service
-                // CRITICAL: Pause input processing so D-pad flows through to native WinUI XYFocus
+                // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, async () =>
                 {
-                    // Pause the gamepad navigation service to allow XYFocus to handle D-pad
+                    // Pause the gamepad navigation service to forward raw input to Library page
                     _gamepadNavigationService.PauseInputProcessing();
 
                     // If navigated via gamepad (L1/R1), focus first button after a delay
