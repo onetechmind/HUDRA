@@ -41,8 +41,16 @@ namespace HUDRA.Pages
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
 
+            // Subscribe to Loaded event to set up scroll tracking
+            this.Loaded += OnPageLoaded;
+        }
+
+        private void OnPageLoaded(object sender, RoutedEventArgs e)
+        {
             // Subscribe to scroll changes to continuously track position
+            // Must be done after page is loaded to ensure ScrollViewer is initialized
             LibraryScrollViewer.ViewChanged += OnScrollViewChanged;
+            System.Diagnostics.Debug.WriteLine("📜 LibraryPage: ViewChanged event handler attached");
         }
 
         private void OnScrollViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
@@ -50,6 +58,7 @@ namespace HUDRA.Pages
             // Continuously update saved scroll position as user scrolls
             // This ensures we always have the latest position, regardless of when navigation occurs
             _savedScrollOffset = LibraryScrollViewer.VerticalOffset;
+            System.Diagnostics.Debug.WriteLine($"📜 ViewChanged: scroll now at {_savedScrollOffset:F1}");
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
