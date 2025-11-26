@@ -108,6 +108,8 @@ namespace HUDRA.Pages
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService)
         {
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Initialize called - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}");
+
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
 
@@ -118,8 +120,18 @@ namespace HUDRA.Pages
             _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
             _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
 
-            // Load games immediately after initialization
-            await LoadGamesAsync();
+            // Load games only if not already loaded
+            if (!_gamesLoaded)
+            {
+                await LoadGamesAsync();
+            }
+
+            // Restore focused game first (if any) - this may scroll
+            await RestoreFocusedGameAsync();
+
+            // THEN restore scroll position to override any focus-induced scrolling
+            await Task.Delay(200);
+            await RestoreScrollPositionAsync();
 
             // If scanning is already in progress, show the indicator
             if (_gameDetectionService.IsScanning)
@@ -541,7 +553,8 @@ namespace HUDRA.Pages
             else
             {
                 // Already at top row - scroll to absolute top to show header
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: At top edge - scrolling to top (currentIndex={currentIndex})");
+                LibraryScrollViewer.UpdateLayout();
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: At top edge - scrolling to top (currentIndex={currentIndex}, current scroll={LibraryScrollViewer.VerticalOffset})");
                 LibraryScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
             }
         }
@@ -572,9 +585,14 @@ namespace HUDRA.Pages
             else
             {
                 // Already at bottom row - scroll to absolute bottom to show game labels
-                double maxScroll = LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight;
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: At bottom edge - scrolling to bottom (currentIndex={currentIndex}, maxScroll={maxScroll})");
-                LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
+                // Force layout update to ensure ExtentHeight is calculated
+                LibraryScrollViewer.UpdateLayout();
+                double maxScroll = Math.Max(0, LibraryScrollViewer.ExtentHeight - LibraryScrollViewer.ViewportHeight);
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: At bottom edge - scrolling to bottom (currentIndex={currentIndex}, ExtentHeight={LibraryScrollViewer.ExtentHeight}, ViewportHeight={LibraryScrollViewer.ViewportHeight}, maxScroll={maxScroll})");
+                if (maxScroll > 0)
+                {
+                    LibraryScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
+                }
             }
         }
 
