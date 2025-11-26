@@ -45,12 +45,7 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedTo(e);
 
-            // Subscribe to raw gamepad input from GamepadNavigationService
-            if (_gamepadNavigationService != null)
-            {
-                _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribed to raw gamepad input");
-            }
+            System.Diagnostics.Debug.WriteLine("LibraryPage: OnNavigatedTo called");
 
             // Load games when navigating to this page
             // By this time, Initialize() should have been called by MainWindow
@@ -114,6 +109,10 @@ namespace HUDRA.Pages
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
             System.Diagnostics.Debug.WriteLine("LibraryPage: Initialize called with game detection and gamepad navigation services");
+
+            // Subscribe to raw gamepad input immediately upon receiving the service reference
+            _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribed to raw gamepad input");
 
             // Subscribe to scan events for reactive updates
             _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
@@ -403,6 +402,12 @@ namespace HUDRA.Pages
         {
             try
             {
+                // Log when we receive input (only log when buttons are pressed to avoid spam)
+                if (reading.Buttons != GamepadButtons.None)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Received gamepad input - Buttons: {reading.Buttons}");
+                }
+
                 ProcessGamepadInput(reading);
             }
             catch (Exception ex)
