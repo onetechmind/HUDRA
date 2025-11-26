@@ -64,8 +64,8 @@ namespace HUDRA.Services
         public event EventHandler<bool>? GamepadActiveStateChanged;
 
         private bool _isGamepadActive = false;
-        public bool IsGamepadActive 
-        { 
+        public bool IsGamepadActive
+        {
             get => _isGamepadActive;
             private set
             {
@@ -76,6 +76,22 @@ namespace HUDRA.Services
                     System.Diagnostics.Debug.WriteLine($"🎮 Gamepad active state changed: {value}");
                 }
             }
+        }
+
+        // Flag to pause all input processing (for pages that use native XYFocus like Library)
+        private bool _inputProcessingPaused = false;
+        public bool IsInputProcessingPaused => _inputProcessingPaused;
+
+        public void PauseInputProcessing()
+        {
+            _inputProcessingPaused = true;
+            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED");
+        }
+
+        public void ResumeInputProcessing()
+        {
+            _inputProcessingPaused = false;
+            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing RESUMED");
         }
 
         public GamepadNavigationService()
@@ -183,6 +199,12 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
+            // If input processing is paused (e.g., on Library page with XYFocus), return early
+            if (_inputProcessingPaused)
+            {
+                return;
+            }
+
             // Check if any input is being received OR if we need to check for trigger releases
             bool hasInput = reading.Buttons != GamepadButtons.None ||
                            Math.Abs(reading.LeftThumbstickX) > 0.1 ||
