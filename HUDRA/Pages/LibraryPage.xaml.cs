@@ -27,6 +27,7 @@ namespace HUDRA.Pages
         private double _savedScrollOffset = 0;
         private string? _savedFocusedGameProcessName = null;
         private bool _gamesLoaded = false;
+        private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
 
         // Gamepad navigation
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
@@ -98,18 +99,14 @@ namespace HUDRA.Pages
             // Save state when navigating away
             SaveScrollPosition();
 
-            // Unsubscribe from raw gamepad input
+            // Unsubscribe from raw gamepad input (resubscribed on next Initialize)
             if (_gamepadNavigationService != null)
             {
                 _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
-            // Unsubscribe from events to prevent memory leaks
-            if (_gameDetectionService != null)
-            {
-                _gameDetectionService.ScanningStateChanged -= OnScanningStateChanged;
-                _gameDetectionService.ScanProgressChanged -= OnScanProgressChanged;
-            }
+            // Note: We keep scan event subscriptions active since page is cached
+            // and we want to receive updates even when not visible
         }
 
         /// <summary>
@@ -157,12 +154,19 @@ namespace HUDRA.Pages
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
 
-            // Subscribe to raw gamepad input immediately upon receiving the service reference
+            // Subscribe to gamepad input on each navigation (unsubscribed when leaving page)
             _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
 
-            // Subscribe to scan events for reactive updates
-            _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
-            _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
+            // Subscribe to scan events only once (page is cached, we want scan updates for page lifetime)
+            if (!_eventsSubscribed)
+            {
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribing to scan events (first time only)");
+
+                _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
+                _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
+
+                _eventsSubscribed = true;
+            }
 
             // Load games only if not already loaded
             if (!_gamesLoaded)
