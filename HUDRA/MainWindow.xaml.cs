@@ -596,7 +596,7 @@ namespace HUDRA
                 // Track if this navigation came from gamepad L1/R1
                 bool wasGamepadNav = _isGamepadNavForCurrentPage;
 
-                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService);
+                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
                 // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding

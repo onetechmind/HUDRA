@@ -103,19 +103,13 @@
         </Style>
     </Page.Resources>
 
-    <Grid Margin="0">
-        <ScrollViewer
-            x:Name="LibraryScrollViewer"
-            VerticalAlignment="Stretch"
-            HorizontalScrollBarVisibility="Disabled"
-            VerticalScrollBarVisibility="Auto">
-            <StackPanel
-                x:Name="LibraryRootPanel"
-                MaxWidth="320"
-                Margin="0"
-                HorizontalAlignment="Center"
-                x:FieldModifier="public"
-                Spacing="20">
+    <StackPanel
+        x:Name="LibraryRootPanel"
+        MaxWidth="320"
+        Margin="0"
+        HorizontalAlignment="Center"
+        x:FieldModifier="public"
+        Spacing="20">
 
                 <!--  Header  -->
                 <Border>
@@ -275,7 +269,5 @@
                     </StackPanel>
                 </Border>
 
-            </StackPanel>
-        </ScrollViewer>
-    </Grid>
+    </StackPanel>
 </Page>
