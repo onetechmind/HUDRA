@@ -63,7 +63,9 @@ namespace HUDRA.Pages
                 if (!_isRestoringScroll && !e.IsIntermediate)
                 {
                     _lastUsedGamepadInput = false;
-                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll (user-initiated)");
+                    // Clear saved focus when switching to mouse/keyboard - no tile is selected
+                    _savedFocusedGameProcessName = null;
+                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll (user-initiated) - cleared saved focus");
                 }
             }
         }
@@ -480,7 +482,8 @@ namespace HUDRA.Pages
             if (button?.Tag is DetectedGame game)
             {
                 _savedFocusedGameProcessName = game.ProcessName;
-                System.Diagnostics.Debug.WriteLine($"💾 Saved focused game: {game.ProcessName}");
+                string artworkStatus = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
+                System.Diagnostics.Debug.WriteLine($"💾 Saved focused game: {game.DisplayName} ({game.ProcessName}) - {artworkStatus}");
             }
         }
 
