@@ -184,24 +184,12 @@
                                             Stretch="UniformToFill"
                                             Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
 
-                                        <!--  Fallback: Game Name in Styled Box  -->
-                                        <Border
-                                            Background="#1A1A1A"
+                                        <!--  Fallback: No Artwork Image  -->
+                                        <Image
+                                            Source="ms-appx:///Assets/no-artwork-grid.png"
+                                            Stretch="UniformToFill"
                                             IsHitTestVisible="False"
-                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
-                                            <TextBlock
-                                                Padding="8"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                FontFamily="Cascadia Code"
-                                                FontSize="12"
-                                                FontWeight="SemiBold"
-                                                Foreground="White"
-                                                IsHitTestVisible="False"
-                                                Text="{x:Bind DisplayName, Mode=OneWay}"
-                                                TextAlignment="Center"
-                                                TextWrapping="Wrap" />
-                                        </Border>
+                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}" />
 
                                         <!--  Launching Overlay  -->
                                         <Border
