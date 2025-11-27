@@ -89,15 +89,8 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedFrom(e);
 
-            // Save state when navigating away
-            SaveScrollPosition();
-
-            // Unsubscribe from ViewChanged to prevent tracking other pages' scrolling
-            if (_contentScrollViewer != null)
-            {
-                _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
-                System.Diagnostics.Debug.WriteLine($"📜 Unsubscribed from ContentScrollViewer.ViewChanged");
-            }
+            // SaveScrollPosition() is called from MainWindow before this fires,
+            // and it already unsubscribes from ViewChanged
 
             // Unsubscribe from raw gamepad input (resubscribed on next Initialize)
             if (_gamepadNavigationService != null)
@@ -109,22 +102,22 @@ namespace HUDRA.Pages
         }
 
         /// <summary>
-        /// Saves the focused game state when navigating away from the page.
-        /// Note: Scroll position is tracked continuously via ViewChanged (static field persists across page recreation).
+        /// Saves scroll position and focused game when navigating away.
+        /// IMMEDIATELY unsubscribes from ViewChanged to prevent other pages from overwriting saved scroll.
         /// </summary>
         public void SaveScrollPosition()
         {
-            // Scroll position is already being tracked continuously via ViewChanged event
-            // The static _savedScrollOffset field persists even when page is recreated
-            // Just save the focused game here
-
             System.Diagnostics.Debug.WriteLine($"📜 SaveScrollPosition CALLED (leaving Library page)");
-            System.Diagnostics.Debug.WriteLine($"📜   Scroll position saved in static field: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   Scroll position in static field: {_savedScrollOffset}");
+
             if (_contentScrollViewer != null)
             {
                 System.Diagnostics.Debug.WriteLine($"📜   Current ContentScrollViewer offset: {_contentScrollViewer.VerticalOffset}");
-                System.Diagnostics.Debug.WriteLine($"📜   ExtentHeight: {_contentScrollViewer.ExtentHeight}");
-                System.Diagnostics.Debug.WriteLine($"📜   ViewportHeight: {_contentScrollViewer.ViewportHeight}");
+
+                // CRITICAL: Unsubscribe IMMEDIATELY to prevent other pages from overwriting _savedScrollOffset
+                // This must happen before the next page loads and scrolls ContentScrollViewer to 0
+                _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
+                System.Diagnostics.Debug.WriteLine($"📜   ✅ UNSUBSCRIBED from ViewChanged - scroll locked at {_savedScrollOffset}");
             }
 
             // Save focused game for gamepad navigation
