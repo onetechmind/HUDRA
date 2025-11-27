@@ -153,9 +153,9 @@ namespace HUDRA.Pages
             }
         }
 
-        public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer)
+        public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer, bool isGamepadNavigation = false)
         {
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Initialize called - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}");
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Initialize called - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}, isGamepadNavigation={isGamepadNavigation}");
 
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
@@ -188,18 +188,32 @@ namespace HUDRA.Pages
                 await LoadGamesAsync();
             }
 
-            // Smart focus restoration based on last input method
-            if (_lastUsedGamepadInput)
+            // Focus logic per UX requirements:
+            // 1. If saved focus exists: restore it (gamepad navigation only)
+            // 2. Else if navigated via gamepad: focus first tile
+            // 3. Else (mouse/keyboard): no auto-focus
+            if (isGamepadNavigation)
             {
-                // User was using gamepad navigation - restore previously focused game
-                System.Diagnostics.Debug.WriteLine($"🎮 Smart Focus: Gamepad was last used - restoring saved focus");
-                await RestoreFocusedGameAsync();
+                _lastUsedGamepadInput = true; // Update input method tracking for future navigations
+
+                if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
+                {
+                    // Restore previously focused game
+                    System.Diagnostics.Debug.WriteLine($"🎮 Gamepad nav + saved focus: Restoring focus to {_savedFocusedGameProcessName}");
+                    await RestoreFocusedGameAsync();
+                }
+                else
+                {
+                    // Auto-select first tile
+                    System.Diagnostics.Debug.WriteLine($"🎮 Gamepad nav + no saved focus: Focusing first tile");
+                    await FocusFirstGameTileAsync();
+                }
             }
             else
             {
-                // User was using mouse scroll - focus top-left visible tile for convenience
-                System.Diagnostics.Debug.WriteLine($"🖱️ Smart Focus: Mouse was last used - focusing first visible tile");
-                await FocusFirstVisibleTileAsync();
+                _lastUsedGamepadInput = false; // Update input method tracking
+                System.Diagnostics.Debug.WriteLine($"🖱️ Mouse/Keyboard nav: No auto-focus");
+                // No auto-focus for mouse/keyboard navigation
             }
 
             // THEN restore scroll position to override any focus-induced scrolling
@@ -442,6 +456,30 @@ namespace HUDRA.Pages
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: No saved focus to restore");
             }
+        }
+
+        /// <summary>
+        /// Focuses the first tile in the grid (top-left, index 0).
+        /// Used when navigating via gamepad with no saved focus.
+        /// </summary>
+        private async Task FocusFirstGameTileAsync()
+        {
+            System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: Focusing first tile in list");
+
+            // Wait for UI to be fully rendered
+            await Task.Delay(100);
+
+            // Get all game buttons
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: No buttons found");
+                return;
+            }
+
+            // Focus the very first button (index 0)
+            allButtons[0].Focus(FocusState.Programmatic);
+            System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: Focused first tile (index 0)");
         }
 
         /// <summary>

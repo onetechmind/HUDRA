@@ -595,8 +595,10 @@ namespace HUDRA
             {
                 // Track if this navigation came from gamepad L1/R1
                 bool wasGamepadNav = _isGamepadNavForCurrentPage;
+                System.Diagnostics.Debug.WriteLine($"=== InitializeLibraryPage: wasGamepadNav={wasGamepadNav} ===");
 
-                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer);
+                // Pass gamepad navigation flag to LibraryPage
+                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
                 // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
@@ -605,8 +607,8 @@ namespace HUDRA
                     // Pause the gamepad navigation service to forward raw input to Library page
                     _gamepadNavigationService.PauseInputProcessing();
 
-                    // Note: Focus is now handled by smart focus restoration in LibraryPage.Initialize()
-                    // based on last input method (gamepad vs mouse)
+                    // Note: Focus is now handled in LibraryPage.Initialize() based on whether
+                    // this navigation was via gamepad (L1/R1) or mouse/keyboard click
 
                     _isGamepadNavForCurrentPage = false;
                 });
