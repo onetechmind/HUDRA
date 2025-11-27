@@ -22,10 +22,10 @@ namespace HUDRA.Pages
         private GamepadNavigationService? _gamepadNavigationService;
         private ObservableCollection<DetectedGame> _games = new ObservableCollection<DetectedGame>();
 
-        // State preservation - STATIC fields persist across page instances
-        // (Page is recreated on each navigation, not cached)
-        private static double _savedScrollOffset = 0;
-        private static string? _savedFocusedGameProcessName = null;
+        // State preservation - instance fields persist due to NavigationCacheMode.Enabled
+        // Page is created once and reused on subsequent navigations
+        private double _savedScrollOffset = 0;
+        private string? _savedFocusedGameProcessName = null;
         private bool _gamesLoaded = false;
 
         // Gamepad navigation
@@ -39,7 +39,7 @@ namespace HUDRA.Pages
         {
             this.InitializeComponent();
 
-            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage CONSTRUCTOR called - new instance created");
+            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage CONSTRUCTOR - page created (caching enabled, should only happen once)");
 
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
