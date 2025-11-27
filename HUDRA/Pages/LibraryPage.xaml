@@ -187,6 +187,7 @@
                                         <!--  Fallback: Game Name in Styled Box  -->
                                         <Border
                                             Background="#1A1A1A"
+                                            IsHitTestVisible="False"
                                             Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
                                             <TextBlock
                                                 Padding="8"
@@ -196,6 +197,7 @@
                                                 FontSize="12"
                                                 FontWeight="SemiBold"
                                                 Foreground="White"
+                                                IsHitTestVisible="False"
                                                 Text="{x:Bind DisplayName, Mode=OneWay}"
                                                 TextAlignment="Center"
                                                 TextWrapping="Wrap" />

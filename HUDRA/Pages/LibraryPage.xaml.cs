@@ -47,6 +47,41 @@ namespace HUDRA.Pages
 
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
+
+            // Subscribe to pointer events to detect mouse clicks (input method switch)
+            this.PointerPressed += OnPagePointerPressed;
+
+            // Subscribe to key events to detect keyboard input (input method switch)
+            this.KeyDown += OnPageKeyDown;
+        }
+
+        private void OnPagePointerPressed(object sender, PointerRoutedEventArgs e)
+        {
+            // Mouse/touch click detected - switch to mouse input mode
+            if (_lastUsedGamepadInput)
+            {
+                _lastUsedGamepadInput = false;
+                _savedFocusedGameProcessName = null;
+                System.Diagnostics.Debug.WriteLine($"🖱️ Mouse click detected - switched to mouse input, cleared saved focus");
+            }
+        }
+
+        private void OnPageKeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            // Keyboard input detected - switch to keyboard input mode
+            // Ignore gamepad buttons (they're handled separately)
+            if (_lastUsedGamepadInput && !IsGamepadKey(e.Key))
+            {
+                _lastUsedGamepadInput = false;
+                _savedFocusedGameProcessName = null;
+                System.Diagnostics.Debug.WriteLine($"⌨️ Keyboard input detected - switched to keyboard input, cleared saved focus");
+            }
+        }
+
+        private bool IsGamepadKey(Windows.System.VirtualKey key)
+        {
+            // GamepadA through GamepadRightThumbstickLeft are gamepad keys
+            return key >= Windows.System.VirtualKey.GamepadA && key <= Windows.System.VirtualKey.GamepadRightThumbstickLeft;
         }
 
         private void OnScrollViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
