@@ -252,6 +252,9 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Ensure fallback artwork exists and assign to games without artwork
+                await EnsureFallbackArtworkAsync();
+
                 _dispatcher.TryEnqueue(() =>
                 {
                     var statusParts = new List<string> { $"{_cachedGames.Count} games in database" };
@@ -272,6 +275,70 @@ namespace HUDRA.Services
             {
                 _isScanning = false;
                 _dispatcher.TryEnqueue(() => ScanningStateChanged?.Invoke(this, false));
+            }
+        }
+
+        /// <summary>
+        /// Ensures fallback artwork exists in artwork directory and assigns it to games without artwork
+        /// </summary>
+        private async Task EnsureFallbackArtworkAsync()
+        {
+            try
+            {
+                // Get artwork directory path
+                var artworkDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "HUDRA",
+                    "artwork");
+
+                // Ensure artwork directory exists
+                if (!Directory.Exists(artworkDirectory))
+                {
+                    Directory.CreateDirectory(artworkDirectory);
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Created artwork directory: {artworkDirectory}");
+                }
+
+                // Define fallback image paths
+                var fallbackSourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "no-artwork-grid.png");
+                var fallbackDestPath = Path.Combine(artworkDirectory, "no-artwork-grid.png");
+
+                // Copy fallback image if it doesn't exist in artwork directory
+                if (!File.Exists(fallbackDestPath))
+                {
+                    if (File.Exists(fallbackSourcePath))
+                    {
+                        File.Copy(fallbackSourcePath, fallbackDestPath, overwrite: false);
+                        System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Copied fallback artwork to: {fallbackDestPath}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ EnhancedGameDetection: Fallback artwork not found at: {fallbackSourcePath}");
+                        return; // Can't proceed without fallback image
+                    }
+                }
+
+                // Find games without artwork and assign fallback
+                var gamesWithoutArtwork = _cachedGames.Values.Where(g => string.IsNullOrEmpty(g.ArtworkPath)).ToList();
+
+                if (gamesWithoutArtwork.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Assigning fallback artwork to {gamesWithoutArtwork.Count} games..."));
+
+                    foreach (var game in gamesWithoutArtwork)
+                    {
+                        game.ArtworkPath = fallbackDestPath;
+                        _gameDatabase.SaveGame(game);
+                        System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Assigned fallback artwork to: {game.DisplayName}");
+                    }
+
+                    // Reload cache after updating artwork paths
+                    var allGames = await _gameDatabase.GetAllGamesAsync();
+                    _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Error ensuring fallback artwork: {ex.Message}");
             }
         }
 
