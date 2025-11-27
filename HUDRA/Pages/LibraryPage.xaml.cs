@@ -38,6 +38,8 @@ namespace HUDRA.Pages
         {
             this.InitializeComponent();
 
+            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage CONSTRUCTOR called - new instance created");
+
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
 

@@ -124,7 +124,7 @@
                 x:Name="LibraryRootPanel"
                 x:FieldModifier="public"
                 MaxWidth="320"
-                Margin="0,15,0,200"
+                Margin="0,15,0,50"
                 HorizontalAlignment="Center"
                 Spacing="20">
 
