@@ -302,8 +302,22 @@ namespace HUDRA.Pages
 
         private async void GameTile_Click(object sender, RoutedEventArgs e)
         {
-            if (sender is not Button button || button.Tag is not DetectedGame game)
+            System.Diagnostics.Debug.WriteLine($"🖱️ GameTile_Click called - sender type: {sender?.GetType().Name}");
+
+            if (sender is not Button button)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ GameTile_Click: sender is not Button");
                 return;
+            }
+
+            if (button.Tag is not DetectedGame game)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ GameTile_Click: Button.Tag is not DetectedGame, type: {button.Tag?.GetType().Name ?? "null"}");
+                return;
+            }
+
+            string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
+            System.Diagnostics.Debug.WriteLine($"🖱️ GameTile_Click: Launching {game.DisplayName} ({artworkInfo})");
 
             Border? overlay = null;
 
@@ -624,9 +638,21 @@ namespace HUDRA.Pages
                 var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
 
                 // If this is a game button, add it to the list
-                if (child is Button button && button.Tag is DetectedGame)
+                if (child is Button button)
                 {
-                    buttons.Add(button);
+                    if (button.Tag is DetectedGame game)
+                    {
+                        buttons.Add(button);
+                        // Log details about this button for debugging
+                        string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath)
+                            ? $"NO artwork (ArtworkPath='{game.ArtworkPath ?? "null"}')"
+                            : $"has artwork ({game.ArtworkPath})";
+                        System.Diagnostics.Debug.WriteLine($"🔍 Found button: {game.DisplayName} - {artworkInfo}, IsEnabled={button.IsEnabled}, IsTabStop={button.IsTabStop}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ Found button with Tag type: {button.Tag?.GetType().Name ?? "null"}");
+                    }
                 }
 
                 // Recursively search children
@@ -656,6 +682,7 @@ namespace HUDRA.Pages
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error sorting buttons: {ex.Message}");
             }
 
+            System.Diagnostics.Debug.WriteLine($"🔍 Total buttons found: {buttons.Count}");
             return buttons;
         }
 
