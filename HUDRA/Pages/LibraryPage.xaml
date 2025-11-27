@@ -175,7 +175,7 @@
                                     IsTabStop="True"
                                     Style="{StaticResource GameTileButtonStyle}"
                                     TabIndex="0"
-                                    Tag="{x:Bind}">
+                                    Tag="{Binding}">
                                     <Grid Background="Transparent">
                                         <!--  Artwork Image  -->
                                         <Image
