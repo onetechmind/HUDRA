@@ -106,7 +106,7 @@
     <Grid Margin="0">
         <ScrollViewer
             x:Name="LibraryScrollViewer"
-            MaxHeight="700"
+            VerticalAlignment="Stretch"
             HorizontalScrollBarVisibility="Disabled"
             VerticalScrollBarVisibility="Auto">
             <StackPanel

@@ -54,7 +54,10 @@ namespace HUDRA.Pages
             // Subscribe to scroll changes to continuously track position
             // Must be done after page is loaded to ensure ScrollViewer is initialized
             LibraryScrollViewer.ViewChanged += OnScrollViewChanged;
-            System.Diagnostics.Debug.WriteLine("📜 LibraryPage: ViewChanged event handler attached");
+            System.Diagnostics.Debug.WriteLine($"📜 OnPageLoaded: ViewChanged handler attached");
+            System.Diagnostics.Debug.WriteLine($"📜   ScrollViewer ExtentHeight: {LibraryScrollViewer.ExtentHeight}");
+            System.Diagnostics.Debug.WriteLine($"📜   ScrollViewer ViewportHeight: {LibraryScrollViewer.ViewportHeight}");
+            System.Diagnostics.Debug.WriteLine($"📜   Current _savedScrollOffset: {_savedScrollOffset}");
         }
 
         private void OnScrollViewChanged(object? sender, ScrollViewerViewChangedEventArgs e)
