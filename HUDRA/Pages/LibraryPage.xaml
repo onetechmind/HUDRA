@@ -3,17 +3,17 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:local="using:HUDRA.Pages"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:HUDRA.Models"
-    xmlns:local="using:HUDRA.Pages"
     mc:Ignorable="d">
 
     <Page.Resources>
-        <!-- Value Converters -->
+        <!--  Value Converters  -->
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
         <local:InvertedNullToVisibilityConverter x:Key="InvertedNullToVisibilityConverter" />
 
-        <!-- Game Tile Style -->
+        <!--  Game Tile Style  -->
         <Style x:Key="GameTileButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#2d2d2d" />
             <Setter Property="Foreground" Value="White" />
@@ -65,42 +65,30 @@
                                 <VisualStateGroup x:Name="FocusStates">
                                     <VisualState x:Name="Focused">
                                         <Storyboard>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderBrush">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="DarkViolet" />
                                             </ObjectAnimationUsingKeyFrames>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderThickness">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderThickness">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="3" />
                                             </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="Unfocused">
                                         <Storyboard>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderBrush">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="Transparent" />
                                             </ObjectAnimationUsingKeyFrames>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderThickness">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderThickness">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="0" />
                                             </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
                                     </VisualState>
                                     <VisualState x:Name="PointerFocused">
                                         <Storyboard>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderBrush">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="DarkViolet" />
                                             </ObjectAnimationUsingKeyFrames>
-                                            <ObjectAnimationUsingKeyFrames
-                                                Storyboard.TargetName="ButtonBorder"
-                                                Storyboard.TargetProperty="BorderThickness">
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderThickness">
                                                 <DiscreteObjectKeyFrame KeyTime="0" Value="3" />
                                             </ObjectAnimationUsingKeyFrames>
                                         </Storyboard>
@@ -118,177 +106,175 @@
         <ScrollViewer
             x:Name="LibraryScrollViewer"
             MaxHeight="700"
-            VerticalScrollBarVisibility="Auto"
-            HorizontalScrollBarVisibility="Disabled">
+            HorizontalScrollBarVisibility="Disabled"
+            VerticalScrollBarVisibility="Auto">
             <StackPanel
                 x:Name="LibraryRootPanel"
-                x:FieldModifier="public"
                 MaxWidth="320"
-                Margin="0,15,0,50"
+                Margin="0"
                 HorizontalAlignment="Center"
+                x:FieldModifier="public"
                 Spacing="20">
 
-            <!-- Header -->
-            <Border>
-                <TextBlock
-                    Padding="0,15,0,0"
-                    HorizontalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="18"
-                    FontWeight="SemiBold"
-                    IsTabStop="False"
-                    Text="LIBRARY" />
-            </Border>
-
-            <!-- Scan Progress Indicator -->
-            <Border
-                x:Name="ScanProgressIndicator"
-                Padding="12,10"
-                HorizontalAlignment="Center"
-                Background="#2d2d2d"
-                BorderBrush="#670195"
-                BorderThickness="1"
-                CornerRadius="10"
-                Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                    <ProgressRing
-                        Width="20"
-                        Height="20"
-                        IsActive="True"
-                        Foreground="#670195" />
+                <!--  Header  -->
+                <Border>
                     <TextBlock
-                        x:Name="ScanProgressText"
-                        VerticalAlignment="Center"
+                        Padding="0,15,0,0"
+                        HorizontalAlignment="Center"
                         FontFamily="Cascadia Code"
-                        FontSize="12"
-                        Foreground="#CCCCCC"
-                        Text="Scanning..." />
-                </StackPanel>
-            </Border>
+                        FontSize="18"
+                        FontWeight="SemiBold"
+                        IsTabStop="False"
+                        Text="LIBRARY" />
+                </Border>
 
-            <!-- Game Grid -->
-            <ItemsControl
-                x:Name="GamesItemsControl"
-                HorizontalAlignment="Center"
-                MaxWidth="320"
-                XYFocusKeyboardNavigation="Enabled"
-                TabNavigation="Once">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <ItemsWrapGrid
-                            MaximumRowsOrColumns="2"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Center" />
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="models:DetectedGame">
-                        <StackPanel Spacing="5" Margin="5">
-                            <!-- Game Tile Button -->
-                            <Button
-                                Width="145"
-                                Height="95"
-                                Click="GameTile_Click"
-                                Style="{StaticResource GameTileButtonStyle}"
-                                Tag="{x:Bind}"
-                                IsTabStop="True"
-                                TabIndex="0">
-                                <Grid>
-                                    <!-- Artwork Image -->
-                                    <Image
-                                        x:Name="ArtworkImage"
-                                        Stretch="UniformToFill"
-                                        Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}"
-                                        Source="{x:Bind ArtworkPath, Mode=OneWay}" />
+                <!--  Scan Progress Indicator  -->
+                <Border
+                    x:Name="ScanProgressIndicator"
+                    Padding="12,10"
+                    HorizontalAlignment="Center"
+                    Background="#2d2d2d"
+                    BorderBrush="#670195"
+                    BorderThickness="1"
+                    CornerRadius="10"
+                    Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <ProgressRing
+                            Width="20"
+                            Height="20"
+                            Foreground="#670195"
+                            IsActive="True" />
+                        <TextBlock
+                            x:Name="ScanProgressText"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Foreground="#CCCCCC"
+                            Text="Scanning..." />
+                    </StackPanel>
+                </Border>
 
-                                    <!-- Fallback: Game Name in Styled Box -->
-                                    <Border
-                                        Background="#1A1A1A"
-                                        Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
-                                        <TextBlock
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            FontFamily="Cascadia Code"
-                                            FontSize="12"
-                                            FontWeight="SemiBold"
-                                            Foreground="White"
-                                            Text="{x:Bind DisplayName, Mode=OneWay}"
-                                            TextAlignment="Center"
-                                            TextWrapping="Wrap"
-                                            Padding="8" />
-                                    </Border>
+                <!--  Game Grid  -->
+                <ItemsControl
+                    x:Name="GamesItemsControl"
+                    MaxWidth="320"
+                    HorizontalAlignment="Center"
+                    TabNavigation="Once"
+                    XYFocusKeyboardNavigation="Enabled">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <ItemsWrapGrid
+                                HorizontalAlignment="Center"
+                                MaximumRowsOrColumns="2"
+                                Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="models:DetectedGame">
+                            <StackPanel Margin="5" Spacing="5">
+                                <!--  Game Tile Button  -->
+                                <Button
+                                    Width="145"
+                                    Height="95"
+                                    Click="GameTile_Click"
+                                    IsTabStop="True"
+                                    Style="{StaticResource GameTileButtonStyle}"
+                                    TabIndex="0"
+                                    Tag="{x:Bind}">
+                                    <Grid>
+                                        <!--  Artwork Image  -->
+                                        <Image
+                                            x:Name="ArtworkImage"
+                                            Source="{x:Bind ArtworkPath, Mode=OneWay}"
+                                            Stretch="UniformToFill"
+                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
 
-                                    <!-- Launching Overlay -->
-                                    <Border
-                                        x:Name="TileLaunchingOverlay"
-                                        Background="#CC670195"
-                                        Visibility="Collapsed"
-                                        CornerRadius="12">
-                                        <StackPanel
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Spacing="5">
-                                            <ProgressRing
-                                                Width="24"
-                                                Height="24"
-                                                IsActive="True"
-                                                Foreground="White" />
+                                        <!--  Fallback: Game Name in Styled Box  -->
+                                        <Border Background="#1A1A1A" Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
                                             <TextBlock
+                                                Padding="8"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
                                                 FontFamily="Cascadia Code"
-                                                FontSize="10"
+                                                FontSize="12"
                                                 FontWeight="SemiBold"
                                                 Foreground="White"
-                                                Text="Launching..."
-                                                TextAlignment="Center" />
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                            </Button>
+                                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                                TextAlignment="Center"
+                                                TextWrapping="Wrap" />
+                                        </Border>
 
-                            <!-- Game Name Below Tile -->
-                            <TextBlock
-                                Width="145"
-                                HorizontalAlignment="Center"
-                                FontFamily="Cascadia Code"
-                                FontSize="11"
-                                Foreground="White"
-                                Text="{x:Bind DisplayName, Mode=OneWay}"
-                                TextAlignment="Center"
-                                TextTrimming="CharacterEllipsis"
-                                MaxLines="2" />
-                        </StackPanel>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                                        <!--  Launching Overlay  -->
+                                        <Border
+                                            x:Name="TileLaunchingOverlay"
+                                            Background="#CC670195"
+                                            CornerRadius="12"
+                                            Visibility="Collapsed">
+                                            <StackPanel
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Spacing="5">
+                                                <ProgressRing
+                                                    Width="24"
+                                                    Height="24"
+                                                    Foreground="White"
+                                                    IsActive="True" />
+                                                <TextBlock
+                                                    FontFamily="Cascadia Code"
+                                                    FontSize="10"
+                                                    FontWeight="SemiBold"
+                                                    Foreground="White"
+                                                    Text="Launching..."
+                                                    TextAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Button>
 
-            <!-- Empty State -->
-            <Border
-                x:Name="EmptyStatePanel"
-                Padding="20"
-                HorizontalAlignment="Center"
-                Background="#2d2d2d"
-                CornerRadius="12"
-                Visibility="Collapsed">
-                <StackPanel Spacing="10">
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        FontFamily="Cascadia Code"
-                        FontSize="16"
-                        FontWeight="SemiBold"
-                        Foreground="White"
-                        Text="No games found" />
-                    <TextBlock
-                        HorizontalAlignment="Center"
-                        FontFamily="Calibri"
-                        FontSize="13"
-                        Foreground="#99FFFFFF"
-                        Text="Enable Enhanced Library Scanning in Settings"
-                        TextAlignment="Center"
-                        TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+                                <!--  Game Name Below Tile  -->
+                                <TextBlock
+                                    Width="145"
+                                    HorizontalAlignment="Center"
+                                    FontFamily="Cascadia Code"
+                                    FontSize="11"
+                                    Foreground="White"
+                                    MaxLines="2"
+                                    Text="{x:Bind DisplayName, Mode=OneWay}"
+                                    TextAlignment="Center"
+                                    TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
-        </StackPanel>
+                <!--  Empty State  -->
+                <Border
+                    x:Name="EmptyStatePanel"
+                    Padding="20"
+                    HorizontalAlignment="Center"
+                    Background="#2d2d2d"
+                    CornerRadius="12"
+                    Visibility="Collapsed">
+                    <StackPanel Spacing="10">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Foreground="White"
+                            Text="No games found" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontFamily="Calibri"
+                            FontSize="13"
+                            Foreground="#99FFFFFF"
+                            Text="Enable Enhanced Library Scanning in Settings"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
         </ScrollViewer>
     </Grid>
 </Page>
