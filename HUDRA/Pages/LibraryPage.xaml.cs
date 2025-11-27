@@ -22,9 +22,10 @@ namespace HUDRA.Pages
         private GamepadNavigationService? _gamepadNavigationService;
         private ObservableCollection<DetectedGame> _games = new ObservableCollection<DetectedGame>();
 
-        // State preservation
-        private double _savedScrollOffset = 0;
-        private string? _savedFocusedGameProcessName = null;
+        // State preservation - STATIC fields persist across page instances
+        // (Page is recreated on each navigation, not cached)
+        private static double _savedScrollOffset = 0;
+        private static string? _savedFocusedGameProcessName = null;
         private bool _gamesLoaded = false;
 
         // Gamepad navigation
