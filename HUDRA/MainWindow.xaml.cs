@@ -600,21 +600,13 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
                 // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, async () =>
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
                     // Pause the gamepad navigation service to forward raw input to Library page
                     _gamepadNavigationService.PauseInputProcessing();
 
-                    // If navigated via gamepad (L1/R1), focus first button after a delay
-                    if (wasGamepadNav)
-                    {
-                        // Wait for buttons to be fully rendered
-                        await Task.Delay(300);
-
-                        // Focus the first game button for immediate gamepad navigation
-                        _libraryPage.FocusFirstGameButton();
-                        System.Diagnostics.Debug.WriteLine("=== Library page: Focused first button for gamepad ===");
-                    }
+                    // Note: Focus is now handled by smart focus restoration in LibraryPage.Initialize()
+                    // based on last input method (gamepad vs mouse)
 
                     _isGamepadNavForCurrentPage = false;
                 });
