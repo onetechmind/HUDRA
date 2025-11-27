@@ -23,10 +23,10 @@ namespace HUDRA.Pages
         private ScrollViewer? _contentScrollViewer; // MainWindow's ContentScrollViewer
         private ObservableCollection<DetectedGame> _games = new ObservableCollection<DetectedGame>();
 
-        // State preservation - instance fields persist due to NavigationCacheMode.Enabled
-        // Page is created once and reused on subsequent navigations
-        private double _savedScrollOffset = 0;
-        private string? _savedFocusedGameProcessName = null;
+        // State preservation - STATIC fields persist across page recreation
+        // Despite NavigationCacheMode.Enabled, page is still being recreated (framework issue)
+        private static double _savedScrollOffset = 0;
+        private static string? _savedFocusedGameProcessName = null;
         private bool _gamesLoaded = false;
         private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
 
@@ -92,30 +92,37 @@ namespace HUDRA.Pages
             // Save state when navigating away
             SaveScrollPosition();
 
+            // Unsubscribe from ViewChanged to prevent tracking other pages' scrolling
+            if (_contentScrollViewer != null)
+            {
+                _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
+                System.Diagnostics.Debug.WriteLine($"📜 Unsubscribed from ContentScrollViewer.ViewChanged");
+            }
+
             // Unsubscribe from raw gamepad input (resubscribed on next Initialize)
             if (_gamepadNavigationService != null)
             {
                 _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
-            // Note: We keep scan event subscriptions active since page is cached
-            // and we want to receive updates even when not visible
+            // Note: We keep scan event subscriptions active for reactive updates
         }
 
         /// <summary>
-        /// Saves the focused game state. Called when navigating away from the page.
-        /// Note: Scroll position is continuously tracked via ViewChanged event.
+        /// Saves the focused game state when navigating away from the page.
+        /// Note: Scroll position is tracked continuously via ViewChanged (static field persists across page recreation).
         /// </summary>
         public void SaveScrollPosition()
         {
             // Scroll position is already being tracked continuously via ViewChanged event
+            // The static _savedScrollOffset field persists even when page is recreated
             // Just save the focused game here
 
             System.Diagnostics.Debug.WriteLine($"📜 SaveScrollPosition CALLED (leaving Library page)");
-            System.Diagnostics.Debug.WriteLine($"📜   Already tracked scroll: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   Scroll position saved in static field: {_savedScrollOffset}");
             if (_contentScrollViewer != null)
             {
-                System.Diagnostics.Debug.WriteLine($"📜   Current scroll: {_contentScrollViewer.VerticalOffset}");
+                System.Diagnostics.Debug.WriteLine($"📜   Current ContentScrollViewer offset: {_contentScrollViewer.VerticalOffset}");
                 System.Diagnostics.Debug.WriteLine($"📜   ExtentHeight: {_contentScrollViewer.ExtentHeight}");
                 System.Diagnostics.Debug.WriteLine($"📜   ViewportHeight: {_contentScrollViewer.ViewportHeight}");
             }
@@ -154,19 +161,20 @@ namespace HUDRA.Pages
             // Subscribe to gamepad input on each navigation (unsubscribed when leaving page)
             _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
 
-            // Subscribe to events only once (page is cached, we want updates for page lifetime)
+            // Subscribe to ContentScrollViewer on each navigation (unsubscribed when leaving)
+            // This is necessary because we need to stop tracking when other pages use the same ScrollViewer
+            _contentScrollViewer.ViewChanged += OnScrollViewChanged;
+            System.Diagnostics.Debug.WriteLine($"📜 Subscribed to ContentScrollViewer.ViewChanged");
+            System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ExtentHeight: {_contentScrollViewer.ExtentHeight}");
+            System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ViewportHeight: {_contentScrollViewer.ViewportHeight}");
+
+            // Subscribe to scan events only once (for reactive game list updates)
             if (!_eventsSubscribed)
             {
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribing to events (first time only)");
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribing to scan events (first time only)");
 
-                // Subscribe to scan events for reactive game list updates
                 _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
                 _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
-
-                // Subscribe to MainWindow's ContentScrollViewer for scroll tracking
-                _contentScrollViewer.ViewChanged += OnScrollViewChanged;
-                System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ExtentHeight: {_contentScrollViewer.ExtentHeight}");
-                System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ViewportHeight: {_contentScrollViewer.ViewportHeight}");
 
                 _eventsSubscribed = true;
             }
