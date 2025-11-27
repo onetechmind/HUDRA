@@ -100,8 +100,7 @@ namespace HUDRA.Services
 
             if (appWindow.Presenter is OverlappedPresenter presenter)
             {
-                // Enable vertical-only resizing for testing scroll behavior
-                presenter.IsResizable = true;
+                presenter.IsResizable = false;
                 presenter.IsMaximizable = false;
                 presenter.IsMinimizable = false;
                 presenter.SetBorderAndTitleBar(false, false);

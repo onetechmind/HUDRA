@@ -43,8 +43,6 @@ namespace HUDRA.Pages
         {
             this.InitializeComponent();
 
-            System.Diagnostics.Debug.WriteLine($"📜 LibraryPage CONSTRUCTOR - page created (caching enabled, should only happen once)");
-
             // Initialize game launcher service
             _gameLauncherService = new GameLauncherService();
 
@@ -62,7 +60,6 @@ namespace HUDRA.Pages
             {
                 _lastUsedGamepadInput = false;
                 _savedFocusedGameProcessName = null;
-                System.Diagnostics.Debug.WriteLine($"🖱️ Mouse click detected - switched to mouse input, cleared saved focus");
             }
         }
 
@@ -74,7 +71,6 @@ namespace HUDRA.Pages
             {
                 _lastUsedGamepadInput = false;
                 _savedFocusedGameProcessName = null;
-                System.Diagnostics.Debug.WriteLine($"⌨️ Keyboard input detected - switched to keyboard input, cleared saved focus");
             }
         }
 
@@ -91,7 +87,6 @@ namespace HUDRA.Pages
             if (_contentScrollViewer != null)
             {
                 _savedScrollOffset = _contentScrollViewer.VerticalOffset;
-                System.Diagnostics.Debug.WriteLine($"📜 ViewChanged: scroll now at {_savedScrollOffset:F1}");
 
                 // ONLY track input method if this is a user-initiated scroll, NOT programmatic restoration
                 // This prevents RestoreScrollPositionAsync from incorrectly resetting the gamepad flag
@@ -100,7 +95,6 @@ namespace HUDRA.Pages
                     _lastUsedGamepadInput = false;
                     // Clear saved focus when switching to mouse/keyboard - no tile is selected
                     _savedFocusedGameProcessName = null;
-                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll (user-initiated) - cleared saved focus");
                 }
             }
         }
@@ -108,8 +102,6 @@ namespace HUDRA.Pages
         protected override async void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: OnNavigatedTo - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}");
 
             // Only load games if not already loaded (to preserve scroll position)
             if (!_gamesLoaded)
@@ -154,30 +146,20 @@ namespace HUDRA.Pages
         /// </summary>
         public void SaveScrollPosition()
         {
-            System.Diagnostics.Debug.WriteLine($"📜 SaveScrollPosition CALLED (leaving Library page)");
-            System.Diagnostics.Debug.WriteLine($"📜   Scroll position in static field: {_savedScrollOffset}");
-            System.Diagnostics.Debug.WriteLine($"📜   Saved focused game in static field: {_savedFocusedGameProcessName ?? "(none)"}");
-
             if (_contentScrollViewer != null)
             {
-                System.Diagnostics.Debug.WriteLine($"📜   Current ContentScrollViewer offset: {_contentScrollViewer.VerticalOffset}");
-
                 // CRITICAL: Unsubscribe IMMEDIATELY to prevent other pages from overwriting _savedScrollOffset
                 // This must happen before the next page loads and scrolls ContentScrollViewer to 0
                 _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
-                System.Diagnostics.Debug.WriteLine($"📜   ✅ UNSUBSCRIBED from ViewChanged - scroll locked at {_savedScrollOffset}");
             }
 
             // NOTE: Focused game is now tracked continuously via SaveCurrentlyFocusedGame()
             // during D-pad navigation, so we don't need to check FocusManager here.
             // The _savedFocusedGameProcessName static field already contains the last focused game.
-            System.Diagnostics.Debug.WriteLine($"📜   Final saved focused game: {_savedFocusedGameProcessName ?? "(none)"}");
         }
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer, bool isGamepadNavigation = false)
         {
-            System.Diagnostics.Debug.WriteLine($"LibraryPage: Initialize called - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}, isGamepadNavigation={isGamepadNavigation}");
-
             // Defensive null checks
             if (gameDetectionService == null)
             {
@@ -205,15 +187,10 @@ namespace HUDRA.Pages
             // Subscribe to ContentScrollViewer on each navigation (unsubscribed when leaving)
             // This is necessary because we need to stop tracking when other pages use the same ScrollViewer
             _contentScrollViewer.ViewChanged += OnScrollViewChanged;
-            System.Diagnostics.Debug.WriteLine($"📜 Subscribed to ContentScrollViewer.ViewChanged");
-            System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ExtentHeight: {_contentScrollViewer.ExtentHeight}");
-            System.Diagnostics.Debug.WriteLine($"📜   ContentScrollViewer ViewportHeight: {_contentScrollViewer.ViewportHeight}");
 
             // Subscribe to scan events only once (for reactive game list updates)
             if (!_eventsSubscribed)
             {
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Subscribing to scan events (first time only)");
-
                 _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
                 _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
 
@@ -237,20 +214,17 @@ namespace HUDRA.Pages
                 if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
                 {
                     // Restore previously focused game
-                    System.Diagnostics.Debug.WriteLine($"🎮 Gamepad nav + saved focus: Restoring focus to {_savedFocusedGameProcessName}");
                     await RestoreFocusedGameAsync();
                 }
                 else
                 {
                     // Auto-select first tile
-                    System.Diagnostics.Debug.WriteLine($"🎮 Gamepad nav + no saved focus: Focusing first tile");
                     await FocusFirstGameTileAsync();
                 }
             }
             else
             {
                 _lastUsedGamepadInput = false; // Update input method tracking
-                System.Diagnostics.Debug.WriteLine($"🖱️ Mouse/Keyboard nav: No auto-focus");
                 // No auto-focus for mouse/keyboard navigation
             }
 
@@ -279,8 +253,6 @@ namespace HUDRA.Pages
                 var allGames = await _gameDetectionService.GetAllGamesAsync();
                 var gamesList = allGames?.ToList() ?? new List<DetectedGame>();
 
-                System.Diagnostics.Debug.WriteLine($"📚 LoadGamesAsync: Retrieved {gamesList.Count} games from database");
-
                 if (!gamesList.Any())
                 {
                     ShowEmptyState();
@@ -292,26 +264,15 @@ namespace HUDRA.Pages
 
                 // Update the ObservableCollection
                 _games.Clear();
-                int nullCount = 0;
-                int addedCount = 0;
                 foreach (var game in gamesList)
                 {
                     if (game == null)
                     {
-                        nullCount++;
                         System.Diagnostics.Debug.WriteLine($"⚠️ LoadGamesAsync: Found NULL game object in database results - SKIPPING!");
                         continue; // Skip null entries - don't add them to the collection
                     }
 
-                    string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
-                    System.Diagnostics.Debug.WriteLine($"📚 Adding game: {game.DisplayName} ({game.ProcessName}) - {artworkInfo}");
                     _games.Add(game);
-                    addedCount++;
-                }
-
-                if (nullCount > 0)
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠️ LoadGamesAsync: WARNING - Skipped {nullCount} null game objects from database!");
                 }
 
                 // Set ItemsSource
@@ -322,8 +283,6 @@ namespace HUDRA.Pages
 
                 // Mark games as loaded
                 _gamesLoaded = true;
-
-                System.Diagnostics.Debug.WriteLine($"📚 LoadGamesAsync: Added {addedCount} valid games to ObservableCollection (skipped {nullCount} null entries)");
             }
             catch (Exception ex)
             {
@@ -340,22 +299,10 @@ namespace HUDRA.Pages
 
         private async void GameTile_Click(object sender, RoutedEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"🖱️ GameTile_Click called - sender type: {sender?.GetType().Name}");
-
-            if (sender is not Button button)
+            if (sender is not Button button || button.Tag is not DetectedGame game)
             {
-                System.Diagnostics.Debug.WriteLine($"⚠️ GameTile_Click: sender is not Button");
                 return;
             }
-
-            if (button.Tag is not DetectedGame game)
-            {
-                System.Diagnostics.Debug.WriteLine($"⚠️ GameTile_Click: Button.Tag is not DetectedGame, type: {button.Tag?.GetType().Name ?? "null"}");
-                return;
-            }
-
-            string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
-            System.Diagnostics.Debug.WriteLine($"🖱️ GameTile_Click: Launching {game.DisplayName} ({artworkInfo})");
 
             Border? overlay = null;
 
@@ -454,21 +401,10 @@ namespace HUDRA.Pages
 
         private async Task RestoreScrollPositionAsync()
         {
-            System.Diagnostics.Debug.WriteLine($"📜 RestoreScrollPositionAsync - _savedScrollOffset={_savedScrollOffset}");
-
-            if (_contentScrollViewer == null)
+            if (_contentScrollViewer == null || _savedScrollOffset == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"📜   ERROR: ContentScrollViewer is null");
-                return;
-            }
-
-            if (_savedScrollOffset == 0)
-            {
-                System.Diagnostics.Debug.WriteLine($"📜   Skipping restore - offset is 0");
                 return; // No need to restore if at top
             }
-
-            System.Diagnostics.Debug.WriteLine($"📜   Will restore scroll to: {_savedScrollOffset}");
 
             // Wait for content to be fully loaded and measured
             // Retry a few times until the extent height is calculated
@@ -480,25 +416,18 @@ namespace HUDRA.Pages
                 // Check if the ScrollViewer has measured its content
                 if (_contentScrollViewer.ExtentHeight > 0)
                 {
-                    System.Diagnostics.Debug.WriteLine($"📜   ScrollViewer ready on attempt {attempt + 1}");
-                    System.Diagnostics.Debug.WriteLine($"📜     ExtentHeight: {_contentScrollViewer.ExtentHeight}");
-                    System.Diagnostics.Debug.WriteLine($"📜     ViewportHeight: {_contentScrollViewer.ViewportHeight}");
-                    System.Diagnostics.Debug.WriteLine($"📜     Current offset: {_contentScrollViewer.VerticalOffset}");
                     break;
                 }
-                System.Diagnostics.Debug.WriteLine($"📜   Waiting for layout... attempt {attempt + 1}");
             }
 
             // Set flag to prevent ViewChanged from resetting _lastUsedGamepadInput
             _isRestoringScroll = true;
 
             // Restore the scroll position
-            bool success = _contentScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
-            System.Diagnostics.Debug.WriteLine($"📜   ChangeView() returned: {success}, target: {_savedScrollOffset}");
+            _contentScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
 
             // Verify restoration worked
             await Task.Delay(100);
-            System.Diagnostics.Debug.WriteLine($"📜   FINAL scroll position: {_contentScrollViewer.VerticalOffset}");
 
             // Clear the flag after restoration is complete
             _isRestoringScroll = false;
@@ -508,8 +437,6 @@ namespace HUDRA.Pages
         {
             if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
             {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: RestoreFocusedGameAsync - Restoring focus to: {_savedFocusedGameProcessName}");
-
                 // Wait for UI to be fully rendered
                 await Task.Delay(100);
 
@@ -524,21 +451,15 @@ namespace HUDRA.Pages
                 var gameButton = FindGameButton(_savedFocusedGameProcessName);
                 if (gameButton != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Found button, focusing it (this may scroll)");
                     gameButton.Focus(FocusState.Programmatic);
                     // Keep the saved focus valid (already saved, but this ensures it)
                     SaveCurrentlyFocusedGame(gameButton);
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Could not find button for {_savedFocusedGameProcessName}");
                     // Game no longer exists, clear saved focus
                     _savedFocusedGameProcessName = null;
                 }
-            }
-            else
-            {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: No saved focus to restore");
             }
         }
 
@@ -548,8 +469,6 @@ namespace HUDRA.Pages
         /// </summary>
         private async Task FocusFirstGameTileAsync()
         {
-            System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: Focusing first tile in list");
-
             // Wait for UI to be fully rendered
             await Task.Delay(100);
 
@@ -564,14 +483,12 @@ namespace HUDRA.Pages
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: No buttons found");
                 return;
             }
 
             // Focus the very first button (index 0)
             allButtons[0].Focus(FocusState.Programmatic);
             SaveCurrentlyFocusedGame(allButtons[0]);
-            System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: Focused first tile (index 0)");
         }
 
         /// <summary>
@@ -583,8 +500,6 @@ namespace HUDRA.Pages
             if (button?.Tag is DetectedGame game)
             {
                 _savedFocusedGameProcessName = game.ProcessName;
-                string artworkStatus = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
-                System.Diagnostics.Debug.WriteLine($"💾 Saved focused game: {game.DisplayName} ({game.ProcessName}) - {artworkStatus}");
             }
         }
 
@@ -596,7 +511,6 @@ namespace HUDRA.Pages
         {
             if (_contentScrollViewer == null)
             {
-                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: ContentScrollViewer is null");
                 return;
             }
 
@@ -607,15 +521,12 @@ namespace HUDRA.Pages
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0)
             {
-                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: No buttons found");
                 return;
             }
 
             // Get current scroll position
             double currentScrollOffset = _contentScrollViewer.VerticalOffset;
             double viewportHeight = _contentScrollViewer.ViewportHeight;
-
-            System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Scroll={currentScrollOffset:F0}, Viewport={viewportHeight:F0}");
 
             // Find the first button that is fully or partially visible in the viewport
             Button? firstVisibleButton = null;
@@ -638,13 +549,12 @@ namespace HUDRA.Pages
                     if (isVisible)
                     {
                         firstVisibleButton = button;
-                        System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Found visible button at Y={buttonTop:F0}");
                         break; // Buttons are already sorted top-to-bottom, so first visible is top-left
                     }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Error checking button visibility: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Error checking button visibility: {ex.Message}");
                 }
             }
 
@@ -652,13 +562,11 @@ namespace HUDRA.Pages
             if (firstVisibleButton != null)
             {
                 firstVisibleButton.Focus(FocusState.Programmatic);
-                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Focused first visible tile");
             }
             else
             {
                 // Fallback: focus the very first button if no visible button found
                 allButtons[0].Focus(FocusState.Programmatic);
-                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: No visible button found, focused first button as fallback");
             }
         }
 
@@ -690,21 +598,9 @@ namespace HUDRA.Pages
                 var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
 
                 // If this is a game button, add it to the list
-                if (child is Button button)
+                if (child is Button button && button.Tag is DetectedGame)
                 {
-                    if (button.Tag is DetectedGame game)
-                    {
-                        buttons.Add(button);
-                        // Log details about this button for debugging
-                        string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath)
-                            ? $"NO artwork (ArtworkPath='{game.ArtworkPath ?? "null"}')"
-                            : $"has artwork ({game.ArtworkPath})";
-                        System.Diagnostics.Debug.WriteLine($"🔍 Found button: {game.DisplayName} - {artworkInfo}, IsEnabled={button.IsEnabled}, IsTabStop={button.IsTabStop}");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine($"⚠️ Found button with Tag type: {button.Tag?.GetType().Name ?? "null"}");
-                    }
+                    buttons.Add(button);
                 }
 
                 // Recursively search children
@@ -734,7 +630,6 @@ namespace HUDRA.Pages
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error sorting buttons: {ex.Message}");
             }
 
-            System.Diagnostics.Debug.WriteLine($"🔍 Total buttons found: {buttons.Count}");
             return buttons;
         }
 
@@ -745,7 +640,6 @@ namespace HUDRA.Pages
                 // Don't override if we already have a saved focus position
                 if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
                 {
-                    System.Diagnostics.Debug.WriteLine("LibraryPage: Skipping FocusFirstGameButton - saved focus exists");
                     return;
                 }
 
@@ -758,7 +652,6 @@ namespace HUDRA.Pages
                 {
                     // Focus the first button WITHOUT scrolling to preserve scroll position
                     allButtons[0].Focus(FocusState.Programmatic);
-                    System.Diagnostics.Debug.WriteLine("LibraryPage: Focused first game button");
                 }
             }
             catch (Exception ex)
@@ -878,11 +771,7 @@ namespace HUDRA.Pages
             {
                 // Already at top row - scroll to absolute top to show header
                 _contentScrollViewer.UpdateLayout();
-                System.Diagnostics.Debug.WriteLine($"⬆️ EDGE SCROLL UP - At top row (index={currentIndex})");
-                System.Diagnostics.Debug.WriteLine($"⬆️   Current scroll: {_contentScrollViewer.VerticalOffset}");
-                System.Diagnostics.Debug.WriteLine($"⬆️   Scrolling to: 0");
-                bool scrolled = _contentScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
-                System.Diagnostics.Debug.WriteLine($"⬆️   ChangeView returned: {scrolled}");
+                _contentScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
             }
         }
 
@@ -920,15 +809,8 @@ namespace HUDRA.Pages
                 _contentScrollViewer.UpdateLayout();
                 double maxScroll = Math.Max(0, _contentScrollViewer.ExtentHeight - _contentScrollViewer.ViewportHeight);
 
-                System.Diagnostics.Debug.WriteLine($"⬇️ EDGE SCROLL DOWN - At bottom row (index={currentIndex})");
-                System.Diagnostics.Debug.WriteLine($"⬇️   ExtentHeight: {_contentScrollViewer.ExtentHeight}");
-                System.Diagnostics.Debug.WriteLine($"⬇️   ViewportHeight: {_contentScrollViewer.ViewportHeight}");
-                System.Diagnostics.Debug.WriteLine($"⬇️   Current scroll: {_contentScrollViewer.VerticalOffset}");
-                System.Diagnostics.Debug.WriteLine($"⬇️   Max scroll (target): {maxScroll}");
-
                 // Always try to scroll to bottom (ChangeView will clamp to valid range)
-                bool scrolled = _contentScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
-                System.Diagnostics.Debug.WriteLine($"⬇️   ChangeView returned: {scrolled}");
+                _contentScrollViewer.ChangeView(null, maxScroll, null, disableAnimation: false);
             }
         }
 
@@ -1034,9 +916,8 @@ namespace HUDRA.Pages
         {
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             var focusedButton = FindFocusedButton(allButtons);
-            if (focusedButton != null && focusedButton.Tag is DetectedGame game)
+            if (focusedButton != null && focusedButton.Tag is DetectedGame)
             {
-                System.Diagnostics.Debug.WriteLine($"LibraryPage: A button pressed - launching {game.DisplayName}");
                 GameTile_Click(focusedButton, new RoutedEventArgs());
             }
         }
