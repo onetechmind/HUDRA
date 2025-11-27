@@ -27,6 +27,7 @@ namespace HUDRA.Pages
         // Despite NavigationCacheMode.Enabled, page is still being recreated (framework issue)
         private static double _savedScrollOffset = 0;
         private static string? _savedFocusedGameProcessName = null;
+        private static bool _lastUsedGamepadInput = false; // Track input method for smart focus restoration
         private bool _gamesLoaded = false;
         private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
 
@@ -55,6 +56,14 @@ namespace HUDRA.Pages
             {
                 _savedScrollOffset = _contentScrollViewer.VerticalOffset;
                 System.Diagnostics.Debug.WriteLine($"📜 ViewChanged: scroll now at {_savedScrollOffset:F1}");
+
+                // Track that mouse/touch scroll was used (not gamepad navigation)
+                // Only track if this is a user-initiated scroll (not from ChangeView calls)
+                if (!e.IsIntermediate)
+                {
+                    _lastUsedGamepadInput = false;
+                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll");
+                }
             }
         }
 
@@ -178,8 +187,19 @@ namespace HUDRA.Pages
                 await LoadGamesAsync();
             }
 
-            // Restore focused game first (if any) - this may scroll
-            await RestoreFocusedGameAsync();
+            // Smart focus restoration based on last input method
+            if (_lastUsedGamepadInput)
+            {
+                // User was using gamepad navigation - restore previously focused game
+                System.Diagnostics.Debug.WriteLine($"🎮 Smart Focus: Gamepad was last used - restoring saved focus");
+                await RestoreFocusedGameAsync();
+            }
+            else
+            {
+                // User was using mouse scroll - focus top-left visible tile for convenience
+                System.Diagnostics.Debug.WriteLine($"🖱️ Smart Focus: Mouse was last used - focusing first visible tile");
+                await FocusFirstVisibleTileAsync();
+            }
 
             // THEN restore scroll position to override any focus-induced scrolling
             await Task.Delay(200);
@@ -417,6 +437,80 @@ namespace HUDRA.Pages
             }
         }
 
+        /// <summary>
+        /// Focuses the top-left visible tile in the current viewport.
+        /// Used when user was scrolling with mouse and then navigates back.
+        /// </summary>
+        private async Task FocusFirstVisibleTileAsync()
+        {
+            if (_contentScrollViewer == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: ContentScrollViewer is null");
+                return;
+            }
+
+            // Wait for UI to be fully rendered
+            await Task.Delay(100);
+
+            // Get all game buttons
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (allButtons.Count == 0)
+            {
+                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: No buttons found");
+                return;
+            }
+
+            // Get current scroll position
+            double currentScrollOffset = _contentScrollViewer.VerticalOffset;
+            double viewportHeight = _contentScrollViewer.ViewportHeight;
+
+            System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Scroll={currentScrollOffset:F0}, Viewport={viewportHeight:F0}");
+
+            // Find the first button that is fully or partially visible in the viewport
+            Button? firstVisibleButton = null;
+            foreach (var button in allButtons)
+            {
+                try
+                {
+                    // Get button's position relative to the content
+                    var transform = button.TransformToVisual(GamesItemsControl);
+                    var position = transform.TransformPoint(new Windows.Foundation.Point(0, 0));
+                    double buttonTop = position.Y;
+                    double buttonBottom = position.Y + button.ActualHeight;
+
+                    // Check if button is visible in viewport
+                    // A button is visible if its bottom edge is below the scroll position
+                    // and its top edge is above the scroll position + viewport height
+                    bool isVisible = buttonBottom > currentScrollOffset &&
+                                    buttonTop < (currentScrollOffset + viewportHeight);
+
+                    if (isVisible)
+                    {
+                        firstVisibleButton = button;
+                        System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Found visible button at Y={buttonTop:F0}");
+                        break; // Buttons are already sorted top-to-bottom, so first visible is top-left
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Error checking button visibility: {ex.Message}");
+                }
+            }
+
+            // Focus the first visible button
+            if (firstVisibleButton != null)
+            {
+                firstVisibleButton.Focus(FocusState.Programmatic);
+                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: Focused first visible tile");
+            }
+            else
+            {
+                // Fallback: focus the very first button if no visible button found
+                allButtons[0].Focus(FocusState.Programmatic);
+                System.Diagnostics.Debug.WriteLine($"🖱️ FocusFirstVisibleTile: No visible button found, focused first button as fallback");
+            }
+        }
+
         private Button? FindGameButton(string processName)
         {
             // Search through the visual tree to find all game buttons
@@ -590,6 +684,9 @@ namespace HUDRA.Pages
 
         private void NavigateUp()
         {
+            // Track gamepad navigation input
+            _lastUsedGamepadInput = true;
+
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
 
@@ -625,6 +722,9 @@ namespace HUDRA.Pages
 
         private void NavigateDown()
         {
+            // Track gamepad navigation input
+            _lastUsedGamepadInput = true;
+
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
 
@@ -666,6 +766,9 @@ namespace HUDRA.Pages
 
         private void NavigateLeft()
         {
+            // Track gamepad navigation input
+            _lastUsedGamepadInput = true;
+
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
 
@@ -702,6 +805,9 @@ namespace HUDRA.Pages
 
         private void NavigateRight()
         {
+            // Track gamepad navigation input
+            _lastUsedGamepadInput = true;
+
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
 
