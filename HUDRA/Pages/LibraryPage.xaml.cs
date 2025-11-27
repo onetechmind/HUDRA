@@ -119,6 +119,7 @@ namespace HUDRA.Pages
         {
             System.Diagnostics.Debug.WriteLine($"📜 SaveScrollPosition CALLED (leaving Library page)");
             System.Diagnostics.Debug.WriteLine($"📜   Scroll position in static field: {_savedScrollOffset}");
+            System.Diagnostics.Debug.WriteLine($"📜   Saved focused game in static field: {_savedFocusedGameProcessName ?? "(none)"}");
 
             if (_contentScrollViewer != null)
             {
@@ -130,27 +131,10 @@ namespace HUDRA.Pages
                 System.Diagnostics.Debug.WriteLine($"📜   ✅ UNSUBSCRIBED from ViewChanged - scroll locked at {_savedScrollOffset}");
             }
 
-            // Save focused game for gamepad navigation
-            if (FocusManager.GetFocusedElement(this.XamlRoot) is FrameworkElement focusedElement)
-            {
-                // Walk up the visual tree to find the Button with a DetectedGame tag
-                var current = focusedElement;
-                while (current != null)
-                {
-                    if (current is Button button && button.Tag is DetectedGame game)
-                    {
-                        _savedFocusedGameProcessName = game.ProcessName;
-                        System.Diagnostics.Debug.WriteLine($"📜   Focused game: {game.ProcessName}");
-                        break;
-                    }
-                    current = current.Parent as FrameworkElement;
-                }
-            }
-            else
-            {
-                _savedFocusedGameProcessName = null;
-                System.Diagnostics.Debug.WriteLine($"📜   No focused game");
-            }
+            // NOTE: Focused game is now tracked continuously via SaveCurrentlyFocusedGame()
+            // during D-pad navigation, so we don't need to check FocusManager here.
+            // The _savedFocusedGameProcessName static field already contains the last focused game.
+            System.Diagnostics.Debug.WriteLine($"📜   Final saved focused game: {_savedFocusedGameProcessName ?? "(none)"}");
         }
 
         public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer, bool isGamepadNavigation = false)
@@ -446,10 +430,14 @@ namespace HUDRA.Pages
                 {
                     System.Diagnostics.Debug.WriteLine($"LibraryPage: Found button, focusing it (this may scroll)");
                     gameButton.Focus(FocusState.Programmatic);
+                    // Keep the saved focus valid (already saved, but this ensures it)
+                    SaveCurrentlyFocusedGame(gameButton);
                 }
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"LibraryPage: Could not find button for {_savedFocusedGameProcessName}");
+                    // Game no longer exists, clear saved focus
+                    _savedFocusedGameProcessName = null;
                 }
             }
             else
@@ -479,7 +467,21 @@ namespace HUDRA.Pages
 
             // Focus the very first button (index 0)
             allButtons[0].Focus(FocusState.Programmatic);
+            SaveCurrentlyFocusedGame(allButtons[0]);
             System.Diagnostics.Debug.WriteLine($"🎮 FocusFirstGameTile: Focused first tile (index 0)");
+        }
+
+        /// <summary>
+        /// Saves the currently focused game for restoration on next navigation.
+        /// Called whenever focus changes via D-pad navigation.
+        /// </summary>
+        private void SaveCurrentlyFocusedGame(Button button)
+        {
+            if (button?.Tag is DetectedGame game)
+            {
+                _savedFocusedGameProcessName = game.ProcessName;
+                System.Diagnostics.Debug.WriteLine($"💾 Saved focused game: {game.ProcessName}");
+            }
         }
 
         /// <summary>
@@ -742,6 +744,7 @@ namespace HUDRA.Pages
             {
                 allButtons[0].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[0]);
+                SaveCurrentlyFocusedGame(allButtons[0]);
                 return;
             }
 
@@ -752,6 +755,7 @@ namespace HUDRA.Pages
             {
                 allButtons[targetIndex].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[targetIndex]);
+                SaveCurrentlyFocusedGame(allButtons[targetIndex]);
             }
             else if (_contentScrollViewer != null)
             {
@@ -780,6 +784,7 @@ namespace HUDRA.Pages
             {
                 allButtons[0].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[0]);
+                SaveCurrentlyFocusedGame(allButtons[0]);
                 return;
             }
 
@@ -790,6 +795,7 @@ namespace HUDRA.Pages
             {
                 allButtons[targetIndex].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[targetIndex]);
+                SaveCurrentlyFocusedGame(allButtons[targetIndex]);
             }
             else if (_contentScrollViewer != null)
             {
@@ -824,6 +830,7 @@ namespace HUDRA.Pages
             {
                 allButtons[0].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[0]);
+                SaveCurrentlyFocusedGame(allButtons[0]);
                 return;
             }
 
@@ -835,6 +842,7 @@ namespace HUDRA.Pages
                 // Move left to first column (same row)
                 allButtons[currentIndex - 1].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[currentIndex - 1]);
+                SaveCurrentlyFocusedGame(allButtons[currentIndex - 1]);
             }
             else // If in first column (left)
             {
@@ -844,6 +852,7 @@ namespace HUDRA.Pages
                 {
                     allButtons[targetIndex].Focus(FocusState.Programmatic);
                     EnsureButtonVisible(allButtons[targetIndex]);
+                    SaveCurrentlyFocusedGame(allButtons[targetIndex]);
                 }
             }
         }
@@ -863,6 +872,7 @@ namespace HUDRA.Pages
             {
                 allButtons[0].Focus(FocusState.Programmatic);
                 EnsureButtonVisible(allButtons[0]);
+                SaveCurrentlyFocusedGame(allButtons[0]);
                 return;
             }
 
@@ -876,6 +886,7 @@ namespace HUDRA.Pages
                 {
                     allButtons[currentIndex + 1].Focus(FocusState.Programmatic);
                     EnsureButtonVisible(allButtons[currentIndex + 1]);
+                    SaveCurrentlyFocusedGame(allButtons[currentIndex + 1]);
                 }
             }
             else // If in second column (right)
@@ -886,6 +897,7 @@ namespace HUDRA.Pages
                 {
                     allButtons[targetIndex].Focus(FocusState.Programmatic);
                     EnsureButtonVisible(allButtons[targetIndex]);
+                    SaveCurrentlyFocusedGame(allButtons[targetIndex]);
                 }
             }
         }
