@@ -262,20 +262,39 @@ namespace HUDRA.Pages
                 var allGames = await _gameDetectionService.GetAllGamesAsync();
                 var gamesList = allGames?.ToList() ?? new List<DetectedGame>();
 
+                System.Diagnostics.Debug.WriteLine($"📚 LoadGamesAsync: Retrieved {gamesList.Count} games from database");
+
                 if (!gamesList.Any())
                 {
                     ShowEmptyState();
                     return;
                 }
 
-                // Sort alphabetically by display name
-                gamesList = gamesList.OrderBy(g => g.DisplayName).ToList();
+                // Sort alphabetically by display name (null-safe)
+                gamesList = gamesList.OrderBy(g => g?.DisplayName ?? "").ToList();
 
                 // Update the ObservableCollection
                 _games.Clear();
+                int nullCount = 0;
+                int addedCount = 0;
                 foreach (var game in gamesList)
                 {
+                    if (game == null)
+                    {
+                        nullCount++;
+                        System.Diagnostics.Debug.WriteLine($"⚠️ LoadGamesAsync: Found NULL game object in database results - SKIPPING!");
+                        continue; // Skip null entries - don't add them to the collection
+                    }
+
+                    string artworkInfo = string.IsNullOrEmpty(game.ArtworkPath) ? "NO artwork" : "has artwork";
+                    System.Diagnostics.Debug.WriteLine($"📚 Adding game: {game.DisplayName} ({game.ProcessName}) - {artworkInfo}");
                     _games.Add(game);
+                    addedCount++;
+                }
+
+                if (nullCount > 0)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ LoadGamesAsync: WARNING - Skipped {nullCount} null game objects from database!");
                 }
 
                 // Set ItemsSource
@@ -286,6 +305,8 @@ namespace HUDRA.Pages
 
                 // Mark games as loaded
                 _gamesLoaded = true;
+
+                System.Diagnostics.Debug.WriteLine($"📚 LoadGamesAsync: Added {addedCount} valid games to ObservableCollection (skipped {nullCount} null entries)");
             }
             catch (Exception ex)
             {
