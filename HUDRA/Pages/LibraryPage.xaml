@@ -176,7 +176,7 @@
                                     Style="{StaticResource GameTileButtonStyle}"
                                     TabIndex="0"
                                     Tag="{x:Bind}">
-                                    <Grid>
+                                    <Grid Background="Transparent">
                                         <!--  Artwork Image  -->
                                         <Image
                                             x:Name="ArtworkImage"
@@ -185,7 +185,11 @@
                                             Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
 
                                         <!--  Fallback: Game Name in Styled Box  -->
-                                        <Border Background="#1A1A1A" Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
+                                        <Border
+                                            HorizontalAlignment="Stretch"
+                                            VerticalAlignment="Stretch"
+                                            Background="#1A1A1A"
+                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}">
                                             <TextBlock
                                                 Padding="8"
                                                 HorizontalAlignment="Center"

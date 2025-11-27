@@ -30,6 +30,7 @@ namespace HUDRA.Pages
         private static bool _lastUsedGamepadInput = false; // Track input method for smart focus restoration
         private bool _gamesLoaded = false;
         private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
+        private bool _isRestoringScroll = false; // Flag to ignore ViewChanged during programmatic scroll restoration
 
         // Gamepad navigation
         private readonly HashSet<GamepadButtons> _pressedButtons = new();
@@ -57,12 +58,12 @@ namespace HUDRA.Pages
                 _savedScrollOffset = _contentScrollViewer.VerticalOffset;
                 System.Diagnostics.Debug.WriteLine($"📜 ViewChanged: scroll now at {_savedScrollOffset:F1}");
 
-                // Track that mouse/touch scroll was used (not gamepad navigation)
-                // Only track if this is a user-initiated scroll (not from ChangeView calls)
-                if (!e.IsIntermediate)
+                // ONLY track input method if this is a user-initiated scroll, NOT programmatic restoration
+                // This prevents RestoreScrollPositionAsync from incorrectly resetting the gamepad flag
+                if (!_isRestoringScroll && !e.IsIntermediate)
                 {
                     _lastUsedGamepadInput = false;
-                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll");
+                    System.Diagnostics.Debug.WriteLine($"📜   Input method: Mouse/Touch scroll (user-initiated)");
                 }
             }
         }
@@ -401,6 +402,9 @@ namespace HUDRA.Pages
                 System.Diagnostics.Debug.WriteLine($"📜   Waiting for layout... attempt {attempt + 1}");
             }
 
+            // Set flag to prevent ViewChanged from resetting _lastUsedGamepadInput
+            _isRestoringScroll = true;
+
             // Restore the scroll position
             bool success = _contentScrollViewer.ChangeView(null, _savedScrollOffset, null, disableAnimation: true);
             System.Diagnostics.Debug.WriteLine($"📜   ChangeView() returned: {success}, target: {_savedScrollOffset}");
@@ -408,6 +412,9 @@ namespace HUDRA.Pages
             // Verify restoration worked
             await Task.Delay(100);
             System.Diagnostics.Debug.WriteLine($"📜   FINAL scroll position: {_contentScrollViewer.VerticalOffset}");
+
+            // Clear the flag after restoration is complete
+            _isRestoringScroll = false;
         }
 
         private async Task RestoreFocusedGameAsync()
