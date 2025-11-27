@@ -178,6 +178,23 @@ namespace HUDRA.Pages
         {
             System.Diagnostics.Debug.WriteLine($"LibraryPage: Initialize called - _savedScrollOffset={_savedScrollOffset}, _savedFocusedGameProcessName={_savedFocusedGameProcessName}, isGamepadNavigation={isGamepadNavigation}");
 
+            // Defensive null checks
+            if (gameDetectionService == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Initialize: gameDetectionService is NULL!");
+                return;
+            }
+            if (gamepadNavigationService == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Initialize: gamepadNavigationService is NULL!");
+                return;
+            }
+            if (contentScrollViewer == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ Initialize: contentScrollViewer is NULL!");
+                return;
+            }
+
             _gameDetectionService = gameDetectionService;
             _gamepadNavigationService = gamepadNavigationService;
             _contentScrollViewer = contentScrollViewer;
@@ -496,6 +513,13 @@ namespace HUDRA.Pages
                 // Wait for UI to be fully rendered
                 await Task.Delay(100);
 
+                // Null check for GamesItemsControl
+                if (GamesItemsControl == null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ RestoreFocusedGameAsync: GamesItemsControl is NULL!");
+                    return;
+                }
+
                 // Find the game button that matches the saved process name
                 var gameButton = FindGameButton(_savedFocusedGameProcessName);
                 if (gameButton != null)
@@ -528,6 +552,13 @@ namespace HUDRA.Pages
 
             // Wait for UI to be fully rendered
             await Task.Delay(100);
+
+            // Null check for GamesItemsControl
+            if (GamesItemsControl == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ FocusFirstGameTile: GamesItemsControl is NULL!");
+                return;
+            }
 
             // Get all game buttons
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
