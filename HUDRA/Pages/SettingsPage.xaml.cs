@@ -705,7 +705,8 @@ namespace HUDRA.Pages
                     PrimaryButtonText = "Ⓐ Yes",
                     CloseButtonText = "Ⓑ No",
                     DefaultButton = ContentDialogButton.Close,
-                    XamlRoot = this.XamlRoot
+                    XamlRoot = this.XamlRoot,
+                    MaxWidth = 448 // Match standard ContentDialog width
                 };
 
                 var result = mainWindow != null
