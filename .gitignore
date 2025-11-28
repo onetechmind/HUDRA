@@ -365,3 +365,4 @@ FodyWeavers.xsd
 
 # Specs folder - ignore all specification files
 /Specs/
+/Architecture
