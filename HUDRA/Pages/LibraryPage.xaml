@@ -111,155 +111,157 @@
         x:FieldModifier="public"
         Spacing="20">
 
-                <!--  Header  -->
-                <Border>
-                    <TextBlock
-                        Padding="0,15,0,0"
+        <!--  Header  -->
+        <Border>
+            <TextBlock
+                Padding="0,15,0,0"
+                HorizontalAlignment="Center"
+                FontFamily="Cascadia Code"
+                FontSize="18"
+                FontWeight="SemiBold"
+                IsTabStop="False"
+                Text="LIBRARY" />
+        </Border>
+
+        <!--  Scan Progress Indicator  -->
+        <Border
+            x:Name="ScanProgressIndicator"
+            Padding="12,10"
+            HorizontalAlignment="Center"
+            Background="#2d2d2d"
+            BorderBrush="#670195"
+            BorderThickness="1"
+            CornerRadius="10"
+            Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <ProgressRing
+                    Width="20"
+                    Height="20"
+                    Foreground="#670195"
+                    IsActive="True" />
+                <TextBlock
+                    x:Name="ScanProgressText"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="12"
+                    Foreground="#CCCCCC"
+                    Text="Scanning..." />
+            </StackPanel>
+        </Border>
+
+        <!--  Game Grid  -->
+        <ItemsControl
+            x:Name="GamesItemsControl"
+            MaxWidth="320"
+            HorizontalAlignment="Center"
+            TabNavigation="Once"
+            XYFocusKeyboardNavigation="Enabled">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ItemsWrapGrid
                         HorizontalAlignment="Center"
-                        FontFamily="Cascadia Code"
-                        FontSize="18"
-                        FontWeight="SemiBold"
-                        IsTabStop="False"
-                        Text="LIBRARY" />
-                </Border>
+                        MaximumRowsOrColumns="2"
+                        Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="models:DetectedGame">
+                    <StackPanel Margin="5" Spacing="5">
+                        <!--  Game Tile Button  -->
+                        <Button
+                            Width="125"
+                            Height="82"
+                            Click="GameTile_Click"
+                            IsTabStop="True"
+                            Style="{StaticResource GameTileButtonStyle}"
+                            TabIndex="0"
+                            Tag="{Binding}">
+                            <Grid Background="Transparent">
+                                <!--  Artwork Image  -->
+                                <Image
+                                    x:Name="ArtworkImage"
+                                    Source="{x:Bind ArtworkPath, Mode=OneWay}"
+                                    Stretch="UniformToFill"
+                                    Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
 
-                <!--  Scan Progress Indicator  -->
-                <Border
-                    x:Name="ScanProgressIndicator"
-                    Padding="12,10"
-                    HorizontalAlignment="Center"
-                    Background="#2d2d2d"
-                    BorderBrush="#670195"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                        <ProgressRing
-                            Width="20"
-                            Height="20"
-                            Foreground="#670195"
-                            IsActive="True" />
+                                <!--  Fallback: No Artwork Image  -->
+                                <Image
+                                    IsHitTestVisible="False"
+                                    Source="ms-appx:///Assets/no-artwork-grid.png"
+                                    Stretch="UniformToFill"
+                                    Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}" />
+
+                                <!--  Launching Overlay  -->
+                                <Border
+                                    x:Name="TileLaunchingOverlay"
+                                    Background="#CC670195"
+                                    CornerRadius="12"
+                                    Visibility="Collapsed">
+                                    <StackPanel
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center"
+                                        Spacing="5">
+                                        <ProgressRing
+                                            Width="24"
+                                            Height="24"
+                                            Foreground="White"
+                                            IsActive="True" />
+                                        <TextBlock
+                                            FontFamily="Cascadia Code"
+                                            FontSize="10"
+                                            FontWeight="SemiBold"
+                                            Foreground="White"
+                                            Text="Launching..."
+                                            TextAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Button>
+
+                        <!--  Game Name Below Tile  -->
                         <TextBlock
-                            x:Name="ScanProgressText"
-                            VerticalAlignment="Center"
-                            FontFamily="Cascadia Code"
-                            FontSize="12"
-                            Foreground="#CCCCCC"
-                            Text="Scanning..." />
-                    </StackPanel>
-                </Border>
-
-                <!--  Game Grid  -->
-                <ItemsControl
-                    x:Name="GamesItemsControl"
-                    MaxWidth="320"
-                    HorizontalAlignment="Center"
-                    TabNavigation="Once"
-                    XYFocusKeyboardNavigation="Enabled">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <ItemsWrapGrid
-                                HorizontalAlignment="Center"
-                                MaximumRowsOrColumns="2"
-                                Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="models:DetectedGame">
-                            <StackPanel Margin="5" Spacing="5">
-                                <!--  Game Tile Button  -->
-                                <Button
-                                    Width="145"
-                                    Height="95"
-                                    Click="GameTile_Click"
-                                    IsTabStop="True"
-                                    Style="{StaticResource GameTileButtonStyle}"
-                                    TabIndex="0"
-                                    Tag="{Binding}">
-                                    <Grid Background="Transparent">
-                                        <!--  Artwork Image  -->
-                                        <Image
-                                            x:Name="ArtworkImage"
-                                            Source="{x:Bind ArtworkPath, Mode=OneWay}"
-                                            Stretch="UniformToFill"
-                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
-
-                                        <!--  Fallback: No Artwork Image  -->
-                                        <Image
-                                            Source="ms-appx:///Assets/no-artwork-grid.png"
-                                            Stretch="UniformToFill"
-                                            IsHitTestVisible="False"
-                                            Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}" />
-
-                                        <!--  Launching Overlay  -->
-                                        <Border
-                                            x:Name="TileLaunchingOverlay"
-                                            Background="#CC670195"
-                                            CornerRadius="12"
-                                            Visibility="Collapsed">
-                                            <StackPanel
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center"
-                                                Spacing="5">
-                                                <ProgressRing
-                                                    Width="24"
-                                                    Height="24"
-                                                    Foreground="White"
-                                                    IsActive="True" />
-                                                <TextBlock
-                                                    FontFamily="Cascadia Code"
-                                                    FontSize="10"
-                                                    FontWeight="SemiBold"
-                                                    Foreground="White"
-                                                    Text="Launching..."
-                                                    TextAlignment="Center" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-                                </Button>
-
-                                <!--  Game Name Below Tile  -->
-                                <TextBlock
-                                    Width="145"
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="11"
-                                    Foreground="White"
-                                    MaxLines="2"
-                                    Text="{x:Bind DisplayName, Mode=OneWay}"
-                                    TextAlignment="Center"
-                                    TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!--  Empty State  -->
-                <Border
-                    x:Name="EmptyStatePanel"
-                    Padding="20"
-                    HorizontalAlignment="Center"
-                    Background="#2d2d2d"
-                    CornerRadius="12"
-                    Visibility="Collapsed">
-                    <StackPanel Spacing="10">
-                        <TextBlock
+                            Width="135"
+                            Height="40"
+                            Padding="5"
                             HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
-                            FontSize="16"
-                            FontWeight="SemiBold"
+                            FontSize="11"
                             Foreground="White"
-                            Text="No games found" />
-                        <TextBlock
-                            HorizontalAlignment="Center"
-                            FontFamily="Calibri"
-                            FontSize="13"
-                            Foreground="#99FFFFFF"
-                            Text="Enable Enhanced Library Scanning in Settings"
+                            MaxLines="2"
+                            Text="{x:Bind DisplayName, Mode=OneWay}"
                             TextAlignment="Center"
                             TextWrapping="Wrap" />
                     </StackPanel>
-                </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!--  Empty State  -->
+        <Border
+            x:Name="EmptyStatePanel"
+            Padding="20"
+            HorizontalAlignment="Center"
+            Background="#2d2d2d"
+            CornerRadius="12"
+            Visibility="Collapsed">
+            <StackPanel Spacing="10">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="16"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="No games found" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontFamily="Calibri"
+                    FontSize="13"
+                    Foreground="#99FFFFFF"
+                    Text="Enable Enhanced Library Scanning in Settings"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
 
     </StackPanel>
 </Page>
