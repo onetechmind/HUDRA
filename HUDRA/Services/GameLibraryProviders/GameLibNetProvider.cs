@@ -130,6 +130,9 @@ namespace HUDRA.Services.GameLibraryProviders
                                 else if (properties.ContainsKey("Id"))
                                     gameId = properties["Id"].GetValue(game)?.ToString();
 
+                                // Construct proper platform launch URL
+                                string launcherInfo = ConstructLauncherUrl(launcherName, gameId);
+
                                 var detectedGame = new DetectedGame
                                 {
                                     ProcessName = processName,
@@ -137,7 +140,7 @@ namespace HUDRA.Services.GameLibraryProviders
                                     ExecutablePath = executablePath,
                                     InstallLocation = !string.IsNullOrWhiteSpace(installDir) ? installDir : Path.GetDirectoryName(executablePath) ?? string.Empty,
                                     Source = gameSource,
-                                    LauncherInfo = launcherName,
+                                    LauncherInfo = launcherInfo,
                                     PackageInfo = !string.IsNullOrWhiteSpace(gameId) ? gameId : string.Empty,
                                     LastDetected = DateTime.Now
                                 };
@@ -399,6 +402,61 @@ namespace HUDRA.Services.GameLibraryProviders
                 var name when name.Contains("ubisoft") || name.Contains("uplay") => GameSource.Ubisoft,
                 _ => GameSource.Directory
             };
+        }
+
+        /// <summary>
+        /// Constructs a proper platform-specific launch URL from launcher name and game ID
+        /// </summary>
+        private string ConstructLauncherUrl(string launcherName, string? gameId)
+        {
+            if (string.IsNullOrWhiteSpace(gameId))
+            {
+                // No game ID available - return empty string to skip platform launch
+                return string.Empty;
+            }
+
+            var lowerLauncherName = launcherName.ToLowerInvariant();
+
+            // Construct platform-specific protocol URLs
+            if (lowerLauncherName.Contains("steam"))
+            {
+                // Steam protocol: steam://rungameid/{appId}
+                return $"steam://rungameid/{gameId}";
+            }
+            else if (lowerLauncherName.Contains("epic"))
+            {
+                // Epic Games Launcher protocol
+                return $"com.epicgames.launcher://apps/{gameId}?action=launch&silent=true";
+            }
+            else if (lowerLauncherName.Contains("gog"))
+            {
+                // GOG Galaxy protocol
+                return $"goggalaxy://openGameView/{gameId}";
+            }
+            else if (lowerLauncherName.Contains("origin"))
+            {
+                // Origin protocol (deprecated, but still supported)
+                return $"origin://launchgame/{gameId}";
+            }
+            else if (lowerLauncherName.Contains("ubisoft") || lowerLauncherName.Contains("uplay"))
+            {
+                // Ubisoft Connect (formerly Uplay) protocol
+                return $"uplay://launch/{gameId}/0";
+            }
+            else if (lowerLauncherName.Contains("rockstar"))
+            {
+                // Rockstar Games Launcher protocol
+                return $"rockstar://launch/{gameId}";
+            }
+            else if (lowerLauncherName.Contains("battlenet") || lowerLauncherName.Contains("battle.net") || lowerLauncherName.Contains("battle net"))
+            {
+                // Battle.net protocol
+                return $"battlenet://{gameId}";
+            }
+
+            // Unknown launcher - return empty to skip platform launch and use direct executable
+            System.Diagnostics.Debug.WriteLine($"GameLib.NET: Unknown launcher '{launcherName}' - no protocol URL constructed");
+            return string.Empty;
         }
     }
 }

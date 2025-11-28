@@ -202,7 +202,44 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
-            // If input processing is paused, check for shoulder buttons first (for page navigation)
+            // PRIORITY 1: Handle dialog input FIRST (even if input processing is paused)
+            // This allows modals to work on Library page where input processing is suspended
+            if (_isDialogOpen && _currentDialog != null)
+            {
+                var dialogNewButtons = GetNewlyPressedButtons(reading.Buttons);
+
+                if (dialogNewButtons.Contains(GamepadButtons.A))
+                {
+                    // A button = Primary button (Confirm/OK)
+                    System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        if (_currentDialog != null)
+                        {
+                            TriggerDialogPrimaryButton(_currentDialog);
+                        }
+                    });
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return;
+                }
+                else if (dialogNewButtons.Contains(GamepadButtons.B))
+                {
+                    // B button = Close/Cancel button
+                    System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
+                    _dispatcherQueue?.TryEnqueue(() =>
+                    {
+                        _currentDialog?.Hide();
+                    });
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return;
+                }
+
+                // Block all other input while dialog is open
+                UpdatePressedButtonsState(reading.Buttons);
+                return;
+            }
+
+            // PRIORITY 2: If input processing is paused, check for shoulder buttons first (for page navigation)
             // and triggers for navbar cycling, then forward remaining input to subscribers (e.g., Library page)
             if (_inputProcessingPaused)
             {

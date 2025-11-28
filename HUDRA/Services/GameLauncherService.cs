@@ -18,7 +18,8 @@ namespace HUDRA.Services
                 System.Diagnostics.Debug.WriteLine($"GameLauncher: Attempting to launch {game.DisplayName}");
 
                 // Strategy 1: Try platform-specific launch via LauncherInfo
-                if (!string.IsNullOrEmpty(game.LauncherInfo))
+                // Only attempt if LauncherInfo is a valid protocol URL (contains "://")
+                if (!string.IsNullOrEmpty(game.LauncherInfo) && game.LauncherInfo.Contains("://"))
                 {
                     System.Diagnostics.Debug.WriteLine($"GameLauncher: Trying platform launch with LauncherInfo: {game.LauncherInfo}");
 
@@ -27,6 +28,10 @@ namespace HUDRA.Services
                         System.Diagnostics.Debug.WriteLine($"GameLauncher: Successfully launched {game.DisplayName} via platform");
                         return true;
                     }
+                }
+                else if (!string.IsNullOrEmpty(game.LauncherInfo))
+                {
+                    System.Diagnostics.Debug.WriteLine($"GameLauncher: Skipping invalid LauncherInfo (not a protocol URL): {game.LauncherInfo}");
                 }
 
                 // Strategy 2: Try direct executable launch

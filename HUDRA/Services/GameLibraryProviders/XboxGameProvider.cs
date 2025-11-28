@@ -20,7 +20,6 @@ namespace HUDRA.Services.GameLibraryProviders
 
         public XboxGameProvider()
         {
-            System.Diagnostics.Debug.WriteLine($"Xbox provider: Initializing with IsAvailable={IsAvailable}");
         }
 
         public async Task<Dictionary<string, DetectedGame>> GetGamesAsync()
@@ -36,23 +35,12 @@ namespace HUDRA.Services.GameLibraryProviders
                 
                 // Run PowerShell as external process to avoid SDK compatibility issues
                 var (exitCode, stdout, stderr) = await RunPowerShellProcessAsync(GetXboxGamesScript(), cancellationTokenSource.Token);
-                
-                // Always log the complete PowerShell output for debugging
-                if (!string.IsNullOrWhiteSpace(stdout))
-                {
-                    System.Diagnostics.Debug.WriteLine($"Xbox provider: PowerShell stdout: {stdout}");
-                }
-                if (!string.IsNullOrWhiteSpace(stderr))
-                {
-                    System.Diagnostics.Debug.WriteLine($"Xbox provider: PowerShell stderr: {stderr}");
-                }
 
                 if (exitCode == 0 && !string.IsNullOrWhiteSpace(stdout))
                 {
                     // Parse JSON output from PowerShell
                     var gameResults = ParseXboxGameResults(stdout);
-                    
-                    System.Diagnostics.Debug.WriteLine($"Xbox provider: Parsed {gameResults.Count} games from PowerShell output");
+
                     ScanProgressChanged?.Invoke(this, $"Processing {gameResults.Count} Xbox games...");
 
                     foreach (var gameResult in gameResults)
@@ -158,8 +146,6 @@ namespace HUDRA.Services.GameLibraryProviders
                     process.BeginOutputReadLine();
                     process.BeginErrorReadLine();
 
-                    System.Diagnostics.Debug.WriteLine($"Xbox provider: Started {psExe} process successfully");
-
                     using (cancellationToken.Register(() =>
                     {
                         try
@@ -223,6 +209,26 @@ namespace HUDRA.Services.GameLibraryProviders
                             # Extract display name from the parent folder name (go up one level from Content)
                             $folderName = Split-Path -Leaf (Split-Path -Parent $actualLocation)
 
+                            # Try to resolve symlink/junction to get actual folder name
+                            # Xbox uses symlinks for games with special characters (e.g., commas)
+                            $realFolderName = $folderName
+                            try {
+                                $parentPath = Split-Path -Parent $actualLocation
+                                $item = Get-Item $parentPath -ErrorAction SilentlyContinue
+
+                                if ($item.LinkType -eq 'Junction' -or $item.LinkType -eq 'SymbolicLink') {
+                                    $targetPath = $item.Target
+                                    if (![string]::IsNullOrWhiteSpace($targetPath)) {
+                                        $realFolderName = Split-Path -Leaf $targetPath
+                                    }
+                                }
+                            } catch {
+                                # Symlink resolution failed - stick with original folder name
+                            }
+
+                            # Check if folder name is a GUID pattern (fallback to exe name if so)
+                            $isGuid = $realFolderName -match '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
+
                             # Scan for all .exe files up to 5 levels deep in the game folder
                             # This helps detect games where the actual running exe differs from MicrosoftGame.config
                             $allExeNames = @()
@@ -235,9 +241,23 @@ namespace HUDRA.Services.GameLibraryProviders
                                 $allExeNames = @($exeName)
                             }
 
+                            # Prioritize real folder name, fall back to exe name for GUIDs
+                            # This ensures:
+                            # - ""Little Kitty, Big City"" uses folder name (not GUID)
+                            # - ""Metaphor ReFantazio"" uses folder name (not exe ""METAPHOR"")
+                            $displayName = if (!$isGuid -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
+                                $realFolderName
+                            } elseif (![string]::IsNullOrWhiteSpace($exeName)) {
+                                $exeName
+                            } elseif ($allExeNames.Count -gt 0) {
+                                $allExeNames[0]
+                            } else {
+                                $package.Name
+                            }
+
                             $gameObj = @{
                                 ProcessName = $package.Name
-                                GameName = $folderName
+                                GameName = $displayName
                                 InstallLocation = $actualLocation
                                 PackageFullName = $package.PackageFullName
                                 ExecutablePath = Join-Path $actualLocation $config.Game.ExecutableList.Executable.Name
@@ -300,13 +320,13 @@ namespace HUDRA.Services.GameLibraryProviders
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"Xbox provider: Unexpected JSON format: {jsonOutput}");
+                    var preview = jsonOutput.Length > 100 ? jsonOutput.Substring(0, 100) + "..." : jsonOutput;
+                    System.Diagnostics.Debug.WriteLine($"Xbox provider: Unexpected JSON format. Preview: {preview}");
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Xbox provider: JSON parsing error - {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"Xbox provider: JSON content: {jsonOutput}");
             }
             
             return results;

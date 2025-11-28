@@ -742,7 +742,8 @@ namespace HUDRA
                     PrimaryButtonText = "Ⓐ Force Quit",
                     CloseButtonText = "Ⓑ Cancel",
                     DefaultButton = ContentDialogButton.Close, // B button (safer default)
-                    XamlRoot = this.Content.XamlRoot
+                    XamlRoot = this.Content.XamlRoot,
+                    MaxWidth = 448 // Match standard ContentDialog width
                 };
 
                 // Show dialog with automatic gamepad support
