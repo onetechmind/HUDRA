@@ -23,6 +23,9 @@ namespace HUDRA.Models
         // List of all executable names found in game folder (up to 5 levels deep)
         // Used for matching running processes, especially for Xbox games where actual exe differs from config
         public List<string> AlternativeExecutables { get; set; } = new List<string>();
+
+        // Path to downloaded SteamGridDB artwork (grid image)
+        public string? ArtworkPath { get; set; }
     }
 
     public enum GameSource

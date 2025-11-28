@@ -67,6 +67,7 @@ namespace HUDRA
         private SettingsPage? _settingsPage;
         private FanCurvePage? _fanCurvePage;
         private ScalingPage? _scalingPage;
+        private LibraryPage? _libraryPage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -221,6 +222,17 @@ namespace HUDRA
             _isGamepadNavForCurrentPage = _isGamepadPageNavPending;
             _isGamepadPageNavPending = false;
 
+            // Save state and resume gamepad input processing when leaving Library page
+            // (Library pauses it to allow native XYFocus to work)
+            if (_currentPageType == typeof(LibraryPage) && pageType != typeof(LibraryPage))
+            {
+                // Save scroll position before leaving (OnNavigatedFrom may not fire due to page caching)
+                _libraryPage?.SaveScrollPosition();
+
+                _gamepadNavigationService.ResumeInputProcessing();
+                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - saved scroll position and resumed GamepadNavigationService");
+            }
+
             _currentPageType = pageType;
             UpdateNavigationButtonStates();
             HandlePageSpecificInitialization(pageType);
@@ -237,6 +249,7 @@ namespace HUDRA
                 typeof(MainPage),
                 typeof(FanCurvePage),
                 typeof(ScalingPage),
+                typeof(LibraryPage),
                 typeof(SettingsPage)
             };
 
@@ -264,6 +277,8 @@ namespace HUDRA
                 _navigationService.NavigateToFanCurve();
             else if (targetPageType == typeof(ScalingPage))
                 _navigationService.NavigateToScaling();
+            else if (targetPageType == typeof(LibraryPage))
+                _navigationService.NavigateToLibrary();
             else if (targetPageType == typeof(SettingsPage))
                 _navigationService.NavigateToSettings();
         }
@@ -368,6 +383,21 @@ namespace HUDRA
                     else
                     {
                         System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not ScalingPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
+                    }
+                });
+            }
+            else if (pageType == typeof(LibraryPage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is LibraryPage libraryPage)
+                    {
+                        _libraryPage = libraryPage;
+                        InitializeLibraryPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not LibraryPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
                     }
                 });
             }
@@ -555,12 +585,47 @@ namespace HUDRA
             }
         }
 
+        private void InitializeLibraryPage()
+        {
+            if (_libraryPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== InitializeLibraryPage called ===");
+
+            try
+            {
+                // Track if this navigation came from gamepad L1/R1
+                bool wasGamepadNav = _isGamepadNavForCurrentPage;
+                System.Diagnostics.Debug.WriteLine($"=== InitializeLibraryPage: wasGamepadNav={wasGamepadNav} ===");
+
+                // Pass gamepad navigation flag to LibraryPage
+                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
+                System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
+
+                // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                {
+                    // Pause the gamepad navigation service to forward raw input to Library page
+                    _gamepadNavigationService.PauseInputProcessing();
+
+                    // Note: Focus is now handled in LibraryPage.Initialize() based on whether
+                    // this navigation was via gamepad (L1/R1) or mouse/keyboard click
+
+                    _isGamepadNavForCurrentPage = false;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeLibraryPage: {ex.Message}");
+            }
+        }
+
         private void UpdateNavigationButtonStates()
         {
             // Update visual states of navigation buttons based on current page
             UpdateButtonState(MainPageNavButton, _currentPageType == typeof(MainPage));
             UpdateButtonState(FanCurveNavButton, _currentPageType == typeof(FanCurvePage));
             UpdateButtonState(ScalingNavButton, _currentPageType == typeof(ScalingPage));
+            UpdateButtonState(LibraryNavButton, _currentPageType == typeof(LibraryPage));
             UpdateButtonState(SettingsNavButton, _currentPageType == typeof(SettingsPage));
         }
 
@@ -608,6 +673,13 @@ namespace HUDRA
             // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
             _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
             _navigationService.NavigateToScaling();
+        }
+
+        private void LibraryNavButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Mouse/touch/keyboard nav: suppress auto-focus when gamepad wakes
+            _gamepadNavigationService.SuppressAutoFocusOnNextActivation();
+            _navigationService.NavigateToLibrary();
         }
 
         private void SettingsNavButton_Click(object sender, RoutedEventArgs e)

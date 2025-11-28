@@ -19,6 +19,7 @@ namespace HUDRA.Services
         private Timer? _refreshTimer;
         private readonly Timer _detectionTimer;
         private readonly EnhancedGameDatabase _gameDatabase;
+        private readonly SteamGridDbArtworkService? _artworkService;
 
         private Dictionary<string, DetectedGame> _cachedGames = new(StringComparer.OrdinalIgnoreCase);
         private GameInfo? _currentGame;
@@ -50,7 +51,18 @@ namespace HUDRA.Services
 
             // Initialize database
             _gameDatabase = new EnhancedGameDatabase();
-            
+
+            // Initialize SteamGridDB artwork service
+            try
+            {
+                _artworkService = new SteamGridDbArtworkService("89b83ee6250e718cb40766bde7bcdf1d");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Failed to initialize artwork service: {ex.Message}");
+                _artworkService = null;
+            }
+
             // Create providers
             _providers = new List<IGameLibraryProvider>
             {
@@ -124,6 +136,13 @@ namespace HUDRA.Services
                     {
                         foreach (var kvp in result.Games)
                         {
+                            // Skip non-game utilities
+                            if (IsExcludedUtility(kvp.Value.DisplayName))
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility: {kvp.Value.DisplayName}");
+                                continue;
+                            }
+
                             if (!currentlyFoundGames.ContainsKey(kvp.Key))
                             {
                                 currentlyFoundGames[kvp.Key] = kvp.Value;
@@ -212,8 +231,29 @@ namespace HUDRA.Services
                 // Build in-memory cache from all games (existing + new)
                 var allGames = await _gameDatabase.GetAllGamesAsync();
                 _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
-                
+
                 _isDatabaseReady = true;
+
+                // Download artwork for games that don't have it yet
+                if (_artworkService != null && _cachedGames.Any())
+                {
+                    var gamesNeedingArtwork = _cachedGames.Values.Where(g => string.IsNullOrEmpty(g.ArtworkPath)).ToList();
+                    if (gamesNeedingArtwork.Any())
+                    {
+                        await _artworkService.DownloadArtworkForGamesAsync(
+                            gamesNeedingArtwork,
+                            _gameDatabase,
+                            progress => _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, progress))
+                        );
+
+                        // Reload cache after artwork update
+                        allGames = await _gameDatabase.GetAllGamesAsync();
+                        _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                    }
+                }
+
+                // Ensure fallback artwork exists and assign to games without artwork
+                await EnsureFallbackArtworkAsync();
 
                 _dispatcher.TryEnqueue(() =>
                 {
@@ -235,6 +275,70 @@ namespace HUDRA.Services
             {
                 _isScanning = false;
                 _dispatcher.TryEnqueue(() => ScanningStateChanged?.Invoke(this, false));
+            }
+        }
+
+        /// <summary>
+        /// Ensures fallback artwork exists in artwork directory and assigns it to games without artwork
+        /// </summary>
+        private async Task EnsureFallbackArtworkAsync()
+        {
+            try
+            {
+                // Get artwork directory path
+                var artworkDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "HUDRA",
+                    "artwork");
+
+                // Ensure artwork directory exists
+                if (!Directory.Exists(artworkDirectory))
+                {
+                    Directory.CreateDirectory(artworkDirectory);
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Created artwork directory: {artworkDirectory}");
+                }
+
+                // Define fallback image paths
+                var fallbackSourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "no-artwork-grid.png");
+                var fallbackDestPath = Path.Combine(artworkDirectory, "no-artwork-grid.png");
+
+                // Copy fallback image if it doesn't exist in artwork directory
+                if (!File.Exists(fallbackDestPath))
+                {
+                    if (File.Exists(fallbackSourcePath))
+                    {
+                        File.Copy(fallbackSourcePath, fallbackDestPath, overwrite: false);
+                        System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Copied fallback artwork to: {fallbackDestPath}");
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"⚠️ EnhancedGameDetection: Fallback artwork not found at: {fallbackSourcePath}");
+                        return; // Can't proceed without fallback image
+                    }
+                }
+
+                // Find games without artwork and assign fallback
+                var gamesWithoutArtwork = _cachedGames.Values.Where(g => string.IsNullOrEmpty(g.ArtworkPath)).ToList();
+
+                if (gamesWithoutArtwork.Any())
+                {
+                    _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Assigning fallback artwork to {gamesWithoutArtwork.Count} games..."));
+
+                    foreach (var game in gamesWithoutArtwork)
+                    {
+                        game.ArtworkPath = fallbackDestPath;
+                        _gameDatabase.SaveGame(game);
+                        System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Assigned fallback artwork to: {game.DisplayName}");
+                    }
+
+                    // Reload cache after updating artwork paths
+                    var allGames = await _gameDatabase.GetAllGamesAsync();
+                    _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Error ensuring fallback artwork: {ex.Message}");
             }
         }
 
@@ -1213,6 +1317,52 @@ namespace HUDRA.Services
             }
         }
 
+        /// <summary>
+        /// Check if a game name matches a non-game utility that should be excluded
+        /// </summary>
+        private bool IsExcludedUtility(string displayName)
+        {
+            var excludedNames = new[]
+            {
+                "Steamworks Common Redistributables",
+                "Steam Linux Runtime",
+                "Proton",
+                "DirectX",
+                "Visual C++ Redistributable"
+            };
+
+            return excludedNames.Any(excluded =>
+                displayName.Contains(excluded, StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Get all games from the database (public method for UI consumption)
+        /// </summary>
+        public async Task<IEnumerable<DetectedGame>> GetAllGamesAsync()
+        {
+            System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: GetAllGamesAsync called - _isDatabaseReady={_isDatabaseReady}, _gameDatabase={(_gameDatabase != null ? "not null" : "null")}");
+
+            if (_gameDatabase == null)
+            {
+                System.Diagnostics.Debug.WriteLine("EnhancedGameDetection: Database is null, returning empty");
+                return Enumerable.Empty<DetectedGame>();
+            }
+
+            // Always try to get games from database, even if _isDatabaseReady is false
+            // This allows the Library page to show games that were previously scanned
+            try
+            {
+                var games = await _gameDatabase.GetAllGamesAsync();
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Retrieved {games.Count()} games from database");
+                return games;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Error getting games from database: {ex.Message}");
+                return Enumerable.Empty<DetectedGame>();
+            }
+        }
+
         public async Task<int> ForceXboxGameRescanAsync()
         {
             try
@@ -1233,15 +1383,24 @@ namespace HUDRA.Services
                 if (xboxProvider != null && xboxProvider.IsAvailable)
                 {
                     var newXboxGames = await xboxProvider.GetGamesAsync();
-                    
-                    // Save new Xbox games to database
+
+                    // Save new Xbox games to database (excluding non-game utilities)
+                    int savedCount = 0;
                     foreach (var game in newXboxGames.Values)
                     {
+                        // Skip non-game utilities
+                        if (IsExcludedUtility(game.DisplayName))
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility during Xbox rescan: {game.DisplayName}");
+                            continue;
+                        }
+
                         _gameDatabase.SaveGame(game);
                         _cachedGames[game.ProcessName] = game;
+                        savedCount++;
                     }
-                    
-                    return newXboxGames.Count;
+
+                    return savedCount;
                 }
                 
                 return 0;
@@ -1258,13 +1417,14 @@ namespace HUDRA.Services
             if (!_disposed)
             {
                 _disposed = true;
-                
+
                 try
                 {
                     _refreshTimer?.Dispose();
                     _detectionTimer?.Dispose();
                     _gameDatabase?.Dispose();
-                    
+                    _artworkService?.Dispose();
+
                     foreach (var provider in _providers)
                     {
                         provider.ScanProgressChanged -= OnProviderProgressChanged;

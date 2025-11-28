@@ -64,8 +64,8 @@ namespace HUDRA.Services
         public event EventHandler<bool>? GamepadActiveStateChanged;
 
         private bool _isGamepadActive = false;
-        public bool IsGamepadActive 
-        { 
+        public bool IsGamepadActive
+        {
             get => _isGamepadActive;
             private set
             {
@@ -76,6 +76,25 @@ namespace HUDRA.Services
                     System.Diagnostics.Debug.WriteLine($"🎮 Gamepad active state changed: {value}");
                 }
             }
+        }
+
+        // Flag to pause all input processing (for pages that use custom navigation like Library)
+        private bool _inputProcessingPaused = false;
+        public bool IsInputProcessingPaused => _inputProcessingPaused;
+
+        // Delegate for forwarding raw gamepad input to custom pages
+        public event EventHandler<GamepadReading>? RawGamepadInput;
+
+        public void PauseInputProcessing()
+        {
+            _inputProcessingPaused = true;
+            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED - will forward raw input");
+        }
+
+        public void ResumeInputProcessing()
+        {
+            _inputProcessingPaused = false;
+            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing RESUMED");
         }
 
         public GamepadNavigationService()
@@ -183,6 +202,74 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
+            // If input processing is paused, check for shoulder buttons first (for page navigation)
+            // and triggers for navbar cycling, then forward remaining input to subscribers (e.g., Library page)
+            if (_inputProcessingPaused)
+            {
+                // Still handle shoulder buttons for page navigation even when paused
+                var pausedNewButtons = GetNewlyPressedButtons(reading.Buttons);
+
+                if (pausedNewButtons.Contains(GamepadButtons.LeftShoulder))
+                {
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+
+                if (pausedNewButtons.Contains(GamepadButtons.RightShoulder))
+                {
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+
+                // Handle navbar button cycling with L2/R2 triggers even when paused
+                // Left trigger (L2) - cycle up through navbar
+                if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
+                {
+                    _leftTriggerPressed = true;
+                    CycleNavbarButtonSelection(-1);
+                    TriggerHapticFeedback();
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+                else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
+                {
+                    _leftTriggerPressed = false;
+                }
+
+                // Right trigger (R2) - cycle down through navbar
+                if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
+                {
+                    _rightTriggerPressed = true;
+                    CycleNavbarButtonSelection(1);
+                    TriggerHapticFeedback();
+                    UpdatePressedButtonsState(reading.Buttons);
+                    return; // Don't forward this input
+                }
+                else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
+                {
+                    _rightTriggerPressed = false;
+                }
+
+                // Handle A button to invoke selected navbar button (if one is selected)
+                if (pausedNewButtons.Contains(GamepadButtons.A))
+                {
+                    if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
+                    {
+                        InvokeSelectedNavbarButton();
+                        UpdatePressedButtonsState(reading.Buttons);
+                        return; // Don't forward this input
+                    }
+                    // If no navbar button selected, forward A button to page (will invoke focused game)
+                }
+
+                // Forward all other input to subscribers
+                RawGamepadInput?.Invoke(this, reading);
+                UpdatePressedButtonsState(reading.Buttons);
+                return;
+            }
+
             // Check if any input is being received OR if we need to check for trigger releases
             bool hasInput = reading.Buttons != GamepadButtons.None ||
                            Math.Abs(reading.LeftThumbstickX) > 0.1 ||
