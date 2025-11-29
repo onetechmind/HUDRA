@@ -123,6 +123,54 @@
                 Text="LIBRARY" />
         </Border>
 
+        <!--  Game Management Buttons  -->
+        <StackPanel
+            HorizontalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="10">
+            <Button
+                x:Name="AddGameButton"
+                MinWidth="100"
+                MinHeight="40"
+                Padding="10"
+                Background="DarkViolet"
+                Click="AddGameButton_Click"
+                CornerRadius="8"
+                Foreground="White">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="14"
+                        Glyph="&#xE710;" />
+                    <TextBlock
+                        FontFamily="Cascadia Code"
+                        FontSize="14"
+                        Text="Add Game" />
+                </StackPanel>
+            </Button>
+
+            <Button
+                x:Name="RescanButton"
+                MinWidth="100"
+                MinHeight="40"
+                Padding="10"
+                Background="DarkViolet"
+                Click="RescanButton_Click"
+                CornerRadius="8"
+                Foreground="White">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="14"
+                        Glyph="&#xE72C;" />
+                    <TextBlock
+                        FontFamily="Cascadia Code"
+                        FontSize="14"
+                        Text="Rescan" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+
         <!--  Scan Progress Indicator  -->
         <Border
             x:Name="ScanProgressIndicator"
@@ -173,6 +221,8 @@
                             Height="82"
                             Click="GameTile_Click"
                             IsTabStop="True"
+                            PointerEntered="GameTile_PointerEntered"
+                            PointerExited="GameTile_PointerExited"
                             Style="{StaticResource GameTileButtonStyle}"
                             TabIndex="0"
                             Tag="{Binding}">
@@ -214,6 +264,34 @@
                                             Text="Launching..."
                                             TextAlignment="Center" />
                                     </StackPanel>
+                                </Border>
+
+                                <!--  Settings Icon Overlay (shown on hover)  -->
+                                <Border
+                                    x:Name="TileSettingsOverlay"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch"
+                                    Background="Transparent"
+                                    CornerRadius="12"
+                                    Visibility="Collapsed">
+                                    <Button
+                                        x:Name="SettingsIconButton"
+                                        Width="40"
+                                        Height="40"
+                                        Margin="0,0,5,5"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Bottom"
+                                        Background="#333333"
+                                        BorderBrush="Transparent"
+                                        Click="SettingsIcon_Click"
+                                        CornerRadius="6"
+                                        ToolTipService.ToolTip="Game settings">
+                                        <FontIcon
+                                            FontFamily="Segoe MDL2 Assets"
+                                            FontSize="20"
+                                            Foreground="White"
+                                            Glyph="&#xE713;" />
+                                    </Button>
                                 </Border>
                             </Grid>
                         </Button>

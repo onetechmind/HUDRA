@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
@@ -28,6 +29,9 @@ namespace HUDRA.Pages
         private static double _savedScrollOffset = 0;
         private static string? _savedFocusedGameProcessName = null;
         private static bool _lastUsedGamepadInput = false; // Track input method for smart focus restoration
+
+        // Static property to pass selected game to GameSettingsPage
+        public static string? SelectedGameProcessName { get; set; }
         private bool _gamesLoaded = false;
         private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
         private bool _isRestoringScroll = false; // Flag to ignore ViewChanged during programmatic scroll restoration
@@ -158,7 +162,7 @@ namespace HUDRA.Pages
             // The _savedFocusedGameProcessName static field already contains the last focused game.
         }
 
-        public async void Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer, bool isGamepadNavigation = false)
+        public async Task Initialize(EnhancedGameDetectionService gameDetectionService, GamepadNavigationService gamepadNavigationService, ScrollViewer contentScrollViewer, bool isGamepadNavigation = false)
         {
             // Defensive null checks
             if (gameDetectionService == null)
@@ -262,6 +266,10 @@ namespace HUDRA.Pages
                 // Sort alphabetically by display name (null-safe)
                 gamesList = gamesList.OrderBy(g => g?.DisplayName ?? "").ToList();
 
+                // Add cache-busting timestamp to force WinUI Image controls to reload artwork
+                // Without this, Image controls serve cached bitmaps even when files change
+                var cacheBustTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
                 // Update the ObservableCollection
                 _games.Clear();
                 foreach (var game in gamesList)
@@ -272,10 +280,18 @@ namespace HUDRA.Pages
                         continue; // Skip null entries - don't add them to the collection
                     }
 
+                    // Add timestamp query parameter to artwork path for cache busting
+                    // This prevents Image control from serving stale cached images when artwork changes
+                    if (!string.IsNullOrEmpty(game.ArtworkPath) && File.Exists(game.ArtworkPath))
+                    {
+                        game.ArtworkPath = $"{game.ArtworkPath}?t={cacheBustTimestamp}";
+                    }
+
                     _games.Add(game);
                 }
 
-                // Set ItemsSource
+                // Set ItemsSource (clear and reset to force rebinding)
+                GamesItemsControl.ItemsSource = null;
                 GamesItemsControl.ItemsSource = _games;
 
                 // Hide empty state
@@ -295,6 +311,33 @@ namespace HUDRA.Pages
         {
             EmptyStatePanel.Visibility = Visibility.Visible;
             GamesItemsControl.ItemsSource = null;
+        }
+
+        /// <summary>
+        /// Refreshes artwork for a specific game in the library.
+        /// Called after artwork is updated in GameSettingsPage.
+        /// Sets flag to force reload when page is navigated to.
+        /// </summary>
+        /// <param name="processName">ProcessName of the game to refresh</param>
+        public void RefreshGameArtwork(string processName)
+        {
+            RefreshLibrary();
+        }
+
+        /// <summary>
+        /// Forces a full library reload on next navigation.
+        /// Called after adding manual games or updating artwork.
+        /// </summary>
+        public void RefreshLibrary()
+        {
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Setting reload flag and clearing scroll for library refresh");
+
+            // Set flag to force reload when page is navigated to
+            // InitializeLibraryPage will call LoadGamesAsync when it sees _gamesLoaded = false
+            _gamesLoaded = false;
+
+            // Clear saved scroll position - fresh load should start at top
+            _savedScrollOffset = 0;
         }
 
         private async void GameTile_Click(object sender, RoutedEventArgs e)
@@ -338,6 +381,79 @@ namespace HUDRA.Pages
                     overlay.Visibility = Visibility.Collapsed;
                 }
             }
+        }
+
+        private void GameTile_PointerEntered(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not Button button)
+                return;
+
+            // Find and show the settings overlay
+            var settingsOverlay = FindTileSettingsOverlay(button);
+            if (settingsOverlay != null)
+            {
+                settingsOverlay.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void GameTile_PointerExited(object sender, PointerRoutedEventArgs e)
+        {
+            if (sender is not Button button)
+                return;
+
+            // Find and hide the settings overlay
+            var settingsOverlay = FindTileSettingsOverlay(button);
+            if (settingsOverlay != null)
+            {
+                settingsOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void SettingsIcon_Click(object sender, RoutedEventArgs e)
+        {
+            // Prevent the click from bubbling to the tile button
+            if (sender is not Button settingsButton)
+                return;
+
+            // Find the parent game tile button to get the game data
+            var parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(settingsButton);
+            while (parent != null)
+            {
+                if (parent is Button tileButton && tileButton.Tag is DetectedGame game)
+                {
+                    // Store the game ProcessName and navigate to settings
+                    SelectedGameProcessName = game.ProcessName;
+
+                    // Navigate to GameSettingsPage
+                    var app = Application.Current as App;
+                    var mainWindow = app?.MainWindow;
+                    var navigationService = mainWindow?.NavigationService;
+                    navigationService?.NavigateToGameSettings();
+                    return;
+                }
+                parent = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetParent(parent);
+            }
+        }
+
+        private Border? FindTileSettingsOverlay(DependencyObject parent)
+        {
+            int childCount = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < childCount; i++)
+            {
+                var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+
+                if (child is Border border && border.Name == "TileSettingsOverlay")
+                {
+                    return border;
+                }
+
+                var result = FindTileSettingsOverlay(child);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            return null;
         }
 
         private Border? FindTileLaunchingOverlay(DependencyObject parent)
@@ -732,6 +848,12 @@ namespace HUDRA.Pages
                 InvokeFocusedButton();
             }
 
+            // Handle X button to open game settings
+            if (newButtons.Contains(GamepadButtons.X))
+            {
+                OpenGameSettingsForFocusedTile();
+            }
+
             // Handle right analog stick for scrolling (only when not navigating with left stick)
             if (!navigated && Math.Abs(reading.RightThumbstickY) > 0.2)
             {
@@ -922,6 +1044,23 @@ namespace HUDRA.Pages
             }
         }
 
+        private void OpenGameSettingsForFocusedTile()
+        {
+            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            var focusedButton = FindFocusedButton(allButtons);
+            if (focusedButton != null && focusedButton.Tag is DetectedGame game)
+            {
+                // Store the game ProcessName and navigate to settings
+                SelectedGameProcessName = game.ProcessName;
+
+                // Navigate to GameSettingsPage
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+                var navigationService = mainWindow?.NavigationService;
+                navigationService?.NavigateToGameSettings();
+            }
+        }
+
         private void ScrollWithAnalogStick(double yValue)
         {
             if (_contentScrollViewer == null) return;
@@ -951,6 +1090,254 @@ namespace HUDRA.Pages
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        #region Game Management (Add Game & Rescan)
+
+        private async void AddGameButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // Use Windows Forms OpenFileDialog because WinUI FileOpenPicker doesn't work in Admin mode
+                string? selectedPath = null;
+                string? suggestedName = null;
+
+                try
+                {
+                    using var openFileDialog = new System.Windows.Forms.OpenFileDialog
+                    {
+                        Title = "Select Game Executable",
+                        Filter = "Executable Files (*.exe)|*.exe",
+                        FilterIndex = 1,
+                        InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles)
+                    };
+
+                    var dialogResult = openFileDialog.ShowDialog();
+                    if (dialogResult != System.Windows.Forms.DialogResult.OK)
+                    {
+                        // User canceled file picker
+                        return;
+                    }
+
+                    selectedPath = openFileDialog.FileName;
+                    suggestedName = System.IO.Path.GetFileNameWithoutExtension(openFileDialog.FileName);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error opening file picker: {ex.Message}");
+                    await ShowErrorDialog($"Failed to open file picker: {ex.Message}");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(selectedPath) && !string.IsNullOrEmpty(suggestedName))
+                {
+                    // Prompt for game name
+                    var gameName = await ShowGameNameDialog(suggestedName);
+
+                    if (!string.IsNullOrEmpty(gameName))
+                    {
+                        await AddManualGameToDatabase(gameName, selectedPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in AddGameButton_Click: {ex.Message}");
+                await ShowErrorDialog($"Failed to add game: {ex.Message}");
+            }
+        }
+
+        private async Task<string?> ShowGameNameDialog(string suggestedName)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Enter Game Name",
+                PrimaryButtonText = "Add",
+                CloseButtonText = "Cancel",
+                XamlRoot = this.XamlRoot
+            };
+
+            var textBox = new TextBox
+            {
+                Text = suggestedName,
+                PlaceholderText = "Game name",
+                Width = 300
+            };
+
+            dialog.Content = textBox;
+
+            // Ensure gamepad navigation works in dialog
+            dialog.Loaded += (s, e) =>
+            {
+                textBox.Focus(FocusState.Programmatic);
+            };
+
+            var result = await dialog.ShowAsync();
+
+            return result == ContentDialogResult.Primary ? textBox.Text : null;
+        }
+
+        private async Task AddManualGameToDatabase(string gameName, string exePath)
+        {
+            try
+            {
+                if (_gameDetectionService == null) return;
+
+                // Create a DetectedGame object for the manual game
+                var manualGame = new DetectedGame
+                {
+                    ProcessName = System.IO.Path.GetFileNameWithoutExtension(exePath),
+                    DisplayName = gameName,
+                    ExecutablePath = exePath,
+                    InstallLocation = System.IO.Path.GetDirectoryName(exePath) ?? string.Empty,
+                    Source = GameSource.Manual,
+                    FirstDetected = DateTime.Now,
+                    LastDetected = DateTime.Now,
+                    ArtworkPath = string.Empty,
+                    LauncherInfo = string.Empty,
+                    PackageInfo = string.Empty
+                };
+
+                // Access the game database through reflection
+                var databaseField = typeof(EnhancedGameDetectionService).GetField("_gameDatabase",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (databaseField?.GetValue(_gameDetectionService) is EnhancedGameDatabase database)
+                {
+                    // Try to fetch artwork from SteamGridDB before saving
+                    var artworkServiceField = typeof(EnhancedGameDetectionService).GetField("_artworkService",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (artworkServiceField?.GetValue(_gameDetectionService) is SteamGridDbArtworkService artworkService)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Fetching artwork for manual game: {gameName}");
+                        var artworkPath = await artworkService.DownloadArtworkAsync(manualGame);
+
+                        if (!string.IsNullOrEmpty(artworkPath))
+                        {
+                            manualGame.ArtworkPath = artworkPath;
+                            System.Diagnostics.Debug.WriteLine($"Artwork downloaded: {artworkPath}");
+                        }
+                        else
+                        {
+                            // Copy fallback image to artwork directory
+                            System.Diagnostics.Debug.WriteLine($"No artwork found for {gameName}, using fallback image");
+                            var appDataPath = Path.Combine(
+                                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                "HUDRA");
+                            var artworkDirectory = Path.Combine(appDataPath, "artwork");
+
+                            if (!Directory.Exists(artworkDirectory))
+                            {
+                                Directory.CreateDirectory(artworkDirectory);
+                            }
+
+                            var fallbackSourcePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "no-artwork-grid.png");
+                            var fallbackDestPath = Path.Combine(artworkDirectory, $"{manualGame.ProcessName}_fallback.png");
+
+                            if (File.Exists(fallbackSourcePath))
+                            {
+                                File.Copy(fallbackSourcePath, fallbackDestPath, overwrite: true);
+                                manualGame.ArtworkPath = fallbackDestPath;
+                                System.Diagnostics.Debug.WriteLine($"Fallback image copied to: {fallbackDestPath}");
+                            }
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Warning: Fallback image not found at {fallbackSourcePath}");
+                            }
+                        }
+                    }
+
+                    // Save the game with artwork path (or empty if not found)
+                    database.SaveGame(manualGame);
+
+                    // Update the cached games dictionary
+                    var cachedGamesField = typeof(EnhancedGameDetectionService).GetField("_cachedGames",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                    if (cachedGamesField?.GetValue(_gameDetectionService) is Dictionary<string, DetectedGame> cachedGames)
+                    {
+                        cachedGames[manualGame.ProcessName] = manualGame;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"Manual game added: {gameName} ({exePath})");
+
+                    // Immediately reload the library to show the new game with artwork
+                    _gamesLoaded = false;
+                    await LoadGamesAsync();
+
+                    // Show success message
+                    await ShowSuccessDialog($"Game '{gameName}' has been added successfully!");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error adding manual game to database: {ex.Message}");
+                await ShowErrorDialog($"Failed to add game: {ex.Message}");
+            }
+        }
+
+        private async void RescanButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_gameDetectionService == null) return;
+
+            try
+            {
+                ShowScanProgress("Scanning game libraries...");
+
+                // Trigger a full library scan using reflection to access BuildGameDatabaseAsync
+                var buildDatabaseMethod = typeof(EnhancedGameDetectionService).GetMethod("BuildGameDatabaseAsync",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+
+                if (buildDatabaseMethod != null)
+                {
+                    var task = buildDatabaseMethod.Invoke(_gameDetectionService, null) as Task;
+                    if (task != null)
+                    {
+                        await task;
+                    }
+                }
+
+                // Reload the library to show any new games
+                _gamesLoaded = false;
+                await LoadGamesAsync();
+
+                HideScanProgress();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in RescanButton_Click: {ex.Message}");
+                HideScanProgress();
+                await ShowErrorDialog($"Scan failed: {ex.Message}");
+            }
+        }
+
+        private async Task ShowSuccessDialog(string message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Success",
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+        }
+
+        private async Task ShowErrorDialog(string message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = "Error",
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+
+            await dialog.ShowAsync();
+        }
+
+        #endregion
     }
 
     // Value converters for XAML bindings

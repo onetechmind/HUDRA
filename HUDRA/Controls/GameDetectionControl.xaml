@@ -299,28 +299,6 @@
                     Text="{x:Bind ManualCount, Mode=OneWay}" />
             </Grid>
 
-            <!--  Add Manual Game Button  -->
-            <Border
-                x:Name="AddManualGameButtonBorder"
-                Margin="0,8,0,0"
-                HorizontalAlignment="Center"
-                BorderBrush="{x:Bind AddManualGameButtonFocusBrush, Mode=OneWay}"
-                BorderThickness="2"
-                CornerRadius="10">
-                <Button
-                    x:Name="AddManualGameButton"
-                    MinWidth="150"
-                    MinHeight="40"
-                    Padding="10"
-                    x:FieldModifier="public"
-                    Background="#4A4A4A"
-                    BorderBrush="#666666"
-                    BorderThickness="1"
-                    Click="AddManualGameButton_Click"
-                    Content="Add Game..."
-                    CornerRadius="10" />
-            </Border>
-
             <!--  Last Updated Text  -->
             <TextBlock
                 x:Name="LastUpdatedTextBlock"
@@ -329,46 +307,26 @@
                 Style="{StaticResource SettingsDescriptionStyle}"
                 Text="{x:Bind LastUpdatedText, Mode=OneWay}" />
 
-            <StackPanel
-                HorizontalAlignment="Center"
-                Orientation="Horizontal"
-                Spacing="10">
-                <Border
-                    x:Name="RefreshButtonBorder"
-                    BorderBrush="{x:Bind RefreshButtonFocusBrush, Mode=OneWay}"
-                    BorderThickness="2"
-                    CornerRadius="10">
-                    <Button
-                        x:Name="RefreshDatabaseButton"
-                        MinWidth="75"
-                        MinHeight="40"
-                        Padding="10"
-                        x:FieldModifier="public"
-                        Background="#4A4A4A"
-                        BorderBrush="#666666"
-                        BorderThickness="1"
-                        Content="Re-Scan"
-                        CornerRadius="10" />
-                </Border>
 
-                <Border
-                    x:Name="ResetButtonBorder"
-                    BorderBrush="{x:Bind ResetButtonFocusBrush, Mode=OneWay}"
-                    BorderThickness="2"
-                    CornerRadius="10">
-                    <Button
-                        x:Name="ResetDatabaseButton"
-                        MinWidth="75"
-                        MinHeight="40"
-                        Padding="10"
-                        x:FieldModifier="public"
-                        Background="#4A4A4A"
-                        BorderBrush="#666666"
-                        BorderThickness="1"
-                        Content="Reset"
-                        CornerRadius="10" />
-                </Border>
-            </StackPanel>
+
+            <Border
+                x:Name="ResetButtonBorder"
+                HorizontalAlignment="Center"
+                BorderBrush="{x:Bind ResetButtonFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="10">
+                <Button
+                    x:Name="ResetDatabaseButton"
+                    MinWidth="75"
+                    MinHeight="40"
+                    Padding="10"
+                    x:FieldModifier="public"
+                    Background="#4A4A4A"
+                    BorderBrush="#666666"
+                    BorderThickness="1"
+                    Content="Reset"
+                    CornerRadius="10" />
+            </Border>
         </StackPanel>
     </StackPanel>
 </UserControl>

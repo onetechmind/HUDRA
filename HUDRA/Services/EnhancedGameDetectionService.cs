@@ -44,6 +44,7 @@ namespace HUDRA.Services
         public int GameDatabaseCount => _cachedGames.Count;
         public DatabaseStats DatabaseStats => _gameDatabase?.GetDatabaseStats() ?? new DatabaseStats();
         public bool IsEnhancedScanningActive => IsEnhancedScanningEnabled();
+        public EnhancedGameDatabase Database => _gameDatabase;
 
         public EnhancedGameDetectionService(DispatcherQueue dispatcher)
         {

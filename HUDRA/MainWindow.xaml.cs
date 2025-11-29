@@ -44,6 +44,8 @@ namespace HUDRA
         private SystemBackdropConfiguration? _backdropConfig;
         private EnhancedGameDetectionService? _enhancedGameDetectionService;
         private LosslessScalingService? _losslessScalingService;
+        private EnhancedGameDatabase? _gameDatabase;
+        private SteamGridDbArtworkService? _artworkService;
 
 
         // Public navigation service access for TDP picker
@@ -68,6 +70,7 @@ namespace HUDRA
         private FanCurvePage? _fanCurvePage;
         private ScalingPage? _scalingPage;
         private LibraryPage? _libraryPage;
+        private GameSettingsPage? _gameSettingsPage;
 
         //Drag Handling
         private bool _isDragging = false;
@@ -207,6 +210,23 @@ namespace HUDRA
             RegisterNavbarButtons();
 
             this.Closed += (s, e) => Cleanup();
+        }
+
+        /// <summary>
+        /// Refreshes the artwork for a specific game in the Library page.
+        /// Called from GameSettingsPage after artwork is saved.
+        /// </summary>
+        /// <param name="processName">ProcessName of the game to refresh</param>
+        public void RefreshLibraryGameArtwork(string processName)
+        {
+            if (_libraryPage != null)
+            {
+                _libraryPage.RefreshGameArtwork(processName);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"MainWindow: Cannot refresh game artwork - LibraryPage is not initialized");
+            }
         }
 
         private void InitializeWindow()
@@ -401,6 +421,21 @@ namespace HUDRA
                     }
                 });
             }
+            else if (pageType == typeof(GameSettingsPage))
+            {
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    if (ContentFrame.Content is GameSettingsPage gameSettingsPage)
+                    {
+                        _gameSettingsPage = gameSettingsPage;
+                        InitializeGameSettingsPage();
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine($"ERROR: ContentFrame.Content is not GameSettingsPage! Type: {ContentFrame.Content?.GetType().Name ?? "null"}");
+                    }
+                });
+            }
         }
 
         private void InitializeMainPage()
@@ -585,7 +620,7 @@ namespace HUDRA
             }
         }
 
-        private void InitializeLibraryPage()
+        private async void InitializeLibraryPage()
         {
             if (_libraryPage == null) return;
 
@@ -597,8 +632,8 @@ namespace HUDRA
                 bool wasGamepadNav = _isGamepadNavForCurrentPage;
                 System.Diagnostics.Debug.WriteLine($"=== InitializeLibraryPage: wasGamepadNav={wasGamepadNav} ===");
 
-                // Pass gamepad navigation flag to LibraryPage
-                _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
+                // AWAIT the async initialization
+                await _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
                 // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
@@ -616,6 +651,55 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ERROR in InitializeLibraryPage: {ex.Message}");
+            }
+        }
+
+        private void InitializeGameSettingsPage()
+        {
+            if (_gameSettingsPage == null) return;
+
+            System.Diagnostics.Debug.WriteLine("=== InitializeGameSettingsPage called ===");
+
+            try
+            {
+                // Initialize the page with services
+                if (_gameDatabase != null && _artworkService != null)
+                {
+                    _gameSettingsPage.Initialize(_gameDatabase, _artworkService);
+
+                    // Load the game if one was selected
+                    if (!string.IsNullOrEmpty(LibraryPage.SelectedGameProcessName))
+                    {
+                        _gameSettingsPage.LoadGame(LibraryPage.SelectedGameProcessName);
+                    }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("WARNING: GameDatabase or ArtworkService not available for GameSettingsPage");
+                }
+
+                System.Diagnostics.Debug.WriteLine("=== GameSettingsPage initialization complete ===");
+
+                // Initialize gamepad navigation
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                {
+                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    {
+                        _gamepadNavigationService.DeactivateGamepadMode();
+                    }
+
+                    // Initialize gamepad navigation for GameSettingsPage
+                    _gamepadNavigationService.InitializePageNavigation(
+                        _gameSettingsPage.BackButton,
+                        isFromPageNavigation: _isGamepadNavForCurrentPage
+                    );
+
+                    _isGamepadNavForCurrentPage = false;
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ERROR in InitializeGameSettingsPage: {ex.Message}");
             }
         }
 
@@ -1185,6 +1269,7 @@ namespace HUDRA
             _enhancedGameDetectionService?.Dispose();
             _losslessScalingService?.Dispose();
             _powerProfileService?.Dispose();
+            _artworkService?.Dispose();
         }
 
         public void ToggleWindowVisibility()
@@ -1337,11 +1422,26 @@ namespace HUDRA
                 _enhancedGameDetectionService = new EnhancedGameDetectionService(DispatcherQueue);
                 _enhancedGameDetectionService.GameDetected += OnGameDetected;
                 _enhancedGameDetectionService.GameStopped += OnGameStopped;
-                
+
                 // Subscribe to scanning progress events for visual indicator
                 _enhancedGameDetectionService.ScanProgressChanged += OnScanProgressChanged;
                 _enhancedGameDetectionService.ScanningStateChanged += OnScanningStateChanged;
                 _enhancedGameDetectionService.DatabaseReady += OnDatabaseReady;
+
+                // Initialize game database for GameSettingsPage
+                _gameDatabase = _enhancedGameDetectionService.Database;
+
+                // Initialize SteamGridDB artwork service for GameSettingsPage
+                // Using the same API key as EnhancedGameDetectionService
+                try
+                {
+                    _artworkService = new SteamGridDbArtworkService("89b83ee6250e718cb40766bde7bcdf1d");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"MainWindow: Failed to initialize artwork service: {ex.Message}");
+                    _artworkService = null;
+                }
 
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;

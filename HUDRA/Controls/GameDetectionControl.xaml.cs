@@ -390,31 +390,7 @@ namespace HUDRA.Controls
                     }
                     break;
 
-                case 2: // AddManualGameButton
-                    if (AddManualGameButton != null && AddManualGameButton.IsEnabled)
-                    {
-                        // Programmatically invoke the button's Click event using automation peer
-                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(AddManualGameButton);
-                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
-                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
-                        invokeProv?.Invoke();
-                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Add Game button");
-                    }
-                    break;
-
-                case 3: // RefreshDatabaseButton
-                    if (RefreshDatabaseButton != null && RefreshDatabaseButton.IsEnabled)
-                    {
-                        // Programmatically invoke the button's Click event using automation peer
-                        var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(RefreshDatabaseButton);
-                        var invokeProv = peer.GetPattern(Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke)
-                            as Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider;
-                        invokeProv?.Invoke();
-                        System.Diagnostics.Debug.WriteLine($"🎮 GameDetection: Activated Refresh button");
-                    }
-                    break;
-
-                case 4: // ResetDatabaseButton
+                case 2: // ResetDatabaseButton
                     if (ResetDatabaseButton != null && ResetDatabaseButton.IsEnabled)
                     {
                         // Programmatically invoke the button's Click event using automation peer

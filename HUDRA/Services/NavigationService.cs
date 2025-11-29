@@ -47,6 +47,11 @@ namespace HUDRA.Services
             Navigate(typeof(LibraryPage));
         }
 
+        public void NavigateToGameSettings()
+        {
+            Navigate(typeof(GameSettingsPage));
+        }
+
         public void Navigate(Type pageType)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));
