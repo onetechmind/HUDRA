@@ -1529,6 +1529,8 @@ namespace HUDRA.Controls
             }
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             // Ensure gamepad service is initialized

@@ -63,16 +63,48 @@
                     FontSize="16"
                     Foreground="#FFFFFF"
                     Text="Display Name" />
-                <Border
-                    BorderBrush="{x:Bind DisplayNameFocusBrush, Mode=OneWay}"
-                    BorderThickness="2"
-                    CornerRadius="6">
-                    <TextBox
-                        x:Name="DisplayNameTextBox"
-                        MaxLength="100"
-                        PlaceholderText="Enter game name"
-                        UseSystemFocusVisuals="False" />
-                </Border>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="5*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--  Display Name TextBox (3/4 width)  -->
+                    <Border
+                        Grid.Column="0"
+                        Margin="0,0,10,0"
+                        BorderBrush="{x:Bind DisplayNameFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="6">
+                        <TextBox
+                            x:Name="DisplayNameTextBox"
+                            MaxLength="100"
+                            PlaceholderText="Enter game name"
+                            UseSystemFocusVisuals="False" />
+                    </Border>
+
+                    <!--  Delete Button (matching Back button style)  -->
+                    <Border
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        BorderBrush="{x:Bind DeleteButtonFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="6">
+                        <Button
+                            x:Name="DeleteButton"
+                            Width="40"
+                            Height="40"
+                            Click="DeleteButton_Click"
+                            IsTabStop="False"
+                            UseSystemFocusVisuals="False">
+                            <FontIcon
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="16"
+                                Foreground="#FF6B6B"
+                                Glyph="&#xE74D;" />
+                        </Button>
+                    </Border>
+                </Grid>
                 <TextBlock
                     x:Name="DisplayNameErrorText"
                     FontFamily="Cascadia Code"

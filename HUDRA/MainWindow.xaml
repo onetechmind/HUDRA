@@ -147,6 +147,26 @@
                                 Glyph="&#xE80F;" />
                         </Button>
 
+                        <!--  Library Navigation Item  -->
+                        <Button
+                            x:Name="LibraryNavButton"
+                            Width="60"
+                            Height="60"
+                            HorizontalAlignment="Center"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Click="LibraryNavButton_Click"
+                            Style="{StaticResource NavigationButtonStyle}"
+                            TabIndex="2"
+                            ToolTipService.ToolTip="Game Library">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="25"
+                                Glyph="&#xE8F1;" />
+                        </Button>
+
                         <!--  Fan Curve Navigation Item  -->
                         <Button
                             x:Name="FanCurveNavButton"
@@ -157,7 +177,7 @@
                             VerticalContentAlignment="Center"
                             Click="FanCurveNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            TabIndex="2"
+                            TabIndex="3"
                             ToolTipService.ToolTip="Fan Curve Configuration">
                             <FontIcon
                                 HorizontalAlignment="Center"
@@ -177,7 +197,7 @@
                             VerticalContentAlignment="Center"
                             Click="ScalingNavButton_Click"
                             Style="{StaticResource NavigationButtonStyle}"
-                            TabIndex="3"
+                            TabIndex="4"
                             ToolTipService.ToolTip="Scaling">
                             <FontIcon
                                 HorizontalAlignment="Center"
@@ -185,26 +205,6 @@
                                 FontFamily="Segoe MDL2 Assets"
                                 FontSize="25"
                                 Glyph="&#xE740;" />
-                        </Button>
-
-                        <!--  Library Navigation Item  -->
-                        <Button
-                            x:Name="LibraryNavButton"
-                            Width="60"
-                            Height="60"
-                            HorizontalAlignment="Center"
-                            HorizontalContentAlignment="Center"
-                            VerticalContentAlignment="Center"
-                            Click="LibraryNavButton_Click"
-                            Style="{StaticResource NavigationButtonStyle}"
-                            TabIndex="4"
-                            ToolTipService.ToolTip="Game Library">
-                            <FontIcon
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontFamily="Segoe MDL2 Assets"
-                                FontSize="25"
-                                Glyph="&#xE8F1;" />
                         </Button>
 
                         <!--  Settings Navigation Item (Custom image)  -->

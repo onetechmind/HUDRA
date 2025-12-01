@@ -372,6 +372,8 @@ namespace HUDRA.Controls
             // Slider focus/interaction is handled by the slider itself when focused
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             _isFocused = true;

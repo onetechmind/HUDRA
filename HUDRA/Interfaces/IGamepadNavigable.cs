@@ -16,6 +16,7 @@ namespace HUDRA.Interfaces
         void OnGamepadNavigateLeft();
         void OnGamepadNavigateRight();
         void OnGamepadActivate();
+        void OnGamepadBack(); // Handle B button - can be used for page-level back navigation
         void OnGamepadFocusReceived();
         void OnGamepadFocusLost();
         void FocusLastElement(); // Focus the last navigable element within this control

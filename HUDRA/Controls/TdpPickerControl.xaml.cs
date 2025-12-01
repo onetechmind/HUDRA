@@ -759,6 +759,8 @@ namespace HUDRA.Controls
             // Not used - TDP picker doesn't support activation
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             // Lazy initialization of gamepad service if needed

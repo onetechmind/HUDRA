@@ -14,6 +14,84 @@
         <local:NullToVisibilityConverter x:Key="NullToVisibilityConverter" />
         <local:InvertedNullToVisibilityConverter x:Key="InvertedNullToVisibilityConverter" />
 
+        <!--  Library Management Button Style (Add Game / Rescan)  -->
+        <Style x:Key="LibraryManagementButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#2d2d2d" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="3" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="MinWidth" Value="100" />
+            <Setter Property="MinHeight" Value="40" />
+            <Setter Property="Padding" Value="10" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border
+                            x:Name="ButtonBorder"
+                            Padding="{TemplateBinding Padding}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{TemplateBinding CornerRadius}">
+                            <ContentPresenter
+                                x:Name="ContentPresenter"
+                                HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                Content="{TemplateBinding Content}" />
+
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal" />
+                                    <VisualState x:Name="PointerOver">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ButtonBorder"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#454545"
+                                                Duration="0:0:0.1" />
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <ColorAnimation
+                                                Storyboard.TargetName="ButtonBorder"
+                                                Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
+                                                To="#670195"
+                                                Duration="0:0:0.05" />
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                                <VisualStateGroup x:Name="FocusStates">
+                                    <VisualState x:Name="Focused">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="DarkViolet" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Unfocused">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="Transparent" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="PointerFocused">
+                                        <Storyboard>
+                                            <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ButtonBorder" Storyboard.TargetProperty="BorderBrush">
+                                                <DiscreteObjectKeyFrame KeyTime="0" Value="DarkViolet" />
+                                            </ObjectAnimationUsingKeyFrames>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!--  Game Tile Style  -->
         <Style x:Key="GameTileButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#2d2d2d" />
@@ -114,7 +192,7 @@
         <!--  Header  -->
         <Border>
             <TextBlock
-                Padding="0,15,0,0"
+                Padding="0,25,0,0"
                 HorizontalAlignment="Center"
                 FontFamily="Cascadia Code"
                 FontSize="18"
@@ -125,18 +203,14 @@
 
         <!--  Game Management Buttons  -->
         <StackPanel
+            Margin="0,0,0,-10"
             HorizontalAlignment="Center"
             Orientation="Horizontal"
             Spacing="10">
             <Button
                 x:Name="AddGameButton"
-                MinWidth="100"
-                MinHeight="40"
-                Padding="10"
-                Background="DarkViolet"
                 Click="AddGameButton_Click"
-                CornerRadius="8"
-                Foreground="White">
+                Style="{StaticResource LibraryManagementButtonStyle}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon
                         FontFamily="Segoe MDL2 Assets"
@@ -151,13 +225,8 @@
 
             <Button
                 x:Name="RescanButton"
-                MinWidth="100"
-                MinHeight="40"
-                Padding="10"
-                Background="DarkViolet"
                 Click="RescanButton_Click"
-                CornerRadius="8"
-                Foreground="White">
+                Style="{StaticResource LibraryManagementButtonStyle}">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                     <FontIcon
                         FontFamily="Segoe MDL2 Assets"
@@ -169,6 +238,26 @@
                         Text="Rescan" />
                 </StackPanel>
             </Button>
+        </StackPanel>
+
+        <!--  Gamepad Legend  -->
+        <StackPanel
+            HorizontalAlignment="Center"
+            IsTabStop="False"
+            Orientation="Horizontal"
+            Spacing="6">
+            <Image
+                Width="25"
+                Height="25"
+                VerticalAlignment="Center"
+                Source="ms-appx:///Assets/Glyphs/xbox_button_x.png" />
+            <TextBlock
+                VerticalAlignment="Center"
+                FontFamily="Cascadia Code"
+                FontSize="14"
+                Foreground="#888888"
+                IsTabStop="False"
+                Text="Game Settings" />
         </StackPanel>
 
         <!--  Scan Progress Indicator  -->

@@ -56,6 +56,9 @@ namespace HUDRA.Services
         private int? _selectedNavbarButtonIndex = null; // null = no selection
         private Button? _selectedNavbarButton = null;
 
+        // Window visibility tracking - ignore input when window is hidden
+        private WindowManagementService? _windowManager;
+
         public event EventHandler<GamepadNavigationEventArgs>? NavigationRequested;
         public event EventHandler<GamepadPageNavigationEventArgs>? PageNavigationRequested;
         public event EventHandler<GamepadNavbarButtonEventArgs>? NavbarButtonRequested;
@@ -138,6 +141,12 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine($"🎮 Set layout root: {layoutRoot?.GetType().Name}");
         }
 
+        public void SetWindowManager(WindowManagementService windowManager)
+        {
+            _windowManager = windowManager;
+            System.Diagnostics.Debug.WriteLine("🎮 Set window manager for visibility tracking");
+        }
+
         private void CheckForConnectedGamepads()
         {
             var gamepads = Gamepad.Gamepads;
@@ -202,6 +211,15 @@ namespace HUDRA.Services
 
         private void ProcessGamepadInput(GamepadReading reading)
         {
+            // PRIORITY 0: Ignore all input when window is hidden
+            // This prevents accidental navigation/actions while user plays a game
+            if (_windowManager != null && !_windowManager.IsVisible)
+            {
+                // Only update button state to prevent "stuck" buttons when window returns
+                UpdatePressedButtonsState(reading.Buttons);
+                return;
+            }
+
             // PRIORITY 1: Handle dialog input FIRST (even if input processing is paused)
             // This allows modals to work on Library page where input processing is suspended
             if (_isDialogOpen && _currentDialog != null)
@@ -819,6 +837,13 @@ namespace HUDRA.Services
                                 expander.IsExpanded = false;
                                 SetFocus(expander);
                                 System.Diagnostics.Debug.WriteLine($"🎮 B button: Collapsed parent expander and returned focus to header");
+                                handled = true;
+                            }
+                            else
+                            {
+                                // No expander to collapse - call OnGamepadBack on the control or page
+                                navigableControl.OnGamepadBack();
+                                System.Diagnostics.Debug.WriteLine($"🎮 B button: Called OnGamepadBack on {navigableControl.GetType().Name}");
                                 handled = true;
                             }
                             break;

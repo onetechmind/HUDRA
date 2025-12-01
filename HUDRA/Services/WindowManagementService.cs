@@ -60,6 +60,7 @@ namespace HUDRA.Services
 
                     // CRITICAL: Activate the window to bring it to foreground
                     _window.Activate();
+                    SetForegroundWindow(_hwnd);
 
                     // Ensure proper positioning and topmost behavior
                     PositionWindow();
@@ -204,6 +205,9 @@ namespace HUDRA.Services
 
         [DllImport("user32.dll")]
         private static extern bool GetWindowRect(IntPtr hWnd, ref RECT lpRect);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT

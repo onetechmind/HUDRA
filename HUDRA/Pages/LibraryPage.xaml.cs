@@ -41,6 +41,11 @@ namespace HUDRA.Pages
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
 
+        // Button zone navigation (Add Game / Rescan buttons above game tiles)
+        private enum LibraryFocusZone { Tiles, Buttons }
+        private LibraryFocusZone _currentZone = LibraryFocusZone.Tiles;
+        private int _buttonFocusIndex = 0;  // 0 = Add Game, 1 = Rescan
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public LibraryPage()
@@ -63,7 +68,8 @@ namespace HUDRA.Pages
             if (_lastUsedGamepadInput)
             {
                 _lastUsedGamepadInput = false;
-                _savedFocusedGameProcessName = null;
+                // Note: Don't clear _savedFocusedGameProcessName here - let the user click on a tile
+                // to naturally update focus, or let it persist if they navigate away and back
             }
         }
 
@@ -74,7 +80,7 @@ namespace HUDRA.Pages
             if (_lastUsedGamepadInput && !IsGamepadKey(e.Key))
             {
                 _lastUsedGamepadInput = false;
-                _savedFocusedGameProcessName = null;
+                // Note: Don't clear _savedFocusedGameProcessName here
             }
         }
 
@@ -94,9 +100,9 @@ namespace HUDRA.Pages
 
                 // ONLY track input method if this is a user-initiated scroll, NOT programmatic restoration
                 // This prevents RestoreScrollPositionAsync from incorrectly resetting the gamepad flag
-                if (!_isRestoringScroll && !e.IsIntermediate)
+                // Also don't clear if we're currently using gamepad input (would break focus restoration)
+                if (!_isRestoringScroll && !e.IsIntermediate && !_lastUsedGamepadInput)
                 {
-                    _lastUsedGamepadInput = false;
                     // Clear saved focus when switching to mouse/keyboard - no tile is selected
                     _savedFocusedGameProcessName = null;
                 }
@@ -113,13 +119,19 @@ namespace HUDRA.Pages
                 await LoadGamesAsync();
             }
 
-            // Restore focused game first (if any) - this may scroll
-            await RestoreFocusedGameAsync();
-
-            // THEN restore scroll position to override any focus-induced scrolling
-            // Wait a bit for focus to settle before restoring scroll
-            await Task.Delay(200);
-            await RestoreScrollPositionAsync();
+            // If we have a saved focused game, scroll to it and focus it
+            // Otherwise, restore the scroll position only
+            if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
+            {
+                // RestoreFocusedGameAsync will scroll to the button and focus it
+                await RestoreFocusedGameAsync();
+            }
+            else
+            {
+                // No saved focus - restore scroll position to where user was
+                await Task.Delay(200);
+                await RestoreScrollPositionAsync();
+            }
 
             // If scanning is already in progress, show the indicator
             if (_gameDetectionService != null && _gameDetectionService.IsScanning)
@@ -141,12 +153,15 @@ namespace HUDRA.Pages
                 _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
+            // Reset button zone to Tiles so gamepad focus goes to tiles on return
+            _currentZone = LibraryFocusZone.Tiles;
+
             // Note: We keep scan event subscriptions active for reactive updates
         }
 
         /// <summary>
         /// Saves scroll position and focused game when navigating away.
-        /// IMMEDIATELY unsubscribes from ViewChanged to prevent other pages from overwriting saved scroll.
+        /// IMMEDIATELY unsubscribes from events to prevent handler accumulation.
         /// </summary>
         public void SaveScrollPosition()
         {
@@ -155,6 +170,14 @@ namespace HUDRA.Pages
                 // CRITICAL: Unsubscribe IMMEDIATELY to prevent other pages from overwriting _savedScrollOffset
                 // This must happen before the next page loads and scrolls ContentScrollViewer to 0
                 _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
+            }
+
+            // CRITICAL: Unsubscribe from gamepad input to prevent handler accumulation
+            // OnNavigatedFrom may not fire because NavigationService uses direct Content assignment
+            // instead of Frame.Navigate(), bypassing the navigation lifecycle
+            if (_gamepadNavigationService != null)
+            {
+                _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
             // NOTE: Focused game is now tracked continuously via SaveCurrentlyFocusedGame()
@@ -185,11 +208,13 @@ namespace HUDRA.Pages
             _gamepadNavigationService = gamepadNavigationService;
             _contentScrollViewer = contentScrollViewer;
 
-            // Subscribe to gamepad input on each navigation (unsubscribed when leaving page)
+            // Unsubscribe first to prevent handler accumulation (Initialize called on every navigation)
+            // The -= on a non-existent subscription is a safe no-op
+            _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
 
-            // Subscribe to ContentScrollViewer on each navigation (unsubscribed when leaving)
-            // This is necessary because we need to stop tracking when other pages use the same ScrollViewer
+            // Same pattern for scroll viewer to prevent accumulation
+            _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
             _contentScrollViewer.ViewChanged += OnScrollViewChanged;
 
             // Subscribe to scan events only once (for reactive game list updates)
@@ -211,10 +236,18 @@ namespace HUDRA.Pages
             // 1. If saved focus exists: restore it (gamepad navigation only)
             // 2. Else if navigated via gamepad: focus first tile
             // 3. Else (mouse/keyboard): no auto-focus
+            //
+            // Use isGamepadNavigation (from L1/R1) OR _lastUsedGamepadInput (tracks if user was using gamepad)
+            // This ensures focus is restored when returning from GameSettings via gamepad Back button
+            bool shouldRestoreFocus = isGamepadNavigation || _lastUsedGamepadInput;
+
             if (isGamepadNavigation)
             {
-                _lastUsedGamepadInput = true; // Update input method tracking for future navigations
+                _lastUsedGamepadInput = true; // Explicitly mark as gamepad input for L1/R1 navigation
+            }
 
+            if (shouldRestoreFocus)
+            {
                 if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
                 {
                     // Restore previously focused game
@@ -226,11 +259,7 @@ namespace HUDRA.Pages
                     await FocusFirstGameTileAsync();
                 }
             }
-            else
-            {
-                _lastUsedGamepadInput = false; // Update input method tracking
-                // No auto-focus for mouse/keyboard navigation
-            }
+            // else: No auto-focus for mouse/keyboard navigation
 
             // THEN restore scroll position to override any focus-induced scrolling
             await Task.Delay(200);
@@ -551,32 +580,79 @@ namespace HUDRA.Pages
 
         private async Task RestoreFocusedGameAsync()
         {
-            if (!string.IsNullOrEmpty(_savedFocusedGameProcessName))
+            if (string.IsNullOrEmpty(_savedFocusedGameProcessName)) return;
+
+            // Wait for UI to be fully rendered
+            await Task.Delay(100);
+
+            // Null check for GamesItemsControl
+            if (GamesItemsControl == null)
             {
-                // Wait for UI to be fully rendered
-                await Task.Delay(100);
+                System.Diagnostics.Debug.WriteLine($"⚠️ RestoreFocusedGameAsync: GamesItemsControl is NULL!");
+                return;
+            }
 
-                // Null check for GamesItemsControl
-                if (GamesItemsControl == null)
-                {
-                    System.Diagnostics.Debug.WriteLine($"⚠️ RestoreFocusedGameAsync: GamesItemsControl is NULL!");
-                    return;
-                }
+            // Find the game in our data source first
+            var game = _games.FirstOrDefault(g => g.ProcessName == _savedFocusedGameProcessName);
+            if (game == null)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚠️ RestoreFocusedGameAsync: Game '{_savedFocusedGameProcessName}' not found in collection");
+                _savedFocusedGameProcessName = null;
+                return;
+            }
 
-                // Find the game button that matches the saved process name
+            // Try to find and focus the button, with retries for virtualization
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
                 var gameButton = FindGameButton(_savedFocusedGameProcessName);
                 if (gameButton != null)
                 {
+                    // Use BringIntoViewOptions for better scroll positioning
+                    var options = new BringIntoViewOptions
+                    {
+                        AnimationDesired = false,  // Instant scroll
+                        VerticalAlignmentRatio = 0.3  // Position near top of viewport
+                    };
+                    gameButton.StartBringIntoView(options);
+
+                    // Wait for scroll to settle
+                    await Task.Delay(150);
+
+                    // Focus the button
                     gameButton.Focus(FocusState.Programmatic);
-                    // Keep the saved focus valid (already saved, but this ensures it)
                     SaveCurrentlyFocusedGame(gameButton);
+                    System.Diagnostics.Debug.WriteLine($"✅ RestoreFocusedGameAsync: Focused '{_savedFocusedGameProcessName}' on attempt {attempt + 1}");
+                    return;
                 }
-                else
-                {
-                    // Game no longer exists, clear saved focus
-                    _savedFocusedGameProcessName = null;
-                }
+
+                // Button not found - might be virtualized (off-screen)
+                // Scroll toward the item to force rendering
+                System.Diagnostics.Debug.WriteLine($"🔄 RestoreFocusedGameAsync: Button not found, scrolling to item (attempt {attempt + 1})");
+                await ScrollToGameIndex(game);
+                await Task.Delay(100);
             }
+
+            // If still not found after retries, clear saved focus
+            System.Diagnostics.Debug.WriteLine($"⚠️ RestoreFocusedGameAsync: Failed to find button after 3 attempts, clearing saved focus");
+            _savedFocusedGameProcessName = null;
+        }
+
+        /// <summary>
+        /// Scrolls the view to make the specified game visible, based on its index in the collection.
+        /// Used to force virtualized items to be rendered before focusing.
+        /// </summary>
+        private async Task ScrollToGameIndex(DetectedGame game)
+        {
+            int index = _games.IndexOf(game);
+            if (index < 0 || _contentScrollViewer == null) return;
+
+            // Estimate scroll position based on index
+            // Layout: 2 columns, each row is approximately 130px (tile height + spacing)
+            int row = index / 2;
+            double estimatedOffset = row * 130;
+
+            _contentScrollViewer.ChangeView(null, estimatedOffset, null, disableAnimation: true);
+            await Task.Yield(); // Allow UI to process the scroll
         }
 
         /// <summary>
@@ -866,6 +942,18 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
+            // If currently in buttons zone, can't go higher
+            if (_currentZone == LibraryFocusZone.Buttons)
+            {
+                // Scroll to top to show buttons clearly
+                if (_contentScrollViewer != null)
+                {
+                    _contentScrollViewer.UpdateLayout();
+                    _contentScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+                }
+                return;
+            }
+
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
 
@@ -889,11 +977,20 @@ namespace HUDRA.Pages
                 EnsureButtonVisible(allButtons[targetIndex]);
                 SaveCurrentlyFocusedGame(allButtons[targetIndex]);
             }
-            else if (_contentScrollViewer != null)
+            else
             {
-                // Already at top row - scroll to absolute top to show header
-                _contentScrollViewer.UpdateLayout();
-                _contentScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+                // At first row of tiles - transition to buttons zone
+                _currentZone = LibraryFocusZone.Buttons;
+                // Map column position: left column (0) → Add Game, right column (1) → Rescan
+                _buttonFocusIndex = currentIndex % 2;
+                FocusLibraryButton(_buttonFocusIndex);
+
+                // Scroll to top to show buttons
+                if (_contentScrollViewer != null)
+                {
+                    _contentScrollViewer.UpdateLayout();
+                    _contentScrollViewer.ChangeView(null, 0, null, disableAnimation: false);
+                }
             }
         }
 
@@ -902,28 +999,44 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
-            var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
-            if (allButtons.Count == 0) return;
+            // If currently in buttons zone, transition to tiles
+            if (_currentZone == LibraryFocusZone.Buttons)
+            {
+                _currentZone = LibraryFocusZone.Tiles;
+                var allTileButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+                if (allTileButtons.Count > 0)
+                {
+                    // Focus tile in same column position as button
+                    int tileIndex = Math.Min(_buttonFocusIndex, allTileButtons.Count - 1);
+                    allTileButtons[tileIndex].Focus(FocusState.Programmatic);
+                    EnsureButtonVisible(allTileButtons[tileIndex]);
+                    SaveCurrentlyFocusedGame(allTileButtons[tileIndex]);
+                }
+                return;
+            }
 
-            var focusedButton = FindFocusedButton(allButtons);
+            var gameTiles = FindAllGameButtonsInVisualTree(GamesItemsControl);
+            if (gameTiles.Count == 0) return;
+
+            var focusedButton = FindFocusedButton(gameTiles);
 
             // If no button is focused, focus the first button
             if (focusedButton == null)
             {
-                allButtons[0].Focus(FocusState.Programmatic);
-                EnsureButtonVisible(allButtons[0]);
-                SaveCurrentlyFocusedGame(allButtons[0]);
+                gameTiles[0].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(gameTiles[0]);
+                SaveCurrentlyFocusedGame(gameTiles[0]);
                 return;
             }
 
-            int currentIndex = allButtons.IndexOf(focusedButton);
+            int currentIndex = gameTiles.IndexOf(focusedButton);
             // In a 2-column grid, move down 2 positions
             int targetIndex = currentIndex + 2;
-            if (targetIndex < allButtons.Count)
+            if (targetIndex < gameTiles.Count)
             {
-                allButtons[targetIndex].Focus(FocusState.Programmatic);
-                EnsureButtonVisible(allButtons[targetIndex]);
-                SaveCurrentlyFocusedGame(allButtons[targetIndex]);
+                gameTiles[targetIndex].Focus(FocusState.Programmatic);
+                EnsureButtonVisible(gameTiles[targetIndex]);
+                SaveCurrentlyFocusedGame(gameTiles[targetIndex]);
             }
             else if (_contentScrollViewer != null)
             {
@@ -940,6 +1053,16 @@ namespace HUDRA.Pages
         {
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
+
+            // If in buttons zone, move between Add Game and Rescan
+            if (_currentZone == LibraryFocusZone.Buttons)
+            {
+                if (_buttonFocusIndex == 1) // Rescan → Add Game
+                {
+                    FocusLibraryButton(0);
+                }
+                return;
+            }
 
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
@@ -982,6 +1105,16 @@ namespace HUDRA.Pages
         {
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
+
+            // If in buttons zone, move between Add Game and Rescan
+            if (_currentZone == LibraryFocusZone.Buttons)
+            {
+                if (_buttonFocusIndex == 0) // Add Game → Rescan
+                {
+                    FocusLibraryButton(1);
+                }
+                return;
+            }
 
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             if (allButtons.Count == 0) return;
@@ -1034,8 +1167,36 @@ namespace HUDRA.Pages
             return null;
         }
 
+        private void FocusLibraryButton(int index)
+        {
+            _buttonFocusIndex = index;
+            if (index == 0)
+            {
+                AddGameButton?.Focus(FocusState.Programmatic);
+            }
+            else
+            {
+                RescanButton?.Focus(FocusState.Programmatic);
+            }
+        }
+
         private void InvokeFocusedButton()
         {
+            // If in buttons zone, invoke the focused button (Add Game or Rescan)
+            if (_currentZone == LibraryFocusZone.Buttons)
+            {
+                if (_buttonFocusIndex == 0)
+                {
+                    AddGameButton_Click(AddGameButton, new RoutedEventArgs());
+                }
+                else
+                {
+                    RescanButton_Click(RescanButton, new RoutedEventArgs());
+                }
+                return;
+            }
+
+            // Otherwise, invoke the focused game tile
             var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
             var focusedButton = FindFocusedButton(allButtons);
             if (focusedButton != null && focusedButton.Tag is DetectedGame)

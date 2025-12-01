@@ -1,3 +1,4 @@
+using HUDRA.Extensions;
 using HUDRA.Interfaces;
 using HUDRA.Models;
 using HUDRA.Services;
@@ -33,7 +34,12 @@ namespace HUDRA.Pages
 
         // Gamepad navigation state
         private bool _isFocused = false;
-        private int _currentFocusedElement = 0; // 0=Back, 1=DisplayName, 2=Browse, 3=SGDB, 4=Save, 5=Cancel
+        private int _currentFocusedElement = 0; // 0=Back, 1=DisplayName, 2=Delete, 3=Browse, 4=SGDB, 5=Save, 6=Cancel
+        private const int MaxFocusIndex = 6;
+
+        // SGDB grid navigation state
+        private bool _isSgdbGridActive = false;  // Whether we're navigating in the SGDB grid
+        private int _sgdbGridFocusIndex = 0;     // Currently focused tile in the grid (0-9)
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -99,18 +105,31 @@ namespace HUDRA.Pages
             // Populate UI
             DisplayNameTextBox.Text = _currentGame.DisplayName;
 
-            if (!string.IsNullOrEmpty(_currentGame.ArtworkPath) && File.Exists(_currentGame.ArtworkPath))
+            if (!string.IsNullOrEmpty(_currentGame.ArtworkPath))
             {
-                ArtworkPreview.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(
-                    new Uri(_currentGame.ArtworkPath));
+                // Strip any existing cache-busting query string to get the clean path for File.Exists check
+                var cleanPath = _currentGame.ArtworkPath.Contains('?')
+                    ? _currentGame.ArtworkPath.Substring(0, _currentGame.ArtworkPath.IndexOf('?'))
+                    : _currentGame.ArtworkPath;
+
+                if (File.Exists(cleanPath))
+                {
+                    // Add cache-busting query string to force reload (prevents stale cached images)
+                    var cacheBustPath = $"{cleanPath}?t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+                    ArtworkPreview.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(
+                        new Uri(cacheBustPath));
+                }
             }
         }
 
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => _currentFocusedElement > 0;
-        public bool CanNavigateDown => _currentFocusedElement < 5;
-        public bool CanNavigateLeft => _currentFocusedElement == 5; // From Cancel to Save
-        public bool CanNavigateRight => _currentFocusedElement == 4; // From Save to Cancel
+        public bool CanNavigateUp => _isSgdbGridActive || _currentFocusedElement > 0;
+        public bool CanNavigateDown => _isSgdbGridActive || _currentFocusedElement < MaxFocusIndex
+            || ((_currentFocusedElement == 5 || _currentFocusedElement == 6)
+                && SgdbResultsSection?.Visibility == Visibility.Visible
+                && SgdbImageGrid?.Items.Count > 0);
+        public bool CanNavigateLeft => _isSgdbGridActive || _currentFocusedElement == 6 || _currentFocusedElement == 2;
+        public bool CanNavigateRight => _isSgdbGridActive || _currentFocusedElement == 5 || _currentFocusedElement == 1;
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
 
@@ -168,7 +187,7 @@ namespace HUDRA.Pages
             }
         }
 
-        public Brush BrowseButtonFocusBrush
+        public Brush DeleteButtonFocusBrush
         {
             get
             {
@@ -181,7 +200,7 @@ namespace HUDRA.Pages
             }
         }
 
-        public Brush SgdbButtonFocusBrush
+        public Brush BrowseButtonFocusBrush
         {
             get
             {
@@ -194,7 +213,7 @@ namespace HUDRA.Pages
             }
         }
 
-        public Brush SaveButtonFocusBrush
+        public Brush SgdbButtonFocusBrush
         {
             get
             {
@@ -207,12 +226,25 @@ namespace HUDRA.Pages
             }
         }
 
+        public Brush SaveButtonFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
+                    && _currentFocusedElement == 5 && !_isSgdbGridActive)
+                {
+                    return new SolidColorBrush(Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Colors.Transparent);
+            }
+        }
+
         public Brush CancelButtonFocusBrush
         {
             get
             {
                 if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 5)
+                    && _currentFocusedElement == 6 && !_isSgdbGridActive)
                 {
                     return new SolidColorBrush(Colors.DarkViolet);
                 }
@@ -223,6 +255,13 @@ namespace HUDRA.Pages
         // Gamepad navigation handlers
         public void OnGamepadNavigateUp()
         {
+            if (_isSgdbGridActive)
+            {
+                NavigateSgdbGrid("Up");
+                return;
+            }
+
+            // Normal navigation - UP always goes to previous element (no grid entry from UP)
             if (_currentFocusedElement > 0)
             {
                 _currentFocusedElement--;
@@ -232,7 +271,23 @@ namespace HUDRA.Pages
 
         public void OnGamepadNavigateDown()
         {
-            if (_currentFocusedElement < 5)
+            if (_isSgdbGridActive)
+            {
+                NavigateSgdbGrid("Down");
+                return;
+            }
+
+            // If at Save (5) or Cancel (6) and SGDB grid is visible, enter grid at top
+            if ((_currentFocusedElement == 5 || _currentFocusedElement == 6)
+                && SgdbResultsSection.Visibility == Visibility.Visible
+                && SgdbImageGrid.Items.Count > 0)
+            {
+                EnterSgdbGridNavigation();
+                return;
+            }
+
+            // Normal navigation - go to next element
+            if (_currentFocusedElement < MaxFocusIndex)
             {
                 _currentFocusedElement++;
                 UpdateFocusVisuals();
@@ -241,24 +296,54 @@ namespace HUDRA.Pages
 
         public void OnGamepadNavigateLeft()
         {
-            if (_currentFocusedElement == 5) // From Cancel to Save
+            if (_isSgdbGridActive)
             {
-                _currentFocusedElement = 4;
+                NavigateSgdbGrid("Left");
+                return;
+            }
+
+            // From Cancel to Save, or from Delete to DisplayName
+            if (_currentFocusedElement == 6)
+            {
+                _currentFocusedElement = 5;
+                UpdateFocusVisuals();
+            }
+            else if (_currentFocusedElement == 2)
+            {
+                _currentFocusedElement = 1;
                 UpdateFocusVisuals();
             }
         }
 
         public void OnGamepadNavigateRight()
         {
-            if (_currentFocusedElement == 4) // From Save to Cancel
+            if (_isSgdbGridActive)
             {
-                _currentFocusedElement = 5;
+                NavigateSgdbGrid("Right");
+                return;
+            }
+
+            // From Save to Cancel, or from DisplayName to Delete
+            if (_currentFocusedElement == 5)
+            {
+                _currentFocusedElement = 6;
+                UpdateFocusVisuals();
+            }
+            else if (_currentFocusedElement == 1)
+            {
+                _currentFocusedElement = 2;
                 UpdateFocusVisuals();
             }
         }
 
         public void OnGamepadActivate()
         {
+            if (_isSgdbGridActive)
+            {
+                ActivateSgdbGridTile();
+                return;
+            }
+
             switch (_currentFocusedElement)
             {
                 case 0: // Back button
@@ -268,19 +353,28 @@ namespace HUDRA.Pages
                     DisplayNameTextBox.Focus(FocusState.Programmatic);
                     DisplayNameTextBox.SelectAll();
                     break;
-                case 2: // Browse button
+                case 2: // Delete button
+                    DeleteButton_Click(this, new RoutedEventArgs());
+                    break;
+                case 3: // Browse button
                     BrowseButton_Click(this, new RoutedEventArgs());
                     break;
-                case 3: // SteamGridDB button
+                case 4: // SteamGridDB button
                     SteamGridDbButton_Click(this, new RoutedEventArgs());
                     break;
-                case 4: // Save button
+                case 5: // Save button
                     SaveButton_Click(this, new RoutedEventArgs());
                     break;
-                case 5: // Cancel button
+                case 6: // Cancel button
                     CancelButton_Click(this, new RoutedEventArgs());
                     break;
             }
+        }
+
+        public void OnGamepadBack()
+        {
+            // B button anywhere on page navigates back (same as Cancel)
+            BackButton_Click(this, new RoutedEventArgs());
         }
 
         public void OnGamepadFocusReceived()
@@ -302,8 +396,8 @@ namespace HUDRA.Pages
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 5: Cancel button)
-            _currentFocusedElement = 5;
+            // Focus the last element (element 6: Cancel button)
+            _currentFocusedElement = MaxFocusIndex;
             UpdateFocusVisuals();
         }
 
@@ -314,11 +408,39 @@ namespace HUDRA.Pages
             {
                 OnPropertyChanged(nameof(BackButtonFocusBrush));
                 OnPropertyChanged(nameof(DisplayNameFocusBrush));
+                OnPropertyChanged(nameof(DeleteButtonFocusBrush));
                 OnPropertyChanged(nameof(BrowseButtonFocusBrush));
                 OnPropertyChanged(nameof(SgdbButtonFocusBrush));
                 OnPropertyChanged(nameof(SaveButtonFocusBrush));
                 OnPropertyChanged(nameof(CancelButtonFocusBrush));
+
+                // Scroll the focused element into view
+                ScrollCurrentElementIntoView();
             });
+        }
+
+        private void ScrollCurrentElementIntoView()
+        {
+            FrameworkElement? elementToScroll = _currentFocusedElement switch
+            {
+                0 => BackButton,
+                1 => DisplayNameTextBox,
+                2 => DeleteButton,
+                3 => BrowseButton,
+                4 => SteamGridDbButton,
+                5 => SaveButton,
+                6 => CancelButton,
+                _ => null
+            };
+
+            if (elementToScroll != null)
+            {
+                elementToScroll.StartBringIntoView(new BringIntoViewOptions
+                {
+                    AnimationDesired = true,
+                    VerticalAlignmentRatio = 0.5 // Center the element vertically
+                });
+            }
         }
 
         // Button click handlers
@@ -326,6 +448,83 @@ namespace HUDRA.Pages
         {
             // Same as Cancel - discard changes and go back
             CancelButton_Click(sender, e);
+        }
+
+        private async void DeleteButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentGame == null || _gameDatabase == null) return;
+
+            // Get MainWindow for gamepad support
+            var mainWindow = Application.Current is App app ? app.MainWindow as MainWindow : null;
+
+            var dialog = new ContentDialog
+            {
+                Title = "Delete Game",
+                Content = "Are you sure you want to delete this game from HUDRA's Library?",
+                PrimaryButtonText = "Ⓐ Yes",
+                CloseButtonText = "Ⓑ No",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = this.XamlRoot
+            };
+
+            var result = mainWindow != null
+                ? await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService)
+                : await dialog.ShowAsync();
+
+            if (result != ContentDialogResult.Primary) return;
+
+            // Delete the artwork file first (if it exists in our artwork folder)
+            var artworkPath = _currentGame.ArtworkPath;
+            if (!string.IsNullOrEmpty(artworkPath))
+            {
+                // Strip any cache-busting query string (e.g., "?t=123456")
+                var cleanPath = artworkPath.Contains('?')
+                    ? artworkPath.Substring(0, artworkPath.IndexOf('?'))
+                    : artworkPath;
+
+                // Only delete if it's in our artwork directory (don't delete external files)
+                if (cleanPath.StartsWith(_artworkDirectory, StringComparison.OrdinalIgnoreCase) && File.Exists(cleanPath))
+                {
+                    try
+                    {
+                        File.Delete(cleanPath);
+                        System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Deleted artwork file '{cleanPath}'");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Failed to delete artwork file: {ex.Message}");
+                        // Continue with game deletion even if artwork deletion fails
+                    }
+                }
+            }
+
+            // Delete the game from database
+            var processName = _currentGame.ProcessName;
+            if (_gameDatabase.DeleteGame(processName))
+            {
+                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Deleted game '{processName}'");
+
+                // Refresh library and navigate back
+                if (mainWindow != null)
+                {
+                    mainWindow.RefreshLibrary();
+                }
+
+                // Navigate back to Library
+                BackButton_Click(sender, e);
+            }
+            else
+            {
+                // Show error if deletion failed
+                var errorDialog = new ContentDialog
+                {
+                    Title = "Error",
+                    Content = "Failed to delete the game. Please try again.",
+                    CloseButtonText = "OK",
+                    XamlRoot = this.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+            }
         }
 
         private void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -386,8 +585,8 @@ namespace HUDRA.Pages
                 SgdbErrorText.Visibility = Visibility.Collapsed;
                 SgdbImageGrid.ItemsSource = null;
 
-                // Fetch artwork options
-                var results = await _artworkService.GetArtworkOptionsAsync(_currentGame.DisplayName, 10);
+                // Fetch artwork options using the current Display Name field value (allows user to correct search term)
+                var results = await _artworkService.GetArtworkOptionsAsync(DisplayNameTextBox.Text, 10);
 
                 SgdbLoadingIndicator.Visibility = Visibility.Collapsed;
 
@@ -577,6 +776,148 @@ namespace HUDRA.Pages
         {
             SgdbErrorText.Text = message;
             SgdbErrorText.Visibility = Visibility.Visible;
+        }
+
+        // SGDB Grid Navigation Methods
+        private void EnterSgdbGridNavigation()
+        {
+            _isSgdbGridActive = true;
+            _sgdbGridFocusIndex = 0;
+            UpdateFocusVisuals(); // Clear button focus visuals
+            UpdateSgdbGridFocusVisual();
+        }
+
+        private void ExitSgdbGridNavigation()
+        {
+            _isSgdbGridActive = false;
+            ClearSgdbGridFocusVisual();
+            UpdateFocusVisuals();
+        }
+
+        private void NavigateSgdbGrid(string direction)
+        {
+            var items = SgdbImageGrid.Items;
+            if (items == null || items.Count == 0) return;
+
+            int columns = 2;
+            int currentRow = _sgdbGridFocusIndex / columns;
+            int currentCol = _sgdbGridFocusIndex % columns;
+
+            switch (direction)
+            {
+                case "Up":
+                    if (currentRow > 0)
+                    {
+                        _sgdbGridFocusIndex -= columns;
+                        UpdateSgdbGridFocusVisual();
+                    }
+                    else
+                    {
+                        // Exit to Save button (index 5) - grid is below Save/Cancel visually
+                        _currentFocusedElement = 5;
+                        ExitSgdbGridNavigation();
+                    }
+                    break;
+                case "Down":
+                    // Move down within grid if possible, otherwise dead end (no exit)
+                    if (_sgdbGridFocusIndex + columns < items.Count)
+                    {
+                        _sgdbGridFocusIndex += columns;
+                        UpdateSgdbGridFocusVisual();
+                    }
+                    // Dead end - do nothing at bottom row
+                    break;
+                case "Left":
+                    if (currentCol > 0)
+                    {
+                        _sgdbGridFocusIndex--;
+                        UpdateSgdbGridFocusVisual();
+                    }
+                    break;
+                case "Right":
+                    if (currentCol < columns - 1 && _sgdbGridFocusIndex + 1 < items.Count)
+                    {
+                        _sgdbGridFocusIndex++;
+                        UpdateSgdbGridFocusVisual();
+                    }
+                    break;
+            }
+        }
+
+        private void UpdateSgdbGridFocusVisual()
+        {
+            if (SgdbImageGrid.ItemsSource == null) return;
+
+            // Update visual feedback for all tiles
+            for (int i = 0; i < SgdbImageGrid.Items.Count; i++)
+            {
+                var container = SgdbImageGrid.ContainerFromIndex(i) as FrameworkElement;
+                if (container == null) continue;
+
+                var border = FindVisualChild<Border>(container);
+                if (border == null) continue;
+
+                var button = FindVisualChild<Button>(container);
+                if (button?.Tag is SteamGridDbResult result)
+                {
+                    bool isSelected = result.TempFilePath == _selectedSgdbPath;
+                    bool isFocused = _isSgdbGridActive && i == _sgdbGridFocusIndex;
+
+                    if (isFocused)
+                    {
+                        // Gamepad focus - use DarkViolet with thicker border
+                        border.BorderBrush = new SolidColorBrush(Colors.DarkViolet);
+                        border.BorderThickness = new Thickness(3);
+
+                        // Scroll the focused tile into view
+                        container.StartBringIntoView(new BringIntoViewOptions
+                        {
+                            AnimationDesired = true,
+                            VerticalAlignmentRatio = 0.5
+                        });
+                    }
+                    else if (isSelected)
+                    {
+                        // Selected but not focused
+                        border.BorderBrush = new SolidColorBrush(Colors.DarkViolet);
+                        border.BorderThickness = new Thickness(3);
+                    }
+                    else
+                    {
+                        // Neither focused nor selected
+                        border.BorderBrush = new SolidColorBrush(Colors.Transparent);
+                        border.BorderThickness = new Thickness(2);
+                    }
+                }
+            }
+        }
+
+        private void ClearSgdbGridFocusVisual()
+        {
+            // Reset to selection-only state (reuse existing method)
+            UpdateSgdbTileSelection();
+        }
+
+        private void ActivateSgdbGridTile()
+        {
+            var items = SgdbImageGrid.Items;
+            if (items == null || _sgdbGridFocusIndex >= items.Count) return;
+
+            if (items[_sgdbGridFocusIndex] is SteamGridDbResult result)
+            {
+                // Reuse existing selection logic
+                _pendingArtworkPath = result.TempFilePath;
+                _artworkChanged = true;
+                _selectedSgdbPath = result.TempFilePath;
+
+                // Update preview
+                ArtworkPreview.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(
+                    new Uri(result.TempFilePath));
+
+                // Update visual feedback
+                UpdateSgdbGridFocusVisual();
+                HideArtworkError();
+            }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

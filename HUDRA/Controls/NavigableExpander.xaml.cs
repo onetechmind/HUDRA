@@ -161,6 +161,8 @@ namespace HUDRA.Controls
             }
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             if (_gamepadNavigationService == null)

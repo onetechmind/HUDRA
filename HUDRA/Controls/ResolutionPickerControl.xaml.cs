@@ -501,6 +501,8 @@ namespace HUDRA.Controls
             }
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             _isFocused = true;

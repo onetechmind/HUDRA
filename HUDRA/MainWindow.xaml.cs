@@ -189,6 +189,7 @@ namespace HUDRA
             _gamepadNavigationService = new GamepadNavigationService();
             _gamepadNavigationService.SetCurrentFrame(ContentFrame);
             _gamepadNavigationService.SetLayoutRoot(LayoutRoot);
+            _gamepadNavigationService.SetWindowManager(_windowManager);
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
             _fpsLimiterService = new RtssFpsLimiterService();
@@ -226,6 +227,22 @@ namespace HUDRA
             else
             {
                 System.Diagnostics.Debug.WriteLine($"MainWindow: Cannot refresh game artwork - LibraryPage is not initialized");
+            }
+        }
+
+        /// <summary>
+        /// Triggers a full refresh of the Library page.
+        /// Called from GameSettingsPage after deleting a game.
+        /// </summary>
+        public void RefreshLibrary()
+        {
+            if (_libraryPage != null)
+            {
+                _libraryPage.RefreshLibrary();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("MainWindow: Cannot refresh library - LibraryPage is not initialized");
             }
         }
 
@@ -267,9 +284,9 @@ namespace HUDRA
             var pageOrder = new List<Type>
             {
                 typeof(MainPage),
+                typeof(LibraryPage),
                 typeof(FanCurvePage),
                 typeof(ScalingPage),
-                typeof(LibraryPage),
                 typeof(SettingsPage)
             };
 
@@ -1274,14 +1291,8 @@ namespace HUDRA
 
         public void ToggleWindowVisibility()
         {
-            // Clear gamepad focus before toggling to prevent lingering focus borders
-            if (_gamepadNavigationService != null)
-            {
-                _gamepadNavigationService.ClearFocus();
-                _gamepadNavigationService.DeactivateGamepadMode();
-                System.Diagnostics.Debug.WriteLine("🎮 Cleared gamepad focus before window visibility toggle");
-            }
-
+            // Gamepad input is now blocked when window is hidden (via visibility check in ProcessGamepadInput),
+            // so we no longer need to clear focus here. Focus state is preserved across hide/show cycles.
             _windowManager.ToggleVisibility();
         }
 

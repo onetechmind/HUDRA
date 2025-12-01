@@ -461,6 +461,8 @@ namespace HUDRA.Controls
             System.Diagnostics.Debug.WriteLine($"🎮 HotkeySelector: Activated Edit button");
         }
 
+        public void OnGamepadBack() { }
+
         public void OnGamepadFocusReceived()
         {
             // Initialize gamepad service if needed
