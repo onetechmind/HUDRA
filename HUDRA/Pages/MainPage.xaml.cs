@@ -52,13 +52,14 @@ namespace HUDRA.Pages
                                ResolutionService resolutionService,
                                AudioService audioService,
                                BrightnessService brightnessService,
-                               RtssFpsLimiterService fpsLimiterService)
+                               RtssFpsLimiterService fpsLimiterService,
+                               HdrService hdrService)
         {
             TdpPicker.Initialize(dpiService);
             ResolutionPicker.Initialize();
             AudioControls.Initialize();
             BrightnessControls.Initialize();
-            FpsLimiter.Initialize(fpsLimiterService);
+            FpsLimiter.Initialize(fpsLimiterService, hdrService);
 
             ResolutionPicker.PropertyChanged += (s, e) =>
             {

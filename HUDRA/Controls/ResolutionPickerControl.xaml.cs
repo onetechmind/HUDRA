@@ -28,6 +28,22 @@ namespace HUDRA.Controls
         private int _currentFocusedControl = 0; // 0 = Resolution, 1 = RefreshRate
         private bool _isFocused = false;
 
+        // Expose current focused control for cross-control navigation
+        public int CurrentFocusedControl => _currentFocusedControl;
+
+        // Flag to indicate if initial focus was pre-set by hardcoded navigation
+        private bool _initialFocusPreset = false;
+
+        /// <summary>
+        /// Sets which control should be focused when this control receives gamepad focus.
+        /// Called by FpsLimiterControl to indicate whether we came from FPS (0) or HDR (1).
+        /// </summary>
+        public void SetInitialFocusedControl(int controlIndex)
+        {
+            _currentFocusedControl = Math.Clamp(controlIndex, 0, 1);
+            _initialFocusPreset = true;
+        }
+
         private List<ResolutionService.Resolution> _availableResolutions = new();
         private List<int> _availableRefreshRates = new();
         private int _selectedResolutionIndex = 0;
@@ -506,9 +522,14 @@ namespace HUDRA.Controls
         public void OnGamepadFocusReceived()
         {
             _isFocused = true;
-            _currentFocusedControl = 0; // Start with Resolution ComboBox
+            // Only reset to Resolution if not pre-set by hardcoded navigation
+            if (!_initialFocusPreset)
+            {
+                _currentFocusedControl = 0; // Start with Resolution ComboBox
+            }
+            _initialFocusPreset = false; // Reset flag for next focus
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Received gamepad focus");
+            System.Diagnostics.Debug.WriteLine($"🎮 ResolutionPicker: Received gamepad focus (control={_currentFocusedControl})");
         }
 
         public void OnGamepadFocusLost()

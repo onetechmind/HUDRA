@@ -34,12 +34,20 @@ namespace HUDRA.Controls
         public event EventHandler<FpsLimitChangedEventArgs>? FpsLimitChanged;
 
         private RtssFpsLimiterService? _fpsLimiterService;
+        private HdrService? _hdrService;
         private FpsLimitSettings _fpsSettings = new();
         private bool _isRtssSupported = false;
         private bool _isRtssInstalled = false;
         private bool _isGameRunning = false;
         private GamepadNavigationService? _gamepadNavigationService;
         private bool _isFocused = false;
+        private int _currentFocusedControl = 0; // 0 = FPS ComboBox, 1 = HDR Toggle
+
+        // HDR fields
+        private bool _isHdrSupported = false;
+        private bool _isUpdatingHdrToggle = false;
+        private bool _cachedHdrState = false;
+        private DispatcherTimer? _hdrPollTimer;
 
         public FpsLimitSettings FpsSettings
         {
@@ -106,61 +114,90 @@ namespace HUDRA.Controls
             }
         }
 
+        public bool IsHdrSupported
+        {
+            get => _isHdrSupported;
+            private set
+            {
+                if (_isHdrSupported != value)
+                {
+                    _isHdrSupported = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        // Track which control was focused for cross-control navigation
+        public int CurrentFocusedControl => _currentFocusedControl;
+
         // IGamepadNavigable implementation
-        public bool CanNavigateUp => false;
-        public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => false;
-        public bool CanNavigateRight => false;
-        public bool CanActivate => IsRtssInstalled;
+        public bool CanNavigateUp => false; // Handled by hardcoded navigation
+        public bool CanNavigateDown => false; // Handled by hardcoded navigation
+        public bool CanNavigateLeft => _currentFocusedControl == 1; // Can move left from HDR to FPS
+        public bool CanNavigateRight => _currentFocusedControl == 0; // Can move right from FPS to HDR
+        public bool CanActivate => (_currentFocusedControl == 0 && IsRtssInstalled) || (_currentFocusedControl == 1 && IsHdrSupported);
         public FrameworkElement NavigationElement => this;
-        
+
         // Slider interface implementations - FpsLimiter is not a slider control
         public bool IsSlider => false;
         public bool IsSliderActivated { get; set; } = false;
         public void AdjustSliderValue(int direction) { /* Not applicable */ }
-        
-        // ComboBox interface implementations - FpsLimiter has ComboBox
-        public bool HasComboBoxes => true;
+
+        // ComboBox interface implementations - FpsLimiter has ComboBox (only when FPS is focused)
+        public bool HasComboBoxes => _currentFocusedControl == 0;
         private bool _isComboBoxOpen = false;
-        public bool IsComboBoxOpen 
-        { 
-            get => _isComboBoxOpen; 
-            set => _isComboBoxOpen = value; 
+        public bool IsComboBoxOpen
+        {
+            get => _isComboBoxOpen;
+            set => _isComboBoxOpen = value;
         }
-        
+
         public ComboBox? GetFocusedComboBox()
         {
-            return FpsLimitComboBox;
+            return _currentFocusedControl == 0 ? FpsLimitComboBox : null;
         }
-        
+
         public int ComboBoxOriginalIndex { get; set; } = -1;
         public bool IsNavigatingComboBox { get; set; } = false;
-        
+
         public void ProcessCurrentSelection()
         {
             // Process the current FPS limit selection
-            if (FpsLimitComboBox != null)
+            if (_currentFocusedControl == 0 && FpsLimitComboBox != null)
             {
                 OnFpsLimitChanged(FpsLimitComboBox, new Microsoft.UI.Xaml.Controls.SelectionChangedEventArgs(new List<object>(), new List<object>()));
             }
         }
 
+        public Brush FpsFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 0)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush HdrFocusBrush
+        {
+            get
+            {
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 1)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        // Keep for compatibility but use individual focus brushes now
         public Brush FocusBorderBrush
         {
             get
             {
-                var isActive = _gamepadNavigationService?.IsGamepadActive == true;
-                var shouldShow = _isFocused && isActive;
-
-                if (shouldShow)
-                {
-                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> DarkViolet (_isFocused={_isFocused}, isGamepadActive={isActive})");
-                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FocusBorderBrush -> Transparent (_isFocused={_isFocused}, gamepadService={_gamepadNavigationService != null}, isGamepadActive={isActive})");
-                }
                 return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
             }
         }
@@ -169,10 +206,6 @@ namespace HUDRA.Controls
         {
             get
             {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
-                {
-                    return new Thickness(2);
-                }
                 return new Thickness(0);
             }
         }
@@ -181,28 +214,29 @@ namespace HUDRA.Controls
         {
             this.InitializeComponent();
             this.DataContext = this;
-            
+
             // Set initial installation status from cache (preloaded in App.xaml.cs)
             IsRtssInstalled = RtssFpsLimiterService.GetCachedInstallationStatus();
         }
 
-        public async void Initialize(RtssFpsLimiterService fpsLimiterService)
+        public async void Initialize(RtssFpsLimiterService fpsLimiterService, HdrService hdrService)
         {
             _fpsLimiterService = fpsLimiterService;
-            
+            _hdrService = hdrService;
+
             // Get gamepad service
             if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
             {
                 _gamepadNavigationService = mainWindow.GamepadNavigationService;
             }
-            
+
             // Set up ComboBox event handlers for dropdown state tracking
             if (FpsLimitComboBox != null)
             {
                 FpsLimitComboBox.DropDownOpened += (s, e) => { IsComboBoxOpen = true; };
                 FpsLimitComboBox.DropDownClosed += (s, e) => { IsComboBoxOpen = false; };
             }
-            
+
             // Only check running status - installation status already set in constructor from cache
             if (_fpsLimiterService != null)
             {
@@ -210,7 +244,7 @@ namespace HUDRA.Controls
                 {
                     var detection = await _fpsLimiterService.DetectRtssInstallationAsync();
                     IsRtssSupported = detection.IsInstalled && detection.IsRunning;
-                    
+
                     if (detection.IsInstalled)
                     {
                         _fpsSettings.IsRtssAvailable = detection.IsRunning;
@@ -224,6 +258,132 @@ namespace HUDRA.Controls
                     IsRtssSupported = false;
                 }
             }
+
+            // Initialize HDR
+            LoadHdrState();
+            StartHdrPolling();
+        }
+
+        private void LoadHdrState()
+        {
+            if (_hdrService == null) return;
+
+            try
+            {
+                _isUpdatingHdrToggle = true;
+
+                IsHdrSupported = _hdrService.IsHdrSupported();
+                _cachedHdrState = _hdrService.IsHdrEnabled();
+
+                if (HdrToggle != null)
+                {
+                    HdrToggle.IsOn = _cachedHdrState;
+                }
+
+                _isUpdatingHdrToggle = false;
+
+                System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: HDR Loaded - Supported={IsHdrSupported}, Enabled={_cachedHdrState}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: Failed to load HDR state: {ex.Message}");
+                _isUpdatingHdrToggle = false;
+            }
+        }
+
+        private void StartHdrPolling()
+        {
+            _hdrPollTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(2)
+            };
+            _hdrPollTimer.Tick += OnHdrPollTimerTick;
+            _hdrPollTimer.Start();
+        }
+
+        private void OnHdrPollTimerTick(object? sender, object e)
+        {
+            if (_hdrService == null || _isUpdatingHdrToggle) return;
+
+            try
+            {
+                bool currentHdrState = _hdrService.IsHdrEnabled();
+
+                // If state changed externally, update the toggle
+                if (currentHdrState != _cachedHdrState)
+                {
+                    _isUpdatingHdrToggle = true;
+                    _cachedHdrState = currentHdrState;
+
+                    if (HdrToggle != null)
+                    {
+                        HdrToggle.IsOn = currentHdrState;
+                    }
+
+                    _isUpdatingHdrToggle = false;
+
+                    System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: External HDR change detected - now {(currentHdrState ? "enabled" : "disabled")}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: HDR poll error: {ex.Message}");
+            }
+        }
+
+        private void OnHdrToggled(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingHdrToggle || _hdrService == null || HdrToggle == null)
+                return;
+
+            try
+            {
+                bool desiredState = HdrToggle.IsOn;
+                bool success = _hdrService.SetHdrEnabled(desiredState);
+
+                if (success)
+                {
+                    _cachedHdrState = desiredState;
+                    System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: HDR {(desiredState ? "enabled" : "disabled")} successfully");
+                }
+                else
+                {
+                    // Revert toggle on failure
+                    _isUpdatingHdrToggle = true;
+                    HdrToggle.IsOn = !HdrToggle.IsOn;
+                    _isUpdatingHdrToggle = false;
+
+                    System.Diagnostics.Debug.WriteLine("FpsLimiterControl: Failed to change HDR state, reverted toggle");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"FpsLimiterControl: Failed to toggle HDR: {ex.Message}");
+
+                // Revert toggle on error
+                _isUpdatingHdrToggle = true;
+                HdrToggle.IsOn = !HdrToggle.IsOn;
+                _isUpdatingHdrToggle = false;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (_hdrPollTimer != null)
+            {
+                _hdrPollTimer.Stop();
+                _hdrPollTimer.Tick -= OnHdrPollTimerTick;
+                _hdrPollTimer = null;
+            }
+        }
+
+        /// <summary>
+        /// Sets which control should be focused when this control receives gamepad focus.
+        /// Called by ResolutionPickerControl to indicate whether we came from Resolution (0) or Refresh Rate (1).
+        /// </summary>
+        public void SetInitialFocusedControl(int controlIndex)
+        {
+            _currentFocusedControl = Math.Clamp(controlIndex, 0, 1);
         }
 
         public async Task RefreshRtssStatus()
@@ -236,7 +396,7 @@ namespace HUDRA.Controls
                 var detection = await _fpsLimiterService.DetectRtssInstallationAsync(forceRefresh: true);
                 IsRtssInstalled = detection.IsInstalled;
                 IsRtssSupported = detection.IsInstalled && detection.IsRunning;
-                
+
                 if (detection.IsInstalled)
                 {
                     _fpsSettings.IsRtssAvailable = detection.IsRunning;
@@ -266,21 +426,21 @@ namespace HUDRA.Controls
                 var detection = await _fpsLimiterService.SmartRefreshRtssStatusAsync();
                 var newIsRtssInstalled = detection.IsInstalled;
                 var newIsRtssSupported = detection.IsInstalled && detection.IsRunning;
-                
+
                 // Only update installation status if it actually changed
                 if (_isRtssInstalled != newIsRtssInstalled)
                 {
                     IsRtssInstalled = newIsRtssInstalled;
                     System.Diagnostics.Debug.WriteLine($"RTSS installation status changed to: {newIsRtssInstalled}");
                 }
-                
+
                 // Only update running status if it actually changed
                 if (_isRtssSupported != newIsRtssSupported)
                 {
                     IsRtssSupported = newIsRtssSupported;
                     System.Diagnostics.Debug.WriteLine($"RTSS running status changed to: {newIsRtssSupported}");
                 }
-                
+
                 if (detection.IsInstalled)
                 {
                     _fpsSettings.IsRtssAvailable = detection.IsRunning;
@@ -317,10 +477,10 @@ namespace HUDRA.Controls
             if (FpsLimitComboBox != null && _fpsSettings.AvailableFpsOptions?.Count > 0)
             {
                 // Format the FPS options for display - show "Unlimited" for 0, "X FPS" for others
-                var formattedOptions = _fpsSettings.AvailableFpsOptions.Select(fps => 
+                var formattedOptions = _fpsSettings.AvailableFpsOptions.Select(fps =>
                     fps == 0 ? "Unlimited" : $"{fps} FPS").ToList();
                 FpsLimitComboBox.ItemsSource = formattedOptions;
-                
+
                 if (_fpsSettings.AvailableFpsOptions.Contains(_fpsSettings.SelectedFpsLimit))
                 {
                     var selectedIndex = _fpsSettings.AvailableFpsOptions.IndexOf(_fpsSettings.SelectedFpsLimit);
@@ -351,7 +511,7 @@ namespace HUDRA.Controls
                 {
                     _fpsSettings.SelectedFpsLimit = selectedFps;
                     OnPropertyChanged(nameof(FpsSettings));
-                    
+
                     // Always notify of the change - the handler will decide whether to apply
                     FpsLimitChanged?.Invoke(this, new FpsLimitChangedEventArgs(selectedFps));
                     System.Diagnostics.Debug.WriteLine($"🎮 FpsLimit actual selection - applying update for fps: {selectedFps}");
@@ -360,17 +520,55 @@ namespace HUDRA.Controls
         }
 
         // IGamepadNavigable event handlers
-        public void OnGamepadNavigateUp() { }
-        public void OnGamepadNavigateDown() { }
-        public void OnGamepadNavigateLeft() { }
-        public void OnGamepadNavigateRight() { }
-        
+        public void OnGamepadNavigateUp()
+        {
+            // Handled by GamepadNavigationService with hardcoded paths
+        }
+
+        public void OnGamepadNavigateDown()
+        {
+            // Handled by GamepadNavigationService with hardcoded paths
+        }
+
+        public void OnGamepadNavigateLeft()
+        {
+            if (_currentFocusedControl == 1)
+            {
+                _currentFocusedControl = 0;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Moved left to FPS ComboBox");
+            }
+        }
+
+        public void OnGamepadNavigateRight()
+        {
+            if (_currentFocusedControl == 0)
+            {
+                _currentFocusedControl = 1;
+                UpdateFocusVisuals();
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Moved right to HDR Toggle");
+            }
+        }
+
         public void OnGamepadActivate()
         {
-            if (FpsLimitComboBox != null && IsRtssInstalled)
+            if (_currentFocusedControl == 0)
             {
-                FpsLimitComboBox.IsDropDownOpen = true;
-                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Opened ComboBox dropdown");
+                // Activate FPS ComboBox
+                if (FpsLimitComboBox != null && IsRtssInstalled)
+                {
+                    FpsLimitComboBox.IsDropDownOpen = true;
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Opened FPS ComboBox dropdown");
+                }
+            }
+            else
+            {
+                // Activate HDR Toggle
+                if (HdrToggle != null && IsHdrSupported)
+                {
+                    HdrToggle.IsOn = !HdrToggle.IsOn;
+                    System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Toggled HDR to {HdrToggle.IsOn}");
+                }
             }
         }
 
@@ -386,7 +584,7 @@ namespace HUDRA.Controls
 
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Received gamepad focus");
+            System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Received gamepad focus (control={_currentFocusedControl})");
         }
 
         public void OnGamepadFocusLost()
@@ -398,7 +596,9 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Not used - FpsLimiterControl is not in a NavigableExpander
+            // Focus HDR Toggle (rightmost element)
+            _currentFocusedControl = 1;
+            UpdateFocusVisuals();
         }
 
         private void UpdateFocusVisuals()
@@ -406,6 +606,8 @@ namespace HUDRA.Controls
             // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
             DispatcherQueue.TryEnqueue(() =>
             {
+                OnPropertyChanged(nameof(FpsFocusBrush));
+                OnPropertyChanged(nameof(HdrFocusBrush));
                 OnPropertyChanged(nameof(FocusBorderBrush));
                 OnPropertyChanged(nameof(FocusBorderThickness));
             });

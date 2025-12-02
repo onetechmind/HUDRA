@@ -928,7 +928,63 @@ namespace HUDRA.Services
                     // For DOWN navigation, the expander's CanNavigateDown will handle it
                 }
 
+                // Handle hardcoded navigation between dual-control elements
+                // This ensures proper column-aligned navigation (Resolution↔FPS, RefreshRate↔HDR)
+                HandleHardcodedNavigation(_currentFocusedElement, nextElement, direction);
+
                 SetFocus(nextElement);
+            }
+        }
+
+        /// <summary>
+        /// Handles hardcoded navigation between controls that have multiple internal sub-controls.
+        /// This ensures column-aligned navigation:
+        /// - Resolution (left) ↔ FPS Limit (left)
+        /// - Refresh Rate (right) ↔ HDR Toggle (right)
+        /// - FPS Limit (left) ↔ Audio Mute button (left)
+        /// - HDR Toggle (right) ↔ Audio Volume slider (right)
+        /// </summary>
+        private void HandleHardcodedNavigation(FrameworkElement? fromElement, FrameworkElement toElement, GamepadNavigationAction direction)
+        {
+            // Only handle UP/DOWN navigation for hardcoded paths
+            if (direction != GamepadNavigationAction.Up && direction != GamepadNavigationAction.Down)
+                return;
+
+            // Navigation from ResolutionPicker to FpsLimiter (DOWN)
+            if (fromElement is Controls.ResolutionPickerControl resolutionPicker &&
+                toElement is Controls.FpsLimiterControl fpsLimiter &&
+                direction == GamepadNavigationAction.Down)
+            {
+                // Resolution (0) -> FPS Limit (0), Refresh Rate (1) -> HDR (1)
+                fpsLimiter.SetInitialFocusedControl(resolutionPicker.CurrentFocusedControl);
+                System.Diagnostics.Debug.WriteLine($"🎮 Hardcoded nav: Resolution[{resolutionPicker.CurrentFocusedControl}] -> FpsLimiter[{resolutionPicker.CurrentFocusedControl}]");
+            }
+            // Navigation from FpsLimiter to ResolutionPicker (UP)
+            else if (fromElement is Controls.FpsLimiterControl fpsLimiterUp &&
+                     toElement is Controls.ResolutionPickerControl resolutionPickerUp &&
+                     direction == GamepadNavigationAction.Up)
+            {
+                // FPS Limit (0) -> Resolution (0), HDR (1) -> Refresh Rate (1)
+                resolutionPickerUp.SetInitialFocusedControl(fpsLimiterUp.CurrentFocusedControl);
+                System.Diagnostics.Debug.WriteLine($"🎮 Hardcoded nav: FpsLimiter[{fpsLimiterUp.CurrentFocusedControl}] -> Resolution[{fpsLimiterUp.CurrentFocusedControl}]");
+            }
+            // Navigation from FpsLimiter to AudioControls (DOWN)
+            else if (fromElement is Controls.FpsLimiterControl fpsLimiterDown &&
+                     toElement is Controls.AudioControlsControl audioControls &&
+                     direction == GamepadNavigationAction.Down)
+            {
+                // FPS Limit (0) -> Mute button (0), HDR (1) -> Volume slider (1)
+                audioControls.SetInitialFocusedControl(fpsLimiterDown.CurrentFocusedControl);
+                System.Diagnostics.Debug.WriteLine($"🎮 Hardcoded nav: FpsLimiter[{fpsLimiterDown.CurrentFocusedControl}] -> Audio[{fpsLimiterDown.CurrentFocusedControl}]");
+            }
+            // Navigation from AudioControls to FpsLimiter (UP)
+            else if (fromElement is Controls.AudioControlsControl audioControlsUp &&
+                     toElement is Controls.FpsLimiterControl fpsLimiterFromAudio &&
+                     direction == GamepadNavigationAction.Up)
+            {
+                // Mute button (0) -> FPS Limit (0), Volume slider (1) -> HDR (1)
+                fpsLimiterFromAudio.SetInitialFocusedControl(audioControlsUp.CurrentFocusedControl);
+                System.Diagnostics.Debug.WriteLine($"🎮 Hardcoded nav: Audio[{audioControlsUp.CurrentFocusedControl}] -> FpsLimiter[{audioControlsUp.CurrentFocusedControl}]");
             }
         }
 

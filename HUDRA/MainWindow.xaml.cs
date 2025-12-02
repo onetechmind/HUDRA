@@ -37,6 +37,7 @@ namespace HUDRA
         private readonly BatteryService _batteryService;
         private readonly PowerProfileService _powerProfileService;
         private readonly RtssFpsLimiterService _fpsLimiterService;
+        private readonly HdrService _hdrService;
         private readonly GamepadNavigationService _gamepadNavigationService;
         private TdpMonitorService? _tdpMonitor;
         private TurboService? _turboService;
@@ -193,6 +194,7 @@ namespace HUDRA
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();
             _fpsLimiterService = new RtssFpsLimiterService();
+            _hdrService = new HdrService();
 
             // Subscribe to navigation events
             _navigationService.PageChanged += OnPageChanged;
@@ -462,7 +464,7 @@ namespace HUDRA
             if (!_mainPageInitialized)
             {
                 // First visit - full initialization
-                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService);
+                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService);
                 _mainPageInitialized = true;
 
                 // Set up TDP change tracking for the first time
@@ -522,6 +524,9 @@ namespace HUDRA
                 _mainPage.ResolutionPicker.Initialize();
                 _mainPage.AudioControls.Initialize();
                 _mainPage.BrightnessControls.Initialize();
+
+                // Re-initialize FPS limiter with HDR service (fixes HDR state loss on navigation)
+                _mainPage.FpsLimiter.Initialize(_fpsLimiterService, _hdrService);
 
                 // Refresh FPS limiter on subsequent visits
                 _ = InitializeFpsLimiterAsync();
