@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![HUDRA Logo](/HUDRA/Assets/HUDRA-logo-violet.png)
+<img src="/HUDRA/Assets/HUDRA-logo-violet.png" width="200">
 
 **A powerful performance control app for AMD Ryzen handheld gaming devices — built for controllers and touch, designed for couch gaming.**
 
