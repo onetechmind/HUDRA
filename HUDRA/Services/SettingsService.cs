@@ -539,7 +539,7 @@ namespace HUDRA.Services
         /// </summary>
         public static bool GetMinimizeToTrayOnStartup()
         {
-            return GetBooleanSetting(MINIMIZE_TO_TRAY_ON_STARTUP_KEY, true); // Default to minimized for startup
+            return GetBooleanSetting(MINIMIZE_TO_TRAY_ON_STARTUP_KEY, false); // Default to maximized for startup
         }
 
         /// <summary>
