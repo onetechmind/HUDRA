@@ -368,4 +368,6 @@ FodyWeavers.xsd
 /Architecture/
 /techdocs/
 /.claude/settings.local.json
+/CLAUDE.md
+/AGENTS.md
 /Installer/
