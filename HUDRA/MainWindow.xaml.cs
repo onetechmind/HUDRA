@@ -253,6 +253,24 @@ namespace HUDRA
             TrySetMicaBackdrop();
             _windowManager.Initialize();
             InitializeGameDetection();
+            CheckFirstRunExperience();
+        }
+
+        private void CheckFirstRunExperience()
+        {
+            try
+            {
+                if (!SettingsService.GetHasCompletedFirstRun())
+                {
+                    // Show the welcome InfoBar
+                    WelcomeInfoBar.IsOpen = true;
+                    System.Diagnostics.Debug.WriteLine("First run detected - showing welcome InfoBar");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error checking first run: {ex.Message}");
+            }
         }
 
         private void OnPageChanged(object sender, Type pageType)
@@ -1292,6 +1310,20 @@ namespace HUDRA
             _losslessScalingService?.Dispose();
             _powerProfileService?.Dispose();
             _artworkService?.Dispose();
+        }
+
+        private void WelcomeInfoBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+        {
+            try
+            {
+                // Mark first run as completed when user closes the welcome message
+                SettingsService.SetHasCompletedFirstRun(true);
+                System.Diagnostics.Debug.WriteLine("First run completed - user dismissed welcome InfoBar");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error marking first run complete: {ex.Message}");
+            }
         }
 
         public void ToggleWindowVisibility()

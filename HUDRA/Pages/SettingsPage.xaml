@@ -135,6 +135,25 @@
                     <controls:StartupOptionsControl x:Name="StartupOptionsControl" />
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
+
+            <!--  Copy Debug Info Button  -->
+            <Button
+                x:Name="CopyDebugInfoButton"
+                Width="140"
+                Height="45"
+                HorizontalAlignment="Stretch"
+                Click="CopyDebugInfoButton_Click"
+                Content="Copy Debug Info" />
+
+            <!--  Version Display  -->
+            <TextBlock
+                x:Name="VersionText"
+                HorizontalAlignment="Center"
+                FontFamily="Cascadia Code"
+                FontSize="12"
+                Opacity="0.6"
+                Text="HUDRA Beta" />
+
         </StackPanel>
     </Grid>
 </Page>

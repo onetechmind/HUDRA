@@ -10,7 +10,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace HUDRA.Pages
 {
@@ -38,6 +41,20 @@ namespace HUDRA.Pages
             LoadRtssSettings();
             LoadEnhancedScanningSettings();
             LoadDatabaseStatus();
+            LoadVersionInfo();
+        }
+
+        private void LoadVersionInfo()
+        {
+            try
+            {
+                VersionText.Text = DebugLogger.GetAppVersion();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading version info: {ex.Message}");
+                VersionText.Text = "HUDRA Beta";
+            }
         }
 
         // Expose root for gamepad page navigation
@@ -703,6 +720,139 @@ namespace HUDRA.Pages
                 {
                     button.IsEnabled = true;
                     button.Content = "Reset";
+                }
+            }
+        }
+
+        private async void CopyDebugInfoButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var button = sender as Button;
+                var originalContent = button?.Content;
+
+                var debugInfo = new StringBuilder();
+                debugInfo.AppendLine("=== HUDRA Debug Information ===");
+                debugInfo.AppendLine();
+
+                // Version
+                debugInfo.AppendLine($"Version: {DebugLogger.GetAppVersion()}");
+
+                // Windows version
+                debugInfo.AppendLine($"OS: {Environment.OSVersion}");
+                debugInfo.AppendLine($"64-bit OS: {Environment.Is64BitOperatingSystem}");
+
+                // Admin status
+                bool isAdmin = StartupService.IsRunningAsAdmin();
+                debugInfo.AppendLine($"Running as Admin: {isAdmin}");
+
+                // RyzenAdj status
+                try
+                {
+                    using var tdpService = new TDPService();
+                    debugInfo.AppendLine($"RyzenAdj Status: {tdpService.InitializationStatus}");
+                    debugInfo.AppendLine($"RyzenAdj Mode: {(tdpService.IsDllMode ? "DLL (Fast)" : "EXE (Fallback)")}");
+
+                    // Current TDP if available
+                    var tdpResult = tdpService.GetCurrentTdp();
+                    if (tdpResult.Success)
+                    {
+                        debugInfo.AppendLine($"Current TDP: {tdpResult.TdpWatts}W");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    debugInfo.AppendLine($"RyzenAdj Status: Error - {ex.Message}");
+                }
+
+                // Fan control status
+                try
+                {
+                    var app = Application.Current as App;
+                    var fanControlService = app?.FanControlService;
+                    if (fanControlService != null)
+                    {
+                        debugInfo.AppendLine($"Fan Control Available: {fanControlService.IsDeviceAvailable}");
+                        if (fanControlService.IsDeviceAvailable)
+                        {
+                            debugInfo.AppendLine($"Fan Control Device: {fanControlService.DeviceInfo}");
+                        }
+                    }
+                    else
+                    {
+                        debugInfo.AppendLine("Fan Control Available: Not initialized");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    debugInfo.AppendLine($"Fan Control Status: Error - {ex.Message}");
+                }
+
+                // RTSS status
+                try
+                {
+                    var rtssService = new RtssFpsLimiterService();
+                    var rtssDetection = await rtssService.DetectRtssInstallationAsync();
+                    debugInfo.AppendLine($"RTSS Installed: {rtssDetection.IsInstalled}");
+                    if (rtssDetection.IsInstalled)
+                    {
+                        debugInfo.AppendLine($"RTSS Version: {rtssDetection.Version}");
+                        debugInfo.AppendLine($"RTSS Running: {rtssDetection.IsRunning}");
+                        debugInfo.AppendLine($"RTSS Path: {rtssDetection.InstallPath}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    debugInfo.AppendLine($"RTSS Status: Error - {ex.Message}");
+                }
+
+                // Temperature if available
+                try
+                {
+                    var app = Application.Current as App;
+                    var tempMonitor = app?.TemperatureMonitor;
+                    if (tempMonitor?.CurrentTemperature != null)
+                    {
+                        var tempData = tempMonitor.CurrentTemperature;
+                        debugInfo.AppendLine($"CPU Temperature: {tempData.MaxTemperature:F1}°C");
+                    }
+                }
+                catch
+                {
+                    // Temperature not available, skip
+                }
+
+                debugInfo.AppendLine();
+                debugInfo.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                debugInfo.AppendLine("================================");
+
+                // Copy to clipboard
+                var dataPackage = new DataPackage();
+                dataPackage.SetText(debugInfo.ToString());
+                Clipboard.SetContent(dataPackage);
+
+                // Update button text briefly to confirm
+                if (button != null)
+                {
+                    button.Content = "Copied!";
+                    await Task.Delay(2000);
+                    button.Content = originalContent;
+                }
+
+                System.Diagnostics.Debug.WriteLine("Debug info copied to clipboard");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error copying debug info: {ex.Message}");
+
+                // Show error in button
+                var button = sender as Button;
+                if (button != null)
+                {
+                    var originalContent = button.Content;
+                    button.Content = "Error - try again";
+                    await Task.Delay(2000);
+                    button.Content = originalContent;
                 }
             }
         }

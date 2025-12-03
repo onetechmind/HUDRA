@@ -238,11 +238,46 @@ namespace HUDRA.Services
         {
             if (!_disposed)
             {
-                DisableTemperatureControl();
-                _statusTimer?.Dispose();
-                _device?.Dispose();
-                _disposed = true;
-                Debug.WriteLine("Fan control service disposed");
+                try
+                {
+                    // If temperature control was enabled, reset fans to a safe state
+                    if (_temperatureControlEnabled && _device?.IsInitialized == true)
+                    {
+                        try
+                        {
+                            DebugLogger.Log("Resetting fans to safe state before dispose", "FAN");
+
+                            // Try to restore hardware control first
+                            var hardwareResult = SetFanMode(FanControlMode.Hardware);
+                            if (!hardwareResult.Success)
+                            {
+                                // If hardware mode fails, set to 50% as a safe fallback
+                                DebugLogger.Log("Hardware mode failed, setting fans to 50%", "FAN");
+                                _device!.SetFanDuty(50);
+                            }
+                            else
+                            {
+                                DebugLogger.Log("Restored fans to hardware control", "FAN");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            DebugLogger.Log($"Failed to reset fans on dispose: {ex.Message}", "FAN");
+                            // Continue with disposal even if reset fails
+                        }
+                    }
+
+                    DisableTemperatureControl();
+                    _statusTimer?.Dispose();
+                    _device?.Dispose();
+                    _disposed = true;
+                    Debug.WriteLine("Fan control service disposed");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error during FanControlService disposal: {ex.Message}");
+                    _disposed = true; // Mark as disposed even on error
+                }
             }
         }
 

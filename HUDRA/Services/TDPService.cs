@@ -55,7 +55,11 @@ namespace HUDRA.Services
         {
             try
             {
+                DebugLogger.Log("Starting RyzenAdj initialization...", "RYZENADJ");
+
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                DebugLogger.Log($"Base directory: {baseDir}", "RYZENADJ");
+
                 string[] possiblePaths = {
                     Path.Combine(baseDir, "Tools", "ryzenadj", "libryzenadj.dll"),
                     Path.Combine(baseDir, "libryzenadj.dll"),
@@ -69,6 +73,7 @@ namespace HUDRA.Services
 
                 foreach (string path in possiblePaths)
                 {
+                    DebugLogger.Log($"Checking path: {path} - Exists: {File.Exists(path)}", "RYZENADJ");
                     if (File.Exists(path))
                     {
                         foundPath = path;
@@ -79,54 +84,69 @@ namespace HUDRA.Services
 
                 if (foundPath == null)
                 {
-                    _initializationStatus = "❌ libryzenadj.dll not found - using EXE mode";
+                    _initializationStatus = "libryzenadj.dll not found - using EXE mode";
+                    DebugLogger.Log(_initializationStatus, "RYZENADJ");
                     return;
                 }
 
+                DebugLogger.Log($"Found DLL at: {foundPath}", "RYZENADJ");
                 _initializationStatus = $"Found DLL at: {foundPath}";
 
                 // Set DLL directory for dependency resolution
                 if (!string.IsNullOrEmpty(dllDirectory))
                 {
+                    DebugLogger.Log($"Setting DLL directory to: {dllDirectory}", "RYZENADJ");
                     SetDllDirectory(dllDirectory);
                 }
 
                 // Load dependencies first
+                DebugLogger.Log("Loading dependencies...", "RYZENADJ");
                 LoadDependencies(dllDirectory);
 
                 // Load the main library
+                DebugLogger.Log("Loading libryzenadj.dll...", "RYZENADJ");
                 _libHandle = LoadLibrary(foundPath);
                 if (_libHandle == IntPtr.Zero)
                 {
                     int error = Marshal.GetLastWin32Error();
-                    _initializationStatus = $"❌ Failed to load DLL (Error {error}) - using EXE mode";
+                    _initializationStatus = $"Failed to load DLL (Error {error}) - using EXE mode";
+                    DebugLogger.Log(_initializationStatus, "RYZENADJ");
                     return;
                 }
+                DebugLogger.Log($"DLL loaded successfully, handle: {_libHandle}", "RYZENADJ");
 
                 // Get function pointers
+                DebugLogger.Log("Loading function pointers...", "RYZENADJ");
                 if (!LoadFunctionPointers())
                 {
-                    _initializationStatus = "❌ Failed to load function pointers - using EXE mode";
+                    _initializationStatus = "Failed to load function pointers - using EXE mode";
+                    DebugLogger.Log(_initializationStatus, "RYZENADJ");
                     return;
                 }
+                DebugLogger.Log("Function pointers loaded successfully", "RYZENADJ");
 
                 // Initialize RyzenAdj
+                DebugLogger.Log("Calling init_ryzenadj()...", "RYZENADJ");
                 _ryzenAdjHandle = _initRyzenAdj!();
                 if (_ryzenAdjHandle != IntPtr.Zero)
                 {
                     _useDllMode = true;
-                    _initializationStatus = "✅ DLL mode active - FAST!";
-                    System.Diagnostics.Debug.WriteLine("🚀 RyzenAdj DLL mode initialized successfully");
+                    _initializationStatus = "DLL mode active";
+                    DebugLogger.Log($"RyzenAdj initialized successfully, handle: {_ryzenAdjHandle}", "RYZENADJ");
+                    System.Diagnostics.Debug.WriteLine("RyzenAdj DLL mode initialized successfully");
                 }
                 else
                 {
-                    _initializationStatus = "⚠️ DLL loaded but init_ryzenadj() failed - using EXE mode";
+                    _initializationStatus = "DLL loaded but init_ryzenadj() failed - using EXE mode";
+                    DebugLogger.Log(_initializationStatus, "RYZENADJ");
                 }
             }
             catch (Exception ex)
             {
-                _initializationStatus = $"❌ Exception: {ex.Message} - using EXE mode";
-                System.Diagnostics.Debug.WriteLine($"❌ DLL initialization failed: {ex.Message}");
+                _initializationStatus = $"Exception: {ex.Message} - using EXE mode";
+                DebugLogger.Log($"Exception during initialization: {ex.Message}", "RYZENADJ");
+                DebugLogger.Log($"Stack trace: {ex.StackTrace}", "RYZENADJ");
+                System.Diagnostics.Debug.WriteLine($"DLL initialization failed: {ex.Message}");
                 _useDllMode = false;
             }
         }

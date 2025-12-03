@@ -359,8 +359,26 @@
 
             <!--  Content Area  -->
             <Grid Grid.Column="1" Margin="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!--  First-run welcome InfoBar  -->
+                <InfoBar
+                    x:Name="WelcomeInfoBar"
+                    Grid.Row="0"
+                    Margin="10,10,10,0"
+                    IsClosable="True"
+                    IsOpen="False"
+                    Closed="WelcomeInfoBar_Closed"
+                    Message="Configure your TDP, fan curves, and more. Check Settings for startup options."
+                    Severity="Informational"
+                    Title="Welcome to HUDRA Beta!" />
+
                 <ScrollViewer
                     x:Name="ContentScrollViewer"
+                    Grid.Row="1"
                     Padding="0,10,0,10"
                     HorizontalScrollBarVisibility="Disabled"
                     HorizontalScrollMode="Disabled"

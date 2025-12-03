@@ -20,6 +20,7 @@ namespace HUDRA
         private static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
         private const uint MB_OK = 0x00000000;
         private const uint MB_ICONINFORMATION = 0x00000040;
+        private const uint MB_ICONERROR = 0x00000010;
 
         private TrayIconService? _trayIcon;
         private PowerEventService? _powerEventService;
@@ -76,6 +77,23 @@ namespace HUDRA
 
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
+            // Check for administrator rights before proceeding
+            if (!StartupService.IsRunningAsAdmin())
+            {
+                MessageBox(IntPtr.Zero,
+                    "HUDRA requires administrator privileges to control TDP and fan settings.\n\n" +
+                    "Please right-click the HUDRA shortcut and select 'Run as administrator', " +
+                    "or check the installer's 'Run with highest privileges' option.",
+                    "Administrator Rights Required",
+                    MB_OK | MB_ICONERROR);
+
+                Environment.Exit(1);
+                return;
+            }
+
+            // Apply any preferences set by the installer (first launch only)
+            SettingsService.ApplyInstallerPreferences();
+
             // Check if launched at startup
             var commandLineArgs = Environment.GetCommandLineArgs();
             bool wasLaunchedAtStartup = StartupService.WasLaunchedAtStartup(commandLineArgs);
@@ -413,7 +431,20 @@ namespace HUDRA
 
         private void OnUnhandledException(object sender, Microsoft.UI.Xaml.UnhandledExceptionEventArgs e)
         {
-            System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+            try
+            {
+                System.Diagnostics.Debug.WriteLine($"Unhandled exception: {e.Exception}");
+
+                // Write crash report to file
+                DebugLogger.WriteCrashReport(e.Exception);
+            }
+            catch
+            {
+                // If crash logging fails, don't prevent app termination
+            }
+
+            // Let the exception propagate (app will still terminate)
+            e.Handled = false;
         }
 
         private void CleanupAndExit()

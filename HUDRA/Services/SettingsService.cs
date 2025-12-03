@@ -6,6 +6,7 @@ using HUDRA.Configuration;
 using HUDRA.Controls; // For FanCurve and FanCurvePoint classes
 using HUDRA.Services.FanControl;
 using HUDRA.Models;
+using Microsoft.Win32;
 
 namespace HUDRA.Services
 {
@@ -54,6 +55,13 @@ namespace HUDRA.Services
         // Enhanced game detection keys
         private const string ENHANCED_LIBRARY_SCANNING_KEY = "EnhancedLibraryScanningEnabled";
         private const string GAME_DATABASE_REFRESH_INTERVAL_KEY = "GameDatabaseRefreshInterval";
+
+        // First-run experience keys
+        private const string HAS_COMPLETED_FIRST_RUN_KEY = "HasCompletedFirstRun";
+        private const string ENHANCED_GAME_DETECTION_ENABLED_KEY = "EnhancedGameDetectionEnabled";
+
+        // Registry path for installer settings
+        private const string REGISTRY_PATH = @"SOFTWARE\HUDRA";
 
         private static readonly string SettingsPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -760,6 +768,109 @@ namespace HUDRA.Services
             // Clamp to valid range (5-60 minutes)
             int clampedValue = Math.Max(5, Math.Min(60, minutes));
             SetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, clampedValue);
+        }
+
+        // First-run experience methods
+        public static bool GetHasCompletedFirstRun()
+        {
+            return GetBooleanSetting(HAS_COMPLETED_FIRST_RUN_KEY, false);
+        }
+
+        public static void SetHasCompletedFirstRun(bool completed)
+        {
+            SetBooleanSetting(HAS_COMPLETED_FIRST_RUN_KEY, completed);
+        }
+
+        public static bool GetEnhancedGameDetectionEnabled()
+        {
+            return GetBooleanSetting(ENHANCED_GAME_DETECTION_ENABLED_KEY, true); // Default to enabled
+        }
+
+        public static void SetEnhancedGameDetectionEnabled(bool enabled)
+        {
+            SetBooleanSetting(ENHANCED_GAME_DETECTION_ENABLED_KEY, enabled);
+        }
+
+        /// <summary>
+        /// Reads preferences set by the installer and applies them on first launch.
+        /// Should be called early in app startup, before UI is shown.
+        ///
+        /// Registry keys read (written by Inno Setup installer):
+        /// - HKLM\SOFTWARE\HUDRA\FirstRun (DWORD) - Set to 1 by installer, cleared after first run
+        /// - HKLM\SOFTWARE\HUDRA\EnableStartup (DWORD) - User's startup preference from installer
+        /// </summary>
+        public static void ApplyInstallerPreferences()
+        {
+            try
+            {
+                // Check if this is a first run after installation (installer sets FirstRun=1)
+                using var key = Registry.LocalMachine.OpenSubKey(REGISTRY_PATH, writable: true);
+                if (key == null)
+                {
+                    System.Diagnostics.Debug.WriteLine("No HUDRA registry key found - not installed via installer");
+                    return;
+                }
+
+                // Check FirstRun flag from installer
+                var firstRunValue = key.GetValue("FirstRun");
+                bool isFirstRun = firstRunValue is int firstRun && firstRun == 1;
+
+                if (!isFirstRun)
+                {
+                    System.Diagnostics.Debug.WriteLine("Not first run after installation - skipping installer preferences");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine("First launch after installation - applying installer preferences");
+
+                // Clear the FirstRun flag so we don't run this again
+                key.SetValue("FirstRun", 0, RegistryValueKind.DWord);
+
+                // Read startup preference from installer (EnableStartup)
+                var enableStartupValue = key.GetValue("EnableStartup");
+                if (enableStartupValue != null)
+                {
+                    bool installerRequestedStartup = Convert.ToInt32(enableStartupValue) == 1;
+                    System.Diagnostics.Debug.WriteLine($"Installer startup preference: {installerRequestedStartup}");
+
+                    // Sync our setting with what the installer configured
+                    // Note: The installer already created/removed the scheduled task via schtasks.exe
+                    // We just need to sync our internal setting state
+                    SetBooleanSetting(STARTUP_ENABLED_KEY, installerRequestedStartup);
+
+                    // Verify the scheduled task exists if startup was enabled
+                    if (installerRequestedStartup)
+                    {
+                        bool taskExists = StartupService.IsStartupEnabled();
+                        if (taskExists)
+                        {
+                            System.Diagnostics.Debug.WriteLine("Startup task verified - created by installer");
+                        }
+                        else
+                        {
+                            // Task should have been created by installer, but if not, create it now
+                            System.Diagnostics.Debug.WriteLine("Startup task not found - creating now");
+                            StartupService.SetStartupEnabled(true);
+                        }
+                    }
+                }
+
+                // Mark first run complete in our settings
+                SetHasCompletedFirstRun(true);
+
+                System.Diagnostics.Debug.WriteLine("Installer preferences applied successfully");
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Can't write to HKLM without admin - this is expected if not running elevated
+                // Just skip the FirstRun flag clear; we'll try again next launch
+                System.Diagnostics.Debug.WriteLine("Cannot write to registry (not admin) - will retry next launch");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying installer preferences: {ex.Message}");
+                // Continue with defaults on error
+            }
         }
 
     }
