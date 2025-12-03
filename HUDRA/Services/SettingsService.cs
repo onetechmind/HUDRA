@@ -96,7 +96,7 @@ namespace HUDRA.Services
                         return boolValue;
                     }
                 }
-                return true; // Default to enabled
+                return false; // Default to disabled until user enables
             }
         }
 
@@ -149,7 +149,7 @@ namespace HUDRA.Services
                         return boolValue;
                     }
                 }
-                return true;
+                return false; // Default to disabled until user enables
             }
         }
 
@@ -673,7 +673,7 @@ namespace HUDRA.Services
 
         public static bool GetIntelligentPowerSwitchingEnabled()
         {
-            return GetBooleanSetting(IntelligentPowerSwitchingKey, true); // Default to enabled
+            return GetBooleanSetting(IntelligentPowerSwitchingKey, false); // Default to disabled until user enables
         }
 
         public static void SetIntelligentPowerSwitchingEnabled(bool enabled)
@@ -760,7 +760,7 @@ namespace HUDRA.Services
 
         public static int GetGameDatabaseRefreshInterval()
         {
-            return GetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, 15); // Default to 15 minutes
+            return GetIntegerSetting(GAME_DATABASE_REFRESH_INTERVAL_KEY, 30); // Default to 30 minutes
         }
 
         public static void SetGameDatabaseRefreshInterval(int minutes)
@@ -798,6 +798,7 @@ namespace HUDRA.Services
         /// Registry keys read (written by Inno Setup installer):
         /// - HKLM\SOFTWARE\HUDRA\FirstRun (DWORD) - Set to 1 by installer, cleared after first run
         /// - HKLM\SOFTWARE\HUDRA\EnableStartup (DWORD) - User's startup preference from installer
+        /// - HKLM\SOFTWARE\HUDRA\EnableLibraryScanning (DWORD) - User's library scanning preference
         /// </summary>
         public static void ApplyInstallerPreferences()
         {
@@ -834,7 +835,7 @@ namespace HUDRA.Services
                     System.Diagnostics.Debug.WriteLine($"Installer startup preference: {installerRequestedStartup}");
 
                     // Sync our setting with what the installer configured
-                    // Note: The installer already created/removed the scheduled task via schtasks.exe
+                    // Note: The installer already created the scheduled task via PowerShell
                     // We just need to sync our internal setting state
                     SetBooleanSetting(STARTUP_ENABLED_KEY, installerRequestedStartup);
 
@@ -853,6 +854,18 @@ namespace HUDRA.Services
                             StartupService.SetStartupEnabled(true);
                         }
                     }
+                }
+
+                // Read library scanning preference from installer (EnableLibraryScanning)
+                var enableLibraryScanningValue = key.GetValue("EnableLibraryScanning");
+                if (enableLibraryScanningValue != null)
+                {
+                    bool enableLibraryScanning = Convert.ToInt32(enableLibraryScanningValue) == 1;
+                    System.Diagnostics.Debug.WriteLine($"Installer library scanning preference: {enableLibraryScanning}");
+
+                    // Apply library scanning settings
+                    SetEnhancedGameDetectionEnabled(enableLibraryScanning);
+                    SetEnhancedLibraryScanningEnabled(enableLibraryScanning);
                 }
 
                 // Mark first run complete in our settings
