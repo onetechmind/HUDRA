@@ -363,9 +363,9 @@ MigrationBackup/
 FodyWeavers.xsd
 /claude_code_spec_fan_page.md
 
-# Specs folder - ignore all specification files
+# Development documentation and specs
 /Specs/
-/Architecture
+/Architecture/
+/techdocs/
 /.claude/settings.local.json
-/Installer
-/Installer
+/Installer/
