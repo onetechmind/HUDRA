@@ -33,7 +33,7 @@ HUDRA gives you complete control over your AMD handheld's performance without th
 IKR, another launcher? Nah, this one is simple. Browse, launch, and manage your games from a unified library with beautiful cover art.
 
 - **Multi-launcher support** — Steam, Epic, GOG, Xbox/Game Pass, Ubisoft, EA, and more
-- **SteamGridDB integration** — Automatically fetch cover art for your games. Easily change it to a local image or something else on SGDB via the Library page.
+- **SteamGridDB integration** — Automatically fetch cover art for your games. Easily change it to a local image or something else on SGDB via the Library page. Requires obtaining your own API key from here and pasting into HUDRA: https://www.steamgriddb.com/profile/preferences/api
 - **One-click launch** — Start games directly from HUDRA
 
 ### 🎛️ Performance Controls
@@ -236,7 +236,8 @@ See [LICENSE](LICENSE) for full details.
 - [SteamGridDB](https://www.steamgriddb.com/) — Game artwork
 - [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) — Frame generation
 - [RTSS](https://www.guru3d.com/files-details/rtss-rivatuner-statistics-server-download.html) — FPS limiting
-- [GameLib.NET](https://github.com/tekgator/GameLib.NET)
+- [GameLib.NET](https://github.com/tekgator/GameLib.NET) — Game scanning for launchers (excluding Xbox)
+- [SteamGridDB.NET](https://github.com/craftersmine/SteamGridDB.NET) - SteamGridDB fetching
 
 ---
 
