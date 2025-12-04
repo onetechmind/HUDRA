@@ -67,7 +67,7 @@ namespace HUDRA.Pages
             GamepadNavigation.SetNavigationOrder(this, 1);
         }
 
-        public void Initialize(EnhancedGameDatabase gameDatabase, SteamGridDbArtworkService artworkService)
+        public void Initialize(EnhancedGameDatabase gameDatabase, SteamGridDbArtworkService? artworkService)
         {
             _gameDatabase = gameDatabase;
             _artworkService = artworkService;

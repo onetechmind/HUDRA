@@ -545,11 +545,43 @@ namespace HUDRA.Pages
             // Enhanced library scanning settings are now loaded in LoadGameDetectionSettings()
         }
 
-        private void EnhancedLibraryScanningToggle_Toggled(object sender, RoutedEventArgs e)
+        private async void EnhancedLibraryScanningToggle_Toggled(object sender, RoutedEventArgs e)
         {
             var toggle = sender as ToggleSwitch;
             var isOn = toggle?.IsOn ?? false;
             SettingsService.SetEnhancedLibraryScanningEnabled(isOn);
+
+            // When toggled ON, trigger an immediate library scan
+            if (isOn)
+            {
+                await TriggerLibraryScanAsync();
+            }
+        }
+
+        /// <summary>
+        /// Triggers an immediate library scan when Library Scanning is enabled.
+        /// </summary>
+        private async Task TriggerLibraryScanAsync()
+        {
+            try
+            {
+                var app = App.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow == null) return;
+
+                var gameDetectionService = mainWindow.EnhancedGameDetectionService;
+                if (gameDetectionService != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("SettingsPage: Library Scanning enabled - triggering immediate scan");
+
+                    // Notify the service that settings changed (this will start enhanced detection)
+                    gameDetectionService.OnSettingsChanged();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"SettingsPage: Error triggering library scan: {ex.Message}");
+            }
         }
 
         private void ScanIntervalComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

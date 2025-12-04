@@ -13,6 +13,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
+using Windows.System;
 
 namespace HUDRA.Pages
 {
@@ -23,6 +24,7 @@ namespace HUDRA.Pages
         private GamepadNavigationService? _gamepadNavigationService;
         private ScrollViewer? _contentScrollViewer; // MainWindow's ContentScrollViewer
         private ObservableCollection<DetectedGame> _games = new ObservableCollection<DetectedGame>();
+        private readonly SecureStorageService _secureStorage = new();
 
         // State preservation - STATIC fields persist across page recreation
         // Despite NavigationCacheMode.Enabled, page is still being recreated (framework issue)
@@ -118,6 +120,12 @@ namespace HUDRA.Pages
             {
                 await LoadGamesAsync();
             }
+
+            // Check if SGDB hint should be shown
+            await CheckSgdbHintVisibilityAsync();
+
+            // Update Rescan button enabled state based on Library Scanning setting
+            UpdateRescanButtonState();
 
             // If we have a saved focused game, scroll to it and focus it
             // Otherwise, restore the scroll position only
@@ -231,6 +239,12 @@ namespace HUDRA.Pages
             {
                 await LoadGamesAsync();
             }
+
+            // Check if SGDB hint should be shown
+            await CheckSgdbHintVisibilityAsync();
+
+            // Update Rescan button enabled state based on Library Scanning setting
+            UpdateRescanButtonState();
 
             // Focus logic per UX requirements:
             // 1. If saved focus exists: restore it (gamepad navigation only)
@@ -1441,6 +1455,14 @@ namespace HUDRA.Pages
         {
             if (_gameDetectionService == null) return;
 
+            // Check if Library Scanning is enabled
+            if (!SettingsService.IsEnhancedLibraryScanningEnabled())
+            {
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Rescan blocked - Library Scanning is disabled");
+                await ShowErrorDialog("Library Scanning is disabled. Enable it in Settings to rescan your game library.");
+                return;
+            }
+
             try
             {
                 ShowScanProgress("Scanning game libraries...");
@@ -1496,6 +1518,84 @@ namespace HUDRA.Pages
             };
 
             await dialog.ShowAsync();
+        }
+
+        #endregion
+
+        #region UI State Updates
+
+        /// <summary>
+        /// Updates the Rescan button enabled state based on Library Scanning setting.
+        /// When Library Scanning is disabled, the Rescan button is disabled and text is greyed out.
+        /// </summary>
+        private void UpdateRescanButtonState()
+        {
+            var isLibraryScanningEnabled = SettingsService.IsEnhancedLibraryScanningEnabled();
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RescanButton.IsEnabled = isLibraryScanningEnabled;
+
+                // Update text opacity to visually indicate disabled state
+                RescanButton.Opacity = isLibraryScanningEnabled ? 1.0 : 0.4;
+
+                // Update tooltip to explain why it's disabled
+                if (!isLibraryScanningEnabled)
+                {
+                    ToolTipService.SetToolTip(RescanButton, "Enable Library Scanning in Settings to use this feature");
+                }
+                else
+                {
+                    ToolTipService.SetToolTip(RescanButton, null);
+                }
+            });
+
+            System.Diagnostics.Debug.WriteLine($"LibraryPage: Rescan button enabled = {isLibraryScanningEnabled}");
+        }
+
+        #endregion
+
+        #region SteamGridDB Hint
+
+        /// <summary>
+        /// Checks if the SGDB hint bar should be shown.
+        /// Hides if user dismissed it OR if API key is already configured.
+        /// </summary>
+        private async Task CheckSgdbHintVisibilityAsync()
+        {
+            try
+            {
+                var dismissed = SettingsService.GetSgdbHintDismissed();
+                var hasKey = await _secureStorage.HasApiKeyAsync();
+
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: SGDB hint check - dismissed={dismissed}, hasKey={hasKey}, shouldShow={!dismissed && !hasKey}");
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    SgdbHintBar.IsOpen = !dismissed && !hasKey;
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: SGDB hint IsOpen set to {SgdbHintBar.IsOpen}");
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error checking SGDB hint visibility: {ex.Message}");
+            }
+        }
+
+        private void SgdbHintBar_Closed(InfoBar sender, InfoBarClosedEventArgs args)
+        {
+            // Persist dismissal state
+            SettingsService.SetSgdbHintDismissed(true);
+            System.Diagnostics.Debug.WriteLine("LibraryPage: SGDB hint bar dismissed");
+        }
+
+        private void SgdbHintOpenSettings_Click(object sender, RoutedEventArgs e)
+        {
+            // Navigate to Settings page
+            var app = Application.Current as App;
+            var mainWindow = app?.MainWindow;
+            var navigationService = mainWindow?.NavigationService;
+            navigationService?.NavigateToSettings();
         }
 
         #endregion

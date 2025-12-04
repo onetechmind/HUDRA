@@ -328,5 +328,95 @@
                     CornerRadius="10" />
             </Border>
         </StackPanel>
+
+        <!--  SteamGridDB API Key Section  -->
+        <Border
+            Margin="0,10,0,0"
+            Padding="15"
+            Background="#22FFFFFF"
+            CornerRadius="12">
+            <StackPanel Spacing="12">
+                <TextBlock
+                    FontWeight="SemiBold"
+                    Foreground="#CCFFFFFF"
+                    IsTabStop="False"
+                    Text="SteamGridDB Artwork" />
+
+                <TextBlock
+                    Foreground="#99FFFFFF"
+                    IsTabStop="False"
+                    Style="{StaticResource SettingsDescriptionStyle}"
+                    Text="Enter your SteamGridDB API key to fetch images from within HUDRA."
+                    TextWrapping="Wrap" />
+
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border
+                        x:Name="SgdbApiKeyBorder"
+                        BorderBrush="{x:Bind SgdbApiKeyFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="6">
+                        <PasswordBox
+                            x:Name="SgdbApiKeyBox"
+                            x:FieldModifier="public"
+                            MaxLength="32"
+                            PasswordRevealMode="Peek"
+                            PlaceholderText="Paste your API key here" />
+                    </Border>
+
+                    <StackPanel
+                        Grid.Column="1"
+                        Orientation="Horizontal"
+                        Spacing="8">
+                        <FontIcon
+                            x:Name="KeyValidationIcon"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="16"
+                            Foreground="{ThemeResource SystemFillColorSuccessBrush}"
+                            Glyph="&#xE73E;"
+                            Visibility="Collapsed" />
+                        <Border
+                            x:Name="ClearKeyButtonBorder"
+                            BorderBrush="{x:Bind ClearKeyButtonFocusBrush, Mode=OneWay}"
+                            BorderThickness="2"
+                            CornerRadius="6"
+                            Visibility="Collapsed">
+                            <Button
+                                x:Name="ClearKeyButton"
+                                Width="40"
+                                Height="40"
+                                CornerRadius="6">
+                                <FontIcon
+                                    FontFamily="Segoe MDL2 Assets"
+                                    FontSize="16"
+                                    Foreground="#FF6B6B"
+                                    Glyph="&#xE74D;" />
+                            </Button>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Border
+                    x:Name="SgdbLinkButtonBorder"
+                    HorizontalAlignment="Left"
+                    BorderBrush="{x:Bind SgdbLinkButtonFocusBrush, Mode=OneWay}"
+                    BorderThickness="2"
+                    CornerRadius="6">
+                    <HyperlinkButton x:Name="SgdbLinkButton" Padding="8,4">
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            Foreground="#90CAF9"
+                            TextWrapping="Wrap">
+                            Get your free API key from SteamGridDB<Hyperlink>↗</Hyperlink>
+                        </TextBlock>
+                    </HyperlinkButton>
+                </Border>
+            </StackPanel>
+        </Border>
     </StackPanel>
 </UserControl>

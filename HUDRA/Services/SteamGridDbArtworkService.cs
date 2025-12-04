@@ -48,14 +48,16 @@ namespace HUDRA.Services
         /// <summary>
         /// Download artwork for a game if it doesn't already have it
         /// </summary>
-        public async Task<string?> DownloadArtworkAsync(DetectedGame game)
+        /// <param name="game">The game to download artwork for</param>
+        /// <param name="forceDownload">If true, download even if artwork already exists (used for replacing fallback artwork)</param>
+        public async Task<string?> DownloadArtworkAsync(DetectedGame game, bool forceDownload = false)
         {
             if (_disposed) return null;
 
             try
             {
-                // Skip if artwork already exists
-                if (!string.IsNullOrEmpty(game.ArtworkPath) && File.Exists(game.ArtworkPath))
+                // Skip if artwork already exists (unless forcing re-download)
+                if (!forceDownload && !string.IsNullOrEmpty(game.ArtworkPath) && File.Exists(game.ArtworkPath))
                 {
                     System.Diagnostics.Debug.WriteLine($"SteamGridDB: Artwork already exists for {game.DisplayName}");
                     return game.ArtworkPath;
@@ -149,9 +151,14 @@ namespace HUDRA.Services
         /// <summary>
         /// Download artwork for multiple games
         /// </summary>
+        /// <param name="games">The games to download artwork for</param>
+        /// <param name="database">The database to save updated games to</param>
+        /// <param name="progressCallback">Optional callback for progress updates</param>
+        /// <param name="forceDownload">If true, download even if artwork already exists (used for replacing fallback artwork)</param>
         public async Task DownloadArtworkForGamesAsync(System.Collections.Generic.IEnumerable<DetectedGame> games,
             EnhancedGameDatabase database,
-            Action<string>? progressCallback = null)
+            Action<string>? progressCallback = null,
+            bool forceDownload = false)
         {
             if (_disposed) return;
 
@@ -166,7 +173,7 @@ namespace HUDRA.Services
 
                 try
                 {
-                    var artworkPath = await DownloadArtworkAsync(game);
+                    var artworkPath = await DownloadArtworkAsync(game, forceDownload);
 
                     if (!string.IsNullOrEmpty(artworkPath))
                     {

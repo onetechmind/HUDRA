@@ -60,6 +60,9 @@ namespace HUDRA.Services
         private const string HAS_COMPLETED_FIRST_RUN_KEY = "HasCompletedFirstRun";
         private const string ENHANCED_GAME_DETECTION_ENABLED_KEY = "EnhancedGameDetectionEnabled";
 
+        // SteamGridDB hint dismissal key
+        private const string SGDB_HINT_DISMISSED_KEY = "SgdbHintDismissed";
+
         // Registry path for installer settings
         private const string REGISTRY_PATH = @"SOFTWARE\HUDRA";
 
@@ -789,6 +792,17 @@ namespace HUDRA.Services
         public static void SetEnhancedGameDetectionEnabled(bool enabled)
         {
             SetBooleanSetting(ENHANCED_GAME_DETECTION_ENABLED_KEY, enabled);
+        }
+
+        // SteamGridDB hint dismissal methods
+        public static bool GetSgdbHintDismissed()
+        {
+            return GetBooleanSetting(SGDB_HINT_DISMISSED_KEY, false);
+        }
+
+        public static void SetSgdbHintDismissed(bool dismissed)
+        {
+            SetBooleanSetting(SGDB_HINT_DISMISSED_KEY, dismissed);
         }
 
         /// <summary>

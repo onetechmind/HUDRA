@@ -54,9 +54,12 @@ namespace HUDRA
 
         // Public window manager access for App.xaml.c
         public WindowManagementService WindowManager => _windowManager;
-        
+
         // Public gamepad navigation service access for controls
         public GamepadNavigationService GamepadNavigationService => _gamepadNavigationService;
+
+        // Public game detection service access for settings controls
+        public EnhancedGameDetectionService? EnhancedGameDetectionService => _enhancedGameDetectionService;
 
         //Navigation events
         private bool _mainPageInitialized = false;
@@ -702,8 +705,8 @@ namespace HUDRA
 
             try
             {
-                // Initialize the page with services
-                if (_gameDatabase != null && _artworkService != null)
+                // Initialize the page with services (artwork service is optional - may be null if no API key configured)
+                if (_gameDatabase != null)
                 {
                     _gameSettingsPage.Initialize(_gameDatabase, _artworkService);
 
@@ -715,7 +718,7 @@ namespace HUDRA
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("WARNING: GameDatabase or ArtworkService not available for GameSettingsPage");
+                    System.Diagnostics.Debug.WriteLine("WARNING: GameDatabase not available for GameSettingsPage");
                 }
 
                 System.Diagnostics.Debug.WriteLine("=== GameSettingsPage initialization complete ===");
@@ -1463,7 +1466,7 @@ namespace HUDRA
         private const byte VK_TAB = 0x09;
         private const uint KEYEVENTF_KEYUP = 0x0002;
 
-        private void InitializeGameDetection()
+        private async void InitializeGameDetection()
         {
             try
             {
@@ -1479,17 +1482,8 @@ namespace HUDRA
                 // Initialize game database for GameSettingsPage
                 _gameDatabase = _enhancedGameDetectionService.Database;
 
-                // Initialize SteamGridDB artwork service for GameSettingsPage
-                // Using the same API key as EnhancedGameDetectionService
-                try
-                {
-                    _artworkService = new SteamGridDbArtworkService("89b83ee6250e718cb40766bde7bcdf1d");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"MainWindow: Failed to initialize artwork service: {ex.Message}");
-                    _artworkService = null;
-                }
+                // Initialize artwork service with user's API key (if configured)
+                await InitializeArtworkServiceAsync();
 
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;
@@ -1506,6 +1500,47 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine($"Failed to initialize game detection: {ex.Message}");
                 AltTabButton.Visibility = Visibility.Visible;
             }
+        }
+
+        /// <summary>
+        /// Initializes the artwork service with the user's SGDB API key if configured.
+        /// </summary>
+        private async Task InitializeArtworkServiceAsync()
+        {
+            try
+            {
+                var secureStorage = new SecureStorageService();
+                var apiKey = await secureStorage.GetApiKeyAsync();
+
+                if (!string.IsNullOrEmpty(apiKey))
+                {
+                    // Initialize artwork service on EnhancedGameDetectionService
+                    _enhancedGameDetectionService?.InitializeArtworkService(apiKey);
+
+                    // Also initialize local artwork service reference for GameSettingsPage
+                    _artworkService = _enhancedGameDetectionService?.ArtworkService;
+
+                    System.Diagnostics.Debug.WriteLine("MainWindow: Artwork service initialized with user API key");
+                }
+                else
+                {
+                    _artworkService = null;
+                    System.Diagnostics.Debug.WriteLine("MainWindow: No SGDB API key configured - artwork downloads disabled");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"MainWindow: Error initializing artwork service: {ex.Message}");
+                _artworkService = null;
+            }
+        }
+
+        /// <summary>
+        /// Reinitializes the artwork service. Call this when the user updates their API key.
+        /// </summary>
+        public async Task ReinitializeArtworkServiceAsync()
+        {
+            await InitializeArtworkServiceAsync();
         }
 
         private void OnGameDetected(object? sender, GameInfo? gameInfo)

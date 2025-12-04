@@ -19,7 +19,7 @@ namespace HUDRA.Services
         private Timer? _refreshTimer;
         private readonly Timer _detectionTimer;
         private readonly EnhancedGameDatabase _gameDatabase;
-        private readonly SteamGridDbArtworkService? _artworkService;
+        private SteamGridDbArtworkService? _artworkService;
 
         private Dictionary<string, DetectedGame> _cachedGames = new(StringComparer.OrdinalIgnoreCase);
         private GameInfo? _currentGame;
@@ -45,6 +45,39 @@ namespace HUDRA.Services
         public DatabaseStats DatabaseStats => _gameDatabase?.GetDatabaseStats() ?? new DatabaseStats();
         public bool IsEnhancedScanningActive => IsEnhancedScanningEnabled();
         public EnhancedGameDatabase Database => _gameDatabase;
+        public bool HasArtworkService => _artworkService != null;
+
+        /// <summary>
+        /// Initializes the artwork service with the user's API key.
+        /// Call this after the user configures their SGDB API key.
+        /// </summary>
+        public void InitializeArtworkService(string? apiKey)
+        {
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                _artworkService?.Dispose();
+                _artworkService = null;
+                System.Diagnostics.Debug.WriteLine("EnhancedGameDetection: Artwork service disabled (no API key)");
+                return;
+            }
+
+            try
+            {
+                _artworkService?.Dispose();
+                _artworkService = new SteamGridDbArtworkService(apiKey);
+                System.Diagnostics.Debug.WriteLine("EnhancedGameDetection: Artwork service initialized with user API key");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Failed to initialize artwork service: {ex.Message}");
+                _artworkService = null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the artwork service if available. Returns null if no API key is configured.
+        /// </summary>
+        public SteamGridDbArtworkService? ArtworkService => _artworkService;
 
         public EnhancedGameDetectionService(DispatcherQueue dispatcher)
         {
@@ -53,16 +86,9 @@ namespace HUDRA.Services
             // Initialize database
             _gameDatabase = new EnhancedGameDatabase();
 
-            // Initialize SteamGridDB artwork service
-            try
-            {
-                _artworkService = new SteamGridDbArtworkService("89b83ee6250e718cb40766bde7bcdf1d");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Failed to initialize artwork service: {ex.Message}");
-                _artworkService = null;
-            }
+            // Artwork service is initialized lazily when API key is available
+            // User must configure their own API key in Settings
+            _artworkService = null;
 
             // Create providers
             _providers = new List<IGameLibraryProvider>
@@ -235,22 +261,32 @@ namespace HUDRA.Services
 
                 _isDatabaseReady = true;
 
-                // Download artwork for games that don't have it yet
+                // Download artwork for games that don't have it yet (or only have fallback)
+                System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Checking artwork service - HasService: {_artworkService != null}, GameCount: {_cachedGames.Count}");
                 if (_artworkService != null && _cachedGames.Any())
                 {
-                    var gamesNeedingArtwork = _cachedGames.Values.Where(g => string.IsNullOrEmpty(g.ArtworkPath)).ToList();
+                    var gamesNeedingArtwork = _cachedGames.Values.Where(g =>
+                        string.IsNullOrEmpty(g.ArtworkPath) ||
+                        g.ArtworkPath.EndsWith("no-artwork-grid.png", StringComparison.OrdinalIgnoreCase)).ToList();
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Games needing artwork: {gamesNeedingArtwork.Count}");
                     if (gamesNeedingArtwork.Any())
                     {
+                        _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, $"Downloading artwork for {gamesNeedingArtwork.Count} games..."));
                         await _artworkService.DownloadArtworkForGamesAsync(
                             gamesNeedingArtwork,
                             _gameDatabase,
-                            progress => _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, progress))
+                            progress => _dispatcher.TryEnqueue(() => ScanProgressChanged?.Invoke(this, progress)),
+                            forceDownload: true  // Force re-download for games with fallback artwork
                         );
 
                         // Reload cache after artwork update
                         allGames = await _gameDatabase.GetAllGamesAsync();
                         _cachedGames = allGames.ToDictionary(g => g.ProcessName, StringComparer.OrdinalIgnoreCase);
                     }
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Skipping artwork download - no service or no games");
                 }
 
                 // Ensure fallback artwork exists and assign to games without artwork

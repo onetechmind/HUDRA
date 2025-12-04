@@ -1,6 +1,7 @@
 using HUDRA.Models;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,6 +15,10 @@ namespace HUDRA.Services.GameLibraryProviders
         public GameSource GameSource => GameSource.Directory; // Will be overridden per launcher
         public bool IsAvailable { get; private set; } = true;
 
+        // Cached LauncherManager to avoid repeated MEF DirectoryCatalog scans (1-2 sec each)
+        private static LauncherManager? _cachedLauncherManager;
+        private static readonly object _launcherLock = new object();
+
         public event EventHandler<string>? ScanProgressChanged;
 
         public async Task<Dictionary<string, DetectedGame>> GetGamesAsync()
@@ -25,7 +30,34 @@ namespace HUDRA.Services.GameLibraryProviders
                 ScanProgressChanged?.Invoke(this, "Initializing GameLib.NET...");
                 System.Diagnostics.Debug.WriteLine("GameLib.NET: Starting scan...");
 
-                var launcherManager = new LauncherManager();
+                // Get or create cached LauncherManager (MEF scan only happens once)
+                LauncherManager launcherManager;
+                lock (_launcherLock)
+                {
+                    if (_cachedLauncherManager == null)
+                    {
+                        System.Diagnostics.Debug.WriteLine("GameLib.NET: Creating LauncherManager (first time - MEF scan)...");
+
+                        // Suppress MEF DirectoryCatalog warnings during first-time initialization
+                        // GameLib.NET scans all DLLs in the app directory, causing warnings for native DLLs
+                        var originalListeners = Trace.Listeners.Cast<TraceListener>().ToArray();
+                        Trace.Listeners.Clear();
+                        try
+                        {
+                            _cachedLauncherManager = new LauncherManager();
+                        }
+                        finally
+                        {
+                            Trace.Listeners.AddRange(originalListeners);
+                        }
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("GameLib.NET: Using cached LauncherManager");
+                    }
+                    launcherManager = _cachedLauncherManager;
+                }
+
                 var launchers = launcherManager.GetLaunchers();
 
                 System.Diagnostics.Debug.WriteLine($"GameLib.NET: Found {launchers?.Count() ?? 0} launchers");
@@ -459,4 +491,5 @@ namespace HUDRA.Services.GameLibraryProviders
             return string.Empty;
         }
     }
+
 }
