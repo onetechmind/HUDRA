@@ -98,8 +98,9 @@ namespace HUDRA
             var commandLineArgs = Environment.GetCommandLineArgs();
             bool wasLaunchedAtStartup = StartupService.WasLaunchedAtStartup(commandLineArgs);
 
-            // Preload RTSS installation status BEFORE creating any UI to prevent flashing
+            // Preload RTSS and Lossless Scaling installation status BEFORE creating any UI to prevent flashing
             await RtssFpsLimiterService.PreloadInstallationStatusAsync();
+            await LosslessScalingService.PreloadInstallationStatusAsync();
 
             MainWindow = new MainWindow();
 

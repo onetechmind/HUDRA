@@ -38,6 +38,7 @@ namespace HUDRA.Services
         // FPS Limiter keys
         private const string SelectedFpsLimitKey = "SelectedFpsLimit";
         private const string StartRtssWithHudraKey = "StartRtssWithHudra";
+        private const string StartLsWithHudraKey = "StartLosslessScalingWithHudra";
 
         //Startup
         private const string STARTUP_ENABLED_KEY = "StartupEnabled";
@@ -703,6 +704,16 @@ namespace HUDRA.Services
         public static void SetStartRtssWithHudra(bool enabled)
         {
             SetBooleanSetting(StartRtssWithHudraKey, enabled);
+        }
+
+        public static bool GetStartLosslessScalingWithHudra()
+        {
+            return GetBooleanSetting(StartLsWithHudraKey, false);
+        }
+
+        public static void SetStartLosslessScalingWithHudra(bool enabled)
+        {
+            SetBooleanSetting(StartLsWithHudraKey, enabled);
         }
 
         // Lossless Scaling Settings

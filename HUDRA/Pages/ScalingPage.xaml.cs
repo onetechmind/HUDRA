@@ -10,13 +10,33 @@ using System.Threading.Tasks;
 
 namespace HUDRA.Pages
 {
-    public sealed partial class ScalingPage : Page
+    public sealed partial class ScalingPage : Page, INotifyPropertyChanged
     {
         public ScalingPageViewModel ViewModel { get; private set; }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
 
         // Session-only state storage for expanders
         private static bool _amdFeaturesExpanderExpanded = false;
         private static bool _losslessScalingExpanderExpanded = false;
+
+        // Lossless Scaling installation status (cached at startup)
+        private bool _isLosslessScalingInstalled = false;
+
+        /// <summary>
+        /// Whether Lossless Scaling is available (installed).
+        /// </summary>
+        public bool IsLosslessScalingAvailable => _isLosslessScalingInstalled;
+
+        /// <summary>
+        /// Whether Lossless Scaling is NOT installed (for showing the indicator).
+        /// </summary>
+        public bool IsLosslessScalingNotInstalled => !_isLosslessScalingInstalled;
+
+        /// <summary>
+        /// Opacity for the LS expander (1.0 when available, 0.5 when not).
+        /// </summary>
+        public double LosslessScalingExpanderOpacity => _isLosslessScalingInstalled ? 1.0 : 0.5;
 
         public ScalingPage()
         {
@@ -25,6 +45,14 @@ namespace HUDRA.Pages
             this.Unloaded += ScalingPage_Unloaded;
             ViewModel = new ScalingPageViewModel();
             this.DataContext = ViewModel;
+
+            // Get cached installation status immediately (no async, no flash)
+            _isLosslessScalingInstalled = LosslessScalingService.GetCachedInstallationStatus();
+        }
+
+        private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         public void Initialize()

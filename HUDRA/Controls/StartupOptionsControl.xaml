@@ -12,6 +12,10 @@
     ap:GamepadNavigation.NavigationOrder="1"
     mc:Ignorable="d">
 
+    <UserControl.Resources>
+        <controls:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </UserControl.Resources>
+
     <StackPanel
         Margin="0,20,0,20"
         Padding="5"
@@ -97,14 +101,15 @@
             Style="{StaticResource SettingsDescriptionStyle}"
             Text="Starts HUDRA minimized to tray." />
 
-        <!--  Auto-Start RTSS  -->
+        <!--  Auto-Start RTSS (only visible when RTSS is installed)  -->
         <Border
             x:Name="RtssBorder"
             Padding="20,5"
             Background="#22FFFFFF"
             BorderBrush="{x:Bind RtssFocusBrush, Mode=OneWay}"
             BorderThickness="2"
-            CornerRadius="12">
+            CornerRadius="12"
+            Visibility="{x:Bind IsRtssInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
@@ -135,7 +140,50 @@
             Padding="10,0,10,0"
             IsTabStop="False"
             Style="{StaticResource SettingsDescriptionStyle}"
-            Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting." />
+            Text="Starts RivaTuner Statistics Server with HUDRA for FPS Limiting."
+            Visibility="{x:Bind IsRtssInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <!--  Auto-Start Lossless Scaling (only visible when LS is installed)  -->
+        <Border
+            x:Name="LsBorder"
+            Padding="20,5"
+            Background="#22FFFFFF"
+            BorderBrush="{x:Bind LsFocusBrush, Mode=OneWay}"
+            BorderThickness="2"
+            CornerRadius="12"
+            Visibility="{x:Bind IsLsInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="4*" />
+                    <ColumnDefinition Width="1.2*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    IsTabStop="False"
+                    Style="{StaticResource SettingsLabelStyle}"
+                    Text="Auto-Start&#x0a;Lossless Scaling" />
+
+                <ToggleSwitch
+                    x:Name="StartLsWithHudraToggle"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center"
+                    x:FieldModifier="public" />
+            </Grid>
+        </Border>
+
+        <TextBlock
+            Padding="10,0,10,0"
+            IsTabStop="False"
+            Style="{StaticResource SettingsDescriptionStyle}"
+            Text="Starts Lossless Scaling with HUDRA for upscaling and frame generation control."
+            Visibility="{x:Bind IsLsInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
         <!--  Hide/Show Hotkey  -->
         <Border

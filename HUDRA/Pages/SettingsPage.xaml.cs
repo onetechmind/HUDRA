@@ -148,6 +148,11 @@ namespace HUDRA.Pages
                 StartupOptionsControl.StartRtssWithHudraToggle.IsOn = SettingsService.GetStartRtssWithHudra();
                 StartupOptionsControl.StartRtssWithHudraToggle.Toggled += StartRtssWithHudraToggle_Toggled;
             }
+            if (StartupOptionsControl?.StartLsWithHudraToggle != null)
+            {
+                StartupOptionsControl.StartLsWithHudraToggle.IsOn = SettingsService.GetStartLosslessScalingWithHudra();
+                StartupOptionsControl.StartLsWithHudraToggle.Toggled += StartLsWithHudraToggle_Toggled;
+            }
 
             UpdateMinimizeOnStartupState();
         }
@@ -205,6 +210,20 @@ namespace HUDRA.Pages
             var toggle = sender as ToggleSwitch;
             var isOn = toggle?.IsOn ?? false;
             SettingsService.SetStartRtssWithHudra(isOn);
+        }
+
+        private async void StartLsWithHudraToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
+            SettingsService.SetStartLosslessScalingWithHudra(isOn);
+
+            // If enabled, start LS immediately if not already running
+            if (isOn)
+            {
+                var lsService = new LosslessScalingService();
+                await lsService.StartLosslessScalingIfNeededAsync();
+            }
         }
 
         private void LoadRtssSettings()

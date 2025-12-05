@@ -4,9 +4,11 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using HUDRA.Models;
 
 namespace HUDRA.Services
 {
@@ -18,6 +20,14 @@ namespace HUDRA.Services
         private const string DEFAULT_HOTKEY = "S";
         private const string DEFAULT_MODIFIERS = "Alt Control";
         private const string PROCESS_NAME = "LosslessScaling";
+
+        // Static caching for installation status (shared across instances)
+        private static bool? _cachedInstallationStatus = null;
+        private static LosslessScalingDetectionResult? _sharedCachedDetection = null;
+        private static readonly object _cacheLock = new object();
+
+        // Instance caching
+        private LosslessScalingDetectionResult? _cachedDetection = null;
 
         private readonly Timer _detectionTimer;
         private bool _isLosslessScalingRunning = false;
@@ -147,6 +157,307 @@ namespace HUDRA.Services
                 // Ignore detection errors
             }
         }
+
+        #region Installation Detection
+
+        /// <summary>
+        /// Detects Lossless Scaling installation with caching support.
+        /// </summary>
+        public async Task<LosslessScalingDetectionResult> DetectInstallationAsync(bool forceRefresh = false)
+        {
+            if (_cachedDetection != null && !forceRefresh)
+            {
+                // Always refresh running status even with cached data
+                _cachedDetection.IsRunning = IsLosslessScalingRunning();
+                return _cachedDetection;
+            }
+
+            return await Task.Run(() =>
+            {
+                var result = new LosslessScalingDetectionResult();
+
+                try
+                {
+                    // Method 1: Check Steam library paths (most common installation)
+                    string? installPath = FindInSteamLibraries();
+
+                    // Method 2: Check common installation paths
+                    if (string.IsNullOrEmpty(installPath))
+                    {
+                        installPath = CheckCommonPaths();
+                    }
+
+                    // Method 3: Get path from running process
+                    if (string.IsNullOrEmpty(installPath))
+                    {
+                        installPath = GetPathFromRunningProcess();
+                    }
+
+                    if (!string.IsNullOrEmpty(installPath) && File.Exists(installPath))
+                    {
+                        result.IsInstalled = true;
+                        result.InstallPath = installPath;
+                        result.Version = GetVersion(installPath);
+                        result.IsRunning = IsLosslessScalingRunning();
+                        result.HasSettingsFile = CheckSettingsFileExists();
+
+                        System.Diagnostics.Debug.WriteLine($"LS detected: {installPath}, Version: {result.Version}, Running: {result.IsRunning}");
+                    }
+
+                    _cachedDetection = result;
+
+                    // Update static cache
+                    lock (_cacheLock)
+                    {
+                        _sharedCachedDetection = result;
+                        _cachedInstallationStatus = result.IsInstalled;
+                    }
+
+                    return result;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LS detection failed: {ex.Message}");
+                    _cachedDetection = result;
+                    return result;
+                }
+            });
+        }
+
+        /// <summary>
+        /// Quick refresh that only checks process status, not full detection.
+        /// </summary>
+        public async Task<LosslessScalingDetectionResult> SmartRefreshStatusAsync()
+        {
+            if (_cachedDetection == null)
+            {
+                return await DetectInstallationAsync(forceRefresh: true);
+            }
+
+            bool isCurrentlyRunning = IsLosslessScalingRunning();
+
+            // If running status hasn't changed, return cached result
+            if (_cachedDetection.IsRunning == isCurrentlyRunning)
+            {
+                return _cachedDetection;
+            }
+
+            // Running status changed - validate installation still exists if process stopped
+            if (!isCurrentlyRunning && _cachedDetection.IsInstalled)
+            {
+                if (File.Exists(_cachedDetection.InstallPath))
+                {
+                    _cachedDetection.IsRunning = false;
+                    System.Diagnostics.Debug.WriteLine("LS installation exists but process stopped");
+                    return _cachedDetection;
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("LS installation no longer exists, forcing full refresh");
+                    return await DetectInstallationAsync(forceRefresh: true);
+                }
+            }
+
+            // Process started when it wasn't running before
+            _cachedDetection.IsRunning = isCurrentlyRunning;
+            System.Diagnostics.Debug.WriteLine($"LS process status changed to: {isCurrentlyRunning}");
+            return _cachedDetection;
+        }
+
+        /// <summary>
+        /// Static method to preload installation status at app startup.
+        /// </summary>
+        public static async Task PreloadInstallationStatusAsync()
+        {
+            if (_cachedInstallationStatus.HasValue)
+                return; // Already cached
+
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("Preloading Lossless Scaling installation status...");
+
+                // Create temporary service instance for detection
+                var tempService = new LosslessScalingService();
+                var detection = await tempService.DetectInstallationAsync(forceRefresh: true);
+                tempService.Dispose();
+
+                lock (_cacheLock)
+                {
+                    _cachedInstallationStatus = detection.IsInstalled;
+                    _sharedCachedDetection = detection;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"LS installation status cached: {_cachedInstallationStatus}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to preload LS installation status: {ex.Message}");
+                _cachedInstallationStatus = false; // Default to not installed on error
+            }
+        }
+
+        /// <summary>
+        /// Gets the cached installation status (instant, no async).
+        /// </summary>
+        public static bool GetCachedInstallationStatus()
+        {
+            return _cachedInstallationStatus ?? false;
+        }
+
+        /// <summary>
+        /// Gets the cached detection result if available.
+        /// </summary>
+        public static LosslessScalingDetectionResult? GetCachedDetectionResult()
+        {
+            lock (_cacheLock)
+            {
+                return _sharedCachedDetection;
+            }
+        }
+
+        /// <summary>
+        /// Starts Lossless Scaling if needed (for auto-start feature).
+        /// </summary>
+        public async Task<bool> StartLosslessScalingIfNeededAsync()
+        {
+            var detection = await DetectInstallationAsync();
+            if (!detection.IsInstalled)
+                return false;
+
+            if (!detection.IsRunning)
+            {
+                System.Diagnostics.Debug.WriteLine("Starting Lossless Scaling on HUDRA launch");
+
+                try
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = detection.InstallPath,
+                        UseShellExecute = true,
+                        WorkingDirectory = Path.GetDirectoryName(detection.InstallPath)
+                    };
+
+                    var process = Process.Start(startInfo);
+                    if (process == null)
+                        return false;
+
+                    // Wait for LS to initialize
+                    await Task.Delay(2000);
+
+                    // Update cached status
+                    _cachedDetection = null; // Force refresh
+                    var refreshed = await DetectInstallationAsync();
+
+                    return refreshed.IsRunning;
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to start LS: {ex.Message}");
+                    return false;
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine("Lossless Scaling already running");
+            return true;
+        }
+
+        #endregion
+
+        #region Detection Helpers
+
+        private string? FindInSteamLibraries()
+        {
+            var steamPaths = new List<string>
+            {
+                @"C:\Program Files (x86)\Steam",
+                @"C:\Program Files\Steam",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Steam"),
+            };
+
+            // Parse libraryfolders.vdf for additional library locations
+            try
+            {
+                string libraryFoldersPath = @"C:\Program Files (x86)\Steam\steamapps\libraryfolders.vdf";
+                if (File.Exists(libraryFoldersPath))
+                {
+                    var content = File.ReadAllText(libraryFoldersPath);
+                    var matches = Regex.Matches(content, @"""path""\s+""([^""]+)""");
+                    foreach (Match match in matches)
+                    {
+                        steamPaths.Add(match.Groups[1].Value.Replace(@"\\", @"\"));
+                    }
+                }
+            }
+            catch
+            {
+                // Continue with default paths
+            }
+
+            foreach (var steamPath in steamPaths.Distinct())
+            {
+                string lsPath = Path.Combine(steamPath, "steamapps", "common", "Lossless Scaling", "LosslessScaling.exe");
+                if (File.Exists(lsPath))
+                {
+                    return lsPath;
+                }
+            }
+
+            return null;
+        }
+
+        private string? CheckCommonPaths()
+        {
+            var commonPaths = new[]
+            {
+                @"C:\Program Files\Lossless Scaling\LosslessScaling.exe",
+                @"C:\Program Files (x86)\Lossless Scaling\LosslessScaling.exe",
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Programs", "Lossless Scaling", "LosslessScaling.exe")
+            };
+
+            return commonPaths.FirstOrDefault(File.Exists);
+        }
+
+        private string? GetPathFromRunningProcess()
+        {
+            try
+            {
+                var processes = Process.GetProcessesByName(PROCESS_NAME);
+                if (processes.Length > 0)
+                {
+                    string? path = processes[0].MainModule?.FileName;
+                    foreach (var p in processes)
+                        p.Dispose();
+                    return path;
+                }
+            }
+            catch
+            {
+                // Process access may fail without admin
+            }
+            return null;
+        }
+
+        private string GetVersion(string exePath)
+        {
+            try
+            {
+                var versionInfo = FileVersionInfo.GetVersionInfo(exePath);
+                return versionInfo.FileVersion ?? "Unknown";
+            }
+            catch
+            {
+                return "Unknown";
+            }
+        }
+
+        private bool CheckSettingsFileExists()
+        {
+            string settingsPath = Environment.ExpandEnvironmentVariables(SETTINGS_PATH);
+            return File.Exists(settingsPath);
+        }
+
+        #endregion
 
         public void Dispose()
         {

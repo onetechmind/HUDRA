@@ -162,6 +162,9 @@ namespace HUDRA
             set { _forceQuitButtonVisible = value; OnPropertyChanged(); }
         }
 
+        // Lossless Scaling installation status (cached at startup)
+        private bool _isLsInstalled = false;
+
         // FPS Limiter properties
         private FpsLimitSettings _fpsSettings = new();
         public FpsLimitSettings FpsSettings
@@ -1488,12 +1491,18 @@ namespace HUDRA
                 // Initially hide the Alt+Tab button until a game is detected
                 AltTabButton.Visibility = Visibility.Collapsed;
 
+                // Get cached Lossless Scaling installation status (set during App startup)
+                _isLsInstalled = LosslessScalingService.GetCachedInstallationStatus();
+
                 // Initialize Lossless Scaling service
                 _losslessScalingService = new LosslessScalingService();
                 _losslessScalingService.LosslessScalingStatusChanged += OnLosslessScalingStatusChanged;
 
                 // Initially hide the Lossless Scaling button
                 LosslessScalingButtonVisible = false;
+
+                // Auto-start Lossless Scaling if enabled in settings
+                await StartLosslessScalingIfEnabledAsync();
             }
             catch (Exception ex)
             {
@@ -1651,12 +1660,35 @@ namespace HUDRA
             bool hasGame = _enhancedGameDetectionService?.CurrentGame != null;
             bool lsRunning = _losslessScalingService?.IsLosslessScalingRunning() ?? false;
 
-            LosslessScalingButtonVisible = hasGame && lsRunning;
+            // THREE conditions must be met: installed AND running AND game detected
+            LosslessScalingButtonVisible = _isLsInstalled && hasGame && lsRunning;
 
             // Update tooltip when visibility changes
             if (LosslessScalingButtonVisible)
             {
                 UpdateLosslessScalingTooltip();
+            }
+
+            // Re-register navbar buttons after visibility change for proper LT/RT cycling
+            RegisterNavbarButtons();
+        }
+
+        /// <summary>
+        /// Starts Lossless Scaling if auto-start is enabled and LS is installed.
+        /// </summary>
+        private async Task StartLosslessScalingIfEnabledAsync()
+        {
+            try
+            {
+                if (SettingsService.GetStartLosslessScalingWithHudra() && _isLsInstalled)
+                {
+                    System.Diagnostics.Debug.WriteLine("Auto-starting Lossless Scaling as per user settings");
+                    await _losslessScalingService!.StartLosslessScalingIfNeededAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to auto-start LS: {ex.Message}");
             }
         }
 

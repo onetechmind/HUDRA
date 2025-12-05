@@ -15,12 +15,50 @@ namespace HUDRA.Controls
         public event PropertyChangedEventHandler? PropertyChanged;
 
         private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedElement = 0; // 0=Startup, 1=Minimize, 2=RTSS, 3=Hotkey
+        private int _currentFocusedElement = 0; // Index into visible elements list
         private bool _isFocused = false;
+
+        // RTSS and LS installation status (cached at startup)
+        private bool _isRtssInstalled = false;
+        private bool _isLsInstalled = false;
+
+        /// <summary>
+        /// Whether RTSS is installed (for conditional visibility).
+        /// </summary>
+        public bool IsRtssInstalled
+        {
+            get => _isRtssInstalled;
+            set { _isRtssInstalled = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Whether Lossless Scaling is installed (for conditional visibility).
+        /// </summary>
+        public bool IsLsInstalled
+        {
+            get => _isLsInstalled;
+            set { _isLsInstalled = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Gets the maximum focusable element index (dynamic based on visibility).
+        /// Elements: 0=Startup, 1=Minimize, 2=RTSS (if installed), 3=LS (if installed), 4=Hotkey
+        /// </summary>
+        private int MaxFocusIndex
+        {
+            get
+            {
+                int count = 2; // Startup and Minimize are always visible
+                if (_isRtssInstalled) count++;
+                if (_isLsInstalled) count++;
+                count++; // Hotkey is always visible
+                return count - 1; // Max index is count - 1
+            }
+        }
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0;
-        public bool CanNavigateDown => _currentFocusedElement < 3;
+        public bool CanNavigateDown => _currentFocusedElement < MaxFocusIndex;
         public bool CanNavigateLeft => false;
         public bool CanNavigateRight => false;
         public bool CanActivate => true;
@@ -39,6 +77,25 @@ namespace HUDRA.Controls
         public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
 
         // Focus brush properties for XAML binding
+        // The focus index mapping is dynamic based on what's installed:
+        // 0=Startup, 1=Minimize, 2=RTSS (if installed), 3=LS (if installed), Last=Hotkey
+
+        private int GetVisualElementIndex(int visualIndex)
+        {
+            // Map visual element positions to focus indices
+            // Startup=0, Minimize=1, RTSS=2 (if installed), LS=next (if installed), Hotkey=last
+            if (visualIndex == 0) return 0; // Startup
+            if (visualIndex == 1) return 1; // Minimize
+            if (visualIndex == 2) return _isRtssInstalled ? 2 : -1; // RTSS
+            if (visualIndex == 3) // LS
+            {
+                if (!_isLsInstalled) return -1;
+                return _isRtssInstalled ? 3 : 2;
+            }
+            // Hotkey is always last
+            return MaxFocusIndex;
+        }
+
         public Brush StartupFocusBrush
         {
             get
@@ -67,7 +124,21 @@ namespace HUDRA.Controls
         {
             get
             {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 2)
+                int rtssIndex = GetVisualElementIndex(2);
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == rtssIndex && rtssIndex >= 0)
+                {
+                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
+                }
+                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
+            }
+        }
+
+        public Brush LsFocusBrush
+        {
+            get
+            {
+                int lsIndex = GetVisualElementIndex(3);
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == lsIndex && lsIndex >= 0)
                 {
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                 }
@@ -79,7 +150,7 @@ namespace HUDRA.Controls
         {
             get
             {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 3)
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == MaxFocusIndex)
                 {
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                 }
@@ -91,6 +162,11 @@ namespace HUDRA.Controls
         {
             this.InitializeComponent();
             this.DataContext = this;
+
+            // Get cached installation statuses (set during App startup)
+            _isRtssInstalled = RtssFpsLimiterService.GetCachedInstallationStatus();
+            _isLsInstalled = LosslessScalingService.GetCachedInstallationStatus();
+
             InitializeGamepadNavigation();
         }
 
@@ -124,7 +200,7 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateDown()
         {
-            if (_currentFocusedElement < 3)
+            if (_currentFocusedElement < MaxFocusIndex)
             {
                 _currentFocusedElement++;
                 UpdateFocusVisuals();
@@ -144,42 +220,52 @@ namespace HUDRA.Controls
 
         public void OnGamepadActivate()
         {
-            switch (_currentFocusedElement)
+            // Map current focus index to the actual element
+            // 0=Startup, 1=Minimize, then RTSS (if installed), LS (if installed), Hotkey (always last)
+            int elementIndex = _currentFocusedElement;
+
+            if (elementIndex == 0) // StartupToggle
             {
-                case 0: // StartupToggle
-                    if (StartupToggle != null)
-                    {
-                        StartupToggle.IsOn = !StartupToggle.IsOn;
-                        System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled Startup to {StartupToggle.IsOn}");
-                    }
-                    break;
+                if (StartupToggle != null)
+                {
+                    StartupToggle.IsOn = !StartupToggle.IsOn;
+                    System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled Startup to {StartupToggle.IsOn}");
+                }
+            }
+            else if (elementIndex == 1) // MinimizeOnStartupToggle
+            {
+                if (MinimizeOnStartupToggle != null)
+                {
+                    MinimizeOnStartupToggle.IsOn = !MinimizeOnStartupToggle.IsOn;
+                    System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled Minimize to {MinimizeOnStartupToggle.IsOn}");
+                }
+            }
+            else if (elementIndex == GetVisualElementIndex(2) && _isRtssInstalled) // StartRtssWithHudraToggle
+            {
+                if (StartRtssWithHudraToggle != null)
+                {
+                    StartRtssWithHudraToggle.IsOn = !StartRtssWithHudraToggle.IsOn;
+                    System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled RTSS to {StartRtssWithHudraToggle.IsOn}");
+                }
+            }
+            else if (elementIndex == GetVisualElementIndex(3) && _isLsInstalled) // StartLsWithHudraToggle
+            {
+                if (StartLsWithHudraToggle != null)
+                {
+                    StartLsWithHudraToggle.IsOn = !StartLsWithHudraToggle.IsOn;
+                    System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled LS to {StartLsWithHudraToggle.IsOn}");
+                }
+            }
+            else if (elementIndex == MaxFocusIndex) // HideShowHotkeySelector (always last)
+            {
+                if (HideShowHotkeySelector != null)
+                {
+                    // Delegate to HotkeySelector's gamepad activation (once implemented)
+                    System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Activated HotkeySelector");
 
-                case 1: // MinimizeOnStartupToggle
-                    if (MinimizeOnStartupToggle != null)
-                    {
-                        MinimizeOnStartupToggle.IsOn = !MinimizeOnStartupToggle.IsOn;
-                        System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled Minimize to {MinimizeOnStartupToggle.IsOn}");
-                    }
-                    break;
-
-                case 2: // StartRtssWithHudraToggle
-                    if (StartRtssWithHudraToggle != null)
-                    {
-                        StartRtssWithHudraToggle.IsOn = !StartRtssWithHudraToggle.IsOn;
-                        System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Toggled RTSS to {StartRtssWithHudraToggle.IsOn}");
-                    }
-                    break;
-
-                case 3: // HideShowHotkeySelector
-                    if (HideShowHotkeySelector != null)
-                    {
-                        // Delegate to HotkeySelector's gamepad activation (once implemented)
-                        System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Activated HotkeySelector");
-
-                        // For now, we'll handle basic activation here until HotkeySelector gets gamepad support
-                        // This could trigger the Edit button or similar functionality
-                    }
-                    break;
+                    // For now, we'll handle basic activation here until HotkeySelector gets gamepad support
+                    // This could trigger the Edit button or similar functionality
+                }
             }
         }
 
@@ -208,11 +294,11 @@ namespace HUDRA.Controls
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 3: Auto-start with Windows toggle)
-            _currentFocusedElement = 3;
+            // Focus the last element (Hotkey selector)
+            _currentFocusedElement = MaxFocusIndex;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Focused last element (Auto-start with Windows)");
+            System.Diagnostics.Debug.WriteLine($"🎮 StartupOptions: Focused last element (Hotkey)");
         }
 
         public void AdjustSliderValue(int direction)
@@ -228,6 +314,7 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(StartupFocusBrush));
                 OnPropertyChanged(nameof(MinimizeFocusBrush));
                 OnPropertyChanged(nameof(RtssFocusBrush));
+                OnPropertyChanged(nameof(LsFocusBrush));
                 OnPropertyChanged(nameof(HotkeyFocusBrush));
             });
         }

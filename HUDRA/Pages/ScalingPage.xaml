@@ -67,7 +67,9 @@
                 Margin="0"
                 Padding="0"
                 HorizontalAlignment="Stretch"
-                ap:GamepadNavigation.NavigationOrder="20">
+                ap:GamepadNavigation.NavigationOrder="20"
+                IsEnabled="{x:Bind IsLosslessScalingAvailable, Mode=OneWay}"
+                Opacity="{x:Bind LosslessScalingExpanderOpacity, Mode=OneWay}">
                 <controls:NavigableExpander.Header>
                     <StackPanel
                         VerticalAlignment="Center"
@@ -89,6 +91,14 @@
                     <controls:LosslessScalingControl x:Name="LosslessScalingControl" DataContext="{Binding}" />
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
+
+            <!--  Not Installed message (shown below expander when LS unavailable)  -->
+            <TextBlock
+                HorizontalAlignment="Center"
+                FontSize="14"
+                Foreground="#99FFFFFF"
+                Text="Lossless Scaling is not installed or available."
+                Visibility="{x:Bind IsLosslessScalingNotInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
         </StackPanel>
     </Grid>

@@ -173,11 +173,13 @@ namespace HUDRA.AttachedProperties
             for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
             {
                 var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
-                
+
                 if (child is FrameworkElement element)
                 {
-                    // Only process and recurse into visible elements
-                    if (element.Visibility == Visibility.Visible)
+                    // Only process and recurse into visible and enabled elements
+                    // IsEnabled is on Control, not FrameworkElement, so check if it's a Control first
+                    bool isEnabled = element is not Control control || control.IsEnabled;
+                    if (element.Visibility == Visibility.Visible && isEnabled)
                     {
                         if (GetIsEnabled(element) && GetCanNavigate(element))
                         {
@@ -188,7 +190,7 @@ namespace HUDRA.AttachedProperties
                             }
                         }
 
-                        // Only recurse into children if parent is visible
+                        // Only recurse into children if parent is visible and enabled
                         CollectNavigableElements(child, elements, targetGroup);
                     }
                 }
