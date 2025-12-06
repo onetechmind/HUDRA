@@ -43,7 +43,7 @@ Your performance/quick settings command center. Everything you need to tweak on 
 A simple game launcher. Nothing more, nothing less.
 
 - **Multi-launcher support** — Steam, Epic, GOG, Xbox/Game Pass, Ubisoft, EA, and more
-- **Cover art via SteamGridDB** — Automatically fetches artwork (requires free API key)
+- **Cover art via SteamGridDB** — Automatically fetches artwork [(requires free API key)](https://www.steamgriddb.com/profile/preferences/api)
 - **One-click launch** — Start games directly, HUDRA hides automatically
 - **Custom artwork** — Swap covers with local images or alternate SGDB options
 
