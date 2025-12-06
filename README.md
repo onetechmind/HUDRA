@@ -32,7 +32,7 @@ Modern design, optimized for touch and full gamepad navigation.
 
 Your performance command center. Everything you need to tweak on the fly lives here.
 
-<center><img src="/HUDRA/Assets/Screenshots/1205-Home.png"></center>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Home.png" width="25%"></p>
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
@@ -42,7 +42,7 @@ Your performance command center. Everything you need to tweak on the fly lives h
 
 A simple game launcher. Nothing more, nothing less.
 
-<center><img src="/HUDRA/Assets/Screenshots/1205-Library.png"></center>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Library.png" width="25%"></p>
 
 - **Multi-launcher support** — Steam, Epic, GOG, Xbox/Game Pass, Ubisoft, EA, and more
 - **Cover art via SteamGridDB** — Automatically fetches artwork (requires free API key)
@@ -53,7 +53,7 @@ A simple game launcher. Nothing more, nothing less.
 
 Take manual control of your thermals with custom fan curves.
 
-<center><img src="/HUDRA/Assets/Screenshots/1205-FanControl.png"></center>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-FanControl.png" width="25%"></p>
 
 - **Interactive curve editor** — Drag 5 temperature/speed points to shape your curve
 - **Built-in presets** — Stealth (silent), Cruise (balanced), Warp (performance)
@@ -77,8 +77,8 @@ Take manual control of your thermals with custom fan curves.
 Toggle graphics features without digging through other apps.
 
 <p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Scaling1.png">&nbsp;
-<img src="/HUDRA/Assets/Screenshots/1205-Scaling2.png"> 
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling1.png" width="25%">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling2.png" width="25%"> 
 </p>
 
 **AMD Features:**
@@ -99,8 +99,8 @@ Set preferred, common settings (or load HUDRA's default), then click Apply to re
 Configure HUDRA to your liking.
 
 <p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Settings1.png">&nbsp;
-<img src="/HUDRA/Assets/Screenshots/1205-Settings2.png"> 
+<img src="/HUDRA/Assets/Screenshots/1205-Settings1.png" width="25%">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Settings2.png" width="25%"> 
 </p>
 
 - **Sticky TDP** option prevents your TDP from drifting due to OEM firmware behavior
@@ -117,9 +117,9 @@ Configure HUDRA to your liking.
 
 HUDRA's navigation bar adapts to context.
 
-<center>
-<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png"> 
-</center>
+<p align="center">
+<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png" width="25%"> 
+</p>
 
 - **Back to Game** — Instantly return to your running game
 - **Scale** — Trigger Lossless Scaling with current settings
