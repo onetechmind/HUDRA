@@ -99,13 +99,14 @@ Set preferred, common settings (or load HUDRA's default), then click Apply to re
 
 Configure HUDRA to your liking.
 
-- **Sticky TDP** option prevents your TDP from drifting due to OEM firmware behavior
-- **CPU Boost** — Enable/disable processor boost for thermal or battery management
+- **Default TDP** — Set your default power target on launch
+- **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
 - **Power Profile Switcher** — Select your Normal and Gaming plans for automatic switching when gaming starts and ends
-- **Startup TDP** — Set your default power target on launch
-- **Run at startup** — Launch HUDRA with Windows and/or RTSS and Lossless Scaling with HUDRA
-- **SteamGridDB API key** — Paste your key for automatic cover art downloads in the Library
-- **About & version info** -- Useful for reporting bugs!
+- **CPU Boost** — Enable/disable processor boost for thermal or battery management (not needed for most games)
+- **Game Detection** — Enable/disable Library Scanning to take advantage of dynamic navbar actions and the Library page
+- **SteamGridDB API key** — Paste your key for automatic cover art downloads in the Library (key encrypted locally on your device)
+- **Startup Options** — Launch HUDRA with Windows and/or RTSS and Lossless Scaling with HUDRA. Start HUDRA minimzed
+- **Debug Button/Version Info** -- Useful for reporting bugs!
 
 <p align="center">
 <img src="/HUDRA/Assets/Screenshots/1205-Settings1.png" width="40%">&nbsp;
