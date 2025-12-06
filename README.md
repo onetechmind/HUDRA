@@ -32,16 +32,17 @@ Modern design, optimized for touch and full gamepad navigation.
 
 Your performance command center. Everything you need to tweak on the fly lives here.
 
+<center><img src="/HUDRA/Assets/Screenshots/1205-Home.png"></center>
+
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
-  - **Sticky TDP** option prevents your TDP from drifting due to OEM firmware behavior
-- **CPU Boost** — Enable/disable processor boost for thermal or battery management
-- **Power Profile Switcher** — Select your Normal and Gaming plans for automatic switching when gaming starts and ends
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 
 ### 📚 Library
 
 A simple game launcher. Nothing more, nothing less.
+
+<center><img src="/HUDRA/Assets/Screenshots/1205-Library.png"></center>
 
 - **Multi-launcher support** — Steam, Epic, GOG, Xbox/Game Pass, Ubisoft, EA, and more
 - **Cover art via SteamGridDB** — Automatically fetches artwork (requires free API key)
@@ -51,6 +52,8 @@ A simple game launcher. Nothing more, nothing less.
 ### 🌀 Fan Control
 
 Take manual control of your thermals with custom fan curves.
+
+<center><img src="/HUDRA/Assets/Screenshots/1205-FanControl.png"></center>
 
 - **Interactive curve editor** — Drag 5 temperature/speed points to shape your curve
 - **Built-in presets** — Stealth (silent), Cruise (balanced), Warp (performance)
@@ -73,6 +76,11 @@ Take manual control of your thermals with custom fan curves.
 
 Toggle graphics features without digging through other apps.
 
+<p align="center">
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling1.png">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling2.png"> 
+</p>
+
 **AMD Features:**
 - **RSR** — Radeon Super Resolution (driver-level upscaling)
 - **AFMF** — AMD Fluid Motion Frames (driver-level frame gen)
@@ -90,6 +98,14 @@ Set preferred, common settings (or load HUDRA's default), then click Apply to re
 
 Configure HUDRA to your liking.
 
+<p align="center">
+<img src="/HUDRA/Assets/Screenshots/1205-Settings1.png">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Settings2.png"> 
+</p>
+
+- **Sticky TDP** option prevents your TDP from drifting due to OEM firmware behavior
+- **CPU Boost** — Enable/disable processor boost for thermal or battery management
+- **Power Profile Switcher** — Select your Normal and Gaming plans for automatic switching when gaming starts and ends
 - **Startup TDP** — Set your default power target on launch
 - **Run at startup** — Launch HUDRA with Windows and/or RTSS and Lossless Scaling with HUDRA
 - **SteamGridDB API key** — Paste your key for automatic cover art downloads in the Library
@@ -99,12 +115,16 @@ Configure HUDRA to your liking.
 
 ## Dynamic Navbar
 
-HUDRA's navigation bar adapts to context:
+HUDRA's navigation bar adapts to context.
+
+<center>
+<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png"> 
+</center>
 
 - **Back to Game** — Instantly return to your running game
 - **Scale** — Trigger Lossless Scaling with current settings
 - **Force Quit** — Kill the active game process
-
+0 **Hide HUDRA** — 'nuff said.
 These buttons only appear when a game is detected.
 
 ---
