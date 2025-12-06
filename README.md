@@ -28,15 +28,15 @@ Modern design, optimized for touch and full gamepad navigation.
 
 ## App Pages
 
-### 🏠 Performance Control
+### 🏠 Home
 
-Your performance command center. Everything you need to tweak on the fly lives here.
+Your performance/quick settings command center. Everything you need to tweak on the fly lives here.
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 
-<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Home.png" width="25%"></p>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Home.png" width="40%"></p>
 
 ### 📚 Library
 
@@ -47,7 +47,7 @@ A simple game launcher. Nothing more, nothing less.
 - **One-click launch** — Start games directly, HUDRA hides automatically
 - **Custom artwork** — Swap covers with local images or alternate SGDB options
 
-<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Library.png" width="25%"></p>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Library1.png" width="40%"> &nbsp; <img src="/HUDRA/Assets/Screenshots/1205-Library2.png" width="40%"> </p>
 
 ### 🌀 Fan Control
 
@@ -57,7 +57,7 @@ Take manual control of your thermals with custom fan curves.
 - **Built-in presets** — Stealth (silent), Cruise (balanced), Warp (performance)
 - **Real-time temp display** — See current CPU temperature while tuning
 
-<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-FanControl.png" width="25%"></p>
+<p align="center"><img src="/HUDRA/Assets/Screenshots/1205-FanControl.png" width="40%"></p>
 
 **Devices With Fan Control Support:**
 
@@ -91,8 +91,8 @@ Set preferred, common settings (or load HUDRA's default), then click Apply to re
 
 
 <p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Scaling1.png" width="25%">&nbsp;
-<img src="/HUDRA/Assets/Screenshots/1205-Scaling2.png" width="25%"> 
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling1.png" width="40%">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Scaling2.png" width="40%"> 
 </p>
 
 ### ⚙️ Settings
@@ -108,8 +108,8 @@ Configure HUDRA to your liking.
 - **About & version info** -- Useful for reporting bugs!
 
 <p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Settings1.png" width="25%">&nbsp;
-<img src="/HUDRA/Assets/Screenshots/1205-Settings2.png" width="25%"> 
+<img src="/HUDRA/Assets/Screenshots/1205-Settings1.png" width="40%">&nbsp;
+<img src="/HUDRA/Assets/Screenshots/1205-Settings2.png" width="40%"> 
 </p>
 
 ---
@@ -126,7 +126,7 @@ HUDRA's navigation bar adapts to context.
 These buttons only appear when a game is detected.
 
 <p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png" width="25%"> 
+<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png" width="40%"> 
 </p>
 
 ---
