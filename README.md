@@ -120,8 +120,8 @@ Configure HUDRA to your liking.
 HUDRA's navigation bar adapts to context.
 
 - **Back to Game** — Instantly return to your running game
-- **Scale** — Trigger Lossless Scaling with current settings
 - **Force Quit** — Kill the active game process
+- **Scale** — Trigger Lossless Scaling with current settings
 - **Hide HUDRA** — 'nuff said.
 
 These buttons only appear when a game is detected.
