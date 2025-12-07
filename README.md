@@ -190,6 +190,7 @@ See [LICENSE.md](https://github.com/onetechmind/HUDRA/blob/0.9.9470-beta/LICENSE
 - [GameLib.NET](https://github.com/tekgator/GameLib.NET) — Launcher detection
 - [ADLX-SDK-Wrapper](https://github.com/JamesCJ60/ADLX-SDK-Wrapper) - AMD features integration
 - [Handheld Companion](https://github.com/Valkirie/HandheldCompanion)
+- [Claude Code](https://www.claude.com/product/claude-code)
 
 ---
 
