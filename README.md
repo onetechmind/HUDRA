@@ -38,6 +38,23 @@ Your performance/quick settings command center. Everything you need to tweak on 
 
 <p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Home.png" width="40%"></p>
 
+#### Dynamic Navbar
+
+HUDRA's navigation bar adapts to context.
+
+- **Back to Game** — Instantly return to your running game
+- **Force Quit** — Kill the active game process
+- **Scale** — Trigger Lossless Scaling with current settings
+- **Hide HUDRA** — 'nuff said.
+
+These buttons only appear when a game is detected.
+
+<p align="center">
+<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png" width="40%"> 
+</p>
+
+---
+
 ### 📚 Library
 
 A simple game launcher. Nothing more, nothing less.
@@ -115,23 +132,6 @@ Configure HUDRA to your liking.
 
 ---
 
-## Dynamic Navbar
-
-HUDRA's navigation bar adapts to context.
-
-- **Back to Game** — Instantly return to your running game
-- **Force Quit** — Kill the active game process
-- **Scale** — Trigger Lossless Scaling with current settings
-- **Hide HUDRA** — 'nuff said.
-
-These buttons only appear when a game is detected.
-
-<p align="center">
-<img src="/HUDRA/Assets/Screenshots/1205-Navbar.png" width="40%"> 
-</p>
-
----
-
 ## Controller Support
 
 HUDRA is fully navigable with a gamepad.
@@ -154,9 +154,10 @@ Works with Xbox controllers, PlayStation (via DS4Windows), and built-in handheld
 **Requirements:** Windows 10 (1903+) or 11, AMD Ryzen processor, admin privileges.
 
 1. Download the installer from [Releases](../../releases)
-2. Run it — .NET 8 runtime is bundled
-3. Launch from Start menu or desktop
-4. Configure your defaults in Settings
+2. Run installer
+3. (Optional) HUDRA will offer to install RTSS if you do not already have it. Recommended for frame limiting
+4. Launch from Start menu
+5. Enjoy!
 
 ---
 
@@ -188,6 +189,7 @@ See [LICENSE.md](https://github.com/onetechmind/HUDRA/blob/0.9.9470-beta/LICENSE
 - [RTSS](https://www.guru3d.com/files-details/rtss-rivatuner-statistics-server-download.html) — FPS limiting
 - [GameLib.NET](https://github.com/tekgator/GameLib.NET) — Launcher detection
 - [ADLX-SDK-Wrapper](https://github.com/JamesCJ60/ADLX-SDK-Wrapper) - AMD features integration
+- [Handheld Companion](https://github.com/Valkirie/HandheldCompanion)
 
 ---
 
