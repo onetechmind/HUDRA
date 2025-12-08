@@ -202,8 +202,8 @@ See [LICENSE.md](https://github.com/onetechmind/HUDRA/blob/0.9.9470-beta/LICENSE
 ## Support
 
 - [GitHub Issues](../../issues) — Bug reports
-- [GitHub Discussions](../../discussions) — Feature requests & questions
-- Email: lance@onetechmind.com
+- [/r/HUDRA on Reddit](https://reddit.com/r/HUDRA) - Support & Feedback
+- Email (for anything else): lance@onetechmind.com
 
 ---
 
