@@ -145,7 +145,12 @@ HUDRA is fully navigable with a gamepad.
 | L1 / R1 | Cycle pages |
 | L2 / R2 | Cycle navbar buttons (when game running) |
 
+
 Works with Xbox controllers, PlayStation (via DS4Windows), and built-in handheld controls.
+
+###Show/Hide HUDRA
+
+HUDRA uses `Win + Alt + Control` by default as a hotkey to show/hide the app. This can be changed on the Settings page. I suggest mapping the keybind to one of your device's function buttons using the OEM software.
 
 ---
 
