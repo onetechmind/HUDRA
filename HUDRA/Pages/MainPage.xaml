@@ -30,6 +30,9 @@
                 x:Name="TdpPicker"
                 x:FieldModifier="public"
                 Width="280" />
+            <controls:StickyTdpToggle
+                x:Name="StickyTdpToggle"
+                x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:ResolutionPickerControl
                 x:Name="ResolutionPicker"

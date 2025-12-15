@@ -4,6 +4,7 @@ using HUDRA.Extensions;
 using HUDRA.Models;
 using HUDRA.Pages;
 using HUDRA.Services;
+using HUDRA.Services.FanControl;
 using HUDRA.Services.Power;
 using Microsoft.UI;
 using Microsoft.UI.Composition.SystemBackdrops;
@@ -47,6 +48,9 @@ namespace HUDRA
         private LosslessScalingService? _losslessScalingService;
         private EnhancedGameDatabase? _gameDatabase;
         private SteamGridDbArtworkService? _artworkService;
+        private GameProfileService? _gameProfileService;
+        private bool _userOverrodeTdpDuringProfile = false; // Tracks if user manually changed TDP while a profile was active
+        private int _activeProfileFpsLimit = -1; // Stores FPS limit from active profile for sync on Home page navigation
 
 
         // Public navigation service access for TDP picker
@@ -61,8 +65,12 @@ namespace HUDRA
         // Public game detection service access for settings controls
         public EnhancedGameDetectionService? EnhancedGameDetectionService => _enhancedGameDetectionService;
 
+        // Public DPI scaling service access for controls
+        public DpiScalingService DpiScalingService => _dpiService;
+
         //Navigation events
         private bool _mainPageInitialized = false;
+        private EventHandler<int>? _tdpChangedHandler; // Stored handler to prevent duplicate subscriptions
         // Tracks if the next page navigation was initiated via gamepad (L1/R1)
         private bool _isGamepadPageNavPending = false;
         // Latched flag for the page that just became active
@@ -165,6 +173,21 @@ namespace HUDRA
         // Lossless Scaling installation status (cached at startup)
         private bool _isLsInstalled = false;
 
+        // Game Profile InfoBar properties
+        private bool _isGameProfileActive = false;
+        public bool IsGameProfileActive
+        {
+            get => _isGameProfileActive;
+            set { _isGameProfileActive = value; OnPropertyChanged(); }
+        }
+
+        private string _gameProfileTitle = string.Empty;
+        public string GameProfileTitle
+        {
+            get => _gameProfileTitle;
+            set { _gameProfileTitle = value; OnPropertyChanged(); }
+        }
+
         // FPS Limiter properties
         private FpsLimitSettings _fpsSettings = new();
         public FpsLimitSettings FpsSettings
@@ -251,6 +274,31 @@ namespace HUDRA
             else
             {
                 System.Diagnostics.Debug.WriteLine("MainWindow: Cannot refresh library - LibraryPage is not initialized");
+            }
+        }
+
+        /// <summary>
+        /// Refreshes the current page to reflect updated settings (e.g., after profile revert).
+        /// </summary>
+        private void RefreshCurrentPage()
+        {
+            System.Diagnostics.Debug.WriteLine($"Refreshing current page: {_currentPageType?.Name ?? "unknown"}");
+
+            if (_currentPageType == typeof(MainPage))
+            {
+                InitializeMainPage();
+            }
+            else if (_currentPageType == typeof(ScalingPage))
+            {
+                _scalingPage?.Initialize();
+            }
+            else if (_currentPageType == typeof(FanCurvePage))
+            {
+                _fanCurvePage?.Initialize();
+            }
+            else if (_currentPageType == typeof(SettingsPage))
+            {
+                InitializeSettingsPage();
             }
         }
 
@@ -491,16 +539,27 @@ namespace HUDRA
                 _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService);
                 _mainPageInitialized = true;
 
-                // Set up TDP change tracking for the first time
-                _mainPage.TdpPicker.TdpChanged += (s, value) =>
+                // Set up TDP change tracking (store handler to prevent duplicate subscriptions)
+                _tdpChangedHandler = (s, value) =>
                 {
                     _currentTdpValue = value;
                     System.Diagnostics.Debug.WriteLine($"Main TDP changed to: {value}");
+
+                    // Track if user manually changed TDP while a profile is active
+                    if (_gameProfileService?.IsProfileActive == true)
+                    {
+                        _userOverrodeTdpDuringProfile = true;
+                        System.Diagnostics.Debug.WriteLine($"User overrode profile TDP - manual change to {value}W");
+                    }
                 };
+                _mainPage.TdpPicker.TdpChanged += _tdpChangedHandler;
 
                 // Store the initial TDP value after initialization completes
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
+                    // Apply Default Profile on startup if configured
+                    _ = ApplyDefaultProfileOnStartupAsync();
+
                     _currentTdpValue = _mainPage.TdpPicker.SelectedTdp;
                     System.Diagnostics.Debug.WriteLine($"Initial TDP value stored: {_currentTdpValue}");
 
@@ -509,40 +568,66 @@ namespace HUDRA
 
                     // Auto-start RTSS if enabled
                     _ = StartRtssIfEnabledAsync();
-                    
+
                     // Initialize gamepad navigation for MainPage
                     _gamepadNavigationService.InitializePageNavigation(_mainPage.RootPanel);
                 });
             }
             else
             {
-                // Subsequent visits - preserve current TDP value
+                // Subsequent visits - preserve current TDP value OR use active game profile TDP
 
-                // Ensure we have a valid TDP value to preserve
-                if (_currentTdpValue < HudraSettings.MIN_TDP || _currentTdpValue > HudraSettings.MAX_TDP)
+                // Check if a game profile is active with TDP set
+                int targetTdp = _currentTdpValue;
+                var profileTdp = GetActiveProfileTdp();
+                bool isProfileTdp = profileTdp.HasValue;
+
+                if (isProfileTdp)
                 {
-                    // Fallback to determining the correct TDP using startup logic
-                    if (SettingsService.GetUseStartupTdp())
+                    targetTdp = profileTdp.Value;
+                    System.Diagnostics.Debug.WriteLine($"Using active game profile TDP: {targetTdp}W");
+                }
+                else if (_userOverrodeTdpDuringProfile)
+                {
+                    System.Diagnostics.Debug.WriteLine($"User overrode profile TDP, using current value: {_currentTdpValue}W");
+                }
+
+                // Ensure we have a valid TDP value to preserve (only if not using profile TDP)
+                if (!isProfileTdp && (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP))
+                {
+                    // Fallback to determining the correct TDP - try Default Profile first
+                    var defaultProfile = SettingsService.GetDefaultProfile();
+                    if (defaultProfile?.TdpWatts > 0)
                     {
-                        _currentTdpValue = SettingsService.GetStartupTdp();
+                        targetTdp = defaultProfile.TdpWatts;
                     }
                     else
                     {
-                        _currentTdpValue = SettingsService.GetLastUsedTdp();
-                        if (_currentTdpValue < HudraSettings.MIN_TDP || _currentTdpValue > HudraSettings.MAX_TDP)
+                        // Fall back to last used TDP or default
+                        targetTdp = SettingsService.GetLastUsedTdp();
+                        if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
                         {
-                            _currentTdpValue = HudraSettings.DEFAULT_STARTUP_TDP;
+                            targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;
                         }
                     }
-                    System.Diagnostics.Debug.WriteLine($"Corrected TDP value to: {_currentTdpValue}");
+                    System.Diagnostics.Debug.WriteLine($"Corrected TDP value to: {targetTdp}");
                 }
 
                 // Initialize with preserved value flag
                 _mainPage.TdpPicker.ResetScrollPositioning();
                 _mainPage.TdpPicker.Initialize(_dpiService, autoSetEnabled: true, preserveCurrentValue: true);
 
-                // CRITICAL: Set the TDP value AFTER initialization but BEFORE other controls
-                _mainPage.TdpPicker.SelectedTdp = _currentTdpValue;
+                // Set the TDP value - use SyncToCurrentTdp for profile TDP to avoid hardware changes
+                if (isProfileTdp)
+                {
+                    _mainPage.TdpPicker.SyncToCurrentTdp(targetTdp);
+                    // Also update the TDP monitor target
+                    _tdpMonitor?.UpdateTargetTdp(targetTdp);
+                }
+                else
+                {
+                    _mainPage.TdpPicker.SelectedTdp = targetTdp;
+                }
 
                 // Initialize other controls
                 _mainPage.ResolutionPicker.Initialize();
@@ -554,16 +639,27 @@ namespace HUDRA
 
                 // Refresh FPS limiter on subsequent visits
                 _ = InitializeFpsLimiterAsync();
+
+                // Sync FPS limit if a profile is active with FPS limit set
+                if (_gameProfileService?.IsProfileActive == true && _activeProfileFpsLimit > 0)
+                {
+                    // Wait for InitializeFpsLimiterAsync to complete before syncing
+                    DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                    {
+                        _mainPage?.FpsLimiter?.SyncToFpsLimit(_activeProfileFpsLimit);
+                        System.Diagnostics.Debug.WriteLine($"Synced FPS limiter to active profile value on navigation: {_activeProfileFpsLimit}");
+                    });
+                }
                 
                 // Re-initialize gamepad navigation for MainPage
                 _gamepadNavigationService.InitializePageNavigation(_mainPage.RootPanel);
 
-                // Re-establish TDP change tracking
-                _mainPage.TdpPicker.TdpChanged += (s, value) =>
+                // Re-establish TDP change tracking (unsubscribe first to prevent duplicates)
+                if (_tdpChangedHandler != null)
                 {
-                    _currentTdpValue = value;
-                    System.Diagnostics.Debug.WriteLine($"Main TDP changed to: {value}");
-                };
+                    _mainPage.TdpPicker.TdpChanged -= _tdpChangedHandler;
+                    _mainPage.TdpPicker.TdpChanged += _tdpChangedHandler;
+                }
 
                 // Ensure scroll positioning to the correct value
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
@@ -1163,6 +1259,24 @@ namespace HUDRA
             }
         }
 
+        public void StartTdpMonitor()
+        {
+            if (_tdpMonitor == null) return;
+
+            if (_mainPage?.TdpPicker?.SelectedTdp > 0)
+            {
+                _tdpMonitor.UpdateTargetTdp(_mainPage.TdpPicker.SelectedTdp);
+            }
+            _tdpMonitor.Start();
+            System.Diagnostics.Debug.WriteLine("TDP Monitor started via Sticky TDP toggle");
+        }
+
+        public void StopTdpMonitor()
+        {
+            _tdpMonitor?.Stop();
+            System.Diagnostics.Debug.WriteLine("TDP Monitor stopped via Sticky TDP toggle");
+        }
+
         private void SetupTdpMonitor()
         {
             if (_tdpMonitor == null || _mainPage == null) return;
@@ -1332,6 +1446,91 @@ namespace HUDRA
             }
         }
 
+        private async void GameProfileRevert_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_gameProfileService == null) return;
+
+                // Check if a saved Default Profile exists BEFORE reverting
+                bool hasDefaultProfile = SettingsService.GetDefaultProfile() != null;
+
+                // Get the stored defaults BEFORE reverting (revert will clear them)
+                var storedDefaults = _gameProfileService.StoredSystemDefaults;
+
+                var success = await _gameProfileService.RevertToDefaultsAsync();
+
+                if (success && storedDefaults != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Settings reverted successfully via InfoBar");
+
+                    // Sync the Home page UI BEFORE hiding the infobar so user sees updated values
+                    // Sync TDP picker
+                    if (storedDefaults.TdpWatts > 0)
+                    {
+                        _mainPage?.TdpPicker?.SyncToCurrentTdp(storedDefaults.TdpWatts);
+                        _tdpMonitor?.UpdateTargetTdp(storedDefaults.TdpWatts);
+                        _currentTdpValue = storedDefaults.TdpWatts;
+                    }
+
+                    // Sync FPS limiter
+                    _mainPage?.FpsLimiter?.SyncToFpsLimit(storedDefaults.FpsLimit);
+
+                    // Refresh the current page to reflect reverted settings
+                    RefreshCurrentPage();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to revert settings or no defaults available");
+                }
+
+                // Hide the profile bar immediately
+                IsGameProfileActive = false;
+                GameProfileTitle = string.Empty;
+
+                // Clear the stored profile FPS limit
+                _activeProfileFpsLimit = -1;
+
+                // Reset the TDP override flag
+                _userOverrodeTdpDuringProfile = false;
+
+                // Show revert notification (fire and forget - don't block on auto-close timer)
+                if (success && storedDefaults != null)
+                {
+                    _ = ShowRevertNotificationAsync(hasDefaultProfile);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reverting game profile: {ex.Message}");
+            }
+        }
+
+        private void GameProfileDismiss_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                // User clicked dismiss - keep current settings, clear profile state
+                _gameProfileService?.ClearProfileState();
+
+                // Clear internal state
+                IsGameProfileActive = false;
+                GameProfileTitle = string.Empty;
+
+                // Clear the stored profile FPS limit
+                _activeProfileFpsLimit = -1;
+
+                // Reset the TDP override flag
+                _userOverrodeTdpDuringProfile = false;
+
+                System.Diagnostics.Debug.WriteLine("User dismissed game profile bar - keeping current settings");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error dismissing game profile bar: {ex.Message}");
+            }
+        }
+
         public void ToggleWindowVisibility()
         {
             // Gamepad input is now blocked when window is hidden (via visibility check in ProcessGamepadInput),
@@ -1485,6 +1684,20 @@ namespace HUDRA
                 // Initialize game database for GameSettingsPage
                 _gameDatabase = _enhancedGameDetectionService.Database;
 
+                // Initialize GameProfileService for per-game profiles
+                if (_gameDatabase != null)
+                {
+                    var amdService = new AmdAdlxService();
+                    var fanControlService = (Application.Current as App)?.FanControlService;
+                    _gameProfileService = new GameProfileService(
+                        _resolutionService,
+                        _fpsLimiterService,
+                        amdService,
+                        fanControlService,
+                        _hdrService,
+                        _gameDatabase);
+                }
+
                 // Initialize artwork service with user's API key (if configured)
                 await InitializeArtworkServiceAsync();
 
@@ -1552,7 +1765,7 @@ namespace HUDRA
             await InitializeArtworkServiceAsync();
         }
 
-        private void OnGameDetected(object? sender, GameInfo? gameInfo)
+        private async void OnGameDetected(object? sender, GameInfo? gameInfo)
         {
             if (gameInfo == null) return;
 
@@ -1588,6 +1801,9 @@ namespace HUDRA
 
                 // Update Lossless Scaling tooltip with game name
                 UpdateLosslessScalingTooltip();
+
+                // Apply per-game profile if configured (pass gameName for InfoBar display)
+                await ApplyGameProfileAsync(gameInfo.ProcessName, gameName);
             }
             catch (Exception ex)
             {
@@ -1596,7 +1812,7 @@ namespace HUDRA
 
         }
 
-        private void OnGameStopped(object? sender, EventArgs e)
+        private async void OnGameStopped(object? sender, EventArgs e)
         {
             try
             {
@@ -1615,14 +1831,232 @@ namespace HUDRA
                 if (_mainPage?.FpsLimiter != null)
                 {
                     _mainPage.FpsLimiter.IsGameRunning = false;
-
                 }
+
+                // Check if auto-revert is enabled for the active profile
+                if (_gameProfileService?.IsProfileActive == true)
+                {
+                    var activeProcess = _gameProfileService.ActiveProfileProcessName;
+                    if (!string.IsNullOrEmpty(activeProcess))
+                    {
+                        var profile = _gameProfileService.GetProfileForGame(activeProcess);
+                        if (profile?.AutoRevertOnClose == true)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"Auto-reverting profile for {activeProcess}");
+                            await AutoRevertProfileAsync();
+                            return;
+                        }
+                    }
+                }
+
+                // If auto-revert not enabled, the profile bar persists until user explicitly dismisses or reverts
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error handling game stopped: {ex.Message}");
             }
+        }
 
+        /// <summary>
+        /// Automatically reverts the profile to defaults (called when AutoRevertOnClose is enabled).
+        /// </summary>
+        private async Task AutoRevertProfileAsync()
+        {
+            if (_gameProfileService == null) return;
+
+            try
+            {
+                // Check if a saved Default Profile exists BEFORE reverting
+                bool hasDefaultProfile = SettingsService.GetDefaultProfile() != null;
+
+                // Get the stored defaults BEFORE reverting (revert will clear them)
+                var storedDefaults = _gameProfileService.StoredSystemDefaults;
+
+                var success = await _gameProfileService.RevertToDefaultsAsync();
+
+                if (success && storedDefaults != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("Settings auto-reverted successfully");
+
+                    // Sync the Home page UI BEFORE hiding the infobar so user sees updated values
+                    // Sync TDP picker
+                    if (storedDefaults.TdpWatts > 0)
+                    {
+                        _mainPage?.TdpPicker?.SyncToCurrentTdp(storedDefaults.TdpWatts);
+                        _tdpMonitor?.UpdateTargetTdp(storedDefaults.TdpWatts);
+                        _currentTdpValue = storedDefaults.TdpWatts;
+                    }
+
+                    // Sync FPS limiter
+                    _mainPage?.FpsLimiter?.SyncToFpsLimit(storedDefaults.FpsLimit);
+
+                    // Refresh the current page to reflect reverted settings
+                    RefreshCurrentPage();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine("Failed to auto-revert settings or no defaults available");
+                }
+
+                // Hide the profile bar immediately
+                IsGameProfileActive = false;
+                GameProfileTitle = string.Empty;
+
+                // Clear the stored profile FPS limit
+                _activeProfileFpsLimit = -1;
+
+                // Reset the TDP override flag
+                _userOverrodeTdpDuringProfile = false;
+
+                // Show revert notification (fire and forget - don't block on auto-close timer)
+                if (success && storedDefaults != null)
+                {
+                    _ = ShowRevertNotificationAsync(hasDefaultProfile);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error auto-reverting game profile: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Shows a brief notification that settings were reverted.
+        /// </summary>
+        /// <param name="hasDefaultProfile">True if reverted to saved Default Profile, false if reverted to last known settings.</param>
+        private async Task ShowRevertNotificationAsync(bool hasDefaultProfile)
+        {
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                // Set appropriate message based on whether a Default Profile exists
+                RevertNotificationDescription.Text = hasDefaultProfile
+                    ? "Reverted to your Default Profile settings."
+                    : "Save a Default Profile in Settings for more control.";
+
+                RevertNotificationBar.Visibility = Visibility.Visible;
+            });
+
+            // Auto-close after 10 seconds
+            await Task.Delay(10000);
+
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RevertNotificationBar.Visibility = Visibility.Collapsed;
+            });
+        }
+
+        private void RevertNotificationBar_Dismiss_Click(object sender, RoutedEventArgs e)
+        {
+            RevertNotificationBar.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Gets the TDP from the active game profile, if any.
+        /// Returns null if no profile is active, user overrode the TDP, or profile has no TDP set.
+        /// </summary>
+        private int? GetActiveProfileTdp()
+        {
+            if (_gameProfileService?.IsProfileActive != true || _userOverrodeTdpDuringProfile)
+                return null;
+
+            var activeProcess = _gameProfileService.ActiveProfileProcessName;
+            if (string.IsNullOrEmpty(activeProcess))
+                return null;
+
+            var profile = _gameProfileService.GetProfileForGame(activeProcess);
+            if (profile?.TdpWatts > 0)
+                return profile.TdpWatts;
+
+            return null;
+        }
+
+        /// <summary>
+        /// Applies a per-game profile for the specified process name.
+        /// Called directly from Library page when launching a game (for immediate application)
+        /// and from game detection service (for games launched externally).
+        /// </summary>
+        /// <param name="processName">The process name of the game</param>
+        /// <param name="displayName">Optional display name for the InfoBar (falls back to database lookup or processName)</param>
+        /// <returns>True if a profile was found and applied, false otherwise</returns>
+        public async Task<bool> ApplyGameProfileAsync(string processName, string? displayName = null)
+        {
+            if (_gameProfileService == null) return false;
+
+            try
+            {
+                var profile = _gameProfileService.GetProfileForGame(processName);
+                if (profile == null || !profile.HasProfile || !profile.HasAnySettingsConfigured)
+                {
+                    System.Diagnostics.Debug.WriteLine($"No profile configured for {processName}");
+                    return false;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"Applying profile for {processName}");
+
+                // Reset the override flag when applying a new profile
+                _userOverrodeTdpDuringProfile = false;
+
+                // Store the profile FPS limit for sync when navigating to Home page
+                _activeProfileFpsLimit = profile.FpsLimit;
+
+                // Get display name for InfoBar (use provided name or fall back to processName)
+                string gameName = !string.IsNullOrEmpty(displayName) ? displayName : processName;
+
+                // Truncate game name if over 15 characters, trimming trailing spaces before ellipsis
+                if (gameName.Length > 15)
+                {
+                    gameName = gameName.Substring(0, 15).TrimEnd() + "...";
+                }
+
+                // Show the active profile InfoBar
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    GameProfileTitle = $"Profile:\n{gameName}";
+                    IsGameProfileActive = true;
+                });
+
+                // Sync UI IMMEDIATELY before applying hardware settings
+                // This gives instant visual feedback while hardware settings apply
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    // Sync TDP UI if set
+                    if (profile.TdpWatts > 0)
+                    {
+                        // Update TDP monitor target to prevent "drift correction" fighting the profile
+                        _tdpMonitor?.UpdateTargetTdp(profile.TdpWatts);
+                        System.Diagnostics.Debug.WriteLine($"Pre-synced TDP monitor target to profile TDP: {profile.TdpWatts}W");
+
+                        // Sync the UI picker immediately
+                        _mainPage?.TdpPicker?.SyncToCurrentTdp(profile.TdpWatts);
+                    }
+
+                    // Sync FPS Limit UI if the home page is available
+                    if (_mainPage?.FpsLimiter != null && profile.FpsLimit > 0)
+                    {
+                        _mainPage.FpsLimiter.SyncToFpsLimit(profile.FpsLimit);
+                        System.Diagnostics.Debug.WriteLine($"Pre-synced FPS limiter to profile value: {profile.FpsLimit}");
+                    }
+                });
+
+                // NOW apply actual hardware settings (TDP includes verification delays)
+                var result = await _gameProfileService.ApplyProfileAsync(processName, profile);
+
+                if (result.OverallSuccess)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Profile applied successfully for {processName}");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Profile applied with errors for {processName}: {string.Join(", ", result.Errors)}");
+                }
+
+                return true; // Profile was found and application was attempted
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying game profile: {ex.Message}");
+                return false;
+            }
         }
 
         private void UpdateAltTabButtonToGameIcon()
@@ -1937,6 +2371,150 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to auto-start RTSS: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Applies the saved Default Profile settings on app startup.
+        /// </summary>
+        private async Task ApplyDefaultProfileOnStartupAsync()
+        {
+            var defaultProfile = SettingsService.GetDefaultProfile();
+            if (defaultProfile == null)
+            {
+                System.Diagnostics.Debug.WriteLine("No Default Profile saved - skipping startup application");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine("Applying Default Profile on startup...");
+
+            try
+            {
+                // Apply TDP
+                if (defaultProfile.TdpWatts > 0 && _mainPage?.TdpPicker != null)
+                {
+                    _mainPage.TdpPicker.SelectedTdp = defaultProfile.TdpWatts;
+                    _currentTdpValue = defaultProfile.TdpWatts;
+                    System.Diagnostics.Debug.WriteLine($"  TDP: {defaultProfile.TdpWatts}W - OK");
+                }
+
+                // Apply Sticky TDP
+                try
+                {
+                    SettingsService.SetTdpCorrectionEnabled(defaultProfile.StickyTdpEnabled);
+                    // Update TDP monitor state
+                    if (defaultProfile.StickyTdpEnabled)
+                    {
+                        _tdpMonitor?.Start();
+                    }
+                    else
+                    {
+                        _tdpMonitor?.Stop();
+                    }
+                    // Update the toggle UI if MainPage is loaded
+                    _mainPage?.StickyTdpToggle?.UpdateToggleState(defaultProfile.StickyTdpEnabled);
+                    System.Diagnostics.Debug.WriteLine($"  Sticky TDP: {(defaultProfile.StickyTdpEnabled ? "Enabled" : "Disabled")} - OK");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"  Sticky TDP failed: {ex.Message}");
+                }
+
+                // Note: Resolution/Refresh Rate are NOT applied on startup to avoid window rendering issues.
+                // They are still saved in the Default Profile and used when reverting after games exit.
+
+                // Apply FPS Limit
+                if (defaultProfile.FpsLimit > 0)
+                {
+                    await _fpsLimiterService.SetGlobalFpsLimitAsync(defaultProfile.FpsLimit);
+                    System.Diagnostics.Debug.WriteLine($"  FPS Limit: {defaultProfile.FpsLimit} - OK");
+                }
+                else if (defaultProfile.FpsLimit == 0)
+                {
+                    await _fpsLimiterService.DisableGlobalFpsLimitAsync();
+                    System.Diagnostics.Debug.WriteLine("  FPS Limit: Unlimited - OK");
+                }
+
+                // Apply AMD features (RSR, AFMF, Anti-Lag)
+                var amdService = new AmdAdlxService();
+                if (amdService.IsAmdGpuAvailable())
+                {
+                    try
+                    {
+                        await amdService.SetRsrEnabledAsync(defaultProfile.RsrEnabled, defaultProfile.RsrSharpness);
+                        System.Diagnostics.Debug.WriteLine($"  RSR: {(defaultProfile.RsrEnabled ? "Enabled" : "Disabled")} - OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  RSR failed: {ex.Message}");
+                    }
+
+                    try
+                    {
+                        await amdService.SetAfmfEnabledAsync(defaultProfile.AfmfEnabled);
+                        System.Diagnostics.Debug.WriteLine($"  AFMF: {(defaultProfile.AfmfEnabled ? "Enabled" : "Disabled")} - OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  AFMF failed: {ex.Message}");
+                    }
+
+                    try
+                    {
+                        await amdService.SetAntiLagEnabledAsync(defaultProfile.AntiLagEnabled);
+                        System.Diagnostics.Debug.WriteLine($"  Anti-Lag: {(defaultProfile.AntiLagEnabled ? "Enabled" : "Disabled")} - OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  Anti-Lag failed: {ex.Message}");
+                    }
+                }
+
+                // Apply HDR
+                try
+                {
+                    _hdrService.SetHdrEnabled(defaultProfile.HdrEnabled);
+                    System.Diagnostics.Debug.WriteLine($"  HDR: {(defaultProfile.HdrEnabled ? "Enabled" : "Disabled")} - OK");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"  HDR failed: {ex.Message}");
+                }
+
+                // Apply Fan Curve
+                var fanControlService = (Application.Current as App)?.FanControlService;
+                if (fanControlService != null && !string.IsNullOrEmpty(defaultProfile.FanCurvePreset))
+                {
+                    try
+                    {
+                        // Load the preset curve
+                        var preset = FanCurvePreset.AllPresets.FirstOrDefault(p =>
+                            string.Equals(p.Name, defaultProfile.FanCurvePreset, StringComparison.OrdinalIgnoreCase));
+
+                        if (preset != null)
+                        {
+                            var fanCurve = new FanCurve
+                            {
+                                IsEnabled = defaultProfile.FanCurveEnabled,
+                                ActivePreset = preset.Name,
+                                Points = preset.Points
+                            };
+                            SettingsService.SetFanCurve(fanCurve);
+                            SettingsService.SetFanCurveEnabled(defaultProfile.FanCurveEnabled);
+                            System.Diagnostics.Debug.WriteLine($"  Fan Curve: {defaultProfile.FanCurvePreset} ({(defaultProfile.FanCurveEnabled ? "Enabled" : "Disabled")}) - OK");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  Fan Curve failed: {ex.Message}");
+                    }
+                }
+
+                System.Diagnostics.Debug.WriteLine("Default Profile applied on startup");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying Default Profile on startup: {ex.Message}");
             }
         }
 

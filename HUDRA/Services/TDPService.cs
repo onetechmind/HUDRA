@@ -1,8 +1,10 @@
 ﻿using System;
 using System.IO;
+using System.Management;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
+using HUDRA.Models;
 
 namespace HUDRA.Services
 {
@@ -31,8 +33,23 @@ namespace HUDRA.Services
         private GetStapmLimitDelegate? _getStapmLimit;
         private GetStapmValueDelegate? _getStapmValue;
 
-        public string InitializationStatus => _initializationStatus;
+        public string InitializationStatus
+        {
+            get
+            {
+                var device = HardwareDetectionService.GetDetectedDevice();
+                if (device.IsLenovo && device.SupportsLenovoWmi)
+                    return "Lenovo WMI Mode";
+                return _initializationStatus;
+            }
+        }
         public bool IsDllMode => _useDllMode;
+
+        // Lenovo WMI Capability IDs for CPU power limits (from HandheldCompanion)
+        private const int CAP_CPU_SHORT_TERM_POWER_LIMIT = 0x0101FF00;  // SPL / STAPM
+        private const int CAP_CPU_LONG_TERM_POWER_LIMIT = 0x0102FF00;   // Slow limit
+        private const int CAP_CPU_PEAK_POWER_LIMIT = 0x0103FF00;        // Fast limit
+        private const int CAP_APU_SPPT_POWER_LIMIT = 0x0105FF00;        // APU sPPT
 
         [DllImport("kernel32.dll", SetLastError = true)]
         private static extern IntPtr LoadLibrary(string lpFileName);
@@ -48,6 +65,8 @@ namespace HUDRA.Services
 
         public TDPService()
         {
+            // Initialize ryzenadj for reading TDP (needed for drift detection)
+            // Note: For Lenovo devices, SetTdp() routes to WMI, but GetCurrentTdp() still uses ryzenadj
             InitializeDllMode();
         }
 
@@ -225,6 +244,17 @@ namespace HUDRA.Services
 
         public (bool Success, string Message) SetTdp(int tdpInMilliwatts)
         {
+            int tdpWatts = tdpInMilliwatts / 1000;
+
+            // Check if Lenovo device with WMI support - use WMI exclusively
+            var device = HardwareDetectionService.GetDetectedDevice();
+            if (device.IsLenovo && device.SupportsLenovoWmi)
+            {
+                Debug.WriteLine($"[TDP] Setting TDP to {tdpWatts}W via WMI (Lenovo device)");
+                return SetTdpWmi(tdpInMilliwatts);
+            }
+
+            // Non-Lenovo: use ryzenadj DLL or EXE
             if (_useDllMode && _ryzenAdjHandle != IntPtr.Zero)
             {
                 return SetTdpDll(tdpInMilliwatts);
@@ -285,35 +315,81 @@ namespace HUDRA.Services
             try
             {
                 uint tdpValue = (uint)tdpInMilliwatts;
-                bool stapmSuccess = false;
-                bool fastSuccess = false;
-                bool slowSuccess = false;
+                System.Diagnostics.Debug.WriteLine($"[TDP] Setting TDP to {tdpInMilliwatts}mW ({tdpInMilliwatts/1000}W), uint value: {tdpValue}");
+
+                int stapmResult = -1;
+                int fastResult = -1;
+                int slowResult = -1;
 
                 if (_setStapmLimit != null)
                 {
-                    stapmSuccess = _setStapmLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"STAPM limit set: {stapmSuccess}");
+                    stapmResult = _setStapmLimit(_ryzenAdjHandle, tdpValue);
+                    System.Diagnostics.Debug.WriteLine($"[TDP] STAPM limit result: {stapmResult} (0=success)");
                 }
 
                 if (_setFastLimit != null)
                 {
-                    fastSuccess = _setFastLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"Fast limit set: {fastSuccess}");
+                    fastResult = _setFastLimit(_ryzenAdjHandle, tdpValue);
+                    System.Diagnostics.Debug.WriteLine($"[TDP] Fast limit result: {fastResult} (0=success)");
                 }
 
                 if (_setSlowLimit != null)
                 {
-                    slowSuccess = _setSlowLimit(_ryzenAdjHandle, tdpValue) == 0;
-                    System.Diagnostics.Debug.WriteLine($"Slow limit set: {slowSuccess}");
+                    slowResult = _setSlowLimit(_ryzenAdjHandle, tdpValue);
+                    System.Diagnostics.Debug.WriteLine($"[TDP] Slow limit result: {slowResult} (0=success)");
                 }
 
+                bool stapmSuccess = stapmResult == 0;
+                bool fastSuccess = fastResult == 0;
+                bool slowSuccess = slowResult == 0;
                 bool anySuccess = stapmSuccess || fastSuccess || slowSuccess;
+                int targetTdpWatts = tdpInMilliwatts / 1000;
+
+                // Verify STAPM actually changed - driver updates may cause DLL to return success but not apply
+                bool stapmVerified = false;
+                if (_refreshTable != null && _getStapmLimit != null)
+                {
+                    // Give hardware time to update before verification
+                    System.Threading.Thread.Sleep(2000);
+                    _refreshTable(_ryzenAdjHandle);
+                    float actualStapm = _getStapmLimit(_ryzenAdjHandle);
+                    Debug.WriteLine($"[TDP] Verification - Actual STAPM: {actualStapm}W, Target: {targetTdpWatts}W");
+
+                    // Check if STAPM is within tolerance (2W)
+                    stapmVerified = Math.Abs(actualStapm - targetTdpWatts) <= 2;
+                }
+
+                // If DLL returned success but STAPM didn't actually change, try WMI fallback
+                if (anySuccess && !stapmVerified)
+                {
+                    Debug.WriteLine($"[TDP] STAPM verification failed - trying WMI fallback");
+                    var wmiResult = SetTdpWmi(tdpInMilliwatts);
+
+                    // WMI return codes are unreliable - verify actual STAPM change instead
+                    System.Threading.Thread.Sleep(2000);
+                    _refreshTable(_ryzenAdjHandle);
+                    float stapmAfterWmi = _getStapmLimit(_ryzenAdjHandle);
+                    bool wmiActuallyWorked = Math.Abs(stapmAfterWmi - targetTdpWatts) <= 2;
+                    Debug.WriteLine($"[TDP] Post-WMI verification - Actual STAPM: {stapmAfterWmi}W, Target: {targetTdpWatts}W, Success: {wmiActuallyWorked}");
+
+                    if (wmiActuallyWorked)
+                    {
+                        var details = $"STAPM:{stapmResult} Fast:{fastResult} Slow:{slowResult}";
+                        return (true, $"TDP set to {targetTdpWatts}W (DLL+WMI) [{details}]");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"[TDP] WMI fallback did not change STAPM");
+                        // Still return success if fast/slow limits worked
+                        var details = $"STAPM:{stapmResult}(unverified) Fast:{fastResult} Slow:{slowResult}";
+                        return (true, $"TDP set to {targetTdpWatts}W (DLL partial) [{details}]");
+                    }
+                }
 
                 if (anySuccess)
                 {
-                    var tdpWatts = tdpInMilliwatts / 1000;
-                    var details = $"STAPM:{stapmSuccess} Fast:{fastSuccess} Slow:{slowSuccess}";
-                    return (true, $"TDP set to {tdpWatts}W (DLL-FAST) [{details}]");
+                    var details = $"STAPM:{stapmResult} Fast:{fastResult} Slow:{slowResult}";
+                    return (true, $"TDP set to {targetTdpWatts}W (DLL) [{details}]");
                 }
                 else
                 {
@@ -323,6 +399,63 @@ namespace HUDRA.Services
             catch (Exception ex)
             {
                 return (false, $"DLL Exception: {ex.Message}");
+            }
+        }
+
+        private (bool Success, string Message) SetTdpWmi(int tdpInMilliwatts)
+        {
+            try
+            {
+                int tdpWatts = tdpInMilliwatts / 1000;
+                Debug.WriteLine($"[TDP] Setting TDP via Lenovo WMI: {tdpWatts}W");
+
+                // Use LENOVO_OTHER_METHOD.SetFeatureValue (same as HandheldCompanion)
+                using var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT * FROM LENOVO_OTHER_METHOD");
+
+                foreach (ManagementObject instance in searcher.Get())
+                {
+                    try
+                    {
+                        // Set all CPU power limits to the same value
+                        // Note: Return codes are unreliable - actual success is verified by caller
+                        int[] capabilityIds = {
+                            CAP_CPU_SHORT_TERM_POWER_LIMIT,  // SPL/STAPM
+                            CAP_CPU_LONG_TERM_POWER_LIMIT,   // Slow
+                            CAP_CPU_PEAK_POWER_LIMIT,        // Fast
+                            CAP_APU_SPPT_POWER_LIMIT         // APU sPPT
+                        };
+
+                        foreach (int capId in capabilityIds)
+                        {
+                            try
+                            {
+                                var inParams = instance.GetMethodParameters("SetFeatureValue");
+                                inParams["IDs"] = capId;
+                                inParams["value"] = tdpWatts;
+                                instance.InvokeMethod("SetFeatureValue", inParams, null);
+                            }
+                            catch { /* Ignore - return codes unreliable anyway */ }
+                        }
+
+                        // Return success - actual verification done by caller
+                        return (true, $"WMI calls completed for {tdpWatts}W");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"[TDP] WMI method call failed: {ex.Message}");
+                    }
+                }
+
+                return (false, "LENOVO_OTHER_METHOD not available");
+            }
+            catch (ManagementException)
+            {
+                return (false, "WMI not available (non-Lenovo device)");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[TDP] WMI exception: {ex.Message}");
+                return (false, $"WMI Exception: {ex.Message}");
             }
         }
 

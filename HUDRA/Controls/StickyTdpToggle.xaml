@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="HUDRA.Controls.StickyTdpToggle"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="2"
+    mc:Ignorable="d">
+
+    <StackPanel Width="280" Spacing="4">
+        <Border
+            x:Name="StickyTdpBorder"
+            Padding="15,10"
+            Background="#22FFFFFF"
+            BorderBrush="{x:Bind FocusBorderBrush, Mode=OneWay}"
+            BorderThickness="2"
+            CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*" />
+                    <ColumnDefinition Width="1*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    FontWeight="SemiBold"
+                    Text="Sticky TDP" />
+
+                <ToggleSwitch
+                    x:Name="StickyToggle"
+                    Grid.Column="1"
+                    MinWidth="0"
+                    VerticalAlignment="Center"
+                    OffContent=""
+                    OnContent=""
+                    Toggled="StickyToggle_Toggled" />
+            </Grid>
+        </Border>
+
+        <TextBlock
+            HorizontalAlignment="Center"
+            FontFamily="Cascadia Code"
+            FontSize="12"
+            Foreground="#99FFFFFF"
+            Text="Prevents TDP from drifting" />
+    </StackPanel>
+</UserControl>

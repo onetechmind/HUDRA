@@ -22,14 +22,14 @@ namespace HUDRA.Pages
         private DpiScalingService? _dpiService;
         private bool _isInitialized = false;
 
-        // Property change callback token for TDP Settings Expander
-        private long _tdpExpanderCallbackToken = 0;
-        
         // Session-only state storage for Expanders
         private static bool _gameDetectionExpanderExpanded = false;
-        private static bool _tdpSettingsExpanderExpanded = false;
+        private static bool _defaultProfileExpanderExpanded = false;
         private static bool _powerProfileExpanderExpanded = false;
         private static bool _startupSettingsExpanderExpanded = false;
+
+        // Reference to GameProfileService for capturing defaults
+        private GameProfileService? _gameProfileService;
 
         public SettingsPage()
         {
@@ -64,26 +64,17 @@ namespace HUDRA.Pages
         {
             // Settings are now loaded within the custom controls themselves
             // Wire up event handlers to the custom controls
-            LoadTdpSettings();
+            LoadDefaultProfileSettings();
             LoadGameDetectionSettings();
             LoadStartupSettings();
             LoadHotkeySettings();
             DiagnoseStartupTask();
         }
 
-        private void LoadTdpSettings()
+        private void LoadDefaultProfileSettings()
         {
-            // TDP settings are handled within TdpSettingsControl
-            if (TdpSettingsControl?.TdpCorrectionToggle != null)
-            {
-                TdpSettingsControl.TdpCorrectionToggle.IsOn = SettingsService.GetTdpCorrectionEnabled();
-                TdpSettingsControl.TdpCorrectionToggle.Toggled += TdpCorrectionToggle_Toggled;
-            }
-            if (TdpSettingsControl?.UseStartupTdpToggle != null)
-            {
-                TdpSettingsControl.UseStartupTdpToggle.IsOn = SettingsService.GetUseStartupTdp();
-                TdpSettingsControl.UseStartupTdpToggle.Toggled += UseStartupTdpToggle_Toggled;
-            }
+            // DefaultProfileControl handles its own loading
+            // Initialize will be called with the GameProfileService later
         }
 
         private void LoadGameDetectionSettings()
@@ -244,19 +235,15 @@ namespace HUDRA.Pages
         }
 
 
-        public void Initialize(DpiScalingService dpiService)
+        public void Initialize(DpiScalingService dpiService, GameProfileService? gameProfileService = null)
         {
-
             _dpiService = dpiService;
+            _gameProfileService = gameProfileService;
 
-            // Initialize the TDP picker with autoSetEnabled=false (settings mode)
-            // This will automatically load and display the startup TDP from settings
-            if (TdpSettingsControl?.StartupTdpPicker != null)
+            // Initialize the DefaultProfileControl with the GameProfileService
+            if (DefaultProfileControl != null)
             {
-                TdpSettingsControl.StartupTdpPicker.Initialize(dpiService, autoSetEnabled: false);
-
-                // Set up change handler
-                TdpSettingsControl.StartupTdpPicker.TdpChanged += StartupTdpPicker_TdpChanged;
+                DefaultProfileControl.Initialize(gameProfileService);
             }
 
             _isInitialized = true;
@@ -270,10 +257,10 @@ namespace HUDRA.Pages
                 GameDetectionExpander.IsExpanded = _gameDetectionExpanderExpanded;
             }
 
-            // Load TDP Settings Expander state
-            if (TdpSettingsExpander != null)
+            // Load Default Profile Expander state
+            if (DefaultProfileExpander != null)
             {
-                TdpSettingsExpander.IsExpanded = _tdpSettingsExpanderExpanded;
+                DefaultProfileExpander.IsExpanded = _defaultProfileExpanderExpanded;
             }
 
             // Load Power Profile Expander state
@@ -288,39 +275,21 @@ namespace HUDRA.Pages
                 StartupSettingsExpander.IsExpanded = _startupSettingsExpanderExpanded;
             }
 
-            // Set up property change monitoring for TDP Settings Expander
-            if (TdpSettingsExpander != null)
-            {
-                _tdpExpanderCallbackToken = TdpSettingsExpander.RegisterPropertyChangedCallback(
-                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty,
-                    OnTdpExpanderStateChanged);
-
-                // Always refresh TDP picker display to ensure correct value is shown
-                RefreshTdpPickerDisplay();
-            }
+            // DefaultProfileControl handles its own summary display
         }
 
         private void SettingsPage_Unloaded(object sender, RoutedEventArgs e)
         {
-            // Clean up property change callback to prevent memory leaks
-            if (TdpSettingsExpander != null && _tdpExpanderCallbackToken != 0)
-            {
-                TdpSettingsExpander.UnregisterPropertyChangedCallback(
-                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty, 
-                    _tdpExpanderCallbackToken);
-                _tdpExpanderCallbackToken = 0;
-            }
-
             // Save Game Detection expander state when leaving the page (session-only)
             if (GameDetectionExpander != null)
             {
                 _gameDetectionExpanderExpanded = GameDetectionExpander.IsExpanded;
             }
 
-            // Save TDP Settings expander state
-            if (TdpSettingsExpander != null)
+            // Save Default Profile expander state
+            if (DefaultProfileExpander != null)
             {
-                _tdpSettingsExpanderExpanded = TdpSettingsExpander.IsExpanded;
+                _defaultProfileExpanderExpanded = DefaultProfileExpander.IsExpanded;
             }
 
             // Save Power Profile expander state
@@ -334,33 +303,6 @@ namespace HUDRA.Pages
             {
                 _startupSettingsExpanderExpanded = StartupSettingsExpander.IsExpanded;
             }
-        }
-
-        private void OnTdpExpanderStateChanged(Microsoft.UI.Xaml.DependencyObject sender, Microsoft.UI.Xaml.DependencyProperty dp)
-        {
-            // Only update TDP picker when expander is expanded (not when collapsed)
-            if (TdpSettingsExpander != null && TdpSettingsExpander.IsExpanded)
-            {
-                RefreshTdpPickerDisplay();
-            }
-        }
-
-        private void RefreshTdpPickerDisplay()
-        {
-            // Ensure the TDP picker displays correctly after expander expansion
-            // This is needed because the control may have been initialized while inside a collapsed expander
-            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
-            {
-                int startupTdp = SettingsService.GetStartupTdp();
-                TdpSettingsControl?.StartupTdpPicker?.SetSelectedTdpWhenReady(startupTdp);
-                TdpSettingsControl?.StartupTdpPicker?.EnsureScrollPositionAfterLayout();
-            });
-        }
-
-        private void SetTdpPickerValue()
-        {
-            int startupTdp = SettingsService.GetStartupTdp();
-            TdpSettingsControl?.StartupTdpPicker?.SetSelectedTdpWhenReady(startupTdp);
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -372,25 +314,16 @@ namespace HUDRA.Pages
         {
             base.OnNavigatedFrom(e);
 
-            // Clean up property change callback to prevent memory leaks
-            if (TdpSettingsExpander != null && _tdpExpanderCallbackToken != 0)
-            {
-                TdpSettingsExpander.UnregisterPropertyChangedCallback(
-                    Microsoft.UI.Xaml.Controls.Expander.IsExpandedProperty, 
-                    _tdpExpanderCallbackToken);
-                _tdpExpanderCallbackToken = 0;
-            }
-
             // Save Game Detection expander state when leaving the page (session-only)
             if (GameDetectionExpander != null)
             {
                 _gameDetectionExpanderExpanded = GameDetectionExpander.IsExpanded;
             }
 
-            // Save TDP Settings expander state
-            if (TdpSettingsExpander != null)
+            // Save Default Profile expander state
+            if (DefaultProfileExpander != null)
             {
-                _tdpSettingsExpanderExpanded = TdpSettingsExpander.IsExpanded;
+                _defaultProfileExpanderExpanded = DefaultProfileExpander.IsExpanded;
             }
 
             // Save Power Profile expander state
@@ -405,61 +338,8 @@ namespace HUDRA.Pages
                 _startupSettingsExpanderExpanded = StartupSettingsExpander.IsExpanded;
             }
 
-            // Cleanup
-            if (_isInitialized && TdpSettingsControl?.StartupTdpPicker != null)
-            {
-                TdpSettingsControl.StartupTdpPicker.TdpChanged -= StartupTdpPicker_TdpChanged;
-                TdpSettingsControl.StartupTdpPicker.Dispose();
-                _isInitialized = false;
-            }
+            _isInitialized = false;
         }
-
-        private void StartupTdpPicker_TdpChanged(object? sender, int value)
-        {
-
-            // Always save the startup TDP when it changes, regardless of toggle state
-            // The toggle controls whether it's used on startup, not whether changes are saved
-            SettingsService.SetStartupTdp(value);
-
-        }
-
-        private void TdpCorrectionToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            var toggle = sender as ToggleSwitch;
-            var isOn = toggle?.IsOn ?? false;
-
-            SettingsService.SetTdpCorrectionEnabled(isOn);
-
-            var monitor = (App.Current as App)?.TdpMonitor;
-            if (monitor != null)
-            {
-                if (isOn)
-                    monitor.Start();
-                else
-                    monitor.Stop();
-            }
-        }
-
-        private void UseStartupTdpToggle_Toggled(object sender, RoutedEventArgs e)
-        {
-            var toggle = sender as ToggleSwitch;
-            var isOn = toggle?.IsOn ?? false;
-
-            SettingsService.SetUseStartupTdp(isOn);
-            UpdateStartupTdpEnabledState();
-        }
-
-        private void UpdateStartupTdpEnabledState()
-        {
-            bool enable = TdpSettingsControl?.UseStartupTdpToggle?.IsOn ?? false;
-
-            if (TdpSettingsControl?.StartupTdpPicker != null)
-            {
-                TdpSettingsControl.StartupTdpPicker.IsEnabled = enable;
-                TdpSettingsControl.StartupTdpPicker.Opacity = enable ? 1.0 : 0.5;
-            }
-        }
-
 
         // Add this temporary method to your SettingsPage.xaml.cs for debugging
         // Make sure you have: using System.IO; at the top of your file
@@ -792,6 +672,14 @@ namespace HUDRA.Pages
                 // Windows version
                 debugInfo.AppendLine($"OS: {Environment.OSVersion}");
                 debugInfo.AppendLine($"64-bit OS: {Environment.Is64BitOperatingSystem}");
+
+                // Device info from centralized detection
+                var device = HardwareDetectionService.GetDetectedDevice();
+                debugInfo.AppendLine($"Device: {device.Manufacturer} {device.DeviceName}");
+                debugInfo.AppendLine($"Raw Manufacturer: {device.RawManufacturer}");
+                debugInfo.AppendLine($"Raw Model: {device.RawModel}");
+                debugInfo.AppendLine($"Fan Control Supported: {device.SupportsFanControl}");
+                debugInfo.AppendLine($"Lenovo WMI Available: {device.SupportsLenovoWmi}");
 
                 // Admin status
                 bool isAdmin = StartupService.IsRunningAsAdmin();

@@ -401,6 +401,19 @@ namespace HUDRA.Pages
                     overlay.Visibility = Visibility.Visible;
                 }
 
+                // Apply per-game profile IMMEDIATELY before launching
+                // This ensures settings are applied right away instead of waiting for detection
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var profileApplied = await mainWindow.ApplyGameProfileAsync(game.ProcessName, game.DisplayName);
+                    if (profileApplied)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Profile applied for {game.DisplayName} before launch");
+                    }
+                }
+
                 // Launch the game
                 bool success = _gameLauncherService?.LaunchGame(game) ?? false;
 

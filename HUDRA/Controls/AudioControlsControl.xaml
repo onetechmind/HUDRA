@@ -9,7 +9,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     ap:GamepadNavigation.IsEnabled="True"
-    ap:GamepadNavigation.NavigationOrder="4"
+    ap:GamepadNavigation.NavigationOrder="5"
     ap:GamepadNavigation.NavigationGroup="MainControls">
 
     <Grid Width="280" Margin="0">

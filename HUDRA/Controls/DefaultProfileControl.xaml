@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="HUDRA.Controls.DefaultProfileControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:ap="using:HUDRA.AttachedProperties"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    ap:GamepadNavigation.IsEnabled="True"
+    ap:GamepadNavigation.NavigationGroup="MainControls"
+    ap:GamepadNavigation.NavigationOrder="1"
+    mc:Ignorable="d">
+
+    <StackPanel
+        Margin="0,10,0,10"
+        Padding="10"
+        Spacing="10">
+
+        <!--  No Defaults Message  -->
+        <TextBlock
+            x:Name="NoDefaultsMessage"
+            HorizontalAlignment="Center"
+            FontFamily="Cascadia Code"
+            FontSize="14"
+            Foreground="#FFFFFF"
+            Text="No Default Profile saved."
+            Visibility="Visible" />
+
+        <!--  Default Profile Grid  -->
+        <StackPanel
+            x:Name="DefaultProfileGrid"
+            Spacing="8"
+            Visibility="Collapsed">
+
+            <!--  TDP Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xE945;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="TDP" />
+                <TextBlock
+                    x:Name="DefaultTdpValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+
+            <!--  Resolution Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xE7F4;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="Resolution" />
+                <TextBlock
+                    x:Name="DefaultResolutionValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+
+            <!--  Refresh Rate Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xE916;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="Refresh Rate" />
+                <TextBlock
+                    x:Name="DefaultRefreshRateValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+
+            <!--  FPS Limit Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xEC4A;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="FPS Limit" />
+                <TextBlock
+                    x:Name="DefaultFpsLimitValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+
+            <!--  AMD Features Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xE7F7;" />
+                <StackPanel
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="8">
+                    <Border
+                        x:Name="RsrBadge"
+                        Padding="6"
+                        Background="#333333"
+                        CornerRadius="4">
+                        <TextBlock
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            Foreground="#888888"
+                            Text="RSR" />
+                    </Border>
+                    <Border
+                        x:Name="AfmfBadge"
+                        Padding="6"
+                        Background="#333333"
+                        CornerRadius="4">
+                        <TextBlock
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            Foreground="#888888"
+                            Text="AFMF" />
+                    </Border>
+                    <Border
+                        x:Name="AntiLagBadge"
+                        Padding="6"
+                        Background="#333333"
+                        CornerRadius="4">
+                        <TextBlock
+                            FontFamily="Cascadia Code"
+                            FontSize="14"
+                            Foreground="#888888"
+                            Text="Anti-Lag" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+
+            <!--  Fan Curve Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xEC49;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="Fan Curve" />
+                <TextBlock
+                    x:Name="DefaultFanCurveValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+        </StackPanel>
+
+        <!--  Save/Clear Buttons  -->
+        <StackPanel
+            Margin="0,5,0,0"
+            HorizontalAlignment="Center"
+            Orientation="Horizontal"
+            Spacing="10">
+            <Border
+                x:Name="SaveButtonBorder"
+                BorderBrush="{x:Bind SaveButtonFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="4">
+                <Button
+                    x:Name="SaveDefaultsButton"
+                    Width="120"
+                    Height="40"
+                    Click="SaveDefaultsButton_Click"
+                    Content="Save Defaults" />
+            </Border>
+            <Border
+                x:Name="ClearButtonBorder"
+                BorderBrush="{x:Bind ClearButtonFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="4"
+                Visibility="{x:Bind ClearButtonVisibility, Mode=OneWay}">
+                <Button
+                    x:Name="ClearDefaultsButton"
+                    Width="120"
+                    Height="40"
+                    Click="ClearDefaultsButton_Click"
+                    Content="Clear Defaults" />
+            </Border>
+        </StackPanel>
+
+        <!--  Description  -->
+        <TextBlock
+            HorizontalAlignment="Center"
+            FontFamily="Calibri"
+            FontSize="14"
+            Foreground="#99FFFFFF"
+            Text="Saves current settings as your Default Profile. Applied when HUDRA starts and when reverting from a per-game profile."
+            TextAlignment="Center"
+            TextWrapping="Wrap" />
+    </StackPanel>
+</UserControl>

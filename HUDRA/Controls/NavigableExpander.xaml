@@ -15,6 +15,7 @@
         <Expander x:Name="InnerExpander"
                   HorizontalAlignment="Stretch"
                   Padding="0"
+                  IsTabStop="False"
                   IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}">
             <Expander.Header>
                 <ContentPresenter Content="{x:Bind Header, Mode=OneWay}"/>

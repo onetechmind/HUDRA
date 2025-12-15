@@ -231,18 +231,25 @@ namespace HUDRA
                 int targetTdp;
                 string statusReason;
 
-                // Priority 1: Default TDP if toggle is enabled
-                if (SettingsService.GetUseStartupTdp())
+                // Priority 1: Default Profile TDP (if saved)
+                var defaultProfile = SettingsService.GetDefaultProfile();
+                if (defaultProfile?.TdpWatts > 0)
+                {
+                    targetTdp = defaultProfile.TdpWatts;
+                    statusReason = "using Default Profile TDP";
+                }
+                // Priority 2: Default TDP if toggle is enabled (legacy setting)
+                else if (SettingsService.GetUseStartupTdp())
                 {
                     targetTdp = SettingsService.GetStartupTdp();
                     statusReason = "using default TDP from settings";
                 }
                 else
                 {
-                    // Priority 2: Last-Used TDP if default is disabled
+                    // Priority 3: Last-Used TDP if default is disabled
                     targetTdp = SettingsService.GetLastUsedTdp();
 
-                    // Priority 3: Fallback to 10W if last-used is invalid
+                    // Priority 4: Fallback to 10W if last-used is invalid
                     if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
                     {
                         targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;

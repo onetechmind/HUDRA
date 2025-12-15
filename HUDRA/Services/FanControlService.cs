@@ -1,4 +1,5 @@
 ﻿using HUDRA.Controls;
+using HUDRA.Models;
 using HUDRA.Services.FanControl;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
@@ -38,6 +39,16 @@ namespace HUDRA.Services
         {
             if (_isInitialized)
                 return FanControlResult.SuccessResult("Already initialized");
+
+            // Quick check if fan control is even supported on this device
+            var detectedDevice = HardwareDetectionService.GetDetectedDevice();
+            if (!detectedDevice.SupportsFanControl)
+            {
+                var message = $"Device ({detectedDevice.Manufacturer} {detectedDevice.DeviceName}) doesn't support fan control";
+                Debug.WriteLine($"FanControlService: {message}");
+                DeviceStatusChanged?.Invoke(this, message);
+                return FanControlResult.FailureResult(message);
+            }
 
             try
             {

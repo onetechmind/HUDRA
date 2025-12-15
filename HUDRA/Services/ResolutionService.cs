@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
 
 namespace HUDRA.Services
 {
@@ -149,10 +150,10 @@ namespace HUDRA.Services
                 modeIndex++;
             }
 
-            // Return sorted by resolution (width first, then height)
+            // Return sorted by resolution (width desc for handhelds - native res first)
             return resolutions
-                .OrderBy(r => r.Width)
-                .ThenBy(r => r.Height)
+                .OrderByDescending(r => r.Width)
+                .ThenByDescending(r => r.Height)
                 .ThenByDescending(r => r.RefreshRate)
                 .ToList();
         }
@@ -204,28 +205,152 @@ namespace HUDRA.Services
             }
         }
 
+        /// <summary>
+        /// Gets refresh rates from the monitor's EDID - these are the actual hardware-supported rates.
+        /// </summary>
+        private HashSet<int> GetEdidRefreshRates()
+        {
+            var edidRates = new HashSet<int>();
+
+            try
+            {
+                // Search for EDID in the registry under DISPLAY devices
+                using var displayKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Enum\DISPLAY");
+                if (displayKey == null) return edidRates;
+
+                foreach (var monitorId in displayKey.GetSubKeyNames())
+                {
+                    using var monitorKey = displayKey.OpenSubKey(monitorId);
+                    if (monitorKey == null) continue;
+
+                    foreach (var instanceId in monitorKey.GetSubKeyNames())
+                    {
+                        using var instanceKey = monitorKey.OpenSubKey(instanceId);
+                        if (instanceKey == null) continue;
+
+                        using var deviceParamsKey = instanceKey.OpenSubKey("Device Parameters");
+                        if (deviceParamsKey == null) continue;
+
+                        var edid = deviceParamsKey.GetValue("EDID") as byte[];
+                        if (edid == null || edid.Length < 128) continue;
+
+                        // Parse EDID for refresh rates
+                        var rates = ParseEdidRefreshRates(edid);
+                        foreach (var rate in rates)
+                        {
+                            edidRates.Add(rate);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error reading EDID: {ex.Message}");
+            }
+
+            return edidRates;
+        }
+
+        /// <summary>
+        /// Parses refresh rates from EDID data.
+        /// </summary>
+        private List<int> ParseEdidRefreshRates(byte[] edid)
+        {
+            var rates = new HashSet<int>();
+
+            try
+            {
+                // ONLY parse Detailed Timing Descriptors (bytes 54-125) - 4 descriptors of 18 bytes each
+                // Standard Timings (bytes 38-53) are UNRELIABLE - they contain generic modes not validated for this panel
+                for (int block = 0; block < 4; block++)
+                {
+                    int offset = 54 + (block * 18);
+
+                    // Check if this is a detailed timing descriptor (first two bytes are pixel clock, non-zero)
+                    int pixelClock = edid[offset] | (edid[offset + 1] << 8);
+                    if (pixelClock == 0) continue; // Not a timing descriptor
+
+                    // Parse timing information
+                    int hActive = edid[offset + 2] | ((edid[offset + 4] & 0xF0) << 4);
+                    int hBlank = edid[offset + 3] | ((edid[offset + 4] & 0x0F) << 8);
+                    int vActive = edid[offset + 5] | ((edid[offset + 7] & 0xF0) << 4);
+                    int vBlank = edid[offset + 6] | ((edid[offset + 7] & 0x0F) << 8);
+
+                    if (hActive > 0 && vActive > 0 && hBlank >= 0 && vBlank >= 0)
+                    {
+                        int hTotal = hActive + hBlank;
+                        int vTotal = vActive + vBlank;
+
+                        if (hTotal > 0 && vTotal > 0)
+                        {
+                            // Pixel clock is in 10 kHz units
+                            double pixelClockHz = pixelClock * 10000.0;
+                            double refreshRate = pixelClockHz / (hTotal * vTotal);
+
+                            int roundedRate = (int)Math.Round(refreshRate);
+                            if (roundedRate >= 60 && roundedRate <= 360)
+                            {
+                                rates.Add(roundedRate);
+                            }
+                        }
+                    }
+                }
+
+                // Always include 60Hz as it's universally supported
+                rates.Add(60);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error parsing EDID: {ex.Message}");
+            }
+
+            return rates.ToList();
+        }
+
         public List<int> GetAvailableRefreshRates(Resolution resolution)
         {
-            var refreshRates = new HashSet<int>();
+            var allRefreshRates = new HashSet<int>();
             var devMode = new DEVMODE();
             devMode.dmSize = (short)Marshal.SizeOf(devMode);
 
+            // Collect all enumerated refresh rates for this resolution
             int modeIndex = 0;
             while (EnumDisplaySettings(null, modeIndex, ref devMode) != 0)
             {
-                // Find all refresh rates for the specified resolution
                 if (devMode.dmPelsWidth == resolution.Width &&
                     devMode.dmPelsHeight == resolution.Height &&
-                    devMode.dmDisplayFrequency >= 60 && // Only include 60Hz and above
-                    devMode.dmBitsPerPel >= 24) // Only include true color modes
+                    devMode.dmDisplayFrequency >= 60 &&
+                    devMode.dmBitsPerPel >= 24)
                 {
-                    refreshRates.Add(devMode.dmDisplayFrequency);
+                    allRefreshRates.Add(devMode.dmDisplayFrequency);
                 }
                 modeIndex++;
             }
 
-            // Return sorted refresh rates (ascending order)
-            return refreshRates.OrderBy(rate => rate).ToList();
+            if (allRefreshRates.Count == 0)
+                return new List<int> { 60 };
+
+            // Get EDID-reported rates (actual hardware-supported rates)
+            var edidRates = GetEdidRefreshRates();
+
+            // If we got EDID rates, use them to filter
+            if (edidRates.Count > 0)
+            {
+                // Only include rates that are both enumerated AND in EDID
+                var filteredRates = allRefreshRates.Where(r => edidRates.Contains(r)).ToList();
+                if (filteredRates.Count > 0)
+                {
+                    return filteredRates.OrderBy(r => r).ToList();
+                }
+            }
+
+            // Fallback: just return 60Hz and max rate if EDID query failed
+            var fallbackRates = new HashSet<int>();
+            if (allRefreshRates.Contains(60))
+                fallbackRates.Add(60);
+            fallbackRates.Add(allRefreshRates.Max());
+
+            return fallbackRates.OrderBy(r => r).ToList();
         }
 
         public (bool Success, int RefreshRate, string Message) GetCurrentRefreshRate()

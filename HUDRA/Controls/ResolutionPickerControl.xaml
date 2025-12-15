@@ -10,7 +10,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
     ap:GamepadNavigation.IsEnabled="True"
-    ap:GamepadNavigation.NavigationOrder="2"
+    ap:GamepadNavigation.NavigationOrder="3"
     ap:GamepadNavigation.NavigationGroup="MainControls">
     
     <StackPanel Spacing="8">

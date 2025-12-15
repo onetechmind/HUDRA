@@ -472,6 +472,43 @@ namespace HUDRA.Controls
             }
         }
 
+        /// <summary>
+        /// Syncs the UI to reflect an FPS limit that was set externally (e.g., by a game profile).
+        /// This updates the visual selection without triggering hardware changes or the FpsLimitChanged event.
+        /// </summary>
+        public void SyncToFpsLimit(int fpsLimit)
+        {
+            if (_fpsSettings.AvailableFpsOptions == null || _fpsSettings.AvailableFpsOptions.Count == 0)
+                return;
+
+            // Update the internal state without triggering events
+            _fpsSettings.SelectedFpsLimit = fpsLimit;
+
+            // Update the ComboBox selection
+            if (FpsLimitComboBox != null)
+            {
+                if (_fpsSettings.AvailableFpsOptions.Contains(fpsLimit))
+                {
+                    var selectedIndex = _fpsSettings.AvailableFpsOptions.IndexOf(fpsLimit);
+                    // Temporarily set navigating flag to prevent OnFpsLimitChanged from firing
+                    var wasNavigating = IsNavigatingComboBox;
+                    IsNavigatingComboBox = true;
+                    FpsLimitComboBox.SelectedIndex = selectedIndex;
+                    IsNavigatingComboBox = wasNavigating;
+                }
+                else
+                {
+                    // If the FPS value isn't in our options, default to Unlimited (index 0)
+                    var wasNavigating = IsNavigatingComboBox;
+                    IsNavigatingComboBox = true;
+                    FpsLimitComboBox.SelectedIndex = 0;
+                    IsNavigatingComboBox = wasNavigating;
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"FpsLimiter synced to: {(fpsLimit == 0 ? "Unlimited" : fpsLimit + " FPS")} (game profile)");
+        }
+
         private void UpdateUI()
         {
             if (FpsLimitComboBox != null && _fpsSettings.AvailableFpsOptions?.Count > 0)

@@ -26,6 +26,10 @@ namespace HUDRA.Models
 
         // Path to downloaded SteamGridDB artwork (grid image)
         public string? ArtworkPath { get; set; }
+
+        // Per-game profile settings (JSON serialized GameProfile)
+        // Null or empty if no profile is configured
+        public string? ProfileJson { get; set; }
     }
 
     public enum GameSource

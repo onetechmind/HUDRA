@@ -64,6 +64,12 @@ namespace HUDRA.Services
         // SteamGridDB hint dismissal key
         private const string SGDB_HINT_DISMISSED_KEY = "SgdbHintDismissed";
 
+        // Default Profile key (for game profile revert)
+        private const string DEFAULT_PROFILE_KEY = "DefaultProfile";
+
+        // Hardware detection key (stored permanently)
+        private const string DETECTED_DEVICE_KEY = "DetectedDevice";
+
         // Registry path for installer settings
         private const string REGISTRY_PATH = @"SOFTWARE\HUDRA";
 
@@ -908,6 +914,154 @@ namespace HUDRA.Services
             {
                 System.Diagnostics.Debug.WriteLine($"Error applying installer preferences: {ex.Message}");
                 // Continue with defaults on error
+            }
+        }
+
+        // Default Profile methods (for game profile revert)
+        public static SystemDefaults? GetDefaultProfile()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(DEFAULT_PROFILE_KEY, out var value))
+                {
+                    try
+                    {
+                        if (value is JsonElement jsonElement)
+                        {
+                            // If it's a string (our stored JSON), get the string value and deserialize
+                            if (jsonElement.ValueKind == JsonValueKind.String)
+                            {
+                                var jsonString = jsonElement.GetString();
+                                if (!string.IsNullOrEmpty(jsonString))
+                                {
+                                    return JsonSerializer.Deserialize<SystemDefaults>(jsonString);
+                                }
+                            }
+                            // If it's an object (shouldn't happen but handle it), deserialize directly
+                            else if (jsonElement.ValueKind == JsonValueKind.Object)
+                            {
+                                var json = jsonElement.GetRawText();
+                                return JsonSerializer.Deserialize<SystemDefaults>(json);
+                            }
+                        }
+                        else if (value is string jsonString)
+                        {
+                            return JsonSerializer.Deserialize<SystemDefaults>(jsonString);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error deserializing default profile: {ex.Message}");
+                    }
+                }
+                return null;
+            }
+        }
+
+        public static void SetDefaultProfile(SystemDefaults defaults)
+        {
+            lock (_lock)
+            {
+                if (_settings == null)
+                    _settings = new Dictionary<string, object>();
+
+                // Store as JSON string for proper serialization
+                var json = JsonSerializer.Serialize(defaults);
+                _settings[DEFAULT_PROFILE_KEY] = json;
+                SaveSettings();
+                System.Diagnostics.Debug.WriteLine($"Default profile saved: TDP={defaults.TdpWatts}W, FPS={defaults.FpsLimit}");
+            }
+        }
+
+        public static bool HasDefaultProfile()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(DEFAULT_PROFILE_KEY, out var value))
+                {
+                    if (value is JsonElement jsonElement)
+                    {
+                        // Check for string type (our stored JSON)
+                        if (jsonElement.ValueKind == JsonValueKind.String)
+                        {
+                            var str = jsonElement.GetString();
+                            return !string.IsNullOrEmpty(str);
+                        }
+                        // Check for object type
+                        return jsonElement.ValueKind == JsonValueKind.Object;
+                    }
+                    if (value is string jsonString && !string.IsNullOrEmpty(jsonString))
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        public static void ClearDefaultProfile()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.ContainsKey(DEFAULT_PROFILE_KEY))
+                {
+                    _settings.Remove(DEFAULT_PROFILE_KEY);
+                    SaveSettings();
+                    System.Diagnostics.Debug.WriteLine("Default profile cleared");
+                }
+            }
+        }
+
+        // Hardware Detection methods
+        public static DetectedDevice? GetDetectedDevice()
+        {
+            lock (_lock)
+            {
+                if (_settings != null && _settings.TryGetValue(DETECTED_DEVICE_KEY, out var value))
+                {
+                    try
+                    {
+                        if (value is JsonElement jsonElement)
+                        {
+                            // Check for string type (our stored JSON)
+                            if (jsonElement.ValueKind == JsonValueKind.String)
+                            {
+                                var jsonStr = jsonElement.GetString();
+                                if (!string.IsNullOrEmpty(jsonStr))
+                                {
+                                    return JsonSerializer.Deserialize<DetectedDevice>(jsonStr);
+                                }
+                            }
+                            // Check for object type
+                            else if (jsonElement.ValueKind == JsonValueKind.Object)
+                            {
+                                return JsonSerializer.Deserialize<DetectedDevice>(jsonElement.GetRawText());
+                            }
+                        }
+                        else if (value is string jsonString && !string.IsNullOrEmpty(jsonString))
+                        {
+                            return JsonSerializer.Deserialize<DetectedDevice>(jsonString);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Error deserializing DetectedDevice: {ex.Message}");
+                    }
+                }
+                return null;
+            }
+        }
+
+        public static void SetDetectedDevice(DetectedDevice device)
+        {
+            lock (_lock)
+            {
+                if (_settings == null)
+                    _settings = new Dictionary<string, object>();
+
+                // Store as JSON string for proper serialization
+                var json = JsonSerializer.Serialize(device);
+                _settings[DETECTED_DEVICE_KEY] = json;
+                SaveSettings();
+                System.Diagnostics.Debug.WriteLine($"DetectedDevice saved: {device.Manufacturer} {device.DeviceName}");
             }
         }
 

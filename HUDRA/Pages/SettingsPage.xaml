@@ -27,39 +27,39 @@
                     Text="SETTINGS" />
             </Border>
 
-            <!--  TDP Settings  -->
+            <!--  Default Profile  -->
             <controls:NavigableExpander
-                x:Name="TdpSettingsExpander"
-                HorizontalAlignment="Stretch"
+                x:Name="DefaultProfileExpander"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                HorizontalAlignment="Stretch">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
                             VerticalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
                             FontSize="16"
-                            Text="&#xE945;" />
+                            Text="&#xE771;" />
                         <TextBlock
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
                             FontFamily="Cascadia Code"
                             FontSize="16"
                             FontWeight="SemiBold"
-                            Text="TDP Options" />
+                            Text="Default Profile" />
                     </StackPanel>
                 </controls:NavigableExpander.Header>
                 <controls:NavigableExpander.Body>
-                    <controls:TdpSettingsControl x:Name="TdpSettingsControl" />
+                    <controls:DefaultProfileControl x:Name="DefaultProfileControl" />
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
 
             <!--  Power Profile Control  -->
             <controls:NavigableExpander
                 x:Name="PowerProfileExpander"
-                HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                HorizontalAlignment="Stretch">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -77,18 +77,16 @@
                     </StackPanel>
                 </controls:NavigableExpander.Header>
                 <controls:NavigableExpander.Body>
-                    <controls:PowerProfileControl
-                        x:Name="PowerProfileControl"
-                        x:FieldModifier="public" />
+                    <controls:PowerProfileControl x:Name="PowerProfileControl" x:FieldModifier="public" />
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
 
             <!--  Game Detection Settings  -->
             <controls:NavigableExpander
                 x:Name="GameDetectionExpander"
-                HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                HorizontalAlignment="Stretch">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock
@@ -112,9 +110,9 @@
             <!--  Startup & Windows Integration  -->
             <controls:NavigableExpander
                 x:Name="StartupSettingsExpander"
-                HorizontalAlignment="Stretch"
                 Margin="0"
-                Padding="0">
+                Padding="0"
+                HorizontalAlignment="Stretch">
                 <controls:NavigableExpander.Header>
                     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
                         <TextBlock

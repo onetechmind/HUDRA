@@ -38,9 +38,8 @@ namespace HUDRA.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            
-            // No RTSS refresh needed - installation status is cached and set in constructor
-            // Running status is handled by FpsLimiterControl internally when needed
+            // TDP sync is handled by MainWindow.InitializeMainPage() which has access to
+            // the _userOverrodeTdpDuringProfile flag to properly handle user overrides
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)

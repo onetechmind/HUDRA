@@ -31,6 +31,7 @@ namespace HUDRA.Controls
         private bool _autoSetEnabled = true;
         private bool _isInitialized = false;
         private bool _showLabel = true;
+        private bool _includeNoneOption = false;
 
         // Data and State
         private readonly ObservableCollection<TdpItem> _tdpItems = new();
@@ -42,6 +43,7 @@ namespace HUDRA.Controls
         // Scrolling state
         private bool _isScrolling = false;
         private DispatcherTimer? _scrollEndTimer;
+        private bool _isProgrammaticScroll = false; // True when scrolling programmatically (not user-initiated)
 
         //Mouse drag state
         private bool _isMouseDragging = false;
@@ -72,6 +74,34 @@ namespace HUDRA.Controls
 
         public Visibility LabelVisibility => ShowLabel ? Visibility.Visible : Visibility.Collapsed;
 
+        /// <summary>
+        /// When true, includes a "0" (None/Not Set) option at the beginning of the picker.
+        /// This is used for game profiles where TDP can be unset.
+        /// </summary>
+        public bool IncludeNoneOption
+        {
+            get => _includeNoneOption;
+            set
+            {
+                if (_includeNoneOption != value)
+                {
+                    _includeNoneOption = value;
+                    OnPropertyChanged();
+                    // Reinitialize data if already loaded
+                    if (_tdpItems.Count > 0)
+                    {
+                        InitializeData();
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// The minimum valid TDP value for this picker instance.
+        /// Returns 0 if IncludeNoneOption is true, otherwise MIN_TDP.
+        /// </summary>
+        private int EffectiveMinTdp => _includeNoneOption ? 0 : HudraSettings.MIN_TDP;
+
         public string StatusText
         {
             get => _statusText;
@@ -90,7 +120,11 @@ namespace HUDRA.Controls
             get => _selectedTdp;
             set
             {
-                if (_selectedTdp != value && value >= HudraSettings.MIN_TDP && value <= HudraSettings.MAX_TDP)
+                // Validate: value must be 0 (if IncludeNoneOption) or within MIN_TDP..MAX_TDP range
+                bool isValid = (_includeNoneOption && value == 0) ||
+                               (value >= HudraSettings.MIN_TDP && value <= HudraSettings.MAX_TDP);
+
+                if (_selectedTdp != value && isValid)
                 {
                     var oldValue = _selectedTdp;
                     _selectedTdp = value;
@@ -169,20 +203,78 @@ namespace HUDRA.Controls
 
         private void InitializeData()
         {
-
             _tdpItems.Clear();
 
-            for (int tdp = HudraSettings.MIN_TDP; tdp <= HudraSettings.MAX_TDP; tdp++)
+            if (_includeNoneOption)
             {
-                var item = new TdpItem(tdp);
-                if (tdp == _selectedTdp)
+                // Add 0 (Default/None) first, then skip 1-4 and add MIN_TDP through MAX_TDP
+                var noneItem = new TdpItem(0);
+                if (_selectedTdp == 0)
                 {
-                    item.IsSelected = true;
+                    noneItem.IsSelected = true;
                 }
-                _tdpItems.Add(item);
+                _tdpItems.Add(noneItem);
+
+                // Add valid TDP values starting from MIN_TDP (5)
+                for (int tdp = HudraSettings.MIN_TDP; tdp <= HudraSettings.MAX_TDP; tdp++)
+                {
+                    var item = new TdpItem(tdp);
+                    if (tdp == _selectedTdp)
+                    {
+                        item.IsSelected = true;
+                    }
+                    _tdpItems.Add(item);
+                }
+            }
+            else
+            {
+                // No "None" option - start from MIN_TDP
+                for (int tdp = HudraSettings.MIN_TDP; tdp <= HudraSettings.MAX_TDP; tdp++)
+                {
+                    var item = new TdpItem(tdp);
+                    if (tdp == _selectedTdp)
+                    {
+                        item.IsSelected = true;
+                    }
+                    _tdpItems.Add(item);
+                }
             }
 
             TdpItemsRepeater.ItemsSource = _tdpItems;
+        }
+
+        /// <summary>
+        /// Converts a TDP value to its index in the _tdpItems list.
+        /// </summary>
+        private int GetIndexFromTdp(int tdp)
+        {
+            if (_includeNoneOption)
+            {
+                if (tdp == 0) return 0;
+                // TDP 5 is at index 1, TDP 6 is at index 2, etc.
+                return tdp - HudraSettings.MIN_TDP + 1;
+            }
+            else
+            {
+                return tdp - HudraSettings.MIN_TDP;
+            }
+        }
+
+        /// <summary>
+        /// Converts an index in the _tdpItems list to its TDP value.
+        /// </summary>
+        private int GetTdpFromIndex(int index)
+        {
+            if (_includeNoneOption)
+            {
+                if (index == 0) return 0;
+                // Index 1 is TDP 5, index 2 is TDP 6, etc.
+                return HudraSettings.MIN_TDP + index - 1;
+            }
+            else
+            {
+                return HudraSettings.MIN_TDP + index;
+            }
         }
 
         public void Initialize(DpiScalingService dpiService, bool autoSetEnabled = true, bool preserveCurrentValue = false)
@@ -284,18 +376,25 @@ namespace HUDRA.Controls
                 int targetTdp;
                 string statusReason;
 
-                // Priority 1: Default TDP if toggle is enabled
-                if (SettingsService.GetUseStartupTdp())
+                // Priority 1: Default Profile TDP (if saved)
+                var defaultProfile = SettingsService.GetDefaultProfile();
+                if (defaultProfile?.TdpWatts > 0)
+                {
+                    targetTdp = defaultProfile.TdpWatts;
+                    statusReason = "using Default Profile TDP";
+                }
+                // Priority 2: Default TDP if toggle is enabled (legacy setting)
+                else if (SettingsService.GetUseStartupTdp())
                 {
                     targetTdp = SettingsService.GetStartupTdp();
                     statusReason = "using default TDP from settings";
                 }
                 else
                 {
-                    // Priority 2: Last-Used TDP if default is disabled
+                    // Priority 3: Last-Used TDP if default is disabled
                     targetTdp = SettingsService.GetLastUsedTdp();
 
-                    // Priority 3: Fallback to 10W if last-used is invalid
+                    // Priority 4: Fallback to 10W if last-used is invalid
                     if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
                     {
                         targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;
@@ -363,17 +462,14 @@ namespace HUDRA.Controls
         private void UpdateSelection(int oldValue, int newValue)
         {
             // Update old item
-            if (oldValue >= HudraSettings.MIN_TDP && oldValue <= HudraSettings.MAX_TDP)
+            var oldIndex = GetIndexFromTdp(oldValue);
+            if (oldIndex >= 0 && oldIndex < _tdpItems.Count)
             {
-                var oldIndex = oldValue - HudraSettings.MIN_TDP;
-                if (oldIndex >= 0 && oldIndex < _tdpItems.Count)
-                {
-                    _tdpItems[oldIndex].IsSelected = false;
-                }
+                _tdpItems[oldIndex].IsSelected = false;
             }
 
             // Update new item
-            var newIndex = newValue - HudraSettings.MIN_TDP;
+            var newIndex = GetIndexFromTdp(newValue);
             if (newIndex >= 0 && newIndex < _tdpItems.Count)
             {
                 _tdpItems[newIndex].IsSelected = true;
@@ -390,9 +486,12 @@ namespace HUDRA.Controls
         {
             if (!_isInitialized) return;
 
-            var selectedIndex = _selectedTdp - HudraSettings.MIN_TDP;
+            var selectedIndex = GetIndexFromTdp(_selectedTdp);
             if (selectedIndex >= 0 && selectedIndex < _tdpItems.Count)
             {
+                // Mark this as a programmatic scroll to prevent hardware changes
+                _isProgrammaticScroll = true;
+
                 // Calculate the scroll position to center the selected item
                 var itemWidth = 60.0; // From XAML template width
                 var itemMargin = 6.0; // From XAML margin (each side)
@@ -412,6 +511,12 @@ namespace HUDRA.Controls
 
                 // Perform the scroll
                 TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
+
+                // Reset flag after scroll completes (use dispatcher to ensure it happens after scroll events)
+                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    _isProgrammaticScroll = false;
+                });
             }
         }
 
@@ -432,7 +537,7 @@ namespace HUDRA.Controls
 
             itemIndex = Math.Max(0, Math.Min(itemIndex, _tdpItems.Count - 1));
 
-            return (int)itemIndex + HudraSettings.MIN_TDP;
+            return GetTdpFromIndex((int)itemIndex);
         }
 
         #endregion
@@ -455,8 +560,8 @@ namespace HUDRA.Controls
                 UpdateSelection(oldSelected, centeredTdp);
                 OnPropertyChanged(nameof(SelectedTdp));
 
-                // Play audio feedback
-                if (_lastCenteredTdp != -1 && _audioHelper != null)
+                // Play audio feedback only for user-initiated scrolls
+                if (_lastCenteredTdp != -1 && _audioHelper != null && !_isProgrammaticScroll)
                 {
                     _audioHelper.PlayTick();
                 }
@@ -464,13 +569,17 @@ namespace HUDRA.Controls
                 _lastCenteredTdp = centeredTdp;
                 _suppressSelectionEvents = false;
 
-                // Schedule hardware changes if auto-set is enabled
-                if (_autoSetEnabled && _autoSetManager != null)
+                // Schedule hardware changes only for user-initiated scrolls (not programmatic)
+                if (_autoSetEnabled && _autoSetManager != null && !_isProgrammaticScroll)
                 {
                     _autoSetManager.ScheduleUpdate(_selectedTdp);
                 }
 
-                TdpChanged?.Invoke(this, _selectedTdp);
+                // Only fire TdpChanged for user-initiated scrolls
+                if (!_isProgrammaticScroll)
+                {
+                    TdpChanged?.Invoke(this, _selectedTdp);
+                }
             }
 
             // Handle scroll end detection for snapping
@@ -512,7 +621,7 @@ namespace HUDRA.Controls
             // Calculate which TDP item was tapped based on position
             var tappedTdp = GetTdpFromPosition(tapPosition.X);
 
-            if (tappedTdp >= HudraSettings.MIN_TDP && tappedTdp <= HudraSettings.MAX_TDP)
+            if (tappedTdp >= EffectiveMinTdp && tappedTdp <= HudraSettings.MAX_TDP)
             {
                 SelectedTdp = tappedTdp;
 
@@ -545,7 +654,7 @@ namespace HUDRA.Controls
             // Clamp to valid range
             itemIndex = Math.Max(0, Math.Min(itemIndex, _tdpItems.Count - 1));
 
-            return (int)itemIndex + HudraSettings.MIN_TDP;
+            return GetTdpFromIndex((int)itemIndex);
         }
 
         #endregion
@@ -554,7 +663,38 @@ namespace HUDRA.Controls
 
         public void ChangeTdpBy(int delta)
         {
-            var newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
+            int newTdp;
+
+            if (_includeNoneOption)
+            {
+                // Handle the gap between 0 (Default) and MIN_TDP (5)
+                if (_selectedTdp == 0 && delta > 0)
+                {
+                    // From 0, go to MIN_TDP
+                    newTdp = HudraSettings.MIN_TDP;
+                }
+                else if (_selectedTdp == HudraSettings.MIN_TDP && delta < 0)
+                {
+                    // From MIN_TDP, go to 0
+                    newTdp = 0;
+                }
+                else if (_selectedTdp == 0 && delta < 0)
+                {
+                    // Already at 0, can't go lower
+                    newTdp = 0;
+                }
+                else
+                {
+                    // Normal case: clamp to MIN_TDP..MAX_TDP range
+                    newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
+                }
+            }
+            else
+            {
+                // No "None" option - simple clamp
+                newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
+            }
+
             if (newTdp != _selectedTdp)
             {
                 SelectedTdp = newTdp;
@@ -607,6 +747,33 @@ namespace HUDRA.Controls
                     }
                 });
             }
+        }
+
+        /// <summary>
+        /// Syncs the UI to reflect a TDP value that was set externally (e.g., by a game profile).
+        /// This updates the visual selection without triggering hardware TDP changes.
+        /// ScrollToSelectedItem() sets _isProgrammaticScroll which prevents hardware changes.
+        /// </summary>
+        public void SyncToCurrentTdp(int tdpValue)
+        {
+            if (!_isInitialized) return;
+
+            // Validate: value must be 0 (if IncludeNoneOption) or within MIN_TDP..MAX_TDP range
+            bool isValid = (_includeNoneOption && tdpValue == 0) ||
+                           (tdpValue >= HudraSettings.MIN_TDP && tdpValue <= HudraSettings.MAX_TDP);
+            if (!isValid) return;
+
+            var oldValue = _selectedTdp;
+            _selectedTdp = tdpValue;
+            _lastCenteredTdp = tdpValue;
+
+            UpdateSelection(oldValue, tdpValue);
+            ScrollToSelectedItem(); // Sets _isProgrammaticScroll to prevent hardware changes
+
+            // Update status text to reflect current TDP
+            StatusText = $"Current TDP: {tdpValue}W (game profile)";
+
+            OnPropertyChanged(nameof(SelectedTdp));
         }
 
         public void SetAudioFeedbackEnabled(bool enabled)

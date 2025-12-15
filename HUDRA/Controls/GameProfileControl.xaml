@@ -1,0 +1,448 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<UserControl
+    x:Class="HUDRA.Controls.GameProfileControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:HUDRA.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Border
+        Width="280"
+        Padding="0,10"
+        Background="#2d2d2d"
+        CornerRadius="12">
+        <StackPanel Spacing="12">
+            <TextBlock
+                Padding="15,0"
+                FontFamily="Calibri"
+                FontSize="14"
+                Foreground="#99FFFFFF"
+                Text="The following settings are auto-applied when this game launches. Changes are saved automatically."
+                TextAlignment="Center"
+                TextWrapping="Wrap" />
+
+            <!--  TDP Section  -->
+            <StackPanel Margin="10,0" Spacing="4">
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="12"
+                    Foreground="#CCFFFFFF"
+                    Text="TDP" />
+
+                <!--  TDP Picker (always visible, includes 0W "None" option)  -->
+                <Border
+                    BorderBrush="{x:Bind TdpFocusBrush, Mode=OneWay}"
+                    BorderThickness="2"
+                    CornerRadius="10">
+                    <controls:TdpPickerControl
+                        x:Name="TdpPicker"
+                        IncludeNoneOption="True"
+                        ShowLabel="False" />
+                </Border>
+            </StackPanel>
+
+            <!--  Auto-Revert on Close Toggle  -->
+            <Border
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind AutoRevertFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="Auto-Revert" />
+
+                    <ToggleSwitch
+                        x:Name="AutoRevertToggle"
+                        Grid.Column="1"
+                        MinWidth="0"
+                        HorizontalAlignment="Right"
+                        OffContent="Off"
+                        OnContent="On"
+                        Toggled="AutoRevertToggle_Toggled"
+                        ToolTipService.ToolTip="Revert to default profile when game closes" />
+                </Grid>
+            </Border>
+
+            <!--  Resolution Setting  -->
+            <Border
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind ResolutionFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="Resolution" />
+
+                    <ComboBox
+                        x:Name="ResolutionComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="ResolutionComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}" />
+                </Grid>
+            </Border>
+
+            <!--  Refresh Rate Setting  -->
+            <Border
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind RefreshRateFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="Refresh Rate" />
+
+                    <ComboBox
+                        x:Name="RefreshRateComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="RefreshRateComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}" />
+                </Grid>
+            </Border>
+
+            <!--  FPS Limit Setting (RTSS)  -->
+            <Border
+                x:Name="FpsLimitBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind FpsLimitFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Visibility="{x:Bind RtssAvailableVisibility, Mode=OneWay}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="FPS Limit" />
+
+                    <ComboBox
+                        x:Name="FpsLimitComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="FpsLimitComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}" />
+                </Grid>
+            </Border>
+
+            <!--  HDR Setting  -->
+            <Border
+                x:Name="HdrBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind HdrFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Opacity="{x:Bind HdrOpacity, Mode=OneWay}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="HDR" />
+
+                    <ComboBox
+                        x:Name="HdrComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        IsEnabled="{x:Bind IsHdrSupported, Mode=OneWay}"
+                        SelectionChanged="HdrComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}">
+                        <ComboBoxItem
+                            Content="Default"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Default" />
+                        <ComboBoxItem
+                            Content="Off"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Off" />
+                        <ComboBoxItem
+                            Content="On"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="On" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!--  Fan Curve Setting  -->
+            <Border
+                x:Name="FanCurveBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind FanCurveFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Visibility="{x:Bind FanControlAvailableVisibility, Mode=OneWay}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="Fan Curve" />
+
+                    <ComboBox
+                        x:Name="FanCurvePresetComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="FanCurvePresetComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}">
+                        <ComboBoxItem
+                            Content="Default"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Default" />
+                        <ComboBoxItem
+                            Content="Stealth"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Stealth" />
+                        <ComboBoxItem
+                            Content="Cruise"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Cruise" />
+                        <ComboBoxItem
+                            Content="Warp"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Warp" />
+                        <ComboBoxItem
+                            Content="Custom"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Custom" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!--  AMD RSR Setting  -->
+            <Border
+                x:Name="RsrBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind RsrFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Visibility="{x:Bind AmdAvailableVisibility, Mode=OneWay}">
+                <StackPanel Spacing="8">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.5*" />
+                            <ColumnDefinition Width="2*" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Text="RSR" />
+
+                        <ComboBox
+                            x:Name="RsrComboBox"
+                            Grid.Column="1"
+                            HorizontalAlignment="Stretch"
+                            SelectionChanged="RsrComboBox_SelectionChanged"
+                            Style="{StaticResource HudraComboBoxStyle}">
+                            <ComboBoxItem
+                                Content="Default"
+                                Style="{StaticResource HudraComboBoxItemStyle}"
+                                Tag="Default" />
+                            <ComboBoxItem
+                                Content="Off"
+                                Style="{StaticResource HudraComboBoxItemStyle}"
+                                Tag="Off" />
+                            <ComboBoxItem
+                                Content="On"
+                                Style="{StaticResource HudraComboBoxItemStyle}"
+                                Tag="On" />
+                        </ComboBox>
+                    </Grid>
+
+                    <!--  RSR Sharpness Slider (separate focus element, only enabled when RSR is "On")  -->
+                    <Border
+                        Margin="0,4,0,0"
+                        BorderBrush="{x:Bind RsrSharpnessFocusBrush, Mode=OneWay}"
+                        BorderThickness="2"
+                        CornerRadius="4">
+                        <Grid x:Name="RsrSharpnessPanel">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                Grid.Column="0"
+                                VerticalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="10"
+                                Foreground="#888888"
+                                Text="Sharpness" />
+                            <Slider
+                                x:Name="RsrSharpnessSlider"
+                                Grid.Column="1"
+                                Margin="8,0"
+                                IsEnabled="False"
+                                Maximum="100"
+                                Minimum="0"
+                                ValueChanged="RsrSharpnessSlider_ValueChanged" />
+                            <TextBlock
+                                x:Name="RsrSharpnessText"
+                                Grid.Column="2"
+                                Width="30"
+                                VerticalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="10"
+                                Text="80"
+                                TextAlignment="Right" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!--  AMD AFMF Setting  -->
+            <Border
+                x:Name="AfmfBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind AfmfFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Visibility="{x:Bind AmdAvailableVisibility, Mode=OneWay}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="AFMF" />
+
+                    <ComboBox
+                        x:Name="AfmfComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="AfmfComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}">
+                        <ComboBoxItem
+                            Content="Default"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Default" />
+                        <ComboBoxItem
+                            Content="Off"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Off" />
+                        <ComboBoxItem
+                            Content="On"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="On" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!--  AMD Anti-Lag Setting  -->
+            <Border
+                x:Name="AntiLagBorder"
+                Margin="10,0"
+                Padding="10,8"
+                Background="#22FFFFFF"
+                BorderBrush="{x:Bind AntiLagFocusBrush, Mode=OneWay}"
+                BorderThickness="2"
+                CornerRadius="8"
+                Visibility="{x:Bind AmdAvailableVisibility, Mode=OneWay}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.5*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Text="Anti-Lag" />
+
+                    <ComboBox
+                        x:Name="AntiLagComboBox"
+                        Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        SelectionChanged="AntiLagComboBox_SelectionChanged"
+                        Style="{StaticResource HudraComboBoxStyle}">
+                        <ComboBoxItem
+                            Content="Default"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Default" />
+                        <ComboBoxItem
+                            Content="Off"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="Off" />
+                        <ComboBoxItem
+                            Content="On"
+                            Style="{StaticResource HudraComboBoxItemStyle}"
+                            Tag="On" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+        </StackPanel>
+    </Border>
+</UserControl>

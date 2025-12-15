@@ -13,6 +13,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Windows.Storage.Pickers;
 
@@ -34,8 +35,8 @@ namespace HUDRA.Pages
 
         // Gamepad navigation state
         private bool _isFocused = false;
-        private int _currentFocusedElement = 0; // 0=Back, 1=DisplayName, 2=Delete, 3=Browse, 4=SGDB, 5=Save, 6=Cancel
-        private const int MaxFocusIndex = 6;
+        private int _currentFocusedElement = 0; // 0=Back, 1=DisplayName, 2=Delete, 3=Browse, 4=SGDB, 5=ProfileExpander
+        private const int MaxFocusIndex = 5;
 
         // SGDB grid navigation state
         private bool _isSgdbGridActive = false;  // Whether we're navigating in the SGDB grid
@@ -120,16 +121,82 @@ namespace HUDRA.Pages
                         new Uri(cacheBustPath));
                 }
             }
+
+            // Load game profile if it exists
+            LoadGameProfile();
+
+            // Subscribe to auto-save events (unsubscribe first to prevent duplicates if page is cached)
+            GameProfileControl.ProfileChanged -= GameProfileControl_ProfileChanged;
+            DisplayNameTextBox.TextChanged -= DisplayNameTextBox_TextChanged;
+            GameProfileControl.ProfileChanged += GameProfileControl_ProfileChanged;
+            DisplayNameTextBox.TextChanged += DisplayNameTextBox_TextChanged;
+        }
+
+        private void LoadGameProfile()
+        {
+            if (_currentGame == null) return;
+
+            try
+            {
+                if (!string.IsNullOrEmpty(_currentGame.ProfileJson))
+                {
+                    var profile = JsonSerializer.Deserialize<GameProfile>(_currentGame.ProfileJson);
+                    if (profile != null)
+                    {
+                        GameProfileControl.Profile = profile;
+                        System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Loaded profile for {_currentGame.ProcessName}");
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Error loading profile: {ex.Message}");
+            }
+
+            // No profile or error - use default empty profile
+            GameProfileControl.Profile = new GameProfile();
+        }
+
+        private void SaveGameProfile()
+        {
+            if (_currentGame == null) return;
+
+            try
+            {
+                var profile = GameProfileControl.Profile;
+
+                // Update HasProfile based on whether any settings are enabled
+                profile.HasProfile = profile.HasAnySettingsConfigured;
+
+                // If no settings are configured, clear the profile entirely
+                // This prevents "ghost" profiles where all settings are at default
+                if (!profile.HasAnySettingsConfigured)
+                {
+                    _currentGame.ProfileJson = null;
+                    System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Cleared profile for {_currentGame.ProcessName} (no settings configured)");
+                }
+                else
+                {
+                    // Serialize and store
+                    _currentGame.ProfileJson = JsonSerializer.Serialize(profile);
+                    System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Saved profile for {_currentGame.ProcessName} (HasProfile: {profile.HasProfile})");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Error saving profile: {ex.Message}");
+            }
         }
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _isSgdbGridActive || _currentFocusedElement > 0;
         public bool CanNavigateDown => _isSgdbGridActive || _currentFocusedElement < MaxFocusIndex
-            || ((_currentFocusedElement == 5 || _currentFocusedElement == 6)
+            || (_currentFocusedElement == 4
                 && SgdbResultsSection?.Visibility == Visibility.Visible
                 && SgdbImageGrid?.Items.Count > 0);
-        public bool CanNavigateLeft => _isSgdbGridActive || _currentFocusedElement == 6 || _currentFocusedElement == 2;
-        public bool CanNavigateRight => _isSgdbGridActive || _currentFocusedElement == 5 || _currentFocusedElement == 1;
+        public bool CanNavigateLeft => _isSgdbGridActive || _currentFocusedElement == 2;
+        public bool CanNavigateRight => _isSgdbGridActive || _currentFocusedElement == 1;
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
 
@@ -226,25 +293,12 @@ namespace HUDRA.Pages
             }
         }
 
-        public Brush SaveButtonFocusBrush
+        public Brush ProfileExpanderFocusBrush
         {
             get
             {
                 if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
                     && _currentFocusedElement == 5 && !_isSgdbGridActive)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush CancelButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 6 && !_isSgdbGridActive)
                 {
                     return new SolidColorBrush(Colors.DarkViolet);
                 }
@@ -277,8 +331,8 @@ namespace HUDRA.Pages
                 return;
             }
 
-            // If at Save (5) or Cancel (6) and SGDB grid is visible, enter grid at top
-            if ((_currentFocusedElement == 5 || _currentFocusedElement == 6)
+            // If at SGDB (4) and SGDB grid is visible, enter grid at top
+            if (_currentFocusedElement == 4
                 && SgdbResultsSection.Visibility == Visibility.Visible
                 && SgdbImageGrid.Items.Count > 0)
             {
@@ -302,13 +356,8 @@ namespace HUDRA.Pages
                 return;
             }
 
-            // From Cancel to Save, or from Delete to DisplayName
-            if (_currentFocusedElement == 6)
-            {
-                _currentFocusedElement = 5;
-                UpdateFocusVisuals();
-            }
-            else if (_currentFocusedElement == 2)
+            // From Delete to DisplayName
+            if (_currentFocusedElement == 2)
             {
                 _currentFocusedElement = 1;
                 UpdateFocusVisuals();
@@ -323,13 +372,8 @@ namespace HUDRA.Pages
                 return;
             }
 
-            // From Save to Cancel, or from DisplayName to Delete
-            if (_currentFocusedElement == 5)
-            {
-                _currentFocusedElement = 6;
-                UpdateFocusVisuals();
-            }
-            else if (_currentFocusedElement == 1)
+            // From DisplayName to Delete
+            if (_currentFocusedElement == 1)
             {
                 _currentFocusedElement = 2;
                 UpdateFocusVisuals();
@@ -362,11 +406,11 @@ namespace HUDRA.Pages
                 case 4: // SteamGridDB button
                     SteamGridDbButton_Click(this, new RoutedEventArgs());
                     break;
-                case 5: // Save button
-                    SaveButton_Click(this, new RoutedEventArgs());
-                    break;
-                case 6: // Cancel button
-                    CancelButton_Click(this, new RoutedEventArgs());
+                case 5: // ProfileExpander - toggle expander
+                    if (GameProfileExpander != null)
+                    {
+                        GameProfileExpander.IsExpanded = !GameProfileExpander.IsExpanded;
+                    }
                     break;
             }
         }
@@ -396,7 +440,7 @@ namespace HUDRA.Pages
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 6: Cancel button)
+            // Focus the last element (element 5: ProfileExpander)
             _currentFocusedElement = MaxFocusIndex;
             UpdateFocusVisuals();
         }
@@ -411,8 +455,7 @@ namespace HUDRA.Pages
                 OnPropertyChanged(nameof(DeleteButtonFocusBrush));
                 OnPropertyChanged(nameof(BrowseButtonFocusBrush));
                 OnPropertyChanged(nameof(SgdbButtonFocusBrush));
-                OnPropertyChanged(nameof(SaveButtonFocusBrush));
-                OnPropertyChanged(nameof(CancelButtonFocusBrush));
+                OnPropertyChanged(nameof(ProfileExpanderFocusBrush));
 
                 // Scroll the focused element into view
                 ScrollCurrentElementIntoView();
@@ -428,8 +471,7 @@ namespace HUDRA.Pages
                 2 => DeleteButton,
                 3 => BrowseButton,
                 4 => SteamGridDbButton,
-                5 => SaveButton,
-                6 => CancelButton,
+                5 => GameProfileExpander,
                 _ => null
             };
 
@@ -446,8 +488,15 @@ namespace HUDRA.Pages
         // Button click handlers
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            // Same as Cancel - discard changes and go back
-            CancelButton_Click(sender, e);
+            // Cleanup temp SGDB files (except the one selected as artwork)
+            foreach (var tempPath in _tempSgdbPaths)
+            {
+                if (File.Exists(tempPath) && tempPath != _pendingArtworkPath)
+                {
+                    try { File.Delete(tempPath); } catch { }
+                }
+            }
+            NavigateToLibrary();
         }
 
         private async void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -565,6 +614,9 @@ namespace HUDRA.Pages
                     new Uri(selectedPath));
 
                 HideArtworkError();
+
+                // Save artwork immediately
+                SaveArtwork(_pendingArtworkPath);
             }
             catch (Exception ex)
             {
@@ -637,101 +689,9 @@ namespace HUDRA.Pages
             UpdateSgdbTileSelection();
 
             HideArtworkError();
-        }
 
-        private async void SaveButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (_currentGame == null || _gameDatabase == null) return;
-
-            try
-            {
-                // Validate display name
-                var newDisplayName = DisplayNameTextBox.Text.Trim();
-                if (string.IsNullOrWhiteSpace(newDisplayName))
-                {
-                    ShowDisplayNameError("Display name cannot be empty");
-                    return;
-                }
-
-                if (newDisplayName.Length > 100)
-                {
-                    ShowDisplayNameError("Display name must be 100 characters or less");
-                    return;
-                }
-
-                HideDisplayNameError();
-
-                // Update display name if changed
-                if (newDisplayName != _originalDisplayName)
-                {
-                    _currentGame.DisplayName = newDisplayName;
-                }
-
-                // Handle artwork change
-                if (_artworkChanged && !string.IsNullOrEmpty(_pendingArtworkPath))
-                {
-                    var extension = Path.GetExtension(_pendingArtworkPath);
-                    var newFileName = $"{SanitizeFileName(_currentGame.ProcessName)}{extension}";
-                    var newPath = Path.Combine(_artworkDirectory, newFileName);
-
-                    // Delete old artwork if different path
-                    if (!string.IsNullOrEmpty(_originalArtworkPath) &&
-                        File.Exists(_originalArtworkPath) &&
-                        _originalArtworkPath != newPath)
-                    {
-                        File.Delete(_originalArtworkPath);
-                    }
-
-                    // Copy new artwork (if not already in artwork folder)
-                    if (_pendingArtworkPath != newPath)
-                    {
-                        File.Copy(_pendingArtworkPath, newPath, overwrite: true);
-                    }
-
-                    _currentGame.ArtworkPath = newPath;
-                }
-
-                // Save to database
-                _gameDatabase.SaveGame(_currentGame);
-
-                // Refresh the game in Library page before navigating back
-                if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
-                {
-                    mainWindow.RefreshLibraryGameArtwork(_currentGame.ProcessName);
-                }
-
-                // Cleanup temp SGDB files
-                foreach (var tempPath in _tempSgdbPaths)
-                {
-                    if (File.Exists(tempPath) && tempPath != _pendingArtworkPath)
-                    {
-                        try { File.Delete(tempPath); } catch { }
-                    }
-                }
-
-                // Navigate back to Library
-                NavigateToLibrary();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Error saving: {ex.Message}");
-                ShowDisplayNameError("Failed to save changes");
-            }
-        }
-
-        private void CancelButton_Click(object sender, RoutedEventArgs e)
-        {
-            // Cleanup temp files
-            foreach (var tempPath in _tempSgdbPaths)
-            {
-                if (File.Exists(tempPath))
-                {
-                    try { File.Delete(tempPath); } catch { }
-                }
-            }
-
-            // Navigate back to Library
-            NavigateToLibrary();
+            // Save artwork immediately
+            SaveArtwork(_pendingArtworkPath);
         }
 
         private void NavigateToLibrary()
@@ -748,6 +708,74 @@ namespace HUDRA.Pages
             var invalidChars = Path.GetInvalidFileNameChars();
             var sanitized = new string(fileName.Select(c => invalidChars.Contains(c) ? '_' : c).ToArray());
             return sanitized;
+        }
+
+        private void SaveArtwork(string? sourcePath)
+        {
+            if (_currentGame == null || _gameDatabase == null || string.IsNullOrEmpty(sourcePath)) return;
+
+            try
+            {
+                var extension = Path.GetExtension(sourcePath);
+                var newFileName = $"{SanitizeFileName(_currentGame.ProcessName)}{extension}";
+                var newPath = Path.Combine(_artworkDirectory, newFileName);
+
+                // Delete old artwork if different path
+                if (!string.IsNullOrEmpty(_originalArtworkPath))
+                {
+                    // Strip any cache-busting query string
+                    var cleanOriginalPath = _originalArtworkPath.Contains('?')
+                        ? _originalArtworkPath.Substring(0, _originalArtworkPath.IndexOf('?'))
+                        : _originalArtworkPath;
+
+                    if (File.Exists(cleanOriginalPath) && cleanOriginalPath != newPath)
+                    {
+                        File.Delete(cleanOriginalPath);
+                    }
+                }
+
+                // Copy new artwork
+                if (sourcePath != newPath)
+                {
+                    File.Copy(sourcePath, newPath, overwrite: true);
+                }
+
+                _currentGame.ArtworkPath = newPath;
+                _originalArtworkPath = newPath; // Update so subsequent saves don't re-delete
+                _gameDatabase.SaveGame(_currentGame);
+
+                // Refresh library artwork
+                if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
+                {
+                    mainWindow.RefreshLibraryGameArtwork(_currentGame.ProcessName);
+                }
+
+                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Saved artwork to {newPath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"GameSettingsPage: SaveArtwork error: {ex.Message}");
+            }
+        }
+
+        // Auto-save handlers
+        private void GameProfileControl_ProfileChanged(object? sender, EventArgs e)
+        {
+            if (_currentGame == null || _gameDatabase == null) return;
+            SaveGameProfile();
+            _gameDatabase.SaveGame(_currentGame);
+            System.Diagnostics.Debug.WriteLine($"GameSettingsPage: Auto-saved profile for {_currentGame.ProcessName}");
+        }
+
+        private void DisplayNameTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (_currentGame == null || _gameDatabase == null) return;
+
+            var newDisplayName = DisplayNameTextBox.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(newDisplayName) || newDisplayName.Length > 100) return;
+
+            _currentGame.DisplayName = newDisplayName;
+            _gameDatabase.SaveGame(_currentGame);
         }
 
         private void ShowDisplayNameError(string message)
@@ -813,19 +841,24 @@ namespace HUDRA.Pages
                     }
                     else
                     {
-                        // Exit to Save button (index 5) - grid is below Save/Cancel visually
-                        _currentFocusedElement = 5;
+                        // Exit to SGDB button (index 4) - grid is below SGDB button
+                        _currentFocusedElement = 4;
                         ExitSgdbGridNavigation();
                     }
                     break;
                 case "Down":
-                    // Move down within grid if possible, otherwise dead end (no exit)
+                    // Move down within grid if possible, otherwise exit to ProfileExpander
                     if (_sgdbGridFocusIndex + columns < items.Count)
                     {
                         _sgdbGridFocusIndex += columns;
                         UpdateSgdbGridFocusVisual();
                     }
-                    // Dead end - do nothing at bottom row
+                    else
+                    {
+                        // Exit to ProfileExpander (index 5)
+                        _currentFocusedElement = 5;
+                        ExitSgdbGridNavigation();
+                    }
                     break;
                 case "Left":
                     if (currentCol > 0)

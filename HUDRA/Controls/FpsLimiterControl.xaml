@@ -10,7 +10,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     ap:GamepadNavigation.IsEnabled="True"
     ap:GamepadNavigation.NavigationGroup="MainControls"
-    ap:GamepadNavigation.NavigationOrder="3"
+    ap:GamepadNavigation.NavigationOrder="4"
     mc:Ignorable="d">
 
     <UserControl.Resources>

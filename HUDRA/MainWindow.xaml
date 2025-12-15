@@ -362,19 +362,129 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!--  First-run welcome InfoBar  -->
                 <InfoBar
                     x:Name="WelcomeInfoBar"
+                    Title="Welcome to HUDRA Beta!"
                     Grid.Row="0"
                     Margin="10,10,10,0"
+                    Closed="WelcomeInfoBar_Closed"
                     IsClosable="True"
                     IsOpen="False"
-                    Closed="WelcomeInfoBar_Closed"
                     Message="Configure your TDP, fan curves, and more. Check Settings for startup options."
-                    Severity="Informational"
-                    Title="Welcome to HUDRA Beta!" />
+                    Severity="Informational" />
+
+                <!--  Active Game Profile Bar (bottom)  -->
+                <Border
+                    x:Name="GameProfileBar"
+                    Grid.Row="2"
+                    Margin="10,0,10,20"
+                    Padding="16,10"
+                    Background="#2C1C34"
+                    CornerRadius="20"
+                    Visibility="{x:Bind IsGameProfileActive, Mode=OneWay}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock
+                            Grid.Column="0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="13"
+                            FontWeight="Normal"
+                            Foreground="White"
+                            Text="{x:Bind GameProfileTitle, Mode=OneWay}" />
+
+                        <Button
+                            Grid.Column="1"
+                            Width="55"
+                            Height="40"
+                            Margin="8,0,10,0"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Click="GameProfileRevert_Click"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Revert to default profile">
+                            <FontIcon
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Glyph="&#xE7A7;" />
+                        </Button>
+
+                        <Button
+                            Grid.Column="2"
+                            Width="55"
+                            Height="40"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Click="GameProfileDismiss_Click"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Dismiss">
+                            <FontIcon
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Glyph="&#xE711;" />
+                        </Button>
+                    </Grid>
+                </Border>
+
+                <!--  Revert notification Bar (bottom, same position as profile bar)  -->
+                <Border
+                    x:Name="RevertNotificationBar"
+                    Grid.Row="2"
+                    Height="75"
+                    Margin="10,0,10,20"
+                    Padding="16,10"
+                    Background="#2C1C34"
+                    CornerRadius="20"
+                    Visibility="Collapsed">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock
+                                Padding="0,0,0,5"
+                                FontFamily="Cascadia Code"
+                                FontSize="13"
+                                FontWeight="SemiBold"
+                                Foreground="White"
+                                Text="Profile Settings Reverted!" />
+                            <TextBlock
+                                x:Name="RevertNotificationDescription"
+                                Padding="0,0,5,0"
+                                FontFamily="Calibri"
+                                FontSize="14"
+                                Foreground="#AAAAAA"
+                                Text="Reverted to your Default Profile settings."
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <Button
+                            Grid.Column="1"
+                            Width="40"
+                            Height="40"
+                            Padding="0"
+                            VerticalAlignment="Center"
+                            Click="RevertNotificationBar_Dismiss_Click"
+                            CornerRadius="4"
+                            ToolTipService.ToolTip="Dismiss">
+                            <FontIcon
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Glyph="&#xE711;" />
+                        </Button>
+                    </Grid>
+                </Border>
 
                 <ScrollViewer
                     x:Name="ContentScrollViewer"
