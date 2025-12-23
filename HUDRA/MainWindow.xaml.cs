@@ -230,6 +230,7 @@ namespace HUDRA
             _batteryService.BatteryInfoUpdated += OnBatteryInfoUpdated;
             _gamepadNavigationService.PageNavigationRequested += OnGamepadPageNavigationRequested;
             _gamepadNavigationService.NavbarButtonRequested += OnGamepadNavbarButtonRequested;
+            _windowManager.WindowShown += OnWindowShown;
 
             InitializeWindow();
             SetupEventHandlers();
@@ -1399,6 +1400,23 @@ namespace HUDRA
 
             string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
             BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
+        }
+
+        private void OnWindowShown(object? sender, EventArgs e)
+        {
+            // When window is unhidden and made active, force input focus to the app
+            // This ensures gamepad and keyboard input will be received by HUDRA
+            try
+            {
+                // Focus LayoutRoot with Pointer state to simulate tapping/clicking in open space
+                // This transfers input focus from any other window/app to HUDRA
+                LayoutRoot.Focus(FocusState.Pointer);
+                System.Diagnostics.Debug.WriteLine("Window shown - forced input focus to LayoutRoot");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to force focus on window show: {ex.Message}");
+            }
         }
 
         private static string GetBatteryGlyph(int percent, bool charging)
