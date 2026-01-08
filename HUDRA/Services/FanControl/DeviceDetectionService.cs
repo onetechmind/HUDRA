@@ -11,6 +11,7 @@ namespace HUDRA.Services.FanControl
         {
             typeof(OneXFlyF1Device),    // Check F1 series first (more specific)
             typeof(OneXPlayerX1Device), // Then check X1 series
+            typeof(GPDWinMiniDevice),   // Check Win Mini before generic GPD
             typeof(GPDDevice),
             typeof(LenovoLegionGoDevice) // Lenovo Legion Go / Legion Go 2
         };

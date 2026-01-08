@@ -73,9 +73,19 @@ namespace HUDRA.Services
                 else if (device.RawManufacturer.Contains("GPD", StringComparison.OrdinalIgnoreCase))
                 {
                     device.Manufacturer = DeviceManufacturer.GPD;
-                    var gpdModels = new[] { "G1618-04", "GPD WIN 4", "WIN 4" };
-                    if (gpdModels.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
-                                           device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
+
+                    // Check for Win Mini (G1217 series) - check before Win 4
+                    var winMiniModels = new[] { "G1217", "GPD WIN MINI", "WIN MINI" };
+                    var win4Models = new[] { "G1618-04", "GPD WIN 4", "WIN 4" };
+
+                    if (winMiniModels.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
+                                               device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        device.DeviceName = "Win Mini";
+                        device.SupportsFanControl = true;
+                    }
+                    else if (win4Models.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
+                                                  device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
                     {
                         device.DeviceName = "Win 4 Series";
                         device.SupportsFanControl = true;
