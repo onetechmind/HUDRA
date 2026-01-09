@@ -1480,18 +1480,8 @@ namespace HUDRA.Pages
             {
                 ShowScanProgress("Scanning game libraries...");
 
-                // Trigger a full library scan using reflection to access BuildGameDatabaseAsync
-                var buildDatabaseMethod = typeof(EnhancedGameDetectionService).GetMethod("BuildGameDatabaseAsync",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                if (buildDatabaseMethod != null)
-                {
-                    var task = buildDatabaseMethod.Invoke(_gameDetectionService, null) as Task;
-                    if (task != null)
-                    {
-                        await task;
-                    }
-                }
+                // Trigger a full library rescan with cache clearing to detect newly installed games
+                await _gameDetectionService.RescanLibraryAsync();
 
                 // Reload the library to show any new games
                 _gamesLoaded = false;

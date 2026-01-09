@@ -22,6 +22,16 @@ namespace HUDRA.Services.GameLibraryProviders
         {
         }
 
+        /// <summary>
+        /// Clears any cached data. Xbox provider runs fresh PowerShell each scan,
+        /// so this is a no-op but required by IGameLibraryProvider interface.
+        /// </summary>
+        public void ClearCache()
+        {
+            // Xbox provider doesn't cache - runs fresh PowerShell script each time
+            System.Diagnostics.Debug.WriteLine("Xbox provider: ClearCache called (no-op - no caching)");
+        }
+
         public async Task<Dictionary<string, DetectedGame>> GetGamesAsync()
         {
             var detectedGames = new Dictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);

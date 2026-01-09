@@ -21,6 +21,19 @@ namespace HUDRA.Services.GameLibraryProviders
 
         public event EventHandler<string>? ScanProgressChanged;
 
+        /// <summary>
+        /// Clears the cached LauncherManager to force a fresh scan.
+        /// This is necessary to detect newly installed games during manual rescans.
+        /// </summary>
+        public void ClearCache()
+        {
+            lock (_launcherLock)
+            {
+                _cachedLauncherManager = null;
+                System.Diagnostics.Debug.WriteLine("GameLib.NET: Cache cleared - next scan will create fresh LauncherManager");
+            }
+        }
+
         public async Task<Dictionary<string, DetectedGame>> GetGamesAsync()
         {
             var detectedGames = new Dictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
