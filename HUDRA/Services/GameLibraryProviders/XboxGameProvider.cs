@@ -224,9 +224,25 @@ namespace HUDRA.Services.GameLibraryProviders
                             $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
 
                             # Deep resolution ONLY for display name - follow all junctions to find real folder name
-                            # Xbox on secondary drives can have: Package\ -> D:\WindowsApps\Package\ -> D:\Xbox\GameName\
+                            # Xbox on secondary drives can have different structures:
+                            # 1. Package\ -> D:\WindowsApps\Package\ -> D:\Xbox\GameName\
+                            # 2. Package\ (real) with Content\ subfolder that's a junction -> D:\Xbox\GameName\
                             $displayLocation = $actualLocation
                             $maxDepth = 5
+
+                            # First, check if there's a Content subfolder that's a junction (common pattern)
+                            $contentPath = Join-Path $actualLocation 'Content'
+                            if (Test-Path $contentPath) {
+                                $contentItem = Get-Item $contentPath -ErrorAction SilentlyContinue
+                                if ($contentItem.LinkType -eq 'Junction' -or $contentItem.LinkType -eq 'SymbolicLink') {
+                                    $targetPath = $contentItem.Target
+                                    if (![string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path $targetPath)) {
+                                        $displayLocation = $targetPath
+                                    }
+                                }
+                            }
+
+                            # Then follow any remaining junction chain
                             for ($i = 0; $i -lt $maxDepth; $i++) {
                                 $item = Get-Item $displayLocation -ErrorAction SilentlyContinue
                                 if ($item.LinkType -eq 'Junction' -or $item.LinkType -eq 'SymbolicLink') {
@@ -241,8 +257,12 @@ namespace HUDRA.Services.GameLibraryProviders
                                 }
                             }
 
-                            # Extract display name from the deeply resolved location
+                            # Get the folder name - if we resolved to a Content folder, go up one level
                             $folderName = Split-Path -Leaf $displayLocation
+                            if ($folderName -eq 'Content') {
+                                $displayLocation = Split-Path -Parent $displayLocation
+                                $folderName = Split-Path -Leaf $displayLocation
+                            }
 
                             # Also check if the parent folder is a symlink (for games with special chars like commas)
                             $realFolderName = $folderName
