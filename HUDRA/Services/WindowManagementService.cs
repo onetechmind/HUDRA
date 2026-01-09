@@ -22,6 +22,12 @@ namespace HUDRA.Services
 
         public bool IsVisible => _isWindowVisible;
 
+        /// <summary>
+        /// Fired when the window is shown (unhidden) via ToggleVisibility.
+        /// Use this to force input focus to the app when it becomes visible.
+        /// </summary>
+        public event EventHandler? WindowShown;
+
         public WindowManagementService(Window window, DpiScalingService dpiService)
         {
             _window = window;
@@ -71,6 +77,9 @@ namespace HUDRA.Services
                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                     }
 
+                    // Notify subscribers that window is now visible
+                    // This allows MainWindow to force input focus to the app
+                    WindowShown?.Invoke(this, EventArgs.Empty);
                 }
             }
             catch (Exception ex)
