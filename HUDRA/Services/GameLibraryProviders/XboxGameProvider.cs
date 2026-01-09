@@ -206,21 +206,65 @@ namespace HUDRA.Services.GameLibraryProviders
                     # Process each game package
                     foreach ($package in $gamePackages) {
                         try {
+                            # Capture the original folder name BEFORE resolving junctions
+                            # This is crucial for secondary drive games where the junction target
+                            # path may not contain the game name (e.g., D:\WindowsApps\Content)
+                            $originalInstallFolderName = Split-Path -Leaf $package.InstallLocation
+
+                            # Single-level junction resolution for file operations (exe path, config, etc.)
                             $actualLocation = if ((Get-Item $package.InstallLocation).LinkType -eq 'Junction') {
                                 (Get-Item $package.InstallLocation).Target
                             } else {
                                 $package.InstallLocation
                             }
-                            
+
+                            # Read config from actual location (works through junction)
                             $configPath = Join-Path $actualLocation 'MicrosoftGame.config'
                             $config = [xml](Get-Content $configPath)
                             $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
 
-                            # Extract display name from the parent folder name (go up one level from Content)
-                            $folderName = Split-Path -Leaf (Split-Path -Parent $actualLocation)
+                            # Deep resolution ONLY for display name - follow all junctions to find real folder name
+                            # Xbox on secondary drives can have different structures:
+                            # 1. Package\ -> D:\WindowsApps\Package\ -> D:\Xbox\GameName\
+                            # 2. Package\ (real) with Content\ subfolder that's a junction -> D:\Xbox\GameName\
+                            $displayLocation = $actualLocation
+                            $maxDepth = 5
 
-                            # Try to resolve symlink/junction to get actual folder name
-                            # Xbox uses symlinks for games with special characters (e.g., commas)
+                            # First, check if there's a Content subfolder that's a junction (common pattern)
+                            $contentPath = Join-Path $actualLocation 'Content'
+                            if (Test-Path $contentPath) {
+                                $contentItem = Get-Item $contentPath -ErrorAction SilentlyContinue
+                                if ($contentItem.LinkType -eq 'Junction' -or $contentItem.LinkType -eq 'SymbolicLink') {
+                                    $targetPath = $contentItem.Target
+                                    if (![string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path $targetPath)) {
+                                        $displayLocation = $targetPath
+                                    }
+                                }
+                            }
+
+                            # Then follow any remaining junction chain
+                            for ($i = 0; $i -lt $maxDepth; $i++) {
+                                $item = Get-Item $displayLocation -ErrorAction SilentlyContinue
+                                if ($item.LinkType -eq 'Junction' -or $item.LinkType -eq 'SymbolicLink') {
+                                    $targetPath = $item.Target
+                                    if (![string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path $targetPath)) {
+                                        $displayLocation = $targetPath
+                                    } else {
+                                        break
+                                    }
+                                } else {
+                                    break
+                                }
+                            }
+
+                            # Get the folder name - if we resolved to a Content folder, go up one level
+                            $folderName = Split-Path -Leaf $displayLocation
+                            if ($folderName -eq 'Content') {
+                                $displayLocation = Split-Path -Parent $displayLocation
+                                $folderName = Split-Path -Leaf $displayLocation
+                            }
+
+                            # Also check if the parent folder is a symlink (for games with special chars like commas)
                             $realFolderName = $folderName
                             try {
                                 $parentPath = Split-Path -Parent $actualLocation
@@ -233,11 +277,25 @@ namespace HUDRA.Services.GameLibraryProviders
                                     }
                                 }
                             } catch {
-                                # Symlink resolution failed - stick with original folder name
+                                # Symlink resolution failed - stick with folder name
                             }
 
                             # Check if folder name is a GUID pattern (fallback to exe name if so)
                             $isGuid = $realFolderName -match '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
+
+                            # Check if folder name is a generic system folder (secondary drive issue)
+                            # When games are on secondary drives, the junction target path often lacks
+                            # the game name, resulting in generic names like 'WindowsApps' or 'Content'
+                            $genericFolders = @('WindowsApps', 'Content', 'Program Files', 'XboxGames')
+                            $isGenericFolder = $genericFolders -contains $realFolderName
+
+                            # Extract clean name from package folder if it matches package ID pattern
+                            # Package folders look like: Publisher.GameName_1.0.0.0_x64__publisherhash
+                            # We want to extract just 'Publisher.GameName' for display
+                            $cleanedFolderName = $originalInstallFolderName
+                            if ($originalInstallFolderName -match '^(.+?)_\d+\.\d+\.\d+\.\d+_') {
+                                $cleanedFolderName = $Matches[1]
+                            }
 
                             # Scan for all .exe files up to 5 levels deep in the game folder
                             # This helps detect games where the actual running exe differs from MicrosoftGame.config
@@ -251,12 +309,17 @@ namespace HUDRA.Services.GameLibraryProviders
                                 $allExeNames = @($exeName)
                             }
 
-                            # Prioritize real folder name, fall back to exe name for GUIDs
+                            # Prioritize real folder name, fall back to exe name for GUIDs or generic folders
                             # This ensures:
                             # - ""Little Kitty, Big City"" uses folder name (not GUID)
                             # - ""Metaphor ReFantazio"" uses folder name (not exe ""METAPHOR"")
-                            $displayName = if (!$isGuid -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
+                            # - Secondary drive games don't get named ""WindowsApps""
+                            $displayName = if (!$isGuid -and !$isGenericFolder -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
                                 $realFolderName
+                            } elseif (![string]::IsNullOrWhiteSpace($cleanedFolderName) -and $cleanedFolderName -ne 'Content') {
+                                # Use cleaned folder name for secondary drive games
+                                # This extracts the game name from package IDs like 'Publisher.Game_1.0.0.0_x64__hash'
+                                $cleanedFolderName
                             } elseif (![string]::IsNullOrWhiteSpace($exeName)) {
                                 $exeName
                             } elseif ($allExeNames.Count -gt 0) {
