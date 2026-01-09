@@ -43,35 +43,41 @@ namespace HUDRA.Services.GameLibraryProviders
                 ScanProgressChanged?.Invoke(this, "Initializing GameLib.NET...");
                 System.Diagnostics.Debug.WriteLine("GameLib.NET: Starting scan...");
 
-                // Get or create cached LauncherManager (MEF scan only happens once)
-                LauncherManager launcherManager;
-                lock (_launcherLock)
+                // Get or create cached LauncherManager on background thread to avoid blocking UI
+                // MEF DirectoryCatalog scan can take several seconds
+                var (launcherManager, launchers) = await Task.Run(() =>
                 {
-                    if (_cachedLauncherManager == null)
+                    LauncherManager manager;
+                    lock (_launcherLock)
                     {
-                        System.Diagnostics.Debug.WriteLine("GameLib.NET: Creating LauncherManager (first time - MEF scan)...");
-
-                        // Suppress MEF DirectoryCatalog warnings during first-time initialization
-                        // GameLib.NET scans all DLLs in the app directory, causing warnings for native DLLs
-                        var originalListeners = Trace.Listeners.Cast<TraceListener>().ToArray();
-                        Trace.Listeners.Clear();
-                        try
+                        if (_cachedLauncherManager == null)
                         {
-                            _cachedLauncherManager = new LauncherManager();
-                        }
-                        finally
-                        {
-                            Trace.Listeners.AddRange(originalListeners);
-                        }
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("GameLib.NET: Using cached LauncherManager");
-                    }
-                    launcherManager = _cachedLauncherManager;
-                }
+                            System.Diagnostics.Debug.WriteLine("GameLib.NET: Creating LauncherManager (first time - MEF scan)...");
 
-                var launchers = launcherManager.GetLaunchers();
+                            // Suppress MEF DirectoryCatalog warnings during first-time initialization
+                            // GameLib.NET scans all DLLs in the app directory, causing warnings for native DLLs
+                            var originalListeners = Trace.Listeners.Cast<TraceListener>().ToArray();
+                            Trace.Listeners.Clear();
+                            try
+                            {
+                                _cachedLauncherManager = new LauncherManager();
+                            }
+                            finally
+                            {
+                                Trace.Listeners.AddRange(originalListeners);
+                            }
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debug.WriteLine("GameLib.NET: Using cached LauncherManager");
+                        }
+                        manager = _cachedLauncherManager;
+                    }
+
+                    // GetLaunchers can also be slow, so run it on background thread too
+                    var launcherList = manager.GetLaunchers();
+                    return (manager, launcherList);
+                });
 
                 System.Diagnostics.Debug.WriteLine($"GameLib.NET: Found {launchers?.Count() ?? 0} launchers");
                 ScanProgressChanged?.Invoke(this, $"Found {launchers?.Count() ?? 0} launchers");
