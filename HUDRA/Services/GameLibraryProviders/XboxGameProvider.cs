@@ -250,6 +250,14 @@ namespace HUDRA.Services.GameLibraryProviders
                             $genericFolders = @('WindowsApps', 'Content', 'Program Files', 'XboxGames')
                             $isGenericFolder = $genericFolders -contains $realFolderName
 
+                            # Extract clean name from package folder if it matches package ID pattern
+                            # Package folders look like: Publisher.GameName_1.0.0.0_x64__publisherhash
+                            # We want to extract just 'Publisher.GameName' for display
+                            $cleanedFolderName = $originalInstallFolderName
+                            if ($originalInstallFolderName -match '^(.+?)_\d+\.\d+\.\d+\.\d+_') {
+                                $cleanedFolderName = $Matches[1]
+                            }
+
                             # Scan for all .exe files up to 5 levels deep in the game folder
                             # This helps detect games where the actual running exe differs from MicrosoftGame.config
                             $allExeNames = @()
@@ -269,10 +277,10 @@ namespace HUDRA.Services.GameLibraryProviders
                             # - Secondary drive games don't get named ""WindowsApps""
                             $displayName = if (!$isGuid -and !$isGenericFolder -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
                                 $realFolderName
-                            } elseif (![string]::IsNullOrWhiteSpace($originalInstallFolderName) -and $originalInstallFolderName -ne 'Content') {
-                                # Use original install folder name for secondary drive games
-                                # This preserves the game name from the junction in C:\Program Files\WindowsApps
-                                $originalInstallFolderName
+                            } elseif (![string]::IsNullOrWhiteSpace($cleanedFolderName) -and $cleanedFolderName -ne 'Content') {
+                                # Use cleaned folder name for secondary drive games
+                                # This extracts the game name from package IDs like 'Publisher.Game_1.0.0.0_x64__hash'
+                                $cleanedFolderName
                             } elseif (![string]::IsNullOrWhiteSpace($exeName)) {
                                 $exeName
                             } elseif ($allExeNames.Count -gt 0) {
