@@ -317,6 +317,22 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Apply HDR (only if explicitly set, not null/"Default")
+                if (profile.HdrEnabled.HasValue)
+                {
+                    try
+                    {
+                        _hdrService.SetHdrEnabled(profile.HdrEnabled.Value);
+                        result.AddResult("HDR", true);
+                        System.Diagnostics.Debug.WriteLine($"  HDR: {(profile.HdrEnabled.Value ? "Enabled" : "Disabled")} - OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        result.AddResult("HDR", false, ex.Message);
+                        System.Diagnostics.Debug.WriteLine($"  HDR: FAILED - {ex.Message}");
+                    }
+                }
+
                 // Apply Fan Curve Preset (if not "Default")
                 if (profile.FanCurvePreset != "Default" && !string.IsNullOrEmpty(profile.FanCurvePreset) && _fanControlService != null)
                 {
@@ -327,6 +343,8 @@ namespace HUDRA.Services
                         {
                             SettingsService.SetFanCurve(presetCurve);
                             SettingsService.SetFanCurveEnabled(true);
+                            // Apply immediately instead of waiting for next temperature change
+                            _fanControlService.ApplyCurrentFanCurve();
                             result.AddResult("FanCurve", true);
                             System.Diagnostics.Debug.WriteLine($"  Fan Curve: {profile.FanCurvePreset} - OK");
                         }
@@ -504,6 +522,11 @@ namespace HUDRA.Services
                             SettingsService.SetFanCurve(presetCurve);
                         }
                         SettingsService.SetFanCurveEnabled(revertTarget.FanCurveEnabled);
+                        // Apply immediately instead of waiting for next temperature change
+                        if (revertTarget.FanCurveEnabled)
+                        {
+                            _fanControlService.ApplyCurrentFanCurve();
+                        }
                         System.Diagnostics.Debug.WriteLine($"  Fan Curve: {revertTarget.FanCurvePreset} ({(revertTarget.FanCurveEnabled ? "Enabled" : "Disabled")}) - OK");
                     }
                     catch (Exception ex)
