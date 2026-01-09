@@ -206,12 +206,17 @@ namespace HUDRA.Services.GameLibraryProviders
                     # Process each game package
                     foreach ($package in $gamePackages) {
                         try {
+                            # Capture the original folder name BEFORE resolving junctions
+                            # This is crucial for secondary drive games where the junction target
+                            # path may not contain the game name (e.g., D:\WindowsApps\Content)
+                            $originalInstallFolderName = Split-Path -Leaf $package.InstallLocation
+
                             $actualLocation = if ((Get-Item $package.InstallLocation).LinkType -eq 'Junction') {
                                 (Get-Item $package.InstallLocation).Target
                             } else {
                                 $package.InstallLocation
                             }
-                            
+
                             $configPath = Join-Path $actualLocation 'MicrosoftGame.config'
                             $config = [xml](Get-Content $configPath)
                             $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
@@ -239,6 +244,12 @@ namespace HUDRA.Services.GameLibraryProviders
                             # Check if folder name is a GUID pattern (fallback to exe name if so)
                             $isGuid = $realFolderName -match '^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$'
 
+                            # Check if folder name is a generic system folder (secondary drive issue)
+                            # When games are on secondary drives, the junction target path often lacks
+                            # the game name, resulting in generic names like 'WindowsApps' or 'Content'
+                            $genericFolders = @('WindowsApps', 'Content', 'Program Files', 'XboxGames')
+                            $isGenericFolder = $genericFolders -contains $realFolderName
+
                             # Scan for all .exe files up to 5 levels deep in the game folder
                             # This helps detect games where the actual running exe differs from MicrosoftGame.config
                             $allExeNames = @()
@@ -251,12 +262,17 @@ namespace HUDRA.Services.GameLibraryProviders
                                 $allExeNames = @($exeName)
                             }
 
-                            # Prioritize real folder name, fall back to exe name for GUIDs
+                            # Prioritize real folder name, fall back to exe name for GUIDs or generic folders
                             # This ensures:
                             # - ""Little Kitty, Big City"" uses folder name (not GUID)
                             # - ""Metaphor ReFantazio"" uses folder name (not exe ""METAPHOR"")
-                            $displayName = if (!$isGuid -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
+                            # - Secondary drive games don't get named ""WindowsApps""
+                            $displayName = if (!$isGuid -and !$isGenericFolder -and ![string]::IsNullOrWhiteSpace($realFolderName)) {
                                 $realFolderName
+                            } elseif (![string]::IsNullOrWhiteSpace($originalInstallFolderName) -and $originalInstallFolderName -ne 'Content') {
+                                # Use original install folder name for secondary drive games
+                                # This preserves the game name from the junction in C:\Program Files\WindowsApps
+                                $originalInstallFolderName
                             } elseif (![string]::IsNullOrWhiteSpace($exeName)) {
                                 $exeName
                             } elseif ($allExeNames.Count -gt 0) {
