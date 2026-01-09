@@ -211,17 +211,28 @@ namespace HUDRA.Services.GameLibraryProviders
                             # path may not contain the game name (e.g., D:\WindowsApps\Content)
                             $originalInstallFolderName = Split-Path -Leaf $package.InstallLocation
 
-                            # Recursively resolve junctions/symlinks to get the actual location
-                            # Xbox on secondary drives can have multiple levels of junctions:
-                            # C:\Program Files\WindowsApps\Package\ -> D:\WindowsApps\Package\ -> D:\Xbox\GameName\
-                            $actualLocation = $package.InstallLocation
-                            $maxDepth = 5  # Prevent infinite loops
+                            # Single-level junction resolution for file operations (exe path, config, etc.)
+                            $actualLocation = if ((Get-Item $package.InstallLocation).LinkType -eq 'Junction') {
+                                (Get-Item $package.InstallLocation).Target
+                            } else {
+                                $package.InstallLocation
+                            }
+
+                            # Read config from actual location (works through junction)
+                            $configPath = Join-Path $actualLocation 'MicrosoftGame.config'
+                            $config = [xml](Get-Content $configPath)
+                            $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
+
+                            # Deep resolution ONLY for display name - follow all junctions to find real folder name
+                            # Xbox on secondary drives can have: Package\ -> D:\WindowsApps\Package\ -> D:\Xbox\GameName\
+                            $displayLocation = $actualLocation
+                            $maxDepth = 5
                             for ($i = 0; $i -lt $maxDepth; $i++) {
-                                $item = Get-Item $actualLocation -ErrorAction SilentlyContinue
+                                $item = Get-Item $displayLocation -ErrorAction SilentlyContinue
                                 if ($item.LinkType -eq 'Junction' -or $item.LinkType -eq 'SymbolicLink') {
                                     $targetPath = $item.Target
                                     if (![string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path $targetPath)) {
-                                        $actualLocation = $targetPath
+                                        $displayLocation = $targetPath
                                     } else {
                                         break
                                     }
@@ -230,13 +241,8 @@ namespace HUDRA.Services.GameLibraryProviders
                                 }
                             }
 
-                            $configPath = Join-Path $actualLocation 'MicrosoftGame.config'
-                            $config = [xml](Get-Content $configPath)
-                            $exeName = [System.IO.Path]::GetFileNameWithoutExtension($config.Game.ExecutableList.Executable.Name)
-
-                            # Extract display name from the actual location folder name
-                            # After full junction resolution, this should be the real game folder
-                            $folderName = Split-Path -Leaf $actualLocation
+                            # Extract display name from the deeply resolved location
+                            $folderName = Split-Path -Leaf $displayLocation
 
                             # Also check if the parent folder is a symlink (for games with special chars like commas)
                             $realFolderName = $folderName
