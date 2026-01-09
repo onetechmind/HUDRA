@@ -15,12 +15,12 @@ namespace HUDRA.Services.FanControl.Devices
 
         public override ECRegisterMap RegisterMap { get; } = new ECRegisterMap
         {
-            FanControlAddress = 0x275,
-            FanDutyAddress = 0x1809,
+            FanControlAddress = 0x47A,
+            FanDutyAddress = 0x47A,
             StatusCommandPort = 0x4E,
             DataPort = 0x4F,
             FanValueMin = 0,
-            FanValueMax = 184,
+            FanValueMax = 244,
             Protocol = new ECProtocolConfig
             {
                 AddressSelectHigh = 0x2E,
