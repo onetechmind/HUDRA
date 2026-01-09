@@ -138,6 +138,9 @@ namespace HUDRA
                         
                         // Connect MainWindow to TurboService now that it's ready
                         MainWindow?.ConnectTurboService();
+
+                        // Connect FanControlService to GameProfileService for per-game fan curves
+                        MainWindow?.ConnectFanControlService();
                     }
                     catch (Exception turboEx)
                     {
@@ -147,15 +150,18 @@ namespace HUDRA
                 else
                 {
                     System.Diagnostics.Debug.WriteLine($"⚠️ Fan control not available: {initResult.Message}");
-                    
+
                     // Still try to initialize TurboService without device for software hotkeys
                     try
                     {
                         TurboService = new TurboService(null);
                         System.Diagnostics.Debug.WriteLine("🎮 TurboService initialized in fallback mode (software hotkeys only)");
-                        
+
                         // Connect MainWindow to TurboService for software hotkeys
                         MainWindow?.ConnectTurboService();
+
+                        // Also connect FanControlService (may be null, but GameProfileService handles that)
+                        MainWindow?.ConnectFanControlService();
                     }
                     catch (Exception turboEx)
                     {

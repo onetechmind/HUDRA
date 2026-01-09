@@ -16,7 +16,7 @@ namespace HUDRA.Services
         private readonly ResolutionService _resolutionService;
         private readonly RtssFpsLimiterService _fpsLimiterService;
         private readonly AmdAdlxService _amdService;
-        private readonly FanControlService? _fanControlService;
+        private FanControlService? _fanControlService;
         private readonly HdrService _hdrService;
         private readonly EnhancedGameDatabase _gameDatabase;
 
@@ -51,6 +51,17 @@ namespace HUDRA.Services
             _fanControlService = fanControlService;
             _hdrService = hdrService;
             _gameDatabase = gameDatabase;
+        }
+
+        /// <summary>
+        /// Updates the FanControlService reference. Call this after FanControlService
+        /// is initialized in App.OnLaunched, as it may not be available during
+        /// MainWindow construction.
+        /// </summary>
+        public void SetFanControlService(FanControlService? fanControlService)
+        {
+            _fanControlService = fanControlService;
+            System.Diagnostics.Debug.WriteLine($"GameProfileService: FanControlService updated (available: {fanControlService != null})");
         }
 
         /// <summary>
@@ -317,6 +328,22 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Apply HDR (only if explicitly set, not null/"Default")
+                if (profile.HdrEnabled.HasValue)
+                {
+                    try
+                    {
+                        _hdrService.SetHdrEnabled(profile.HdrEnabled.Value);
+                        result.AddResult("HDR", true);
+                        System.Diagnostics.Debug.WriteLine($"  HDR: {(profile.HdrEnabled.Value ? "Enabled" : "Disabled")} - OK");
+                    }
+                    catch (Exception ex)
+                    {
+                        result.AddResult("HDR", false, ex.Message);
+                        System.Diagnostics.Debug.WriteLine($"  HDR: FAILED - {ex.Message}");
+                    }
+                }
+
                 // Apply Fan Curve Preset (if not "Default")
                 if (profile.FanCurvePreset != "Default" && !string.IsNullOrEmpty(profile.FanCurvePreset) && _fanControlService != null)
                 {
@@ -327,6 +354,8 @@ namespace HUDRA.Services
                         {
                             SettingsService.SetFanCurve(presetCurve);
                             SettingsService.SetFanCurveEnabled(true);
+                            // Apply immediately instead of waiting for next temperature change
+                            _fanControlService.ApplyCurrentFanCurve();
                             result.AddResult("FanCurve", true);
                             System.Diagnostics.Debug.WriteLine($"  Fan Curve: {profile.FanCurvePreset} - OK");
                         }
@@ -504,6 +533,11 @@ namespace HUDRA.Services
                             SettingsService.SetFanCurve(presetCurve);
                         }
                         SettingsService.SetFanCurveEnabled(revertTarget.FanCurveEnabled);
+                        // Apply immediately instead of waiting for next temperature change
+                        if (revertTarget.FanCurveEnabled)
+                        {
+                            _fanControlService.ApplyCurrentFanCurve();
+                        }
                         System.Diagnostics.Debug.WriteLine($"  Fan Curve: {revertTarget.FanCurvePreset} ({(revertTarget.FanCurveEnabled ? "Enabled" : "Disabled")}) - OK");
                     }
                     catch (Exception ex)

@@ -1191,7 +1191,7 @@ namespace HUDRA
                 // Get the global TurboService instance from App
                 var app = (App)Application.Current;
                 _turboService = app.TurboService;
-                
+
                 if (_turboService != null)
                 {
                     _turboService.TurboButtonPressed += (s, e) =>
@@ -1208,6 +1208,33 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"TurboService setup failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Updates the GameProfileService with the FanControlService reference.
+        /// Called from App after FanControlService is initialized.
+        /// </summary>
+        public void ConnectFanControlService()
+        {
+            try
+            {
+                var app = (App)Application.Current;
+                var fanControlService = app.FanControlService;
+
+                if (_gameProfileService != null && fanControlService != null)
+                {
+                    _gameProfileService.SetFanControlService(fanControlService);
+                    System.Diagnostics.Debug.WriteLine("FanControlService connected to GameProfileService successfully");
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚠️ Cannot connect FanControlService: GameProfileService={_gameProfileService != null}, FanControlService={fanControlService != null}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"FanControlService connection failed: {ex.Message}");
             }
         }
 

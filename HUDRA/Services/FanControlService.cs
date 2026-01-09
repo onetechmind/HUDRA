@@ -308,6 +308,48 @@ namespace HUDRA.Services
             }
         }
 
+        /// <summary>
+        /// Forces immediate application of the current fan curve based on current temperature.
+        /// Call this after changing the fan curve settings to apply immediately without waiting
+        /// for the next temperature change event.
+        /// </summary>
+        public void ApplyCurrentFanCurve()
+        {
+            if (!_temperatureControlEnabled || _temperatureMonitor == null)
+            {
+                System.Diagnostics.Debug.WriteLine("Cannot apply fan curve: temperature control not enabled");
+                return;
+            }
+
+            try
+            {
+                var fanCurve = SettingsService.GetFanCurve();
+                if (!fanCurve.IsEnabled)
+                {
+                    System.Diagnostics.Debug.WriteLine("Fan curve is disabled, skipping immediate application");
+                    return;
+                }
+
+                // Get current temperature from monitor
+                var currentTemp = _temperatureMonitor.CurrentTemperature.MaxTemperature;
+                if (currentTemp <= 0)
+                {
+                    System.Diagnostics.Debug.WriteLine("Could not get current temperature for fan curve application");
+                    return;
+                }
+
+                // Interpolate and apply fan speed
+                var targetFanSpeed = InterpolateFanSpeedFromCurve(currentTemp, fanCurve.Points);
+                SetFanSpeed(targetFanSpeed);
+
+                System.Diagnostics.Debug.WriteLine($"🌡️ Immediate fan curve application: {currentTemp:F1}°C → {targetFanSpeed:F1}%");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error applying fan curve immediately: {ex.Message}");
+            }
+        }
+
         public void DisableTemperatureControl()
         {
             try

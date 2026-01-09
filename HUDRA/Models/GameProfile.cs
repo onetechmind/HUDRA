@@ -47,6 +47,7 @@ namespace HUDRA.Models
         /// </summary>
         [JsonIgnore]
         public bool HasAnySettingsConfigured =>
+            AutoRevertOnClose || // Auto-revert counts as a configured setting
             TdpWatts > 0 ||
             (ResolutionWidth > 0 && ResolutionHeight > 0) ||
             RefreshRateHz > 0 ||
