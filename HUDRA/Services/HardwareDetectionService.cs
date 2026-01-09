@@ -74,8 +74,8 @@ namespace HUDRA.Services
                 {
                     device.Manufacturer = DeviceManufacturer.GPD;
 
-                    // Check for Win Mini (G1217 series) - check before Win 4
-                    var winMiniModels = new[] { "G1217", "GPD WIN MINI", "WIN MINI" };
+                    // Check for Win Mini (G1617 series) - check before Win 4
+                    var winMiniModels = new[] { "G1617", "GPD WIN MINI", "WIN MINI" };
                     var win4Models = new[] { "G1618-04", "GPD WIN 4", "WIN 4" };
 
                     if (winMiniModels.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
