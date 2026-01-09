@@ -16,7 +16,7 @@ namespace HUDRA.Services
         private readonly ResolutionService _resolutionService;
         private readonly RtssFpsLimiterService _fpsLimiterService;
         private readonly AmdAdlxService _amdService;
-        private readonly FanControlService? _fanControlService;
+        private FanControlService? _fanControlService;
         private readonly HdrService _hdrService;
         private readonly EnhancedGameDatabase _gameDatabase;
 
@@ -51,6 +51,17 @@ namespace HUDRA.Services
             _fanControlService = fanControlService;
             _hdrService = hdrService;
             _gameDatabase = gameDatabase;
+        }
+
+        /// <summary>
+        /// Updates the FanControlService reference. Call this after FanControlService
+        /// is initialized in App.OnLaunched, as it may not be available during
+        /// MainWindow construction.
+        /// </summary>
+        public void SetFanControlService(FanControlService? fanControlService)
+        {
+            _fanControlService = fanControlService;
+            System.Diagnostics.Debug.WriteLine($"GameProfileService: FanControlService updated (available: {fanControlService != null})");
         }
 
         /// <summary>
