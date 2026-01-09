@@ -35,7 +35,6 @@ namespace HUDRA.Pages
         // Static property to pass selected game to GameSettingsPage
         public static string? SelectedGameProcessName { get; set; }
         private bool _gamesLoaded = false;
-        private bool _eventsSubscribed = false; // Track if we've subscribed to prevent duplicates
         private bool _isRestoringScroll = false; // Flag to ignore ViewChanged during programmatic scroll restoration
 
         // Gamepad navigation
@@ -225,14 +224,12 @@ namespace HUDRA.Pages
             _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
             _contentScrollViewer.ViewChanged += OnScrollViewChanged;
 
-            // Subscribe to scan events only once (for reactive game list updates)
-            if (!_eventsSubscribed)
-            {
-                _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
-                _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
-
-                _eventsSubscribed = true;
-            }
+            // Same pattern for scan events to prevent accumulation
+            // Unsubscribe first (safe no-op if not subscribed), then subscribe
+            _gameDetectionService.ScanningStateChanged -= OnScanningStateChanged;
+            _gameDetectionService.ScanningStateChanged += OnScanningStateChanged;
+            _gameDetectionService.ScanProgressChanged -= OnScanProgressChanged;
+            _gameDetectionService.ScanProgressChanged += OnScanProgressChanged;
 
             // Load games only if not already loaded
             if (!_gamesLoaded)
@@ -546,6 +543,9 @@ namespace HUDRA.Pages
                 {
                     HideScanProgress();
                     // Scan completed - refresh the game list
+                    // Reset _gamesLoaded BEFORE loading to ensure reload on next navigation
+                    // even if this LoadGamesAsync call fails (page not visible, exception, etc.)
+                    _gamesLoaded = false;
                     _ = LoadGamesAsync();
                 }
             });
@@ -1480,18 +1480,8 @@ namespace HUDRA.Pages
             {
                 ShowScanProgress("Scanning game libraries...");
 
-                // Trigger a full library scan using reflection to access BuildGameDatabaseAsync
-                var buildDatabaseMethod = typeof(EnhancedGameDetectionService).GetMethod("BuildGameDatabaseAsync",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                if (buildDatabaseMethod != null)
-                {
-                    var task = buildDatabaseMethod.Invoke(_gameDetectionService, null) as Task;
-                    if (task != null)
-                    {
-                        await task;
-                    }
-                }
+                // Trigger a full library rescan with cache clearing to detect newly installed games
+                await _gameDetectionService.RescanLibraryAsync();
 
                 // Reload the library to show any new games
                 _gamesLoaded = false;

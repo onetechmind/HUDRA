@@ -477,19 +477,8 @@ namespace HUDRA.Controls
                     var gameDetectionService = mainWindow.EnhancedGameDetectionService;
                     if (gameDetectionService != null)
                     {
-                        // Trigger a full library scan using reflection to access BuildGameDatabaseAsync
-                        var buildDatabaseMethod = typeof(EnhancedGameDetectionService).GetMethod("BuildGameDatabaseAsync",
-                            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-
-                        if (buildDatabaseMethod != null)
-                        {
-                            var task = buildDatabaseMethod.Invoke(gameDetectionService, null) as Task;
-                            if (task != null)
-                            {
-                                await task;
-                            }
-                        }
-
+                        // Trigger a full library rescan to re-download artwork with new API key
+                        await gameDetectionService.RescanLibraryAsync();
                         System.Diagnostics.Debug.WriteLine("GameDetectionControl: Library rescan completed");
                     }
                 }

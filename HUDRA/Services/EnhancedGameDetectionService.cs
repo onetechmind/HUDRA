@@ -387,6 +387,31 @@ namespace HUDRA.Services
             await BuildGameDatabaseAsync();
         }
 
+        /// <summary>
+        /// Public method for manual library rescan. Clears provider caches to detect newly installed games.
+        /// </summary>
+        public async Task RescanLibraryAsync()
+        {
+            if (!IsEnhancedScanningEnabled())
+                return;
+
+            // Clear all provider caches to force fresh detection
+            // This is essential for detecting newly installed games
+            foreach (var provider in _providers)
+            {
+                try
+                {
+                    provider.ClearCache();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"EnhancedGameDetection: Error clearing cache for {provider.ProviderName}: {ex.Message}");
+                }
+            }
+
+            await BuildGameDatabaseAsync();
+        }
+
         private async Task ResetDatabaseAsync()
         {
             if (!IsEnhancedScanningEnabled())
