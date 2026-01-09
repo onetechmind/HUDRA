@@ -6,7 +6,7 @@ namespace HUDRA.Services.FanControl.Devices
 {
     /// <summary>
     /// Fan control implementation for GPD Win Mini devices.
-    /// Supports 2024 models with AMD 7840U, 8840U, and HX370 APUs.
+    /// Supports models with AMD 7640U, 7840U, 8840U, and HX370 APUs.
     /// </summary>
     public class GPDWinMiniDevice : FanControlDeviceBase
     {
@@ -46,8 +46,7 @@ namespace HUDRA.Services.FanControl.Devices
             SupportedModels = new[] { "G1217", "GPD WIN MINI", "WIN MINI" }
         };
 
-        // Supported APUs for Win Mini: 7840U (2024), 8840U, HX370
-        private static readonly string[] SupportedAPUs = { "7840U", "8840U", "HX 370" };
+        private static readonly string[] SupportedAPUs = { "7640U", "7840U", "8840U", "HX 370" };
 
         // Win Mini model identifiers
         private static readonly string[] WinMiniModels = { "G1217", "GPD WIN MINI", "WIN MINI" };
