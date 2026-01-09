@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
-using LiteDB;
 
 namespace HUDRA.Models
 {
     public class DetectedGame
     {
-        [BsonId]
         public string ProcessName { get; set; } = string.Empty;
 
         public string DisplayName { get; set; } = string.Empty;

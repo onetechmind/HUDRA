@@ -1,82 +1,193 @@
 using HUDRA.Models;
-using LiteDB;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace HUDRA.Services
 {
+    /// <summary>
+    /// JSON-based game library database. Stores games in human-readable JSON format
+    /// at %LocalAppData%\HUDRA\game_library.json for easy manual editing during development.
+    /// </summary>
     public class EnhancedGameDatabase : IDisposable
     {
-        private readonly LiteDatabase _database;
-        private readonly ILiteCollection<DetectedGame> _games;
         private readonly string _databasePath;
+        private readonly SemaphoreSlim _fileLock = new(1, 1);
+        private ConcurrentDictionary<string, DetectedGame> _games = new(StringComparer.OrdinalIgnoreCase);
         private bool _disposed = false;
+        private bool _isDirty = false;
+        private readonly Timer _autoSaveTimer;
+
+        private static readonly JsonSerializerOptions _jsonOptions = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            Converters = { new JsonStringEnumConverter() }
+        };
 
         public EnhancedGameDatabase()
         {
+            var appDataPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "HUDRA");
+
+            Directory.CreateDirectory(appDataPath);
+            _databasePath = Path.Combine(appDataPath, "game_library.json");
+
+            // Load existing data
+            LoadFromDisk();
+
+            // Auto-save every 30 seconds if dirty
+            _autoSaveTimer = new Timer(_ => SaveIfDirtyAsync().ConfigureAwait(false), null,
+                TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+            System.Diagnostics.Debug.WriteLine($"Enhanced game database initialized: {_databasePath} ({_games.Count} games)");
+        }
+
+        #region Disk I/O
+
+        private void LoadFromDisk()
+        {
             try
             {
-                // Create database in HUDRA AppData folder
-                var appDataPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "HUDRA");
-
-                if (!Directory.Exists(appDataPath))
+                if (!File.Exists(_databasePath))
                 {
-                    Directory.CreateDirectory(appDataPath);
+                    _games = new ConcurrentDictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
+                    return;
                 }
 
-                _databasePath = Path.Combine(appDataPath, "enhanced_games.db");
-                
-                // Initialize LiteDB with connection string for better performance
-                var connectionString = new ConnectionString
+                var json = File.ReadAllText(_databasePath);
+
+                if (string.IsNullOrWhiteSpace(json))
                 {
-                    Filename = _databasePath,
-                    Connection = ConnectionType.Shared,
-                    Upgrade = true
-                };
+                    _games = new ConcurrentDictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
+                    return;
+                }
 
-                _database = new LiteDatabase(connectionString);
-                _games = _database.GetCollection<DetectedGame>("games");
+                var games = JsonSerializer.Deserialize<List<DetectedGame>>(json, _jsonOptions);
 
-                // Ensure indexes are created
-                _games.EnsureIndex(x => x.ProcessName, unique: true);
-                _games.EnsureIndex(x => x.Source);
-                _games.EnsureIndex(x => x.LastDetected);
+                if (games != null)
+                {
+                    _games = new ConcurrentDictionary<string, DetectedGame>(
+                        games.Where(g => g != null && !string.IsNullOrEmpty(g.ProcessName))
+                             .ToDictionary(g => g.ProcessName, g => g, StringComparer.OrdinalIgnoreCase));
+                }
 
-                System.Diagnostics.Debug.WriteLine($"Enhanced game database initialized: {_databasePath}");
+                System.Diagnostics.Debug.WriteLine($"Loaded {_games.Count} games from {_databasePath}");
+            }
+            catch (JsonException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"JSON parse error, starting fresh: {ex.Message}");
+                _games = new ConcurrentDictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
+                BackupCorruptedFile();
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error initializing enhanced game database: {ex.Message}");
-                throw;
+                System.Diagnostics.Debug.WriteLine($"Error loading game database: {ex.Message}");
+                _games = new ConcurrentDictionary<string, DetectedGame>(StringComparer.OrdinalIgnoreCase);
             }
         }
+
+        private void BackupCorruptedFile()
+        {
+            try
+            {
+                if (File.Exists(_databasePath))
+                {
+                    var backupPath = _databasePath + $".corrupted.{DateTime.Now:yyyyMMdd_HHmmss}";
+                    File.Move(_databasePath, backupPath);
+                    System.Diagnostics.Debug.WriteLine($"Corrupted database backed up to: {backupPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to backup corrupted file: {ex.Message}");
+            }
+        }
+
+        private void SaveToDisk()
+        {
+            if (_disposed) return;
+
+            _fileLock.Wait();
+            try
+            {
+                var gamesList = _games.Values
+                    .Where(g => g != null)
+                    .OrderBy(g => g.DisplayName ?? g.ProcessName)
+                    .ToList();
+
+                var json = JsonSerializer.Serialize(gamesList, _jsonOptions);
+
+                // Atomic write: temp file then rename
+                var tempPath = _databasePath + ".tmp";
+                File.WriteAllText(tempPath, json);
+                File.Move(tempPath, _databasePath, overwrite: true);
+
+                _isDirty = false;
+                System.Diagnostics.Debug.WriteLine($"Saved {gamesList.Count} games to {_databasePath}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error saving game database: {ex.Message}");
+            }
+            finally
+            {
+                _fileLock.Release();
+            }
+        }
+
+        private async Task SaveIfDirtyAsync()
+        {
+            if (_isDirty && !_disposed)
+            {
+                await Task.Run(() => SaveToDisk());
+            }
+        }
+
+        /// <summary>
+        /// Forces immediate save to disk. Call on application shutdown.
+        /// </summary>
+        public void Flush()
+        {
+            if (_isDirty && !_disposed)
+            {
+                SaveToDisk();
+            }
+        }
+
+        #endregion
+
+        #region CRUD Operations
 
         public void SaveGame(DetectedGame game)
         {
             if (_disposed) return;
+            if (game == null || string.IsNullOrEmpty(game.ProcessName)) return;
 
             try
             {
-                var existingGame = _games.FindById(game.ProcessName);
-                if (existingGame != null)
+                if (_games.TryGetValue(game.ProcessName, out var existing))
                 {
-                    // Update existing game, preserve FirstDetected
-                    game.FirstDetected = existingGame.FirstDetected;
+                    // Preserve FirstDetected from existing record
+                    game.FirstDetected = existing.FirstDetected;
                     game.LastDetected = DateTime.Now;
-                    _games.Update(game);
                 }
                 else
                 {
-                    // New game
                     game.FirstDetected = DateTime.Now;
                     game.LastDetected = DateTime.Now;
-                    _games.Insert(game);
                 }
+
+                _games[game.ProcessName] = game;
+                _isDirty = true;
             }
             catch (Exception ex)
             {
@@ -91,16 +202,14 @@ namespace HUDRA.Services
 
             try
             {
-                var gameList = games.ToList();
-                if (!gameList.Any()) return;
+                var gameList = games?.Where(g => g != null && !string.IsNullOrEmpty(g.ProcessName)).ToList();
+                if (gameList == null || !gameList.Any()) return;
 
-                // Prepare games for batch upsert with proper timestamps
                 foreach (var game in gameList)
                 {
-                    var existingGame = _games.FindById(game.ProcessName);
-                    if (existingGame != null)
+                    if (_games.TryGetValue(game.ProcessName, out var existing))
                     {
-                        game.FirstDetected = existingGame.FirstDetected;
+                        game.FirstDetected = existing.FirstDetected;
                         game.LastDetected = DateTime.Now;
                     }
                     else
@@ -108,23 +217,24 @@ namespace HUDRA.Services
                         game.FirstDetected = DateTime.Now;
                         game.LastDetected = DateTime.Now;
                     }
+
+                    _games[game.ProcessName] = game;
                 }
 
-                _games.Upsert(gameList);
+                _isDirty = true;
+                // Immediate save for batch operations (matches LiteDB behavior)
+                SaveToDisk();
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"Error saving games batch: {ex.Message}");
-                // Fallback to individual saves if batch fails
-                foreach (var game in games)
+                // Fallback to individual saves
+                foreach (var game in games ?? Enumerable.Empty<DetectedGame>())
                 {
-                    try
-                    {
-                        SaveGame(game);
-                    }
+                    try { SaveGame(game); }
                     catch (Exception individualEx)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Error saving individual game {game.ProcessName}: {individualEx.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Error saving {game?.ProcessName}: {individualEx.Message}");
                     }
                 }
             }
@@ -133,16 +243,10 @@ namespace HUDRA.Services
         public DetectedGame? GetGame(string processName)
         {
             if (_disposed) return null;
+            if (string.IsNullOrEmpty(processName)) return null;
 
-            try
-            {
-                return _games.FindById(processName);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error getting game {processName}: {ex.Message}");
-                return null;
-            }
+            _games.TryGetValue(processName, out var game);
+            return game;
         }
 
         public IEnumerable<DetectedGame> GetAllGames()
@@ -151,7 +255,7 @@ namespace HUDRA.Services
 
             try
             {
-                return _games.FindAll().ToList();
+                return _games.Values.Where(g => g != null).ToList();
             }
             catch (Exception ex)
             {
@@ -164,16 +268,9 @@ namespace HUDRA.Services
         {
             if (_disposed) return Enumerable.Empty<DetectedGame>();
 
-            try
-            {
-                // Run LiteDB query on background thread to avoid blocking UI
-                return await Task.Run(() => _games.FindAll().ToList());
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Error getting all games: {ex.Message}");
-                return Enumerable.Empty<DetectedGame>();
-            }
+            // Data is in memory - maintain async signature for API compatibility
+            // Using Task.FromResult to match original LiteDB behavior that used Task.Run
+            return await Task.FromResult(GetAllGames());
         }
 
         public IEnumerable<DetectedGame> GetGamesBySource(GameSource source)
@@ -182,7 +279,9 @@ namespace HUDRA.Services
 
             try
             {
-                return _games.Find(x => x.Source == source).ToList();
+                return _games.Values
+                    .Where(g => g != null && g.Source == source)
+                    .ToList();
             }
             catch (Exception ex)
             {
@@ -194,10 +293,13 @@ namespace HUDRA.Services
         public bool DeleteGame(string processName)
         {
             if (_disposed) return false;
+            if (string.IsNullOrEmpty(processName)) return false;
 
             try
             {
-                return _games.Delete(processName);
+                var removed = _games.TryRemove(processName, out _);
+                if (removed) _isDirty = true;
+                return removed;
             }
             catch (Exception ex)
             {
@@ -209,52 +311,60 @@ namespace HUDRA.Services
         public bool UpdateGameDisplayName(string processName, string newDisplayName)
         {
             if (_disposed) return false;
+            if (string.IsNullOrEmpty(processName)) return false;
 
             try
             {
-                var existingGame = _games.FindById(processName);
-                if (existingGame != null)
+                if (_games.TryGetValue(processName, out var game))
                 {
-                    existingGame.DisplayName = newDisplayName;
-                    existingGame.LastDetected = DateTime.Now;
-                    _games.Update(existingGame);
+                    game.DisplayName = newDisplayName;
+                    game.LastDetected = DateTime.Now;
+                    _isDirty = true;
                     return true;
                 }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine($"Game {processName} not found for DisplayName update");
-                    return false;
-                }
+
+                System.Diagnostics.Debug.WriteLine($"Game {processName} not found for DisplayName update");
+                return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error updating DisplayName for game {processName}: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error updating DisplayName for {processName}: {ex.Message}");
                 return false;
             }
         }
 
-        public DatabaseStats GetDatabaseStats()
+        #endregion
+
+        #region Bulk Operations
+
+        public int ClearXboxGames()
         {
-            if (_disposed) return new DatabaseStats();
+            if (_disposed) return 0;
 
             try
             {
-                var allGames = GetAllGames().ToList();
-                var stats = new DatabaseStats
-                {
-                    TotalGames = allGames.Count,
-                    GamesBySource = allGames.GroupBy(g => g.Source)
-                                          .ToDictionary(g => g.Key, g => g.Count()),
-                    DatabaseSizeBytes = new FileInfo(_databasePath).Length,
-                    LastUpdated = allGames.Any() ? allGames.Max(g => g.LastDetected) : DateTime.MinValue
-                };
+                var xboxGames = _games.Values
+                    .Where(g => g != null && g.Source == GameSource.Xbox)
+                    .Select(g => g.ProcessName)
+                    .ToList();
 
-                return stats;
+                foreach (var processName in xboxGames)
+                {
+                    _games.TryRemove(processName, out _);
+                }
+
+                if (xboxGames.Count > 0)
+                {
+                    _isDirty = true;
+                    SaveToDisk(); // Immediate save for bulk operations
+                }
+
+                return xboxGames.Count;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error getting database stats: {ex.Message}");
-                return new DatabaseStats();
+                System.Diagnostics.Debug.WriteLine($"Error clearing Xbox games: {ex.Message}");
+                return 0;
             }
         }
 
@@ -264,7 +374,9 @@ namespace HUDRA.Services
 
             try
             {
-                _games.DeleteAll();
+                _games.Clear();
+                _isDirty = true;
+                SaveToDisk(); // Immediate save
                 System.Diagnostics.Debug.WriteLine("Enhanced game database cleared");
             }
             catch (Exception ex)
@@ -273,42 +385,67 @@ namespace HUDRA.Services
             }
         }
 
-        public int ClearXboxGames()
+        #endregion
+
+        #region Statistics
+
+        public DatabaseStats GetDatabaseStats()
         {
-            if (_disposed) return 0;
+            if (_disposed) return new DatabaseStats();
 
             try
             {
-                var deletedCount = _games.DeleteMany(x => x.Source == GameSource.Xbox);
-                return deletedCount;
+                var allGames = _games.Values.Where(g => g != null).ToList();
+                return new DatabaseStats
+                {
+                    TotalGames = allGames.Count,
+                    GamesBySource = allGames
+                        .GroupBy(g => g.Source)
+                        .ToDictionary(g => g.Key, g => g.Count()),
+                    DatabaseSizeBytes = File.Exists(_databasePath)
+                        ? new FileInfo(_databasePath).Length
+                        : 0,
+                    LastUpdated = allGames.Any()
+                        ? allGames.Max(g => g.LastDetected)
+                        : DateTime.MinValue
+                };
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Error clearing Xbox games: {ex.Message}");
-                return 0;
+                System.Diagnostics.Debug.WriteLine($"Error getting database stats: {ex.Message}");
+                return new DatabaseStats();
             }
         }
+
+        #endregion
+
+        #region IDisposable
 
         public void Dispose()
         {
             if (!_disposed)
             {
+                _disposed = true;
+
                 try
                 {
-                    _database?.Dispose();
+                    _autoSaveTimer?.Dispose();
+                    Flush(); // Final save
+                    _fileLock?.Dispose();
                 }
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error disposing database: {ex.Message}");
                 }
-                finally
-                {
-                    _disposed = true;
-                }
             }
         }
+
+        #endregion
     }
 
+    /// <summary>
+    /// Database statistics - unchanged from LiteDB implementation.
+    /// </summary>
     public class DatabaseStats
     {
         public int TotalGames { get; set; }
@@ -319,8 +456,8 @@ namespace HUDRA.Services
         public string GetFormattedSize()
         {
             if (DatabaseSizeBytes < 1024) return $"{DatabaseSizeBytes} B";
-            if (DatabaseSizeBytes < 1024 * 1024) return $"{DatabaseSizeBytes / 1024:F1} KB";
-            return $"{DatabaseSizeBytes / (1024 * 1024):F1} MB";
+            if (DatabaseSizeBytes < 1024 * 1024) return $"{DatabaseSizeBytes / 1024.0:F1} KB";
+            return $"{DatabaseSizeBytes / (1024.0 * 1024.0):F1} MB";
         }
     }
 }
