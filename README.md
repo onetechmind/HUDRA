@@ -33,6 +33,7 @@ Modern design, optimized for touch and full gamepad navigation.
 Your performance/quick settings command center. Everything you need to tweak on the fly lives here.
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
+- **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 
@@ -66,6 +67,23 @@ A simple game launcher. Nothing more, nothing less.
 
 <p align="center"><img src="/HUDRA/Assets/Screenshots/1205-Library1.png" width="40%"> &nbsp; <img src="/HUDRA/Assets/Screenshots/1205-Library2.png" width="40%"> </p>
 
+### Per-Game Profiles
+- Set TDP, Resolution, Refresh Rate, FPS Limit, HDR, Fan Curve, and AMD driver settings to be applied automatically on a per-game basis! Access these settings from the Library page by:
+  - Highlighting a game > pressing X to enter Game Settings (or by clicking/tapping on the gear icon on the game tile).
+  - When a game profile is applied, a status bar appears in the bottom of the main HUDRA window until the game closes. Click the "Revert" button to immediately revert back to your default profile/last settings.
+  - On a per-game basis, you can enable "Auto-Revert" to automatically revert to your default profile/last settings when the game closes.
+- Set a default profile HUDRA can use on startup (and when reverting from per-game profiles) by making all your preferred tweaks and clicking the "Save Defaults" button on the Settings page. Replaces the simplified "Startup TDP" feature.
+
+<p align="center">
+<img width="40%" alt="Screenshot 2026-01-12 150159" src="https://github.com/user-attachments/assets/f355f894-a721-4814-9a9c-53f164a0f9b9" />
+&nbsp;
+<img width="40%" alt="Screenshot 2026-01-12 150621" src="https://github.com/user-attachments/assets/f6c2006c-c6f2-47d8-811b-2fc2595e80b6" />
+</p>
+
+<p align="center">
+<img width="567" alt="Screenshot 2026-01-12 150516" src="https://github.com/user-attachments/assets/599bf4cf-4490-4e4c-99c4-69ce9eccf5a3" />
+</p>
+
 ### 🌀 Fan Control
 
 Take manual control of your thermals with custom fan curves.
@@ -85,6 +103,7 @@ Take manual control of your thermals with custom fan curves.
 | Legion Go 1/S| ✅ | ❌ |
 | Legion Go 2| ✅ | ✅ |
 | GPD Win 4| ✅ | ✅ |
+| GPD Win Mini (all) | ✅ | ✅ |
 | Other AMD Ryzen handhelds | ❌ | ❌ |
 
 **If you are interested in testing fan control support for a device not on this list, please reach out!**
@@ -116,8 +135,6 @@ Set preferred, common settings (or load HUDRA's default), then click Apply to re
 
 Configure HUDRA to your liking.
 
-- **Default TDP** — Set your default power target on launch
-- **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
 - **Power Profile Switcher** — Select your Normal and Gaming plans for automatic switching when gaming starts and ends
 - **CPU Boost** — Enable/disable processor boost for thermal or battery management (not needed for most games)
 - **Game Detection** — Enable/disable Library Scanning to take advantage of dynamic navbar actions and the Library page
