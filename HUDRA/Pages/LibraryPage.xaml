@@ -248,6 +248,22 @@
                         Text="Rescan" />
                 </StackPanel>
             </Button>
+
+            <Button
+                x:Name="RandomButton"
+                Click="RandomButton_Click"
+                Style="{StaticResource LibraryManagementButtonStyle}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <FontIcon
+                        FontFamily="Segoe MDL2 Assets"
+                        FontSize="14"
+                        Glyph="&#xE8B1;" />
+                    <TextBlock
+                        FontFamily="Cascadia Code"
+                        FontSize="14"
+                        Text="Random" />
+                </StackPanel>
+            </Button>
         </StackPanel>
 
         <!--  Gamepad Legend  -->
@@ -446,6 +462,47 @@
                     Text="Enable Enhanced Library Scanning in Settings"
                     TextAlignment="Center"
                     TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <!--  Roulette Countdown Overlay (full-screen)  -->
+        <Border
+            x:Name="RouletteCountdownOverlay"
+            Margin="-200,-100,-200,0"
+            Padding="40"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Background="#DD1a1a1a"
+            CornerRadius="16"
+            Visibility="Collapsed">
+            <StackPanel
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Spacing="15">
+                <TextBlock
+                    x:Name="RouletteCountdownText"
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="72"
+                    FontWeight="Bold"
+                    Foreground="#670195"
+                    Text="3" />
+                <TextBlock
+                    x:Name="RouletteGameNameText"
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Foreground="White"
+                    Text="Game Name"
+                    TextAlignment="Center"
+                    TextWrapping="Wrap" />
+                <TextBlock
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="12"
+                    Foreground="#888888"
+                    Text="Press B or Esc to cancel" />
             </StackPanel>
         </Border>
 

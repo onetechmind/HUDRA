@@ -11,6 +11,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
 using Windows.System;
@@ -42,10 +43,16 @@ namespace HUDRA.Pages
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
 
-        // Button zone navigation (Add Game / Rescan buttons above game tiles)
+        // Button zone navigation (Add Game / Rescan / Random buttons above game tiles)
         private enum LibraryFocusZone { Tiles, Buttons }
         private LibraryFocusZone _currentZone = LibraryFocusZone.Tiles;
-        private int _buttonFocusIndex = 0;  // 0 = Add Game, 1 = Rescan
+        private int _buttonFocusIndex = 0;  // 0 = Add Game, 1 = Rescan, 2 = Random
+        private const int LIBRARY_BUTTON_COUNT = 3;  // Number of buttons in the management row
+
+        // Roulette state tracking
+        private bool _isRouletteActive = false;
+        private bool _isRouletteCancelled = false;
+        private CancellationTokenSource? _rouletteCts;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -76,6 +83,14 @@ namespace HUDRA.Pages
 
         private void OnPageKeyDown(object sender, KeyRoutedEventArgs e)
         {
+            // Handle Escape key - cancel roulette if active
+            if (e.Key == Windows.System.VirtualKey.Escape && _isRouletteActive)
+            {
+                CancelRoulette();
+                e.Handled = true;
+                return;
+            }
+
             // Keyboard input detected - switch to keyboard input mode
             // Ignore gamepad buttons (they're handled separately)
             if (_lastUsedGamepadInput && !IsGamepadKey(e.Key))
@@ -951,6 +966,15 @@ namespace HUDRA.Pages
                 InvokeFocusedButton();
             }
 
+            // Handle B button - cancel roulette if active
+            if (newButtons.Contains(GamepadButtons.B))
+            {
+                if (_isRouletteActive)
+                {
+                    CancelRoulette();
+                }
+            }
+
             // Handle X button to open game settings
             if (newButtons.Contains(GamepadButtons.X))
             {
@@ -1081,12 +1105,12 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
-            // If in buttons zone, move between Add Game and Rescan
+            // If in buttons zone, move between Add Game, Rescan, and Random
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 1) // Rescan → Add Game
+                if (_buttonFocusIndex > 0)
                 {
-                    FocusLibraryButton(0);
+                    FocusLibraryButton(_buttonFocusIndex - 1);
                 }
                 return;
             }
@@ -1133,12 +1157,12 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
-            // If in buttons zone, move between Add Game and Rescan
+            // If in buttons zone, move between Add Game, Rescan, and Random
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 0) // Add Game → Rescan
+                if (_buttonFocusIndex < LIBRARY_BUTTON_COUNT - 1)
                 {
-                    FocusLibraryButton(1);
+                    FocusLibraryButton(_buttonFocusIndex + 1);
                 }
                 return;
             }
@@ -1197,28 +1221,36 @@ namespace HUDRA.Pages
         private void FocusLibraryButton(int index)
         {
             _buttonFocusIndex = index;
-            if (index == 0)
+            switch (index)
             {
-                AddGameButton?.Focus(FocusState.Programmatic);
-            }
-            else
-            {
-                RescanButton?.Focus(FocusState.Programmatic);
+                case 0:
+                    AddGameButton?.Focus(FocusState.Programmatic);
+                    break;
+                case 1:
+                    RescanButton?.Focus(FocusState.Programmatic);
+                    break;
+                case 2:
+                    RandomButton?.Focus(FocusState.Programmatic);
+                    break;
             }
         }
 
         private void InvokeFocusedButton()
         {
-            // If in buttons zone, invoke the focused button (Add Game or Rescan)
+            // If in buttons zone, invoke the focused button (Add Game, Rescan, or Random)
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 0)
+                switch (_buttonFocusIndex)
                 {
-                    AddGameButton_Click(AddGameButton, new RoutedEventArgs());
-                }
-                else
-                {
-                    RescanButton_Click(RescanButton, new RoutedEventArgs());
+                    case 0:
+                        AddGameButton_Click(AddGameButton, new RoutedEventArgs());
+                        break;
+                    case 1:
+                        RescanButton_Click(RescanButton, new RoutedEventArgs());
+                        break;
+                    case 2:
+                        RandomButton_Click(RandomButton, new RoutedEventArgs());
+                        break;
                 }
                 return;
             }
@@ -1599,6 +1631,257 @@ namespace HUDRA.Pages
             var mainWindow = app?.MainWindow;
             var navigationService = mainWindow?.NavigationService;
             navigationService?.NavigateToSettings();
+        }
+
+        #endregion
+
+        #region Random Game Roulette
+
+        private async void RandomButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Check if we have games to choose from
+            if (_games == null || _games.Count == 0)
+            {
+                await ShowErrorDialog("No games in library. Add games first!");
+                return;
+            }
+
+            // Don't start another roulette if one is already active
+            if (_isRouletteActive)
+            {
+                return;
+            }
+
+            // Start the roulette
+            await StartRouletteAsync();
+        }
+
+        private async Task StartRouletteAsync()
+        {
+            _isRouletteActive = true;
+            _isRouletteCancelled = false;
+            _rouletteCts = new CancellationTokenSource();
+
+            try
+            {
+                // Get all game buttons for animation
+                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
+                if (allButtons.Count == 0)
+                {
+                    _isRouletteActive = false;
+                    return;
+                }
+
+                // Select a random target game index
+                var random = new Random();
+                int targetIndex = random.Next(allButtons.Count);
+
+                // Animation parameters for natural deceleration
+                const int minIntervalMs = 50;     // Fastest interval at start
+                const int maxIntervalMs = 500;    // Slowest interval at end
+
+                // Extra loops for dramatic effect before landing on final selection
+                int extraLoops = 2 + random.Next(2);   // 2-3 extra full loops for drama
+
+                // Calculate target position including extra loops
+                int finalPosition = (extraLoops * allButtons.Count) + targetIndex;
+                int currentPosition = 0;
+
+                // Roulette animation loop
+                while (currentPosition < finalPosition && !_isRouletteCancelled)
+                {
+                    // Calculate progress (0 to 1)
+                    double progress = (double)currentPosition / finalPosition;
+
+                    // Ease-out cubic for natural deceleration: 1 - (1-t)^3
+                    double easeProgress = 1 - Math.Pow(1 - progress, 3);
+
+                    // Calculate interval based on progress (faster at start, slower at end)
+                    int interval = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
+
+                    // Get the current button to highlight
+                    int buttonIndex = currentPosition % allButtons.Count;
+                    var currentButton = allButtons[buttonIndex];
+
+                    // Focus the current button (this triggers the visual highlight)
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        currentButton.Focus(FocusState.Programmatic);
+                        EnsureButtonVisible(currentButton);
+                    });
+
+                    // Wait for the interval
+                    try
+                    {
+                        await Task.Delay(interval, _rouletteCts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+
+                    currentPosition++;
+                }
+
+                // Check if cancelled
+                if (_isRouletteCancelled)
+                {
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancelled by user");
+                    _isRouletteActive = false;
+                    return;
+                }
+
+                // Final selection - focus the target button
+                var targetButton = allButtons[targetIndex];
+                var selectedGame = targetButton.Tag as DetectedGame;
+
+                if (selectedGame == null)
+                {
+                    _isRouletteActive = false;
+                    return;
+                }
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    targetButton.Focus(FocusState.Programmatic);
+                    EnsureButtonVisible(targetButton);
+                    SaveCurrentlyFocusedGame(targetButton);
+                });
+
+                // Brief pause on selected game before countdown
+                await Task.Delay(500);
+
+                // Start countdown
+                await StartRouletteCountdownAsync(selectedGame, targetButton);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Roulette error: {ex.Message}");
+            }
+            finally
+            {
+                _isRouletteActive = false;
+                _rouletteCts?.Dispose();
+                _rouletteCts = null;
+
+                // Hide countdown overlay
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                });
+            }
+        }
+
+        private async Task StartRouletteCountdownAsync(DetectedGame game, Button gameButton)
+        {
+            // Show countdown overlay
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RouletteGameNameText.Text = game.DisplayName;
+                RouletteCountdownOverlay.Visibility = Visibility.Visible;
+            });
+
+            // Countdown from 3
+            for (int count = 3; count >= 1; count--)
+            {
+                if (_isRouletteCancelled)
+                {
+                    return;
+                }
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteCountdownText.Text = count.ToString();
+                });
+
+                try
+                {
+                    await Task.Delay(1000, _rouletteCts?.Token ?? CancellationToken.None);
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
+            }
+
+            // Check one more time for cancellation
+            if (_isRouletteCancelled)
+            {
+                return;
+            }
+
+            // Hide countdown overlay
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+            });
+
+            // Launch the game using the same logic as GameTile_Click
+            Border? launchingOverlay = null;
+
+            try
+            {
+                // Find the launching overlay in this button's visual tree
+                launchingOverlay = FindTileLaunchingOverlay(gameButton);
+                if (launchingOverlay != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        launchingOverlay.Visibility = Visibility.Visible;
+                    });
+                }
+
+                // Apply per-game profile IMMEDIATELY before launching
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var profileApplied = await mainWindow.ApplyGameProfileAsync(game.ProcessName, game.DisplayName);
+                    if (profileApplied)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Profile applied for {game.DisplayName} before roulette launch");
+                    }
+                }
+
+                // Launch the game
+                bool success = _gameLauncherService?.LaunchGame(game) ?? false;
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Failed to launch {game.DisplayName} via roulette");
+                }
+
+                // Hide launching indicator after a delay
+                await Task.Delay(3000);
+                if (launchingOverlay != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        launchingOverlay.Visibility = Visibility.Collapsed;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error launching game via roulette: {ex.Message}");
+                if (launchingOverlay != null)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        launchingOverlay.Visibility = Visibility.Collapsed;
+                    });
+                }
+            }
+        }
+
+        private void CancelRoulette()
+        {
+            if (_isRouletteActive && !_isRouletteCancelled)
+            {
+                _isRouletteCancelled = true;
+                _rouletteCts?.Cancel();
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancellation requested");
+            }
         }
 
         #endregion
