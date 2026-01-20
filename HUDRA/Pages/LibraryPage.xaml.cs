@@ -1694,7 +1694,7 @@ namespace HUDRA.Pages
                 // Show the modal
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    RouletteModal.Visibility = Visibility.Visible;
+                    RouletteOverlay.Visibility = Visibility.Visible;
                     RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
                 });
 
@@ -1805,7 +1805,7 @@ namespace HUDRA.Pages
                 // Hide modal
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    RouletteModal.Visibility = Visibility.Collapsed;
+                    RouletteOverlay.Visibility = Visibility.Collapsed;
                     RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
                 });
             }
@@ -1851,7 +1851,7 @@ namespace HUDRA.Pages
             // Hide modal before launching
             DispatcherQueue.TryEnqueue(() =>
             {
-                RouletteModal.Visibility = Visibility.Collapsed;
+                RouletteOverlay.Visibility = Visibility.Collapsed;
             });
 
             // Launch the game
