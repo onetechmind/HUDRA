@@ -84,14 +84,6 @@ namespace HUDRA.Pages
 
         private void OnPageKeyDown(object sender, KeyRoutedEventArgs e)
         {
-            // Handle Escape key - cancel roulette if active
-            if (e.Key == Windows.System.VirtualKey.Escape && _isRouletteActive)
-            {
-                CancelRoulette();
-                e.Handled = true;
-                return;
-            }
-
             // Keyboard input detected - switch to keyboard input mode
             // Ignore gamepad buttons (they're handled separately)
             if (_lastUsedGamepadInput && !IsGamepadKey(e.Key))
@@ -1657,17 +1649,24 @@ namespace HUDRA.Pages
             await StartRouletteAsync();
         }
 
+        private void RouletteCancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            CancelRoulette();
+        }
+
         private async Task StartRouletteAsync()
         {
             _isRouletteActive = true;
             _isRouletteCancelled = false;
             _rouletteCts = new CancellationTokenSource();
 
+            DetectedGame? selectedGame = null;
+
             try
             {
-                // Get all game buttons for animation
-                var allButtons = FindAllGameButtonsInVisualTree(GamesItemsControl);
-                if (allButtons.Count == 0)
+                // Get list of games
+                var gamesList = _games.ToList();
+                if (gamesList.Count == 0)
                 {
                     _isRouletteActive = false;
                     return;
@@ -1676,10 +1675,10 @@ namespace HUDRA.Pages
                 // Select a random target game index (avoid repeating the same game)
                 var random = new Random();
                 int targetIndex;
-                if (allButtons.Count > 1 && _lastRouletteIndex >= 0 && _lastRouletteIndex < allButtons.Count)
+                if (gamesList.Count > 1 && _lastRouletteIndex >= 0 && _lastRouletteIndex < gamesList.Count)
                 {
                     // Pick from all indices except the last one
-                    targetIndex = random.Next(allButtons.Count - 1);
+                    targetIndex = random.Next(gamesList.Count - 1);
                     if (targetIndex >= _lastRouletteIndex)
                     {
                         targetIndex++; // Skip over the last selected index
@@ -1687,33 +1686,69 @@ namespace HUDRA.Pages
                 }
                 else
                 {
-                    targetIndex = random.Next(allButtons.Count);
+                    targetIndex = random.Next(gamesList.Count);
                 }
                 _lastRouletteIndex = targetIndex;
+                selectedGame = gamesList[targetIndex];
 
-                // Super fast interval for roulette effect
-                const int intervalMs = 15;
+                // Show the modal
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteModal.Visibility = Visibility.Visible;
+                    RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                });
 
-                // Random duration between 5-15 seconds
-                int durationMs = 5000 + random.Next(10000);
+                // Roulette animation - cycle through games in the modal with deceleration
+                const int minIntervalMs = 80;   // Fast speed at start
+                const int maxIntervalMs = 400;  // Slow speed at end
+                int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
                 int currentPosition = 0;
 
-                // Roulette animation loop - fast constant speed
                 while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
                 {
-                    // Get the current button to highlight
-                    int buttonIndex = currentPosition % allButtons.Count;
-                    var currentButton = allButtons[buttonIndex];
+                    // Calculate progress (0 to 1)
+                    double progress = (DateTime.Now - startTime).TotalMilliseconds / durationMs;
 
-                    // Focus the current button (this triggers the visual highlight)
+                    // Ease-out cubic for natural deceleration: progress^2
+                    double easeProgress = progress * progress;
+
+                    // Calculate interval based on progress (faster at start, slower at end)
+                    int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
+
+                    int gameIndex = currentPosition % gamesList.Count;
+                    var currentGame = gamesList[gameIndex];
+
+                    // Update the modal display
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        currentButton.Focus(FocusState.Programmatic);
-                        EnsureButtonVisible(currentButton);
+                        RouletteGameNameText.Text = currentGame.DisplayName;
+
+                        // Update artwork - strip query params if present
+                        var artworkPath = currentGame.ArtworkPath;
+                        if (!string.IsNullOrEmpty(artworkPath))
+                        {
+                            var queryIndex = artworkPath.IndexOf('?');
+                            if (queryIndex > 0)
+                            {
+                                artworkPath = artworkPath.Substring(0, queryIndex);
+                            }
+
+                            if (File.Exists(artworkPath))
+                            {
+                                RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                            }
+                            else
+                            {
+                                RouletteGameImage.Source = null;
+                            }
+                        }
+                        else
+                        {
+                            RouletteGameImage.Source = null;
+                        }
                     });
 
-                    // Wait for the interval
                     try
                     {
                         await Task.Delay(intervalMs, _rouletteCts.Token);
@@ -1730,29 +1765,32 @@ namespace HUDRA.Pages
                 if (_isRouletteCancelled)
                 {
                     System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancelled by user");
-                    _isRouletteActive = false;
                     return;
                 }
 
-                // Final selection - stop immediately on the target button
-                var targetButton = allButtons[targetIndex];
-                var selectedGame = targetButton.Tag as DetectedGame;
-
-                if (selectedGame == null)
-                {
-                    _isRouletteActive = false;
-                    return;
-                }
-
+                // Show the final selected game
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    targetButton.Focus(FocusState.Programmatic);
-                    EnsureButtonVisible(targetButton);
-                    SaveCurrentlyFocusedGame(targetButton);
+                    RouletteGameNameText.Text = selectedGame.DisplayName;
+
+                    var artworkPath = selectedGame.ArtworkPath;
+                    if (!string.IsNullOrEmpty(artworkPath))
+                    {
+                        var queryIndex = artworkPath.IndexOf('?');
+                        if (queryIndex > 0)
+                        {
+                            artworkPath = artworkPath.Substring(0, queryIndex);
+                        }
+
+                        if (File.Exists(artworkPath))
+                        {
+                            RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                        }
+                    }
                 });
 
-                // Start countdown immediately
-                await StartRouletteCountdownAsync(selectedGame, targetButton);
+                // Start countdown
+                await StartRouletteCountdownAsync(selectedGame);
             }
             catch (Exception ex)
             {
@@ -1764,20 +1802,20 @@ namespace HUDRA.Pages
                 _rouletteCts?.Dispose();
                 _rouletteCts = null;
 
-                // Hide countdown overlay
+                // Hide modal
                 DispatcherQueue.TryEnqueue(() =>
                 {
+                    RouletteModal.Visibility = Visibility.Collapsed;
                     RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
                 });
             }
         }
 
-        private async Task StartRouletteCountdownAsync(DetectedGame game, Button gameButton)
+        private async Task StartRouletteCountdownAsync(DetectedGame game)
         {
-            // Show countdown overlay
+            // Show countdown overlay on top of the game tile
             DispatcherQueue.TryEnqueue(() =>
             {
-                RouletteGameNameText.Text = game.DisplayName;
                 RouletteCountdownOverlay.Visibility = Visibility.Visible;
             });
 
@@ -1810,27 +1848,15 @@ namespace HUDRA.Pages
                 return;
             }
 
-            // Hide countdown overlay
+            // Hide modal before launching
             DispatcherQueue.TryEnqueue(() =>
             {
-                RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                RouletteModal.Visibility = Visibility.Collapsed;
             });
 
-            // Launch the game using the same logic as GameTile_Click
-            Border? launchingOverlay = null;
-
+            // Launch the game
             try
             {
-                // Find the launching overlay in this button's visual tree
-                launchingOverlay = FindTileLaunchingOverlay(gameButton);
-                if (launchingOverlay != null)
-                {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        launchingOverlay.Visibility = Visibility.Visible;
-                    });
-                }
-
                 // Apply per-game profile IMMEDIATELY before launching
                 var app = Application.Current as App;
                 var mainWindow = app?.MainWindow;
@@ -1850,27 +1876,10 @@ namespace HUDRA.Pages
                 {
                     System.Diagnostics.Debug.WriteLine($"LibraryPage: Failed to launch {game.DisplayName} via roulette");
                 }
-
-                // Hide launching indicator after a delay
-                await Task.Delay(3000);
-                if (launchingOverlay != null)
-                {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        launchingOverlay.Visibility = Visibility.Collapsed;
-                    });
-                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error launching game via roulette: {ex.Message}");
-                if (launchingOverlay != null)
-                {
-                    DispatcherQueue.TryEnqueue(() =>
-                    {
-                        launchingOverlay.Visibility = Visibility.Collapsed;
-                    });
-                }
             }
         }
 

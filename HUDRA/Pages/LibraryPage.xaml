@@ -465,11 +465,11 @@
             </StackPanel>
         </Border>
 
-        <!--  Roulette Countdown Overlay  -->
+        <!--  Roulette Modal  -->
         <Border
-            x:Name="RouletteCountdownOverlay"
-            Margin="0,40,0,0"
-            Padding="60,40"
+            x:Name="RouletteModal"
+            Margin="0,20,0,0"
+            Padding="40"
             HorizontalAlignment="Center"
             Background="#EE1a1a1a"
             CornerRadius="16"
@@ -477,31 +477,64 @@
             <StackPanel
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Spacing="10">
-                <TextBlock
-                    x:Name="RouletteCountdownText"
-                    HorizontalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="96"
-                    FontWeight="Bold"
-                    Foreground="#670195"
-                    Text="3" />
+                Spacing="15">
+
+                <!--  Game Tile Display  -->
+                <Grid
+                    Width="200"
+                    Height="300"
+                    HorizontalAlignment="Center">
+                    <!--  Game Artwork  -->
+                    <Border
+                        Background="#2d2d2d"
+                        CornerRadius="12">
+                        <Image
+                            x:Name="RouletteGameImage"
+                            Stretch="UniformToFill" />
+                    </Border>
+
+                    <!--  Countdown Overlay (shown after spin ends)  -->
+                    <Border
+                        x:Name="RouletteCountdownOverlay"
+                        Background="#CC670195"
+                        CornerRadius="12"
+                        Visibility="Collapsed">
+                        <TextBlock
+                            x:Name="RouletteCountdownText"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="96"
+                            FontWeight="Bold"
+                            Foreground="White"
+                            Text="3" />
+                    </Border>
+                </Grid>
+
+                <!--  Game Name  -->
                 <TextBlock
                     x:Name="RouletteGameNameText"
+                    MaxWidth="250"
                     HorizontalAlignment="Center"
                     FontFamily="Cascadia Code"
-                    FontSize="20"
+                    FontSize="18"
                     FontWeight="SemiBold"
                     Foreground="White"
                     Text="Game Name"
                     TextAlignment="Center"
-                    TextWrapping="Wrap" />
-                <TextBlock
+                    TextTrimming="CharacterEllipsis"
+                    TextWrapping="NoWrap" />
+
+                <!--  Cancel Button  -->
+                <Button
+                    x:Name="RouletteCancelButton"
+                    Margin="0,10,0,0"
+                    Padding="30,10"
                     HorizontalAlignment="Center"
+                    Click="RouletteCancelButton_Click"
+                    Content="Cancel"
                     FontFamily="Cascadia Code"
-                    FontSize="12"
-                    Foreground="#888888"
-                    Text="Press B or Esc to cancel" />
+                    FontSize="14" />
             </StackPanel>
         </Border>
 
