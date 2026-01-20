@@ -1691,8 +1691,8 @@ namespace HUDRA.Pages
                 }
                 _lastRouletteIndex = targetIndex;
 
-                // Fast constant interval for roulette effect
-                const int intervalMs = 50;
+                // Super fast interval for roulette effect
+                const int intervalMs = 15;
 
                 // Random duration between 5-15 seconds
                 int durationMs = 5000 + random.Next(10000);
