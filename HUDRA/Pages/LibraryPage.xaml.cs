@@ -1676,29 +1676,17 @@ namespace HUDRA.Pages
                 var random = new Random();
                 int targetIndex = random.Next(allButtons.Count);
 
-                // Animation parameters for natural deceleration
-                const int minIntervalMs = 50;     // Fastest interval at start
-                const int maxIntervalMs = 500;    // Slowest interval at end
+                // Fast constant interval for roulette effect
+                const int intervalMs = 50;
 
-                // Extra loops for dramatic effect before landing on final selection
-                int extraLoops = 2 + random.Next(2);   // 2-3 extra full loops for drama
-
-                // Calculate target position including extra loops
-                int finalPosition = (extraLoops * allButtons.Count) + targetIndex;
+                // Random duration between 3-8 seconds (stays well under 10 second limit)
+                int durationMs = 3000 + random.Next(5000);
+                var startTime = DateTime.Now;
                 int currentPosition = 0;
 
-                // Roulette animation loop
-                while (currentPosition < finalPosition && !_isRouletteCancelled)
+                // Roulette animation loop - fast constant speed
+                while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
                 {
-                    // Calculate progress (0 to 1)
-                    double progress = (double)currentPosition / finalPosition;
-
-                    // Ease-out cubic for natural deceleration: 1 - (1-t)^3
-                    double easeProgress = 1 - Math.Pow(1 - progress, 3);
-
-                    // Calculate interval based on progress (faster at start, slower at end)
-                    int interval = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
-
                     // Get the current button to highlight
                     int buttonIndex = currentPosition % allButtons.Count;
                     var currentButton = allButtons[buttonIndex];
@@ -1713,7 +1701,7 @@ namespace HUDRA.Pages
                     // Wait for the interval
                     try
                     {
-                        await Task.Delay(interval, _rouletteCts.Token);
+                        await Task.Delay(intervalMs, _rouletteCts.Token);
                     }
                     catch (TaskCanceledException)
                     {
@@ -1731,7 +1719,7 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Final selection - focus the target button
+                // Final selection - stop immediately on the target button
                 var targetButton = allButtons[targetIndex];
                 var selectedGame = targetButton.Tag as DetectedGame;
 
@@ -1748,10 +1736,7 @@ namespace HUDRA.Pages
                     SaveCurrentlyFocusedGame(targetButton);
                 });
 
-                // Brief pause on selected game before countdown
-                await Task.Delay(500);
-
-                // Start countdown
+                // Start countdown immediately
                 await StartRouletteCountdownAsync(selectedGame, targetButton);
             }
             catch (Exception ex)

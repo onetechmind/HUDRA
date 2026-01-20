@@ -465,25 +465,24 @@
             </StackPanel>
         </Border>
 
-        <!--  Roulette Countdown Overlay (full-screen)  -->
+        <!--  Roulette Countdown Overlay  -->
         <Border
             x:Name="RouletteCountdownOverlay"
-            Margin="-200,-100,-200,0"
-            Padding="40"
+            Margin="0,40,0,0"
+            Padding="60,40"
             HorizontalAlignment="Center"
-            VerticalAlignment="Top"
-            Background="#DD1a1a1a"
+            Background="#EE1a1a1a"
             CornerRadius="16"
             Visibility="Collapsed">
             <StackPanel
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Spacing="15">
+                Spacing="10">
                 <TextBlock
                     x:Name="RouletteCountdownText"
                     HorizontalAlignment="Center"
                     FontFamily="Cascadia Code"
-                    FontSize="72"
+                    FontSize="96"
                     FontWeight="Bold"
                     Foreground="#670195"
                     Text="3" />
@@ -491,7 +490,7 @@
                     x:Name="RouletteGameNameText"
                     HorizontalAlignment="Center"
                     FontFamily="Cascadia Code"
-                    FontSize="18"
+                    FontSize="20"
                     FontWeight="SemiBold"
                     Foreground="White"
                     Text="Game Name"
