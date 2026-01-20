@@ -53,6 +53,7 @@ namespace HUDRA.Pages
         private bool _isRouletteActive = false;
         private bool _isRouletteCancelled = false;
         private CancellationTokenSource? _rouletteCts;
+        private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -1672,9 +1673,23 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Select a random target game index
+                // Select a random target game index (avoid repeating the same game)
                 var random = new Random();
-                int targetIndex = random.Next(allButtons.Count);
+                int targetIndex;
+                if (allButtons.Count > 1 && _lastRouletteIndex >= 0 && _lastRouletteIndex < allButtons.Count)
+                {
+                    // Pick from all indices except the last one
+                    targetIndex = random.Next(allButtons.Count - 1);
+                    if (targetIndex >= _lastRouletteIndex)
+                    {
+                        targetIndex++; // Skip over the last selected index
+                    }
+                }
+                else
+                {
+                    targetIndex = random.Next(allButtons.Count);
+                }
+                _lastRouletteIndex = targetIndex;
 
                 // Fast constant interval for roulette effect
                 const int intervalMs = 50;
