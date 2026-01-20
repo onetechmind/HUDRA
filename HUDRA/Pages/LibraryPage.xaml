@@ -221,48 +221,60 @@
             Spacing="10">
             <Button
                 x:Name="AddGameButton"
+                Width="90"
+                Height="70"
                 Click="AddGameButton_Click"
                 Style="{StaticResource LibraryManagementButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel HorizontalAlignment="Center" Spacing="4">
                     <FontIcon
+                        HorizontalAlignment="Center"
                         FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
+                        FontSize="18"
                         Glyph="&#xE710;" />
                     <TextBlock
+                        HorizontalAlignment="Center"
                         FontFamily="Cascadia Code"
-                        FontSize="14"
-                        Text="Add Game" />
+                        FontSize="11"
+                        Text="Add" />
                 </StackPanel>
             </Button>
 
             <Button
                 x:Name="RescanButton"
+                Width="90"
+                Height="70"
                 Click="RescanButton_Click"
                 Style="{StaticResource LibraryManagementButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel HorizontalAlignment="Center" Spacing="4">
                     <FontIcon
+                        HorizontalAlignment="Center"
                         FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
+                        FontSize="18"
                         Glyph="&#xE72C;" />
                     <TextBlock
+                        HorizontalAlignment="Center"
                         FontFamily="Cascadia Code"
-                        FontSize="14"
+                        FontSize="11"
                         Text="Rescan" />
                 </StackPanel>
             </Button>
 
             <Button
                 x:Name="RandomButton"
+                Width="90"
+                Height="70"
                 Click="RandomButton_Click"
                 Style="{StaticResource LibraryManagementButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <StackPanel HorizontalAlignment="Center" Spacing="4">
                     <FontIcon
+                        HorizontalAlignment="Center"
                         FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
+                        FontSize="18"
                         Glyph="&#xE8B1;" />
                     <TextBlock
+                        HorizontalAlignment="Center"
                         FontFamily="Cascadia Code"
-                        FontSize="14"
+                        FontSize="11"
                         Text="Random" />
                 </StackPanel>
             </Button>
@@ -479,6 +491,7 @@
             <!--  Modal content  -->
             <Border
                 x:Name="RouletteModal"
+                Width="280"
                 Margin="0,120,0,0"
                 Padding="40"
                 HorizontalAlignment="Center"
@@ -539,18 +552,22 @@
                     <!--  Cancel Button  -->
                     <Button
                         x:Name="RouletteCancelButton"
+                        Width="90"
+                        Height="70"
                         Margin="0,10,0,0"
                         HorizontalAlignment="Center"
                         Click="RouletteCancelButton_Click"
                         Style="{StaticResource LibraryManagementButtonStyle}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
+                        <StackPanel HorizontalAlignment="Center" Spacing="4">
                             <FontIcon
+                                HorizontalAlignment="Center"
                                 FontFamily="Segoe MDL2 Assets"
-                                FontSize="14"
+                                FontSize="18"
                                 Glyph="&#xE711;" />
                             <TextBlock
+                                HorizontalAlignment="Center"
                                 FontFamily="Cascadia Code"
-                                FontSize="14"
+                                FontSize="11"
                                 Text="Cancel" />
                         </StackPanel>
                     </Button>
