@@ -479,9 +479,10 @@
             <!--  Modal content  -->
             <Border
                 x:Name="RouletteModal"
+                Margin="0,120,0,0"
                 Padding="40"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Center"
+                VerticalAlignment="Top"
                 Background="#FF1a1a1a"
                 CornerRadius="16">
                 <StackPanel
@@ -539,12 +540,20 @@
                     <Button
                         x:Name="RouletteCancelButton"
                         Margin="0,10,0,0"
-                        Padding="30,10"
                         HorizontalAlignment="Center"
                         Click="RouletteCancelButton_Click"
-                        Content="Cancel"
-                        FontFamily="Cascadia Code"
-                        FontSize="14" />
+                        Style="{StaticResource LibraryManagementButtonStyle}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="14"
+                                Glyph="&#xE711;" />
+                            <TextBlock
+                                FontFamily="Cascadia Code"
+                                FontSize="14"
+                                Text="Cancel" />
+                        </StackPanel>
+                    </Button>
                 </StackPanel>
             </Border>
         </Grid>
