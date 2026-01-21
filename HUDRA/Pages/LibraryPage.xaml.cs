@@ -1680,18 +1680,19 @@ namespace HUDRA.Pages
                 var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
                 var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
 
-                TaskCompletionSource<bool>? tickReadyTcs = null;
-
                 if (File.Exists(tickSoundPath))
                 {
                     _rouletteTickPlayer = new MediaPlayer();
-                    _rouletteTickPlayer.Volume = 0.5;
-
-                    // Use TaskCompletionSource to wait for media to be ready
-                    tickReadyTcs = new TaskCompletionSource<bool>();
-                    _rouletteTickPlayer.MediaOpened += (s, e) => tickReadyTcs.TrySetResult(true);
-                    _rouletteTickPlayer.MediaFailed += (s, e) => tickReadyTcs.TrySetResult(false);
                     _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
+
+                    // Prime the audio pipeline by playing silently first
+                    // This warms up the audio system so subsequent plays are instant
+                    _rouletteTickPlayer.Volume = 0;
+                    _rouletteTickPlayer.Play();
+                    await Task.Delay(50); // Let it start playing
+                    _rouletteTickPlayer.Pause();
+                    _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayer.Volume = 0.5; // Restore volume
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1699,13 +1700,6 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer = new MediaPlayer();
                     _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
                     _rouletteWinnerPlayer.Volume = 0.7;
-                }
-
-                // Wait for tick sound to be ready (with timeout)
-                if (tickReadyTcs != null)
-                {
-                    var timeoutTask = Task.Delay(500);
-                    await Task.WhenAny(tickReadyTcs.Task, timeoutTask);
                 }
 
                 // Select a random target game index (avoid repeating the same game)
