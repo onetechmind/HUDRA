@@ -1971,7 +1971,7 @@ namespace HUDRA.Pages
         /// Preloads roulette audio players so they're ready for instant playback.
         /// Called during page initialization.
         /// </summary>
-        private void PreloadRouletteAudio()
+        private async void PreloadRouletteAudio()
         {
             if (_rouletteAudioPreloaded) return;
 
@@ -1987,13 +1987,20 @@ namespace HUDRA.Pages
                 {
                     _rouletteTickPlayers[i] = new MediaPlayer();
                     _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
-                    _rouletteTickPlayers[i].Volume = 0.5;
+                    _rouletteTickPlayers[i].Volume = 0;
+                    _rouletteTickPlayers[i].Play(); // Start all playing silently to force load
                 }
 
-                // Prime audio by playing silently - this forces the media to fully load
-                _rouletteTickPlayers[0].Volume = 0;
-                _rouletteTickPlayers[0].Play();
-                // Will restore volume when actually used
+                // Give time for all players to load and start playing
+                await Task.Delay(200);
+
+                // Stop all and reset for real playback
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].Pause();
+                    _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayers[i].Volume = 0.5;
+                }
 
                 _rouletteAudioPreloaded = true;
                 System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette audio preloaded");
