@@ -1687,20 +1687,25 @@ namespace HUDRA.Pages
                     _rouletteTickPlayers = new MediaPlayer[3];
                     var tickUri = new Uri(tickSoundPath);
 
+                    // Create all players and start them playing silently to prime the audio pipeline
                     for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                     {
                         _rouletteTickPlayers[i] = new MediaPlayer();
                         _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
-                        _rouletteTickPlayers[i].Volume = 0.5;
+                        _rouletteTickPlayers[i].Volume = 0;
+                        _rouletteTickPlayers[i].Play(); // Start playing silently
                     }
 
-                    // Prime the first player to warm up the audio pipeline
-                    _rouletteTickPlayers[0].Volume = 0;
-                    _rouletteTickPlayers[0].Play();
-                    await Task.Delay(100);
-                    _rouletteTickPlayers[0].Pause();
-                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayers[0].Volume = 0.5;
+                    // Wait for all audio pipelines to initialize
+                    await Task.Delay(150);
+
+                    // Stop all players and reset for real playback
+                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                    {
+                        _rouletteTickPlayers[i].Pause();
+                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                        _rouletteTickPlayers[i].Volume = 0.5;
+                    }
 
                     _currentTickPlayerIndex = 0;
                 }
