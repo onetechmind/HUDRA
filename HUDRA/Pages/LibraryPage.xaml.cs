@@ -1687,27 +1687,16 @@ namespace HUDRA.Pages
                     _rouletteTickPlayers = new MediaPlayer[3];
                     var tickUri = new Uri(tickSoundPath);
 
-                    // Create all players and start them playing silently to prime the audio pipeline
                     for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                     {
                         _rouletteTickPlayers[i] = new MediaPlayer();
                         _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
-                        _rouletteTickPlayers[i].Volume = 0;
-                        _rouletteTickPlayers[i].Play(); // Start playing silently
-                    }
-
-                    // Wait for all audio pipelines to initialize
-                    await Task.Delay(150);
-
-                    // Stop all players and reset for real playback
-                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
-                    {
-                        _rouletteTickPlayers[i].Pause();
-                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
                         _rouletteTickPlayers[i].Volume = 0.5;
                     }
 
-                    _currentTickPlayerIndex = 0;
+                    // Play first tick IMMEDIATELY - this primes the audio AND gives instant feedback
+                    _rouletteTickPlayers[0].Play();
+                    _currentTickPlayerIndex = 1;
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1761,13 +1750,6 @@ namespace HUDRA.Pages
                     modalShown.TrySetResult(true);
                 });
                 await modalShown.Task;
-
-                // Play first tick NOW that modal is visible
-                if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
-                {
-                    _rouletteTickPlayers[_currentTickPlayerIndex].Play();
-                    _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
-                }
 
                 // Roulette animation - cycle through games in the modal with deceleration
                 const int minIntervalMs = 80;   // Fast speed at start
