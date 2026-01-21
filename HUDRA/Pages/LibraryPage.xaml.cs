@@ -1668,7 +1668,7 @@ namespace HUDRA.Pages
 
             try
             {
-                // Initialize sound players
+                // Initialize and preload sound players
                 var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
                 var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
 
@@ -1677,6 +1677,9 @@ namespace HUDRA.Pages
                     _rouletteTickPlayer = new MediaPlayer();
                     _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
                     _rouletteTickPlayer.Volume = 0.5;
+                    // Preload by playing at zero volume then pausing
+                    _rouletteTickPlayer.IsMuted = true;
+                    _rouletteTickPlayer.Play();
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1684,6 +1687,17 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer = new MediaPlayer();
                     _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
                     _rouletteWinnerPlayer.Volume = 0.7;
+                }
+
+                // Wait for audio to preload
+                await Task.Delay(100);
+
+                // Reset tick player for actual playback
+                if (_rouletteTickPlayer != null)
+                {
+                    _rouletteTickPlayer.Pause();
+                    _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayer.IsMuted = false;
                 }
 
                 // Get list of games
