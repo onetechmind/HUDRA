@@ -1689,7 +1689,7 @@ namespace HUDRA.Pages
                     // This warms up the audio system so subsequent plays are instant
                     _rouletteTickPlayer.Volume = 0;
                     _rouletteTickPlayer.Play();
-                    await Task.Delay(50); // Let it start playing
+                    await Task.Delay(100); // Let audio pipeline fully initialize
                     _rouletteTickPlayer.Pause();
                     _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
                     _rouletteTickPlayer.Volume = 0.5; // Restore volume
@@ -1721,15 +1721,9 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal and play first tick SIMULTANEOUSLY
+                // Show the modal first and WAIT for it to be visible
                 var firstGame = gamesList[0];
-
-                // Play first tick immediately when modal appears
-                if (_rouletteTickPlayer != null)
-                {
-                    _rouletteTickPlayer.Play();
-                }
-
+                var modalShown = new TaskCompletionSource<bool>();
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
@@ -1749,14 +1743,22 @@ namespace HUDRA.Pages
                             RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
                         }
                     }
+                    modalShown.TrySetResult(true);
                 });
+                await modalShown.Task;
+
+                // Play first tick NOW that modal is visible
+                if (_rouletteTickPlayer != null)
+                {
+                    _rouletteTickPlayer.Play();
+                }
 
                 // Roulette animation - cycle through games in the modal with deceleration
                 const int minIntervalMs = 80;   // Fast speed at start
                 const int maxIntervalMs = 400;  // Slow speed at end
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
-                int currentPosition = 1; // Start at 1 since we already showed first game
+                int currentPosition = 0; // Start at 0 (first game already shown)
 
                 while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
                 {
@@ -1769,6 +1771,21 @@ namespace HUDRA.Pages
                     // Calculate interval based on progress (faster at start, slower at end)
                     int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
 
+                    // Wait FIRST before showing the next game
+                    try
+                    {
+                        await Task.Delay(intervalMs, _rouletteCts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+
+                    // Check cancellation after delay
+                    if (_isRouletteCancelled) break;
+
+                    // Move to next game
+                    currentPosition++;
                     int gameIndex = currentPosition % gamesList.Count;
                     var currentGame = gamesList[gameIndex];
 
@@ -1808,17 +1825,6 @@ namespace HUDRA.Pages
                             RouletteGameImage.Source = null;
                         }
                     });
-
-                    try
-                    {
-                        await Task.Delay(intervalMs, _rouletteCts.Token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
-
-                    currentPosition++;
                 }
 
                 // Check if cancelled
