@@ -226,7 +226,7 @@
                     Height="70"
                     Click="AddGameButton_Click"
                     Style="{StaticResource LibraryManagementButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="4">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
                         <FontIcon
                             HorizontalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
@@ -235,8 +235,8 @@
                         <TextBlock
                             HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
-                            FontSize="11"
-                            Text="Add" />
+                            FontSize="12"
+                            Text="Add Game" />
                     </StackPanel>
                 </Button>
 
@@ -246,7 +246,7 @@
                     Height="70"
                     Click="RescanButton_Click"
                     Style="{StaticResource LibraryManagementButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="4">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
                         <FontIcon
                             HorizontalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
@@ -255,7 +255,7 @@
                         <TextBlock
                             HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
-                            FontSize="11"
+                            FontSize="12"
                             Text="Rescan" />
                     </StackPanel>
                 </Button>
@@ -266,7 +266,7 @@
                     Height="70"
                     Click="RandomButton_Click"
                     Style="{StaticResource LibraryManagementButtonStyle}">
-                    <StackPanel HorizontalAlignment="Center" Spacing="4">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
                         <FontIcon
                             HorizontalAlignment="Center"
                             FontFamily="Segoe MDL2 Assets"
@@ -275,7 +275,7 @@
                         <TextBlock
                             HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
-                            FontSize="11"
+                            FontSize="12"
                             Text="Random" />
                     </StackPanel>
                 </Button>
