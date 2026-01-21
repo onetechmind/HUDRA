@@ -1703,17 +1703,8 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer.Volume = 0.7;
                 }
 
-                // Start ticks IMMEDIATELY at fastest rate for ~1 second to prime audio
-                // This gives instant feedback and warms up the audio pipeline
                 const int minIntervalMs = 80;   // Fast speed at start
                 const int maxIntervalMs = 400;  // Slow speed at end
-                for (int i = 0; i < 12 && !_isRouletteCancelled; i++) // ~960ms of ticks
-                {
-                    PlayRouletteTick();
-                    await Task.Delay(minIntervalMs);
-                }
-
-                if (_isRouletteCancelled) return;
 
                 // Select a random target game index (avoid repeating the same game)
                 var random = new Random();
@@ -1734,8 +1725,9 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // NOW show the modal - audio is already rolling smoothly
+                // Show the modal immediately with first game and first tick
                 var firstGame = gamesList[0];
+                PlayRouletteTick(); // First tick - may be slightly delayed as audio loads, that's OK
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
@@ -1773,7 +1765,7 @@ namespace HUDRA.Pages
                     // Calculate interval based on progress (faster at start, slower at end)
                     int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
 
-                    // Wait FIRST before showing the next game
+                    // Wait before showing the next game
                     try
                     {
                         await Task.Delay(intervalMs, _rouletteCts.Token);
@@ -1791,7 +1783,7 @@ namespace HUDRA.Pages
                     int gameIndex = currentPosition % gamesList.Count;
                     var currentGame = gamesList[gameIndex];
 
-                    // Play tick sound
+                    // Play tick sound (by now audio should be loaded from the first tick attempt)
                     PlayRouletteTick();
 
                     // Update the modal display
