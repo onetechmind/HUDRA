@@ -14,6 +14,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.System;
 
 namespace HUDRA.Pages
@@ -54,6 +56,8 @@ namespace HUDRA.Pages
         private bool _isRouletteCancelled = false;
         private CancellationTokenSource? _rouletteCts;
         private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
+        private MediaPlayer? _rouletteTickPlayer;
+        private MediaPlayer? _rouletteWinnerPlayer;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -1664,6 +1668,24 @@ namespace HUDRA.Pages
 
             try
             {
+                // Initialize sound players
+                var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
+                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
+
+                if (File.Exists(tickSoundPath))
+                {
+                    _rouletteTickPlayer = new MediaPlayer();
+                    _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
+                    _rouletteTickPlayer.Volume = 0.5;
+                }
+
+                if (File.Exists(winnerSoundPath))
+                {
+                    _rouletteWinnerPlayer = new MediaPlayer();
+                    _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
+                    _rouletteWinnerPlayer.Volume = 0.7;
+                }
+
                 // Get list of games
                 var gamesList = _games.ToList();
                 if (gamesList.Count == 0)
@@ -1719,6 +1741,13 @@ namespace HUDRA.Pages
                     int gameIndex = currentPosition % gamesList.Count;
                     var currentGame = gamesList[gameIndex];
 
+                    // Play tick sound (reset position to replay)
+                    if (_rouletteTickPlayer != null)
+                    {
+                        _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
+                        _rouletteTickPlayer.Play();
+                    }
+
                     // Update the modal display
                     DispatcherQueue.TryEnqueue(() =>
                     {
@@ -1768,6 +1797,9 @@ namespace HUDRA.Pages
                     return;
                 }
 
+                // Play winner sound
+                _rouletteWinnerPlayer?.Play();
+
                 // Show the final selected game
                 DispatcherQueue.TryEnqueue(() =>
                 {
@@ -1801,6 +1833,12 @@ namespace HUDRA.Pages
                 _isRouletteActive = false;
                 _rouletteCts?.Dispose();
                 _rouletteCts = null;
+
+                // Dispose sound players
+                _rouletteTickPlayer?.Dispose();
+                _rouletteTickPlayer = null;
+                _rouletteWinnerPlayer?.Dispose();
+                _rouletteWinnerPlayer = null;
 
                 // Hide modal
                 DispatcherQueue.TryEnqueue(() =>
