@@ -1668,7 +1668,15 @@ namespace HUDRA.Pages
 
             try
             {
-                // Initialize and preload sound players
+                // Get list of games first
+                var gamesList = _games.ToList();
+                if (gamesList.Count == 0)
+                {
+                    _isRouletteActive = false;
+                    return;
+                }
+
+                // Initialize sound players
                 var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
                 var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
 
@@ -1677,9 +1685,6 @@ namespace HUDRA.Pages
                     _rouletteTickPlayer = new MediaPlayer();
                     _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
                     _rouletteTickPlayer.Volume = 0.5;
-                    // Preload by playing at zero volume then pausing
-                    _rouletteTickPlayer.IsMuted = true;
-                    _rouletteTickPlayer.Play();
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1687,25 +1692,6 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer = new MediaPlayer();
                     _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
                     _rouletteWinnerPlayer.Volume = 0.7;
-                }
-
-                // Wait for audio to preload
-                await Task.Delay(100);
-
-                // Reset tick player for actual playback
-                if (_rouletteTickPlayer != null)
-                {
-                    _rouletteTickPlayer.Pause();
-                    _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayer.IsMuted = false;
-                }
-
-                // Get list of games
-                var gamesList = _games.ToList();
-                if (gamesList.Count == 0)
-                {
-                    _isRouletteActive = false;
-                    return;
                 }
 
                 // Select a random target game index (avoid repeating the same game)
@@ -1727,19 +1713,38 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal
+                // Show the modal immediately with first game
+                var firstGame = gamesList[0];
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
                     RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                    RouletteGameNameText.Text = firstGame.DisplayName;
+
+                    var artworkPath = firstGame.ArtworkPath;
+                    if (!string.IsNullOrEmpty(artworkPath))
+                    {
+                        var queryIndex = artworkPath.IndexOf('?');
+                        if (queryIndex > 0)
+                        {
+                            artworkPath = artworkPath.Substring(0, queryIndex);
+                        }
+                        if (File.Exists(artworkPath))
+                        {
+                            RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                        }
+                    }
                 });
+
+                // Wait for audio to be ready (first tick plays immediately after this)
+                await Task.Delay(150);
 
                 // Roulette animation - cycle through games in the modal with deceleration
                 const int minIntervalMs = 80;   // Fast speed at start
                 const int maxIntervalMs = 400;  // Slow speed at end
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
-                int currentPosition = 0;
+                int currentPosition = 1; // Start at 1 since we already showed first game
 
                 while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
                 {
