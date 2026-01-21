@@ -1693,10 +1693,7 @@ namespace HUDRA.Pages
                         _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
                         _rouletteTickPlayers[i].Volume = 0.5;
                     }
-
-                    // Play first tick IMMEDIATELY - this primes the audio AND gives instant feedback
-                    _rouletteTickPlayers[0].Play();
-                    _currentTickPlayerIndex = 1;
+                    _currentTickPlayerIndex = 0;
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1705,6 +1702,18 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
                     _rouletteWinnerPlayer.Volume = 0.7;
                 }
+
+                // Start ticks IMMEDIATELY at fastest rate for ~1 second to prime audio
+                // This gives instant feedback and warms up the audio pipeline
+                const int minIntervalMs = 80;   // Fast speed at start
+                const int maxIntervalMs = 400;  // Slow speed at end
+                for (int i = 0; i < 12 && !_isRouletteCancelled; i++) // ~960ms of ticks
+                {
+                    PlayRouletteTick();
+                    await Task.Delay(minIntervalMs);
+                }
+
+                if (_isRouletteCancelled) return;
 
                 // Select a random target game index (avoid repeating the same game)
                 var random = new Random();
@@ -1725,9 +1734,8 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal first and WAIT for it to be visible
+                // NOW show the modal - audio is already rolling smoothly
                 var firstGame = gamesList[0];
-                var modalShown = new TaskCompletionSource<bool>();
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
@@ -1747,13 +1755,9 @@ namespace HUDRA.Pages
                             RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
                         }
                     }
-                    modalShown.TrySetResult(true);
                 });
-                await modalShown.Task;
 
                 // Roulette animation - cycle through games in the modal with deceleration
-                const int minIntervalMs = 80;   // Fast speed at start
-                const int maxIntervalMs = 400;  // Slow speed at end
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
                 int currentPosition = 0; // Start at 0 (first game already shown)
@@ -1787,14 +1791,8 @@ namespace HUDRA.Pages
                     int gameIndex = currentPosition % gamesList.Count;
                     var currentGame = gamesList[gameIndex];
 
-                    // Play tick sound using next player in pool (avoids clipping)
-                    if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
-                    {
-                        var player = _rouletteTickPlayers[_currentTickPlayerIndex];
-                        player.PlaybackSession.Position = TimeSpan.Zero;
-                        player.Play();
-                        _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
-                    }
+                    // Play tick sound
+                    PlayRouletteTick();
 
                     // Update the modal display
                     DispatcherQueue.TryEnqueue(() =>
@@ -1971,6 +1969,17 @@ namespace HUDRA.Pages
                 _isRouletteCancelled = true;
                 _rouletteCts?.Cancel();
                 System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancellation requested");
+            }
+        }
+
+        private void PlayRouletteTick()
+        {
+            if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
+            {
+                var player = _rouletteTickPlayers[_currentTickPlayerIndex];
+                player.PlaybackSession.Position = TimeSpan.Zero;
+                player.Play();
+                _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
             }
         }
 
