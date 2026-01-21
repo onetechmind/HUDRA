@@ -57,7 +57,7 @@ namespace HUDRA.Pages
         private CancellationTokenSource? _rouletteCts;
         private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
         private static MediaPlayer[]? _rouletteTickPlayers;  // Pool of players - STATIC to persist across page recreations
-        private static bool _rouletteAudioPreloaded = false;
+        private static Task? _roulettePreloadTask;  // Track preload completion
         private int _currentTickPlayerIndex = 0;
         private MediaPlayer? _rouletteWinnerPlayer;
 
@@ -1681,8 +1681,12 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Ensure audio is preloaded (in case page just loaded)
+                // Ensure audio is preloaded - wait for completion if still loading
                 PreloadRouletteAudio();
+                if (_roulettePreloadTask != null)
+                {
+                    await _roulettePreloadTask;
+                }
 
                 // Reset tick players to full volume (may have been muted during preload)
                 if (_rouletteTickPlayers != null)
@@ -1971,10 +1975,16 @@ namespace HUDRA.Pages
         /// Preloads roulette audio players so they're ready for instant playback.
         /// Called during page initialization.
         /// </summary>
-        private async void PreloadRouletteAudio()
+        private void PreloadRouletteAudio()
         {
-            if (_rouletteAudioPreloaded) return;
+            // If already preloading or preloaded, don't start again
+            if (_roulettePreloadTask != null) return;
 
+            _roulettePreloadTask = PreloadRouletteAudioAsync();
+        }
+
+        private static async Task PreloadRouletteAudioAsync()
+        {
             var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
 
             if (File.Exists(tickSoundPath))
@@ -2002,7 +2012,6 @@ namespace HUDRA.Pages
                     _rouletteTickPlayers[i].Volume = 0.5;
                 }
 
-                _rouletteAudioPreloaded = true;
                 System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette audio preloaded");
             }
         }
