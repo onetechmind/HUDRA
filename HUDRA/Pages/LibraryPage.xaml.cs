@@ -56,7 +56,8 @@ namespace HUDRA.Pages
         private bool _isRouletteCancelled = false;
         private CancellationTokenSource? _rouletteCts;
         private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
-        private MediaPlayer? _rouletteTickPlayer;
+        private MediaPlayer[]? _rouletteTickPlayers;  // Pool of players to avoid clipping
+        private int _currentTickPlayerIndex = 0;
         private MediaPlayer? _rouletteWinnerPlayer;
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -1682,17 +1683,26 @@ namespace HUDRA.Pages
 
                 if (File.Exists(tickSoundPath))
                 {
-                    _rouletteTickPlayer = new MediaPlayer();
-                    _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
+                    // Create a pool of 3 players to avoid clipping when sounds overlap
+                    _rouletteTickPlayers = new MediaPlayer[3];
+                    var tickUri = new Uri(tickSoundPath);
 
-                    // Prime the audio pipeline by playing silently first
-                    // This warms up the audio system so subsequent plays are instant
-                    _rouletteTickPlayer.Volume = 0;
-                    _rouletteTickPlayer.Play();
-                    await Task.Delay(100); // Let audio pipeline fully initialize
-                    _rouletteTickPlayer.Pause();
-                    _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayer.Volume = 0.5; // Restore volume
+                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                    {
+                        _rouletteTickPlayers[i] = new MediaPlayer();
+                        _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
+                        _rouletteTickPlayers[i].Volume = 0.5;
+                    }
+
+                    // Prime the first player to warm up the audio pipeline
+                    _rouletteTickPlayers[0].Volume = 0;
+                    _rouletteTickPlayers[0].Play();
+                    await Task.Delay(100);
+                    _rouletteTickPlayers[0].Pause();
+                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayers[0].Volume = 0.5;
+
+                    _currentTickPlayerIndex = 0;
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1748,9 +1758,10 @@ namespace HUDRA.Pages
                 await modalShown.Task;
 
                 // Play first tick NOW that modal is visible
-                if (_rouletteTickPlayer != null)
+                if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
                 {
-                    _rouletteTickPlayer.Play();
+                    _rouletteTickPlayers[_currentTickPlayerIndex].Play();
+                    _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
                 }
 
                 // Roulette animation - cycle through games in the modal with deceleration
@@ -1789,11 +1800,13 @@ namespace HUDRA.Pages
                     int gameIndex = currentPosition % gamesList.Count;
                     var currentGame = gamesList[gameIndex];
 
-                    // Play tick sound (reset position to replay)
-                    if (_rouletteTickPlayer != null)
+                    // Play tick sound using next player in pool (avoids clipping)
+                    if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
                     {
-                        _rouletteTickPlayer.PlaybackSession.Position = TimeSpan.Zero;
-                        _rouletteTickPlayer.Play();
+                        var player = _rouletteTickPlayers[_currentTickPlayerIndex];
+                        player.PlaybackSession.Position = TimeSpan.Zero;
+                        player.Play();
+                        _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
                     }
 
                     // Update the modal display
@@ -1872,8 +1885,14 @@ namespace HUDRA.Pages
                 _rouletteCts = null;
 
                 // Dispose sound players
-                _rouletteTickPlayer?.Dispose();
-                _rouletteTickPlayer = null;
+                if (_rouletteTickPlayers != null)
+                {
+                    foreach (var player in _rouletteTickPlayers)
+                    {
+                        player?.Dispose();
+                    }
+                    _rouletteTickPlayers = null;
+                }
                 _rouletteWinnerPlayer?.Dispose();
                 _rouletteWinnerPlayer = null;
 
