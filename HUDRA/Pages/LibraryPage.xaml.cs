@@ -56,7 +56,8 @@ namespace HUDRA.Pages
         private bool _isRouletteCancelled = false;
         private CancellationTokenSource? _rouletteCts;
         private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
-        private MediaPlayer[]? _rouletteTickPlayers;  // Pool of players to avoid clipping
+        private static MediaPlayer[]? _rouletteTickPlayers;  // Pool of players - STATIC to persist across page recreations
+        private static bool _rouletteAudioPreloaded = false;
         private int _currentTickPlayerIndex = 0;
         private MediaPlayer? _rouletteWinnerPlayer;
 
@@ -138,6 +139,9 @@ namespace HUDRA.Pages
 
             // Update Rescan button enabled state based on Library Scanning setting
             UpdateRescanButtonState();
+
+            // Preload roulette audio so it's ready for instant playback
+            PreloadRouletteAudio();
 
             // If we have a saved focused game, scroll to it and focus it
             // Otherwise, restore the scroll position only
@@ -1677,25 +1681,21 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Initialize sound players with preloading
-                var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
-                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
+                // Ensure audio is preloaded (in case page just loaded)
+                PreloadRouletteAudio();
 
-                if (File.Exists(tickSoundPath))
+                // Reset tick players to full volume (may have been muted during preload)
+                if (_rouletteTickPlayers != null)
                 {
-                    // Create a pool of 3 players to avoid clipping when sounds overlap
-                    _rouletteTickPlayers = new MediaPlayer[3];
-                    var tickUri = new Uri(tickSoundPath);
-
-                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                    foreach (var player in _rouletteTickPlayers)
                     {
-                        _rouletteTickPlayers[i] = new MediaPlayer();
-                        _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
-                        _rouletteTickPlayers[i].Volume = 0.5;
+                        player.Volume = 0.5;
                     }
                     _currentTickPlayerIndex = 0;
                 }
 
+                // Initialize winner sound player (only needed once per roulette)
+                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
                 if (File.Exists(winnerSoundPath))
                 {
                     _rouletteWinnerPlayer = new MediaPlayer();
@@ -1861,15 +1861,7 @@ namespace HUDRA.Pages
                 _rouletteCts?.Dispose();
                 _rouletteCts = null;
 
-                // Dispose sound players
-                if (_rouletteTickPlayers != null)
-                {
-                    foreach (var player in _rouletteTickPlayers)
-                    {
-                        player?.Dispose();
-                    }
-                    _rouletteTickPlayers = null;
-                }
+                // Dispose winner player (tick players are static and reused)
                 _rouletteWinnerPlayer?.Dispose();
                 _rouletteWinnerPlayer = null;
 
@@ -1972,6 +1964,39 @@ namespace HUDRA.Pages
                 player.PlaybackSession.Position = TimeSpan.Zero;
                 player.Play();
                 _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
+            }
+        }
+
+        /// <summary>
+        /// Preloads roulette audio players so they're ready for instant playback.
+        /// Called during page initialization.
+        /// </summary>
+        private void PreloadRouletteAudio()
+        {
+            if (_rouletteAudioPreloaded) return;
+
+            var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
+
+            if (File.Exists(tickSoundPath))
+            {
+                // Create a pool of 3 players to avoid clipping when sounds overlap
+                _rouletteTickPlayers = new MediaPlayer[3];
+                var tickUri = new Uri(tickSoundPath);
+
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i] = new MediaPlayer();
+                    _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
+                    _rouletteTickPlayers[i].Volume = 0.5;
+                }
+
+                // Prime audio by playing silently - this forces the media to fully load
+                _rouletteTickPlayers[0].Volume = 0;
+                _rouletteTickPlayers[0].Play();
+                // Will restore volume when actually used
+
+                _rouletteAudioPreloaded = true;
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette audio preloaded");
             }
         }
 
