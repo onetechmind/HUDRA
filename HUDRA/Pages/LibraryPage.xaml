@@ -181,273 +181,393 @@
         </Style>
     </Page.Resources>
 
-    <StackPanel
-        x:Name="LibraryRootPanel"
-        MaxWidth="320"
-        Margin="0"
-        HorizontalAlignment="Center"
-        x:FieldModifier="public"
-        Spacing="20">
-
-        <!--  Header  -->
-        <Border>
-            <TextBlock
-                Margin="0,25,0,0"
-                HorizontalAlignment="Center"
-                FontFamily="Cascadia Code"
-                FontSize="18"
-                FontWeight="SemiBold"
-                IsTabStop="False"
-                Text="LIBRARY" />
-        </Border>
-
-        <!--  SteamGridDB Hint InfoBar  -->
-        <InfoBar
-            x:Name="SgdbHintBar"
-            Title="Enhance your library with SteamGridDB!"
-            Closed="SgdbHintBar_Closed"
-            IsClosable="True"
-            IsOpen="False"
-            Message="Add your free SteamGridDB API key in Settings to fetch game artwork from within HUDRA!"
-            Severity="Informational" />
-
-        <!--  Game Management Buttons  -->
+    <Grid>
+        <!--  Main Library Content  -->
         <StackPanel
-            Margin="0,-10,0,-10"
-            HorizontalAlignment="Center"
-            Orientation="Horizontal"
-            Spacing="10">
-            <Button
-                x:Name="AddGameButton"
-                Click="AddGameButton_Click"
-                Style="{StaticResource LibraryManagementButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
-                        Glyph="&#xE710;" />
-                    <TextBlock
-                        FontFamily="Cascadia Code"
-                        FontSize="14"
-                        Text="Add Game" />
-                </StackPanel>
-            </Button>
-
-            <Button
-                x:Name="RescanButton"
-                Click="RescanButton_Click"
-                Style="{StaticResource LibraryManagementButtonStyle}">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <FontIcon
-                        FontFamily="Segoe MDL2 Assets"
-                        FontSize="14"
-                        Glyph="&#xE72C;" />
-                    <TextBlock
-                        FontFamily="Cascadia Code"
-                        FontSize="14"
-                        Text="Rescan" />
-                </StackPanel>
-            </Button>
-        </StackPanel>
-
-        <!--  Gamepad Legend  -->
-        <StackPanel
-            HorizontalAlignment="Center"
-            IsTabStop="False"
-            Orientation="Horizontal"
-            Spacing="6">
-            <Image
-                Width="25"
-                Height="25"
-                VerticalAlignment="Center"
-                Source="ms-appx:///Assets/Glyphs/xbox_button_x.png" />
-            <TextBlock
-                VerticalAlignment="Center"
-                FontFamily="Cascadia Code"
-                FontSize="14"
-                Foreground="#888888"
-                IsTabStop="False"
-                Text="Game Settings" />
-        </StackPanel>
-
-        <!--  Scan Progress Indicator  -->
-        <Border
-            x:Name="ScanProgressIndicator"
-            MaxWidth="300"
-            Padding="12,10"
-            HorizontalAlignment="Center"
-            Background="#2d2d2d"
-            BorderBrush="#670195"
-            BorderThickness="1"
-            CornerRadius="10"
-            Visibility="Collapsed">
-            <Grid ColumnSpacing="10">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <ProgressRing
-                    Grid.Column="0"
-                    Width="20"
-                    Height="20"
-                    VerticalAlignment="Top"
-                    Foreground="#670195"
-                    IsActive="True" />
-                <TextBlock
-                    x:Name="ScanProgressText"
-                    Grid.Column="1"
-                    VerticalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="12"
-                    Foreground="#CCCCCC"
-                    Text="Scanning..."
-                    TextWrapping="Wrap" />
-            </Grid>
-        </Border>
-
-        <!--  Game Grid  -->
-        <ItemsControl
-            x:Name="GamesItemsControl"
+            x:Name="LibraryRootPanel"
             MaxWidth="320"
+            Margin="0"
             HorizontalAlignment="Center"
-            TabNavigation="Once"
-            XYFocusKeyboardNavigation="Enabled">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <ItemsWrapGrid
-                        HorizontalAlignment="Center"
-                        MaximumRowsOrColumns="2"
-                        Orientation="Horizontal" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="models:DetectedGame">
-                    <StackPanel Margin="5" Spacing="5">
-                        <!--  Game Tile Button  -->
-                        <Button
-                            Width="125"
-                            Height="82"
-                            Click="GameTile_Click"
-                            IsTabStop="True"
-                            PointerEntered="GameTile_PointerEntered"
-                            PointerExited="GameTile_PointerExited"
-                            Style="{StaticResource GameTileButtonStyle}"
-                            TabIndex="0"
-                            Tag="{Binding}">
-                            <Grid Background="Transparent">
-                                <!--  Artwork Image  -->
-                                <Image
-                                    x:Name="ArtworkImage"
-                                    Source="{x:Bind ArtworkPath, Mode=OneWay}"
-                                    Stretch="UniformToFill"
-                                    Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
+            x:FieldModifier="public"
+            Spacing="20">
 
-                                <!--  Fallback: No Artwork Image  -->
-                                <Image
-                                    IsHitTestVisible="False"
-                                    Source="ms-appx:///Assets/no-artwork-grid.png"
-                                    Stretch="UniformToFill"
-                                    Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}" />
+            <!--  Header  -->
+            <Border>
+                <TextBlock
+                    Margin="0,25,0,0"
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    IsTabStop="False"
+                    Text="LIBRARY" />
+            </Border>
 
-                                <!--  Launching Overlay  -->
-                                <Border
-                                    x:Name="TileLaunchingOverlay"
-                                    Background="#CC670195"
-                                    CornerRadius="12"
-                                    Visibility="Collapsed">
-                                    <StackPanel
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center"
-                                        Spacing="5">
-                                        <ProgressRing
-                                            Width="24"
-                                            Height="24"
-                                            Foreground="White"
-                                            IsActive="True" />
-                                        <TextBlock
-                                            FontFamily="Cascadia Code"
-                                            FontSize="10"
-                                            FontWeight="SemiBold"
-                                            Foreground="White"
-                                            Text="Launching..."
-                                            TextAlignment="Center" />
-                                    </StackPanel>
-                                </Border>
+            <!--  SteamGridDB Hint InfoBar  -->
+            <InfoBar
+                x:Name="SgdbHintBar"
+                Title="Enhance your library with SteamGridDB!"
+                Closed="SgdbHintBar_Closed"
+                IsClosable="True"
+                IsOpen="False"
+                Message="Add your free SteamGridDB API key in Settings to fetch game artwork from within HUDRA!"
+                Severity="Informational" />
 
-                                <!--  Settings Icon Overlay (shown on hover)  -->
-                                <Border
-                                    x:Name="TileSettingsOverlay"
-                                    HorizontalAlignment="Stretch"
-                                    VerticalAlignment="Stretch"
-                                    Background="Transparent"
-                                    CornerRadius="12"
-                                    Visibility="Collapsed">
-                                    <Button
-                                        x:Name="SettingsIconButton"
-                                        Width="40"
-                                        Height="40"
-                                        Margin="0,0,5,5"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Bottom"
-                                        Background="#333333"
-                                        BorderBrush="Transparent"
-                                        Click="SettingsIcon_Click"
-                                        CornerRadius="6"
-                                        ToolTipService.ToolTip="Game settings">
-                                        <FontIcon
-                                            FontFamily="Segoe MDL2 Assets"
-                                            FontSize="20"
-                                            Foreground="White"
-                                            Glyph="&#xE713;" />
-                                    </Button>
-                                </Border>
-                            </Grid>
-                        </Button>
-
-                        <!--  Game Name Below Tile  -->
+            <!--  Game Management Buttons  -->
+            <StackPanel
+                Margin="0,-10,0,-10"
+                Padding="10"
+                HorizontalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="0">
+                <Button
+                    x:Name="AddGameButton"
+                    Width="60"
+                    Height="70"
+                    Click="AddGameButton_Click"
+                    Style="{StaticResource LibraryManagementButtonStyle}">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
+                        <FontIcon
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="18"
+                            Glyph="&#xE710;" />
                         <TextBlock
-                            Width="135"
-                            Height="40"
-                            Padding="5"
                             HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
-                            FontSize="11"
-                            Foreground="White"
-                            MaxLines="2"
-                            Text="{x:Bind DisplayName, Mode=OneWay}"
-                            TextAlignment="Center"
-                            TextWrapping="Wrap" />
+                            FontSize="12"
+                            Text="Add Game" />
                     </StackPanel>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
+                </Button>
 
-        <!--  Empty State  -->
-        <Border
-            x:Name="EmptyStatePanel"
-            Padding="20"
-            HorizontalAlignment="Center"
-            Background="#2d2d2d"
-            CornerRadius="12"
-            Visibility="Collapsed">
-            <StackPanel Spacing="10">
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontFamily="Cascadia Code"
-                    FontSize="16"
-                    FontWeight="SemiBold"
-                    Foreground="White"
-                    Text="No games found" />
-                <TextBlock
-                    HorizontalAlignment="Center"
-                    FontFamily="Calibri"
-                    FontSize="13"
-                    Foreground="#99FFFFFF"
-                    Text="Enable Enhanced Library Scanning in Settings"
-                    TextAlignment="Center"
-                    TextWrapping="Wrap" />
+                <Button
+                    x:Name="RescanButton"
+                    Width="60"
+                    Height="70"
+                    Click="RescanButton_Click"
+                    Style="{StaticResource LibraryManagementButtonStyle}">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
+                        <FontIcon
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="18"
+                            Glyph="&#xE72C;" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Text="Rescan" />
+                    </StackPanel>
+                </Button>
+
+                <Button
+                    x:Name="RandomButton"
+                    Width="60"
+                    Height="70"
+                    Click="RandomButton_Click"
+                    Style="{StaticResource LibraryManagementButtonStyle}">
+                    <StackPanel HorizontalAlignment="Center" Spacing="7">
+                        <FontIcon
+                            HorizontalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="18"
+                            Glyph="&#xE8B1;" />
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Text="Random" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
-        </Border>
 
-    </StackPanel>
+            <!--  Gamepad Legend  -->
+            <StackPanel
+                HorizontalAlignment="Center"
+                IsTabStop="False"
+                Orientation="Horizontal"
+                Spacing="6">
+                <Image
+                    Width="25"
+                    Height="25"
+                    VerticalAlignment="Center"
+                    Source="ms-appx:///Assets/Glyphs/xbox_button_x.png" />
+                <TextBlock
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#888888"
+                    IsTabStop="False"
+                    Text="Game Settings" />
+            </StackPanel>
+
+            <!--  Scan Progress Indicator  -->
+            <Border
+                x:Name="ScanProgressIndicator"
+                MaxWidth="300"
+                Padding="12,10"
+                HorizontalAlignment="Center"
+                Background="#2d2d2d"
+                BorderBrush="#670195"
+                BorderThickness="1"
+                CornerRadius="10"
+                Visibility="Collapsed">
+                <Grid ColumnSpacing="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ProgressRing
+                        Grid.Column="0"
+                        Width="20"
+                        Height="20"
+                        VerticalAlignment="Top"
+                        Foreground="#670195"
+                        IsActive="True" />
+                    <TextBlock
+                        x:Name="ScanProgressText"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="12"
+                        Foreground="#CCCCCC"
+                        Text="Scanning..."
+                        TextWrapping="Wrap" />
+                </Grid>
+            </Border>
+
+            <!--  Game Grid  -->
+            <ItemsControl
+                x:Name="GamesItemsControl"
+                MaxWidth="320"
+                HorizontalAlignment="Center"
+                TabNavigation="Once"
+                XYFocusKeyboardNavigation="Enabled">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ItemsWrapGrid
+                            HorizontalAlignment="Center"
+                            MaximumRowsOrColumns="2"
+                            Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="models:DetectedGame">
+                        <StackPanel Margin="5" Spacing="5">
+                            <!--  Game Tile Button  -->
+                            <Button
+                                Width="125"
+                                Height="82"
+                                Click="GameTile_Click"
+                                IsTabStop="True"
+                                PointerEntered="GameTile_PointerEntered"
+                                PointerExited="GameTile_PointerExited"
+                                Style="{StaticResource GameTileButtonStyle}"
+                                TabIndex="0"
+                                Tag="{Binding}">
+                                <Grid Background="Transparent">
+                                    <!--  Artwork Image  -->
+                                    <Image
+                                        x:Name="ArtworkImage"
+                                        Source="{x:Bind ArtworkPath, Mode=OneWay}"
+                                        Stretch="UniformToFill"
+                                        Visibility="{x:Bind ArtworkPath, Converter={StaticResource NullToVisibilityConverter}}" />
+
+                                    <!--  Fallback: No Artwork Image  -->
+                                    <Image
+                                        IsHitTestVisible="False"
+                                        Source="ms-appx:///Assets/no-artwork-grid.png"
+                                        Stretch="UniformToFill"
+                                        Visibility="{x:Bind ArtworkPath, Converter={StaticResource InvertedNullToVisibilityConverter}}" />
+
+                                    <!--  Launching Overlay  -->
+                                    <Border
+                                        x:Name="TileLaunchingOverlay"
+                                        Background="#CC670195"
+                                        CornerRadius="12"
+                                        Visibility="Collapsed">
+                                        <StackPanel
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Spacing="5">
+                                            <ProgressRing
+                                                Width="24"
+                                                Height="24"
+                                                Foreground="White"
+                                                IsActive="True" />
+                                            <TextBlock
+                                                FontFamily="Cascadia Code"
+                                                FontSize="10"
+                                                FontWeight="SemiBold"
+                                                Foreground="White"
+                                                Text="Launching..."
+                                                TextAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!--  Settings Icon Overlay (shown on hover)  -->
+                                    <Border
+                                        x:Name="TileSettingsOverlay"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"
+                                        Background="Transparent"
+                                        CornerRadius="12"
+                                        Visibility="Collapsed">
+                                        <Button
+                                            x:Name="SettingsIconButton"
+                                            Width="40"
+                                            Height="40"
+                                            Margin="0,0,5,5"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Bottom"
+                                            Background="#333333"
+                                            BorderBrush="Transparent"
+                                            Click="SettingsIcon_Click"
+                                            CornerRadius="6"
+                                            ToolTipService.ToolTip="Game settings">
+                                            <FontIcon
+                                                FontFamily="Segoe MDL2 Assets"
+                                                FontSize="20"
+                                                Foreground="White"
+                                                Glyph="&#xE713;" />
+                                        </Button>
+                                    </Border>
+                                </Grid>
+                            </Button>
+
+                            <!--  Game Name Below Tile  -->
+                            <TextBlock
+                                Width="135"
+                                Height="40"
+                                Padding="5"
+                                HorizontalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="11"
+                                Foreground="White"
+                                MaxLines="2"
+                                Text="{x:Bind DisplayName, Mode=OneWay}"
+                                TextAlignment="Center"
+                                TextWrapping="Wrap" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!--  Empty State  -->
+            <Border
+                x:Name="EmptyStatePanel"
+                Padding="20"
+                HorizontalAlignment="Center"
+                Background="#2d2d2d"
+                CornerRadius="12"
+                Visibility="Collapsed">
+                <StackPanel Spacing="10">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="16"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="No games found" />
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        FontFamily="Calibri"
+                        FontSize="13"
+                        Foreground="#99FFFFFF"
+                        Text="Enable Enhanced Library Scanning in Settings"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+
+        <!--  Roulette Overlay (darkens library and shows modal on top)  -->
+        <Grid x:Name="RouletteOverlay" Visibility="Collapsed">
+            <!--  Dark background overlay  -->
+            <Border Background="#CC000000" />
+
+            <!--  Modal content  -->
+            <Border
+                x:Name="RouletteModal"
+                Width="280"
+                Margin="0,120,0,0"
+                Padding="40"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Background="#FF1a1a1a"
+                CornerRadius="16">
+                <StackPanel
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="15">
+
+                    <!--  Game Tile Display  -->
+                    <Grid
+                        Width="200"
+                        Height="300"
+                        HorizontalAlignment="Center">
+                        <!--  Game Artwork  -->
+                        <Border Background="#2d2d2d" CornerRadius="12">
+                            <Image x:Name="RouletteGameImage" Stretch="UniformToFill" />
+                        </Border>
+
+                        <!--  Countdown Overlay (shown after spin ends)  -->
+                        <Border
+                            x:Name="RouletteCountdownOverlay"
+                            Background="#CC670195"
+                            CornerRadius="12"
+                            Visibility="Collapsed">
+                            <TextBlock
+                                x:Name="RouletteCountdownText"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="96"
+                                FontWeight="Bold"
+                                Foreground="White"
+                                Text="3" />
+                        </Border>
+                    </Grid>
+
+                    <!--  Game Name  -->
+                    <TextBlock
+                        x:Name="RouletteGameNameText"
+                        MaxWidth="250"
+                        HorizontalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="White"
+                        Text="Game Name"
+                        TextAlignment="Center"
+                        TextTrimming="CharacterEllipsis"
+                        TextWrapping="NoWrap" />
+
+                    <!--  Cancel Button  -->
+                    <Button
+                        x:Name="RouletteCancelButton"
+                        Width="90"
+                        Height="70"
+                        Margin="0,10,0,0"
+                        HorizontalAlignment="Center"
+                        Click="RouletteCancelButton_Click"
+                        Style="{StaticResource LibraryManagementButtonStyle}">
+                        <StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <FontIcon
+                                HorizontalAlignment="Center"
+                                FontFamily="Segoe MDL2 Assets"
+                                FontSize="18"
+                                Glyph="&#xE711;" />
+                            <TextBlock
+                                HorizontalAlignment="Center"
+                                FontFamily="Cascadia Code"
+                                FontSize="11"
+                                Text="Cancel" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </Page>
