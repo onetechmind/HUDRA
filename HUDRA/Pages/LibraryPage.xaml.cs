@@ -1676,15 +1676,22 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Initialize sound players
+                // Initialize sound players with preloading
                 var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
                 var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
+
+                TaskCompletionSource<bool>? tickReadyTcs = null;
 
                 if (File.Exists(tickSoundPath))
                 {
                     _rouletteTickPlayer = new MediaPlayer();
-                    _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
                     _rouletteTickPlayer.Volume = 0.5;
+
+                    // Use TaskCompletionSource to wait for media to be ready
+                    tickReadyTcs = new TaskCompletionSource<bool>();
+                    _rouletteTickPlayer.MediaOpened += (s, e) => tickReadyTcs.TrySetResult(true);
+                    _rouletteTickPlayer.MediaFailed += (s, e) => tickReadyTcs.TrySetResult(false);
+                    _rouletteTickPlayer.Source = MediaSource.CreateFromUri(new Uri(tickSoundPath));
                 }
 
                 if (File.Exists(winnerSoundPath))
@@ -1692,6 +1699,13 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer = new MediaPlayer();
                     _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
                     _rouletteWinnerPlayer.Volume = 0.7;
+                }
+
+                // Wait for tick sound to be ready (with timeout)
+                if (tickReadyTcs != null)
+                {
+                    var timeoutTask = Task.Delay(500);
+                    await Task.WhenAny(tickReadyTcs.Task, timeoutTask);
                 }
 
                 // Select a random target game index (avoid repeating the same game)
@@ -1713,8 +1727,15 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal immediately with first game
+                // Show the modal and play first tick SIMULTANEOUSLY
                 var firstGame = gamesList[0];
+
+                // Play first tick immediately when modal appears
+                if (_rouletteTickPlayer != null)
+                {
+                    _rouletteTickPlayer.Play();
+                }
+
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
@@ -1735,9 +1756,6 @@ namespace HUDRA.Pages
                         }
                     }
                 });
-
-                // Wait for audio to be ready (first tick plays immediately after this)
-                await Task.Delay(150);
 
                 // Roulette animation - cycle through games in the modal with deceleration
                 const int minIntervalMs = 80;   // Fast speed at start
