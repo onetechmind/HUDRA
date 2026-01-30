@@ -1688,12 +1688,21 @@ namespace HUDRA.Pages
                     await _roulettePreloadTask;
                 }
 
-                // Reset tick players to full volume (may have been muted during preload)
+                // Re-prime audio pipeline before each session (goes idle after ~30s)
                 if (_rouletteTickPlayers != null)
                 {
-                    foreach (var player in _rouletteTickPlayers)
+                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                     {
-                        player.Volume = 0.5;
+                        _rouletteTickPlayers[i].Volume = 0;
+                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                        _rouletteTickPlayers[i].Play();
+                    }
+                    await Task.Delay(30); // Wake the audio device
+                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                    {
+                        _rouletteTickPlayers[i].Pause();
+                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                        _rouletteTickPlayers[i].Volume = 0.5;
                     }
                     _currentTickPlayerIndex = 0;
                 }
