@@ -624,46 +624,60 @@
                         Margin="0,10,0,0"
                         Orientation="Horizontal"
                         Spacing="10">
-                        <Button
-                            x:Name="RouletteSpinButton"
-                            Width="90"
-                            Height="70"
-                            HorizontalAlignment="Center"
-                            Click="RouletteSpinButton_Click"
-                            Style="{StaticResource LibraryManagementButtonStyle}">
-                            <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                <FontIcon
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="18"
-                                    Glyph="&#xE768;" />
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="11"
-                                    Text="Spin" />
-                            </StackPanel>
-                        </Button>
-                        <Button
-                            x:Name="RouletteCancelButton"
-                            Width="90"
-                            Height="70"
-                            HorizontalAlignment="Center"
-                            Click="RouletteCancelButton_Click"
-                            Style="{StaticResource LibraryManagementButtonStyle}">
-                            <StackPanel HorizontalAlignment="Center" Spacing="4">
-                                <FontIcon
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="18"
-                                    Glyph="&#xE711;" />
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    FontFamily="Cascadia Code"
-                                    FontSize="11"
-                                    Text="Cancel" />
-                            </StackPanel>
-                        </Button>
+                        <StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <Button
+                                x:Name="RouletteSpinButton"
+                                Width="90"
+                                Height="70"
+                                HorizontalAlignment="Center"
+                                Click="RouletteSpinButton_Click"
+                                Style="{StaticResource LibraryManagementButtonStyle}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <FontIcon
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="18"
+                                        Glyph="&#xE768;" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="11"
+                                        Text="Spin" />
+                                </StackPanel>
+                            </Button>
+                            <Image
+                                Width="24"
+                                Height="24"
+                                HorizontalAlignment="Center"
+                                Source="/Assets/Glyphs/xbox_button_a.png" />
+                        </StackPanel>
+                        <StackPanel HorizontalAlignment="Center" Spacing="4">
+                            <Button
+                                x:Name="RouletteCancelButton"
+                                Width="90"
+                                Height="70"
+                                HorizontalAlignment="Center"
+                                Click="RouletteCancelButton_Click"
+                                Style="{StaticResource LibraryManagementButtonStyle}">
+                                <StackPanel HorizontalAlignment="Center" Spacing="4">
+                                    <FontIcon
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Segoe MDL2 Assets"
+                                        FontSize="18"
+                                        Glyph="&#xE711;" />
+                                    <TextBlock
+                                        HorizontalAlignment="Center"
+                                        FontFamily="Cascadia Code"
+                                        FontSize="11"
+                                        Text="Cancel" />
+                                </StackPanel>
+                            </Button>
+                            <Image
+                                Width="24"
+                                Height="24"
+                                HorizontalAlignment="Center"
+                                Source="/Assets/Glyphs/xbox_button_b.png" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
             </Border>
