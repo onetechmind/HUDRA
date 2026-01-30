@@ -534,15 +534,31 @@
                                         x:Name="ReelSlot1"
                                         Stretch="UniformToFill" />
                                 </Border>
-                                <Border
-                                    Width="160"
-                                    Height="100"
-                                    Background="#2d2d2d"
-                                    CornerRadius="8">
-                                    <Image
-                                        x:Name="ReelSlot2"
-                                        Stretch="UniformToFill" />
-                                </Border>
+                                <Grid Width="160" Height="100">
+                                    <Border
+                                        Background="#2d2d2d"
+                                        CornerRadius="8">
+                                        <Image
+                                            x:Name="ReelSlot2"
+                                            Stretch="UniformToFill" />
+                                    </Border>
+                                    <!--  Countdown Overlay (shown over middle tile after spin ends)  -->
+                                    <Border
+                                        x:Name="RouletteCountdownOverlay"
+                                        Background="#4D670195"
+                                        CornerRadius="8"
+                                        Visibility="Collapsed">
+                                        <TextBlock
+                                            x:Name="RouletteCountdownText"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            FontFamily="Cascadia Code"
+                                            FontSize="48"
+                                            FontWeight="Bold"
+                                            Foreground="White"
+                                            Text="3" />
+                                    </Border>
+                                </Grid>
                                 <Border
                                     Width="160"
                                     Height="100"
@@ -584,23 +600,8 @@
                             Foreground="#670195"
                             Glyph="&#xE76B;" />
 
-                        <!--  Countdown Overlay (covers the reel after spin ends)  -->
-                        <Border
-                            x:Name="RouletteCountdownOverlay"
-                            Margin="20,0"
-                            Background="#CC670195"
-                            CornerRadius="12"
-                            Visibility="Collapsed">
-                            <TextBlock
-                                x:Name="RouletteCountdownText"
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center"
-                                FontFamily="Cascadia Code"
-                                FontSize="96"
-                                FontWeight="Bold"
-                                Foreground="White"
-                                Text="3" />
-                        </Border>
+
+
                     </Grid>
 
                     <!--  Game Name (middle slot)  -->
