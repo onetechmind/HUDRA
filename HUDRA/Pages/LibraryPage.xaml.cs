@@ -1671,6 +1671,7 @@ namespace HUDRA.Pages
             RouletteOverlay.Visibility = Visibility.Visible;
             RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
             RouletteSpinButton.IsEnabled = true;
+            RouletteSpinButton.Opacity = 1.0;
             UpdateRouletteReel(gamesList, initialTop);
 
             // Wake audio device silently while user looks at modal
