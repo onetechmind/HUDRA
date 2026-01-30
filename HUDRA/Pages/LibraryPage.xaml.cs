@@ -1985,7 +1985,7 @@ namespace HUDRA.Pages
 
         private static async Task PreloadRouletteAudioAsync()
         {
-            var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.mp3");
+            var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.wav");
 
             if (File.Exists(tickSoundPath))
             {
@@ -1993,16 +1993,28 @@ namespace HUDRA.Pages
                 _rouletteTickPlayers = new MediaPlayer[3];
                 var tickUri = new Uri(tickSoundPath);
 
+                // Create all players and wait for each to confirm media is loaded
+                var readyTasks = new Task[3];
                 for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                 {
+                    var tcs = new TaskCompletionSource<bool>();
                     _rouletteTickPlayers[i] = new MediaPlayer();
+                    _rouletteTickPlayers[i].MediaOpened += (s, e) => tcs.TrySetResult(true);
+                    _rouletteTickPlayers[i].MediaFailed += (s, e) => tcs.TrySetResult(false);
                     _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
                     _rouletteTickPlayers[i].Volume = 0;
-                    _rouletteTickPlayers[i].Play(); // Start all playing silently to force load
+                    readyTasks[i] = tcs.Task;
                 }
 
-                // Give time for all players to load and start playing
-                await Task.Delay(200);
+                // Wait for all players to confirm loaded (with timeout)
+                await Task.WhenAll(readyTasks).WaitAsync(TimeSpan.FromSeconds(2));
+
+                // Play all silently to fully prime the audio pipeline (not just loaded, but played)
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].Play();
+                }
+                await Task.Delay(50); // Brief play to prime output device
 
                 // Stop all and reset for real playback
                 for (int i = 0; i < _rouletteTickPlayers.Length; i++)
