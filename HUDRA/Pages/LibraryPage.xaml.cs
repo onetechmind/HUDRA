@@ -1648,14 +1648,65 @@ namespace HUDRA.Pages
                 return;
             }
 
-            // Don't start another roulette if one is already active
+            // Don't open if roulette is already active
             if (_isRouletteActive)
             {
                 return;
             }
 
-            // Start the roulette
-            await StartRouletteAsync();
+            _isRouletteActive = true;
+
+            // Ensure audio is preloaded
+            PreloadRouletteAudio();
+            if (_roulettePreloadTask != null)
+            {
+                await _roulettePreloadTask;
+            }
+
+            // Show modal with first game (alphabetical) as placeholder
+            var firstGame = _games.First();
+            RouletteOverlay.Visibility = Visibility.Visible;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+            RouletteSpinButton.Visibility = Visibility.Visible;
+            RouletteGameNameText.Text = firstGame.DisplayName;
+
+            var artworkPath = firstGame.ArtworkPath;
+            if (!string.IsNullOrEmpty(artworkPath))
+            {
+                var queryIndex = artworkPath.IndexOf('?');
+                if (queryIndex > 0)
+                {
+                    artworkPath = artworkPath.Substring(0, queryIndex);
+                }
+                if (File.Exists(artworkPath))
+                {
+                    RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                }
+            }
+
+            // Wake audio device silently while user looks at modal
+            if (_rouletteTickPlayers != null)
+            {
+                _rouletteTickPlayers[0].Volume = 0;
+                _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
+                _rouletteTickPlayers[0].Play();
+
+                for (int i = 1; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].Volume = 0.5;
+                    _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                }
+                _currentTickPlayerIndex = 1;
+            }
+        }
+
+        private async void RouletteSpinButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Hide Spin button once spinning starts
+            RouletteSpinButton.Visibility = Visibility.Collapsed;
+
+            // Start the spin
+            await StartRouletteSpinAsync();
         }
 
         private void RouletteCancelButton_Click(object sender, RoutedEventArgs e)
@@ -1663,9 +1714,8 @@ namespace HUDRA.Pages
             CancelRoulette();
         }
 
-        private async Task StartRouletteAsync()
+        private async Task StartRouletteSpinAsync()
         {
-            _isRouletteActive = true;
             _isRouletteCancelled = false;
             _rouletteCts = new CancellationTokenSource();
 
@@ -1673,20 +1723,9 @@ namespace HUDRA.Pages
 
             try
             {
-                // Get list of games first
+                // Get list of games
                 var gamesList = _games.ToList();
-                if (gamesList.Count == 0)
-                {
-                    _isRouletteActive = false;
-                    return;
-                }
-
-                // Ensure audio is preloaded - wait for completion if still loading
-                PreloadRouletteAudio();
-                if (_roulettePreloadTask != null)
-                {
-                    await _roulettePreloadTask;
-                }
+                if (gamesList.Count == 0) return;
 
                 const int minIntervalMs = 80;   // Fast speed at start
                 const int maxIntervalMs = 700;  // Very slow speed at end for dramatic finish
@@ -1696,11 +1735,10 @@ namespace HUDRA.Pages
                 int targetIndex;
                 if (gamesList.Count > 1 && _lastRouletteIndex >= 0 && _lastRouletteIndex < gamesList.Count)
                 {
-                    // Pick from all indices except the last one
                     targetIndex = random.Next(gamesList.Count - 1);
                     if (targetIndex >= _lastRouletteIndex)
                     {
-                        targetIndex++; // Skip over the last selected index
+                        targetIndex++;
                     }
                 }
                 else
@@ -1710,43 +1748,14 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal FIRST for instant visual feedback
-                var firstGame = gamesList[0];
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    RouletteOverlay.Visibility = Visibility.Visible;
-                    RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
-                    RouletteGameNameText.Text = firstGame.DisplayName;
-
-                    var artworkPath = firstGame.ArtworkPath;
-                    if (!string.IsNullOrEmpty(artworkPath))
-                    {
-                        var queryIndex = artworkPath.IndexOf('?');
-                        if (queryIndex > 0)
-                        {
-                            artworkPath = artworkPath.Substring(0, queryIndex);
-                        }
-                        if (File.Exists(artworkPath))
-                        {
-                            RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
-                        }
-                    }
-                });
-
-                // Wake audio device silently AFTER showing modal
-                // The loop's first 80ms delay absorbs the wake-up time
+                // Ensure tick players have correct volume
                 if (_rouletteTickPlayers != null)
                 {
-                    _rouletteTickPlayers[0].Volume = 0;
-                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayers[0].Play(); // Silently wakes the audio device
-
-                    for (int i = 1; i < _rouletteTickPlayers.Length; i++)
+                    foreach (var player in _rouletteTickPlayers)
                     {
-                        _rouletteTickPlayers[i].Volume = 0.5;
-                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                        player.Volume = 0.5;
                     }
-                    _currentTickPlayerIndex = 1;
+                    _currentTickPlayerIndex = 0;
                 }
 
                 // Initialize winner sound player (not time-sensitive, used after spin)
@@ -1957,11 +1966,21 @@ namespace HUDRA.Pages
 
         private void CancelRoulette()
         {
-            if (_isRouletteActive && !_isRouletteCancelled)
+            if (!_isRouletteActive) return;
+
+            if (_rouletteCts != null && !_isRouletteCancelled)
             {
+                // Spin is in progress - cancel it
                 _isRouletteCancelled = true;
-                _rouletteCts?.Cancel();
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancellation requested");
+                _rouletteCts.Cancel();
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette spin cancellation requested");
+            }
+            else
+            {
+                // Pre-spin state (modal open but no spin yet) - just close modal
+                _isRouletteActive = false;
+                RouletteOverlay.Visibility = Visibility.Collapsed;
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");
             }
         }
 
