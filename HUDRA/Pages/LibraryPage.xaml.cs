@@ -1937,20 +1937,18 @@ namespace HUDRA.Pages
         {
             if (!_isRouletteActive) return;
 
+            // Cancel any active spin/countdown
             if (_rouletteCts != null && !_isRouletteCancelled)
             {
-                // Spin is in progress - cancel it
                 _isRouletteCancelled = true;
                 _rouletteCts.Cancel();
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette spin cancellation requested");
             }
-            else
-            {
-                // Pre-spin state (modal open but no spin yet) - just close modal
-                _isRouletteActive = false;
-                RouletteOverlay.Visibility = Visibility.Collapsed;
-                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");
-            }
+
+            // Always close the modal and reset state
+            _isRouletteActive = false;
+            RouletteOverlay.Visibility = Visibility.Collapsed;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");
         }
 
         private void UpdateRouletteReel(List<DetectedGame> gamesList, int topIndex)
