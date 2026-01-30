@@ -1688,23 +1688,21 @@ namespace HUDRA.Pages
                     await _roulettePreloadTask;
                 }
 
-                // Re-prime audio pipeline before each session (goes idle after ~30s)
+                // Wake audio device silently using player 0 (no pause/reset - avoids stutter)
                 if (_rouletteTickPlayers != null)
                 {
-                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                    _rouletteTickPlayers[0].Volume = 0;
+                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayers[0].Play(); // Silently wakes the audio device
+
+                    // Prepare players 1 and 2 for real playback
+                    for (int i = 1; i < _rouletteTickPlayers.Length; i++)
                     {
-                        _rouletteTickPlayers[i].Volume = 0;
-                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
-                        _rouletteTickPlayers[i].Play();
-                    }
-                    await Task.Delay(30); // Wake the audio device
-                    for (int i = 0; i < _rouletteTickPlayers.Length; i++)
-                    {
-                        _rouletteTickPlayers[i].Pause();
-                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
                         _rouletteTickPlayers[i].Volume = 0.5;
+                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
                     }
-                    _currentTickPlayerIndex = 0;
+                    // Start real ticks from player 1 (player 0 is busy priming)
+                    _currentTickPlayerIndex = 1;
                 }
 
                 // Initialize winner sound player (only needed once per roulette)
@@ -1974,6 +1972,7 @@ namespace HUDRA.Pages
             if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
             {
                 var player = _rouletteTickPlayers[_currentTickPlayerIndex];
+                player.Volume = 0.5; // Ensure volume is set (player 0 may have been muted for priming)
                 player.PlaybackSession.Position = TimeSpan.Zero;
                 player.Play();
                 _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
