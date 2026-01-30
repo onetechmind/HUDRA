@@ -1871,8 +1871,8 @@ namespace HUDRA.Pages
                 RouletteCountdownOverlay.Visibility = Visibility.Visible;
             });
 
-            // Countdown from 3
-            for (int count = 3; count >= 1; count--)
+            // Countdown from 5
+            for (int count = 5; count >= 1; count--)
             {
                 if (_isRouletteCancelled)
                 {

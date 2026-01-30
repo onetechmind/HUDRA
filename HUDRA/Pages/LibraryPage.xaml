@@ -556,7 +556,7 @@
                                             FontSize="48"
                                             FontWeight="Bold"
                                             Foreground="White"
-                                            Text="3" />
+                                            Text="5" />
                                     </Border>
                                 </Grid>
                                 <Border
