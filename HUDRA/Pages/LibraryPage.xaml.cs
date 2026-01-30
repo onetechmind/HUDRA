@@ -1670,7 +1670,7 @@ namespace HUDRA.Pages
 
             RouletteOverlay.Visibility = Visibility.Visible;
             RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
-            RouletteSpinButton.Visibility = Visibility.Visible;
+            RouletteSpinButton.IsEnabled = true;
             UpdateRouletteReel(gamesList, initialTop);
 
             // Wake audio device silently while user looks at modal
@@ -1691,11 +1691,24 @@ namespace HUDRA.Pages
 
         private async void RouletteSpinButton_Click(object sender, RoutedEventArgs e)
         {
-            // Hide Spin button once spinning starts
-            RouletteSpinButton.Visibility = Visibility.Collapsed;
+            // If a countdown is running, cancel it and re-spin
+            if (_rouletteCts != null && !_rouletteCts.IsCancellationRequested)
+            {
+                _isRouletteCancelled = true;
+                _rouletteCts.Cancel();
+                // Wait briefly for the previous spin to clean up
+                await Task.Delay(50);
+            }
+
+            // Disable Spin button during spin
+            RouletteSpinButton.IsEnabled = false;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
 
             // Start the spin
             await StartRouletteSpinAsync();
+
+            // Re-enable Spin button after spin completes (for re-spin)
+            RouletteSpinButton.IsEnabled = true;
         }
 
         private void RouletteCancelButton_Click(object sender, RoutedEventArgs e)
@@ -1785,8 +1798,8 @@ namespace HUDRA.Pages
                     // Check cancellation after delay
                     if (_isRouletteCancelled) break;
 
-                    // Advance reel by one position
-                    currentTopPosition++;
+                    // Advance reel downward (decrement so tiles move down)
+                    currentTopPosition--;
 
                     // Play tick sound
                     PlayRouletteTick();
