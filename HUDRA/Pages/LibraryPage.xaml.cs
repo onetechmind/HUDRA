@@ -1702,13 +1702,11 @@ namespace HUDRA.Pages
 
             // Disable Spin button during spin
             RouletteSpinButton.IsEnabled = false;
+            RouletteSpinButton.Opacity = 0.3;
             RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
 
             // Start the spin
             await StartRouletteSpinAsync();
-
-            // Re-enable Spin button after spin completes (for re-spin)
-            RouletteSpinButton.IsEnabled = true;
         }
 
         private void RouletteCancelButton_Click(object sender, RoutedEventArgs e)
@@ -1826,8 +1824,26 @@ namespace HUDRA.Pages
                 // Play winner sound (reel already shows winner in middle)
                 _rouletteWinnerPlayer?.Play();
 
-                // Start countdown
+                // Re-enable Spin button so user can re-spin (cancels countdown)
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteSpinButton.IsEnabled = true;
+                    RouletteSpinButton.Opacity = 1.0;
+                });
+
+                // Start countdown and launch game
                 await StartRouletteCountdownAsync(selectedGame);
+
+                // If countdown completed without cancellation, hide modal
+                if (!_isRouletteCancelled)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        RouletteOverlay.Visibility = Visibility.Collapsed;
+                        RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                    });
+                    _isRouletteActive = false;
+                }
             }
             catch (Exception ex)
             {
@@ -1835,20 +1851,12 @@ namespace HUDRA.Pages
             }
             finally
             {
-                _isRouletteActive = false;
                 _rouletteCts?.Dispose();
                 _rouletteCts = null;
 
                 // Dispose winner player (tick players are static and reused)
                 _rouletteWinnerPlayer?.Dispose();
                 _rouletteWinnerPlayer = null;
-
-                // Hide modal
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    RouletteOverlay.Visibility = Visibility.Collapsed;
-                    RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
-                });
             }
         }
 
