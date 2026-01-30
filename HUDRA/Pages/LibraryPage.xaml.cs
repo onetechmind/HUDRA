@@ -11,8 +11,11 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Gaming.Input;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using Windows.System;
 
 namespace HUDRA.Pages
@@ -42,10 +45,21 @@ namespace HUDRA.Pages
         private DateTime _lastInputTime = DateTime.MinValue;
         private const double INPUT_REPEAT_DELAY_MS = 150;
 
-        // Button zone navigation (Add Game / Rescan buttons above game tiles)
+        // Button zone navigation (Add Game / Rescan / Random buttons above game tiles)
         private enum LibraryFocusZone { Tiles, Buttons }
         private LibraryFocusZone _currentZone = LibraryFocusZone.Tiles;
-        private int _buttonFocusIndex = 0;  // 0 = Add Game, 1 = Rescan
+        private int _buttonFocusIndex = 0;  // 0 = Add Game, 1 = Rescan, 2 = Random
+        private const int LIBRARY_BUTTON_COUNT = 3;  // Number of buttons in the management row
+
+        // Roulette state tracking
+        private bool _isRouletteActive = false;
+        private bool _isRouletteCancelled = false;
+        private CancellationTokenSource? _rouletteCts;
+        private static int _lastRouletteIndex = -1;  // Track last selection to avoid repeats
+        private static MediaPlayer[]? _rouletteTickPlayers;  // Pool of players - STATIC to persist across page recreations
+        private static Task? _roulettePreloadTask;  // Track preload completion
+        private int _currentTickPlayerIndex = 0;
+        private MediaPlayer? _rouletteWinnerPlayer;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -125,6 +139,9 @@ namespace HUDRA.Pages
 
             // Update Rescan button enabled state based on Library Scanning setting
             UpdateRescanButtonState();
+
+            // Preload roulette audio so it's ready for instant playback
+            PreloadRouletteAudio();
 
             // If we have a saved focused game, scroll to it and focus it
             // Otherwise, restore the scroll position only
@@ -908,6 +925,27 @@ namespace HUDRA.Pages
                 }
             }
 
+            // When the roulette modal is open, capture all input exclusively
+            if (_isRouletteActive)
+            {
+                if (newButtons.Contains(GamepadButtons.A))
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (RouletteSpinButton.IsEnabled)
+                        {
+                            RouletteSpinButton_Click(RouletteSpinButton, new RoutedEventArgs());
+                        }
+                    });
+                }
+                else if (newButtons.Contains(GamepadButtons.B))
+                {
+                    DispatcherQueue.TryEnqueue(() => CancelRoulette());
+                }
+                // Block all other input (D-pad, analog sticks, X, etc.)
+                return;
+            }
+
             // Check for repeat navigation
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
@@ -949,6 +987,12 @@ namespace HUDRA.Pages
             if (newButtons.Contains(GamepadButtons.A))
             {
                 InvokeFocusedButton();
+            }
+
+            // Handle B button
+            if (newButtons.Contains(GamepadButtons.B))
+            {
+                // No action when roulette is not active
             }
 
             // Handle X button to open game settings
@@ -1081,12 +1125,12 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
-            // If in buttons zone, move between Add Game and Rescan
+            // If in buttons zone, move between Add Game, Rescan, and Random
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 1) // Rescan → Add Game
+                if (_buttonFocusIndex > 0)
                 {
-                    FocusLibraryButton(0);
+                    FocusLibraryButton(_buttonFocusIndex - 1);
                 }
                 return;
             }
@@ -1133,12 +1177,12 @@ namespace HUDRA.Pages
             // Track gamepad navigation input
             _lastUsedGamepadInput = true;
 
-            // If in buttons zone, move between Add Game and Rescan
+            // If in buttons zone, move between Add Game, Rescan, and Random
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 0) // Add Game → Rescan
+                if (_buttonFocusIndex < LIBRARY_BUTTON_COUNT - 1)
                 {
-                    FocusLibraryButton(1);
+                    FocusLibraryButton(_buttonFocusIndex + 1);
                 }
                 return;
             }
@@ -1197,28 +1241,36 @@ namespace HUDRA.Pages
         private void FocusLibraryButton(int index)
         {
             _buttonFocusIndex = index;
-            if (index == 0)
+            switch (index)
             {
-                AddGameButton?.Focus(FocusState.Programmatic);
-            }
-            else
-            {
-                RescanButton?.Focus(FocusState.Programmatic);
+                case 0:
+                    AddGameButton?.Focus(FocusState.Programmatic);
+                    break;
+                case 1:
+                    RescanButton?.Focus(FocusState.Programmatic);
+                    break;
+                case 2:
+                    RandomButton?.Focus(FocusState.Programmatic);
+                    break;
             }
         }
 
         private void InvokeFocusedButton()
         {
-            // If in buttons zone, invoke the focused button (Add Game or Rescan)
+            // If in buttons zone, invoke the focused button (Add Game, Rescan, or Random)
             if (_currentZone == LibraryFocusZone.Buttons)
             {
-                if (_buttonFocusIndex == 0)
+                switch (_buttonFocusIndex)
                 {
-                    AddGameButton_Click(AddGameButton, new RoutedEventArgs());
-                }
-                else
-                {
-                    RescanButton_Click(RescanButton, new RoutedEventArgs());
+                    case 0:
+                        AddGameButton_Click(AddGameButton, new RoutedEventArgs());
+                        break;
+                    case 1:
+                        RescanButton_Click(RescanButton, new RoutedEventArgs());
+                        break;
+                    case 2:
+                        RandomButton_Click(RandomButton, new RoutedEventArgs());
+                        break;
                 }
                 return;
             }
@@ -1599,6 +1651,425 @@ namespace HUDRA.Pages
             var mainWindow = app?.MainWindow;
             var navigationService = mainWindow?.NavigationService;
             navigationService?.NavigateToSettings();
+        }
+
+        #endregion
+
+        #region Random Game Roulette
+
+        private async void RandomButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Check if we have games to choose from
+            if (_games == null || _games.Count == 0)
+            {
+                await ShowErrorDialog("No games in library. Add games first!");
+                return;
+            }
+
+            // Don't open if roulette is already active
+            if (_isRouletteActive)
+            {
+                return;
+            }
+
+            _isRouletteActive = true;
+
+            // Ensure audio is preloaded
+            PreloadRouletteAudio();
+            if (_roulettePreloadTask != null)
+            {
+                await _roulettePreloadTask;
+            }
+
+            // Show modal with reel centered on first game (alphabetical)
+            var gamesList = _games.ToList();
+            int firstMiddle = 0; // First game in the middle
+            int initialTop = ((firstMiddle - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+
+            RouletteOverlay.Visibility = Visibility.Visible;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+            RouletteSpinButton.IsEnabled = true;
+            RouletteSpinButton.Opacity = 1.0;
+            UpdateRouletteReel(gamesList, initialTop);
+
+            // Wake audio device silently while user looks at modal
+            if (_rouletteTickPlayers != null)
+            {
+                // Mute all players and set volume to 0 for the prime
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].IsMuted = true;
+                    _rouletteTickPlayers[i].Volume = 0;
+                    _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                }
+
+                // Play player 0 silently to wake the audio pipeline
+                _rouletteTickPlayers[0].Play();
+                _currentTickPlayerIndex = 1;
+            }
+        }
+
+        private async void RouletteSpinButton_Click(object sender, RoutedEventArgs e)
+        {
+            // If a countdown is running, cancel it and re-spin
+            if (_rouletteCts != null && !_rouletteCts.IsCancellationRequested)
+            {
+                _isRouletteCancelled = true;
+                _rouletteCts.Cancel();
+                // Wait briefly for the previous spin to clean up
+                await Task.Delay(50);
+            }
+
+            // Disable Spin button during spin
+            RouletteSpinButton.IsEnabled = false;
+            RouletteSpinButton.Opacity = 0.3;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+
+            // Start the spin
+            await StartRouletteSpinAsync();
+        }
+
+        private void RouletteCancelButton_Click(object sender, RoutedEventArgs e)
+        {
+            CancelRoulette();
+        }
+
+        private async Task StartRouletteSpinAsync()
+        {
+            _isRouletteCancelled = false;
+            _rouletteCts = new CancellationTokenSource();
+
+            DetectedGame? selectedGame = null;
+
+            try
+            {
+                // Get list of games
+                var gamesList = _games.ToList();
+                if (gamesList.Count == 0) return;
+
+                const int minIntervalMs = 80;   // Fast speed at start
+                const int maxIntervalMs = 700;  // Very slow speed at end for dramatic finish
+
+                // Select a random target game index (avoid repeating the same game)
+                var random = new Random();
+                int targetIndex;
+                if (gamesList.Count > 1 && _lastRouletteIndex >= 0 && _lastRouletteIndex < gamesList.Count)
+                {
+                    targetIndex = random.Next(gamesList.Count - 1);
+                    if (targetIndex >= _lastRouletteIndex)
+                    {
+                        targetIndex++;
+                    }
+                }
+                else
+                {
+                    targetIndex = random.Next(gamesList.Count);
+                }
+                _lastRouletteIndex = targetIndex;
+                selectedGame = gamesList[targetIndex];
+
+                // Unmute and restore volume for all tick players
+                if (_rouletteTickPlayers != null)
+                {
+                    foreach (var player in _rouletteTickPlayers)
+                    {
+                        player.IsMuted = false;
+                        player.Volume = 0.5;
+                    }
+                    _currentTickPlayerIndex = 0;
+                }
+
+                // Initialize winner sound player (not time-sensitive, used after spin)
+                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
+                if (File.Exists(winnerSoundPath))
+                {
+                    _rouletteWinnerPlayer = new MediaPlayer();
+                    _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
+                    _rouletteWinnerPlayer.Volume = 0.7;
+                }
+
+                // Pre-calculate all step intervals so we can set the starting
+                // position to naturally land on the winner (no snap)
+                int durationMs = 5000 + random.Next(10000); // 5-15 seconds
+                var intervals = new List<int>();
+                double elapsed = 0;
+                while (elapsed < durationMs)
+                {
+                    double progress = elapsed / durationMs;
+                    double easeProgress = progress * progress * progress;
+                    int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
+                    intervals.Add(intervalMs);
+                    elapsed += intervalMs;
+                }
+
+                int totalSteps = intervals.Count;
+
+                // Set starting position so the last step lands the winner in the middle
+                // Final top = targetIndex - 2 (so middle slot = targetIndex)
+                int finalTop = ((targetIndex - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+                int startTop = finalTop + totalSteps; // We decrement each step
+                int currentTopPosition = startTop;
+
+                // Execute the pre-calculated spin
+                for (int step = 0; step < totalSteps && !_isRouletteCancelled; step++)
+                {
+                    try
+                    {
+                        await Task.Delay(intervals[step], _rouletteCts.Token);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
+
+                    if (_isRouletteCancelled) break;
+
+                    currentTopPosition--;
+
+                    PlayRouletteTick();
+
+                    int capturedTop = currentTopPosition;
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        UpdateRouletteReel(gamesList, capturedTop);
+                    });
+                }
+
+                // Check if cancelled
+                if (_isRouletteCancelled)
+                {
+                    System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette cancelled by user");
+                    return;
+                }
+
+                // Play winner sound (reel already shows winner in middle)
+                _rouletteWinnerPlayer?.Play();
+
+                // Re-enable Spin button so user can re-spin (cancels countdown)
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteSpinButton.IsEnabled = true;
+                    RouletteSpinButton.Opacity = 1.0;
+                });
+
+                // Start countdown and launch game
+                await StartRouletteCountdownAsync(selectedGame);
+
+                // If countdown completed without cancellation, hide modal
+                if (!_isRouletteCancelled)
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        RouletteOverlay.Visibility = Visibility.Collapsed;
+                        RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+                    });
+                    _isRouletteActive = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Roulette error: {ex.Message}");
+            }
+            finally
+            {
+                _rouletteCts?.Dispose();
+                _rouletteCts = null;
+
+                // Dispose winner player (tick players are static and reused)
+                _rouletteWinnerPlayer?.Dispose();
+                _rouletteWinnerPlayer = null;
+            }
+        }
+
+        private async Task StartRouletteCountdownAsync(DetectedGame game)
+        {
+            // Show countdown overlay on top of the game tile
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RouletteCountdownOverlay.Visibility = Visibility.Visible;
+            });
+
+            // Countdown from 5
+            for (int count = 5; count >= 1; count--)
+            {
+                if (_isRouletteCancelled)
+                {
+                    return;
+                }
+
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    RouletteCountdownText.Text = count.ToString();
+                });
+
+                try
+                {
+                    await Task.Delay(1000, _rouletteCts?.Token ?? CancellationToken.None);
+                }
+                catch (TaskCanceledException)
+                {
+                    return;
+                }
+            }
+
+            // Check one more time for cancellation
+            if (_isRouletteCancelled)
+            {
+                return;
+            }
+
+            // Hide modal before launching
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                RouletteOverlay.Visibility = Visibility.Collapsed;
+            });
+
+            // Launch the game
+            try
+            {
+                // Apply per-game profile IMMEDIATELY before launching
+                var app = Application.Current as App;
+                var mainWindow = app?.MainWindow;
+                if (mainWindow != null)
+                {
+                    var profileApplied = await mainWindow.ApplyGameProfileAsync(game.ProcessName, game.DisplayName);
+                    if (profileApplied)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"LibraryPage: Profile applied for {game.DisplayName} before roulette launch");
+                    }
+                }
+
+                // Launch the game
+                bool success = _gameLauncherService?.LaunchGame(game) ?? false;
+
+                if (!success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LibraryPage: Failed to launch {game.DisplayName} via roulette");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Error launching game via roulette: {ex.Message}");
+            }
+        }
+
+        private void CancelRoulette()
+        {
+            if (!_isRouletteActive) return;
+
+            // Cancel any active spin/countdown
+            if (_rouletteCts != null && !_isRouletteCancelled)
+            {
+                _isRouletteCancelled = true;
+                _rouletteCts.Cancel();
+            }
+
+            // Always close the modal and reset state
+            _isRouletteActive = false;
+            RouletteOverlay.Visibility = Visibility.Collapsed;
+            RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
+            System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");
+        }
+
+        private void UpdateRouletteReel(List<DetectedGame> gamesList, int topIndex)
+        {
+            Image[] slots = { ReelSlot0, ReelSlot1, ReelSlot2, ReelSlot3, ReelSlot4 };
+            for (int i = 0; i < 5; i++)
+            {
+                int gameIndex = ((topIndex + i) % gamesList.Count + gamesList.Count) % gamesList.Count;
+                SetReelSlotImage(slots[i], gamesList[gameIndex]);
+            }
+            // Game name shows the middle slot (index 2)
+            int middleGameIndex = ((topIndex + 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+            RouletteGameNameText.Text = gamesList[middleGameIndex].DisplayName;
+        }
+
+        private void SetReelSlotImage(Image imageControl, DetectedGame game)
+        {
+            var artworkPath = game.ArtworkPath;
+            if (!string.IsNullOrEmpty(artworkPath))
+            {
+                var queryIndex = artworkPath.IndexOf('?');
+                if (queryIndex > 0)
+                {
+                    artworkPath = artworkPath.Substring(0, queryIndex);
+                }
+                if (File.Exists(artworkPath))
+                {
+                    imageControl.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                    return;
+                }
+            }
+            imageControl.Source = null;
+        }
+
+        private void PlayRouletteTick()
+        {
+            if (_rouletteTickPlayers != null && _rouletteTickPlayers.Length > 0)
+            {
+                var player = _rouletteTickPlayers[_currentTickPlayerIndex];
+                player.Volume = 0.5; // Ensure volume is set (player 0 may have been muted for priming)
+                player.PlaybackSession.Position = TimeSpan.Zero;
+                player.Play();
+                _currentTickPlayerIndex = (_currentTickPlayerIndex + 1) % _rouletteTickPlayers.Length;
+            }
+        }
+
+        /// <summary>
+        /// Preloads roulette audio players so they're ready for instant playback.
+        /// Called during page initialization.
+        /// </summary>
+        private void PreloadRouletteAudio()
+        {
+            // If already preloading or preloaded, don't start again
+            if (_roulettePreloadTask != null) return;
+
+            _roulettePreloadTask = PreloadRouletteAudioAsync();
+        }
+
+        private static async Task PreloadRouletteAudioAsync()
+        {
+            var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.wav");
+
+            if (File.Exists(tickSoundPath))
+            {
+                // Create a pool of 3 players to avoid clipping when sounds overlap
+                _rouletteTickPlayers = new MediaPlayer[3];
+                var tickUri = new Uri(tickSoundPath);
+
+                // Create all players and wait for each to confirm media is loaded
+                var readyTasks = new Task[3];
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    var tcs = new TaskCompletionSource<bool>();
+                    _rouletteTickPlayers[i] = new MediaPlayer();
+                    _rouletteTickPlayers[i].MediaOpened += (s, e) => tcs.TrySetResult(true);
+                    _rouletteTickPlayers[i].MediaFailed += (s, e) => tcs.TrySetResult(false);
+                    _rouletteTickPlayers[i].Source = MediaSource.CreateFromUri(tickUri);
+                    _rouletteTickPlayers[i].Volume = 0;
+                    readyTasks[i] = tcs.Task;
+                }
+
+                // Wait for all players to confirm loaded (with timeout)
+                await Task.WhenAll(readyTasks).WaitAsync(TimeSpan.FromSeconds(2));
+
+                // Play all silently to fully prime the audio pipeline (not just loaded, but played)
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].Play();
+                }
+                await Task.Delay(50); // Brief play to prime output device
+
+                // Stop all and reset — keep muted/silent until spin starts
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
+                {
+                    _rouletteTickPlayers[i].Pause();
+                    _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayers[i].IsMuted = true;
+                }
+
+                System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette audio preloaded");
+            }
         }
 
         #endregion
