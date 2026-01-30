@@ -491,8 +491,8 @@
             <Border
                 x:Name="RouletteModal"
                 Width="280"
-                Margin="0,120,0,0"
-                Padding="40"
+                Margin="0,60,0,0"
+                Padding="20,30"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Top"
                 Background="#FF1a1a1a"
@@ -500,21 +500,94 @@
                 <StackPanel
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Spacing="15">
+                    Spacing="12">
 
-                    <!--  Game Tile Display  -->
-                    <Grid
-                        Width="200"
-                        Height="300"
-                        HorizontalAlignment="Center">
-                        <!--  Game Artwork  -->
-                        <Border Background="#2d2d2d" CornerRadius="12">
-                            <Image x:Name="RouletteGameImage" Stretch="UniformToFill" />
-                        </Border>
+                    <!--  Slot Machine Reel  -->
+                    <Grid HorizontalAlignment="Center">
+                        <!--  Reel viewport with clipping  -->
+                        <Grid
+                            Width="170"
+                            Height="340"
+                            Margin="20,0"
+                            HorizontalAlignment="Center">
+                            <Grid.Clip>
+                                <RectangleGeometry Rect="0,0,170,340" />
+                            </Grid.Clip>
+                            <StackPanel VerticalAlignment="Center" Spacing="6">
+                                <Border
+                                    Width="160"
+                                    Height="100"
+                                    Background="#2d2d2d"
+                                    CornerRadius="8"
+                                    Opacity="0.3">
+                                    <Image
+                                        x:Name="ReelSlot0"
+                                        Stretch="UniformToFill" />
+                                </Border>
+                                <Border
+                                    Width="160"
+                                    Height="100"
+                                    Background="#2d2d2d"
+                                    CornerRadius="8"
+                                    Opacity="0.6">
+                                    <Image
+                                        x:Name="ReelSlot1"
+                                        Stretch="UniformToFill" />
+                                </Border>
+                                <Border
+                                    Width="160"
+                                    Height="100"
+                                    Background="#2d2d2d"
+                                    CornerRadius="8">
+                                    <Image
+                                        x:Name="ReelSlot2"
+                                        Stretch="UniformToFill" />
+                                </Border>
+                                <Border
+                                    Width="160"
+                                    Height="100"
+                                    Background="#2d2d2d"
+                                    CornerRadius="8"
+                                    Opacity="0.6">
+                                    <Image
+                                        x:Name="ReelSlot3"
+                                        Stretch="UniformToFill" />
+                                </Border>
+                                <Border
+                                    Width="160"
+                                    Height="100"
+                                    Background="#2d2d2d"
+                                    CornerRadius="8"
+                                    Opacity="0.3">
+                                    <Image
+                                        x:Name="ReelSlot4"
+                                        Stretch="UniformToFill" />
+                                </Border>
+                            </StackPanel>
+                        </Grid>
 
-                        <!--  Countdown Overlay (shown after spin ends)  -->
+                        <!--  Left chevron indicator (points to middle slot)  -->
+                        <FontIcon
+                            HorizontalAlignment="Left"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="22"
+                            Foreground="#670195"
+                            Glyph="&#xE76C;" />
+
+                        <!--  Right chevron indicator  -->
+                        <FontIcon
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="22"
+                            Foreground="#670195"
+                            Glyph="&#xE76B;" />
+
+                        <!--  Countdown Overlay (covers the reel after spin ends)  -->
                         <Border
                             x:Name="RouletteCountdownOverlay"
+                            Margin="20,0"
                             Background="#CC670195"
                             CornerRadius="12"
                             Visibility="Collapsed">
@@ -530,7 +603,7 @@
                         </Border>
                     </Grid>
 
-                    <!--  Game Name  -->
+                    <!--  Game Name (middle slot)  -->
                     <TextBlock
                         x:Name="RouletteGameNameText"
                         MaxWidth="250"

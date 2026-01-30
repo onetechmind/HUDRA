@@ -1663,26 +1663,15 @@ namespace HUDRA.Pages
                 await _roulettePreloadTask;
             }
 
-            // Show modal with first game (alphabetical) as placeholder
-            var firstGame = _games.First();
+            // Show modal with reel centered on first game (alphabetical)
+            var gamesList = _games.ToList();
+            int firstMiddle = 0; // First game in the middle
+            int initialTop = ((firstMiddle - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+
             RouletteOverlay.Visibility = Visibility.Visible;
             RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
             RouletteSpinButton.Visibility = Visibility.Visible;
-            RouletteGameNameText.Text = firstGame.DisplayName;
-
-            var artworkPath = firstGame.ArtworkPath;
-            if (!string.IsNullOrEmpty(artworkPath))
-            {
-                var queryIndex = artworkPath.IndexOf('?');
-                if (queryIndex > 0)
-                {
-                    artworkPath = artworkPath.Substring(0, queryIndex);
-                }
-                if (File.Exists(artworkPath))
-                {
-                    RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
-                }
-            }
+            UpdateRouletteReel(gamesList, initialTop);
 
             // Wake audio device silently while user looks at modal
             if (_rouletteTickPlayers != null)
@@ -1767,10 +1756,10 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer.Volume = 0.7;
                 }
 
-                // Roulette animation - cycle through games in the modal with deceleration
+                // Roulette animation - spin the reel with deceleration
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
-                int currentPosition = 0; // Start at 0 (first game already shown)
+                int currentTopPosition = 0;
 
                 while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
                 {
@@ -1783,7 +1772,7 @@ namespace HUDRA.Pages
                     // Calculate interval based on progress (faster at start, slower at end)
                     int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
 
-                    // Wait before showing the next game
+                    // Wait before advancing the reel
                     try
                     {
                         await Task.Delay(intervalMs, _rouletteCts.Token);
@@ -1796,42 +1785,17 @@ namespace HUDRA.Pages
                     // Check cancellation after delay
                     if (_isRouletteCancelled) break;
 
-                    // Move to next game
-                    currentPosition++;
-                    int gameIndex = currentPosition % gamesList.Count;
-                    var currentGame = gamesList[gameIndex];
+                    // Advance reel by one position
+                    currentTopPosition++;
 
-                    // Play tick sound (by now audio should be loaded from the first tick attempt)
+                    // Play tick sound
                     PlayRouletteTick();
 
-                    // Update the modal display
+                    // Update all 5 reel slots
+                    int capturedTop = currentTopPosition;
                     DispatcherQueue.TryEnqueue(() =>
                     {
-                        RouletteGameNameText.Text = currentGame.DisplayName;
-
-                        // Update artwork - strip query params if present
-                        var artworkPath = currentGame.ArtworkPath;
-                        if (!string.IsNullOrEmpty(artworkPath))
-                        {
-                            var queryIndex = artworkPath.IndexOf('?');
-                            if (queryIndex > 0)
-                            {
-                                artworkPath = artworkPath.Substring(0, queryIndex);
-                            }
-
-                            if (File.Exists(artworkPath))
-                            {
-                                RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
-                            }
-                            else
-                            {
-                                RouletteGameImage.Source = null;
-                            }
-                        }
-                        else
-                        {
-                            RouletteGameImage.Source = null;
-                        }
+                        UpdateRouletteReel(gamesList, capturedTop);
                     });
                 }
 
@@ -1845,25 +1809,11 @@ namespace HUDRA.Pages
                 // Play winner sound
                 _rouletteWinnerPlayer?.Play();
 
-                // Show the final selected game
+                // Set reel so selected game is in the middle (slot 2)
+                int finalTop = ((targetIndex - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
                 DispatcherQueue.TryEnqueue(() =>
                 {
-                    RouletteGameNameText.Text = selectedGame.DisplayName;
-
-                    var artworkPath = selectedGame.ArtworkPath;
-                    if (!string.IsNullOrEmpty(artworkPath))
-                    {
-                        var queryIndex = artworkPath.IndexOf('?');
-                        if (queryIndex > 0)
-                        {
-                            artworkPath = artworkPath.Substring(0, queryIndex);
-                        }
-
-                        if (File.Exists(artworkPath))
-                        {
-                            RouletteGameImage.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
-                        }
-                    }
+                    UpdateRouletteReel(gamesList, finalTop);
                 });
 
                 // Start countdown
@@ -1982,6 +1932,38 @@ namespace HUDRA.Pages
                 RouletteOverlay.Visibility = Visibility.Collapsed;
                 System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");
             }
+        }
+
+        private void UpdateRouletteReel(List<DetectedGame> gamesList, int topIndex)
+        {
+            Image[] slots = { ReelSlot0, ReelSlot1, ReelSlot2, ReelSlot3, ReelSlot4 };
+            for (int i = 0; i < 5; i++)
+            {
+                int gameIndex = ((topIndex + i) % gamesList.Count + gamesList.Count) % gamesList.Count;
+                SetReelSlotImage(slots[i], gamesList[gameIndex]);
+            }
+            // Game name shows the middle slot (index 2)
+            int middleGameIndex = ((topIndex + 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+            RouletteGameNameText.Text = gamesList[middleGameIndex].DisplayName;
+        }
+
+        private void SetReelSlotImage(Image imageControl, DetectedGame game)
+        {
+            var artworkPath = game.ArtworkPath;
+            if (!string.IsNullOrEmpty(artworkPath))
+            {
+                var queryIndex = artworkPath.IndexOf('?');
+                if (queryIndex > 0)
+                {
+                    artworkPath = artworkPath.Substring(0, queryIndex);
+                }
+                if (File.Exists(artworkPath))
+                {
+                    imageControl.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(artworkPath));
+                    return;
+                }
+            }
+            imageControl.Source = null;
         }
 
         private void PlayRouletteTick()
