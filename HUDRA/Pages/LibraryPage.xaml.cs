@@ -1688,34 +1688,8 @@ namespace HUDRA.Pages
                     await _roulettePreloadTask;
                 }
 
-                // Wake audio device silently using player 0 (no pause/reset - avoids stutter)
-                if (_rouletteTickPlayers != null)
-                {
-                    _rouletteTickPlayers[0].Volume = 0;
-                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayers[0].Play(); // Silently wakes the audio device
-
-                    // Prepare players 1 and 2 for real playback
-                    for (int i = 1; i < _rouletteTickPlayers.Length; i++)
-                    {
-                        _rouletteTickPlayers[i].Volume = 0.5;
-                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
-                    }
-                    // Start real ticks from player 1 (player 0 is busy priming)
-                    _currentTickPlayerIndex = 1;
-                }
-
-                // Initialize winner sound player (only needed once per roulette)
-                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
-                if (File.Exists(winnerSoundPath))
-                {
-                    _rouletteWinnerPlayer = new MediaPlayer();
-                    _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
-                    _rouletteWinnerPlayer.Volume = 0.7;
-                }
-
                 const int minIntervalMs = 80;   // Fast speed at start
-                const int maxIntervalMs = 400;  // Slow speed at end
+                const int maxIntervalMs = 700;  // Very slow speed at end for dramatic finish
 
                 // Select a random target game index (avoid repeating the same game)
                 var random = new Random();
@@ -1736,9 +1710,8 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Show the modal immediately with first game and first tick
+                // Show the modal FIRST for instant visual feedback
                 var firstGame = gamesList[0];
-                PlayRouletteTick(); // First tick - may be slightly delayed as audio loads, that's OK
                 DispatcherQueue.TryEnqueue(() =>
                 {
                     RouletteOverlay.Visibility = Visibility.Visible;
@@ -1760,6 +1733,31 @@ namespace HUDRA.Pages
                     }
                 });
 
+                // Wake audio device silently AFTER showing modal
+                // The loop's first 80ms delay absorbs the wake-up time
+                if (_rouletteTickPlayers != null)
+                {
+                    _rouletteTickPlayers[0].Volume = 0;
+                    _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
+                    _rouletteTickPlayers[0].Play(); // Silently wakes the audio device
+
+                    for (int i = 1; i < _rouletteTickPlayers.Length; i++)
+                    {
+                        _rouletteTickPlayers[i].Volume = 0.5;
+                        _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
+                    }
+                    _currentTickPlayerIndex = 1;
+                }
+
+                // Initialize winner sound player (not time-sensitive, used after spin)
+                var winnerSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-winner.mp3");
+                if (File.Exists(winnerSoundPath))
+                {
+                    _rouletteWinnerPlayer = new MediaPlayer();
+                    _rouletteWinnerPlayer.Source = MediaSource.CreateFromUri(new Uri(winnerSoundPath));
+                    _rouletteWinnerPlayer.Volume = 0.7;
+                }
+
                 // Roulette animation - cycle through games in the modal with deceleration
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
                 var startTime = DateTime.Now;
@@ -1770,8 +1768,8 @@ namespace HUDRA.Pages
                     // Calculate progress (0 to 1)
                     double progress = (DateTime.Now - startTime).TotalMilliseconds / durationMs;
 
-                    // Ease-out cubic for natural deceleration: progress^2
-                    double easeProgress = progress * progress;
+                    // Steep ease-out curve for dramatic deceleration at the end
+                    double easeProgress = progress * progress * progress;
 
                     // Calculate interval based on progress (faster at start, slower at end)
                     int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
