@@ -925,6 +925,27 @@ namespace HUDRA.Pages
                 }
             }
 
+            // When the roulette modal is open, capture all input exclusively
+            if (_isRouletteActive)
+            {
+                if (newButtons.Contains(GamepadButtons.A))
+                {
+                    DispatcherQueue.TryEnqueue(() =>
+                    {
+                        if (RouletteSpinButton.IsEnabled)
+                        {
+                            RouletteSpinButton_Click(RouletteSpinButton, new RoutedEventArgs());
+                        }
+                    });
+                }
+                else if (newButtons.Contains(GamepadButtons.B))
+                {
+                    DispatcherQueue.TryEnqueue(() => CancelRoulette());
+                }
+                // Block all other input (D-pad, analog sticks, X, etc.)
+                return;
+            }
+
             // Check for repeat navigation
             bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
 
@@ -968,13 +989,10 @@ namespace HUDRA.Pages
                 InvokeFocusedButton();
             }
 
-            // Handle B button - cancel roulette if active
+            // Handle B button
             if (newButtons.Contains(GamepadButtons.B))
             {
-                if (_isRouletteActive)
-                {
-                    CancelRoulette();
-                }
+                // No action when roulette is not active
             }
 
             // Handle X button to open game settings
