@@ -1677,15 +1677,16 @@ namespace HUDRA.Pages
             // Wake audio device silently while user looks at modal
             if (_rouletteTickPlayers != null)
             {
-                _rouletteTickPlayers[0].Volume = 0;
-                _rouletteTickPlayers[0].PlaybackSession.Position = TimeSpan.Zero;
-                _rouletteTickPlayers[0].Play();
-
-                for (int i = 1; i < _rouletteTickPlayers.Length; i++)
+                // Mute all players and set volume to 0 for the prime
+                for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                 {
-                    _rouletteTickPlayers[i].Volume = 0.5;
+                    _rouletteTickPlayers[i].IsMuted = true;
+                    _rouletteTickPlayers[i].Volume = 0;
                     _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
                 }
+
+                // Play player 0 silently to wake the audio pipeline
+                _rouletteTickPlayers[0].Play();
                 _currentTickPlayerIndex = 1;
             }
         }
@@ -1749,11 +1750,12 @@ namespace HUDRA.Pages
                 _lastRouletteIndex = targetIndex;
                 selectedGame = gamesList[targetIndex];
 
-                // Ensure tick players have correct volume
+                // Unmute and restore volume for all tick players
                 if (_rouletteTickPlayers != null)
                 {
                     foreach (var player in _rouletteTickPlayers)
                     {
+                        player.IsMuted = false;
                         player.Volume = 0.5;
                     }
                     _currentTickPlayerIndex = 0;
@@ -2040,12 +2042,12 @@ namespace HUDRA.Pages
                 }
                 await Task.Delay(50); // Brief play to prime output device
 
-                // Stop all and reset for real playback
+                // Stop all and reset — keep muted/silent until spin starts
                 for (int i = 0; i < _rouletteTickPlayers.Length; i++)
                 {
                     _rouletteTickPlayers[i].Pause();
                     _rouletteTickPlayers[i].PlaybackSession.Position = TimeSpan.Zero;
-                    _rouletteTickPlayers[i].Volume = 0.5;
+                    _rouletteTickPlayers[i].IsMuted = true;
                 }
 
                 System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette audio preloaded");
