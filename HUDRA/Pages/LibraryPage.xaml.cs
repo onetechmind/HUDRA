@@ -1769,42 +1769,46 @@ namespace HUDRA.Pages
                     _rouletteWinnerPlayer.Volume = 0.7;
                 }
 
-                // Roulette animation - spin the reel with deceleration
+                // Pre-calculate all step intervals so we can set the starting
+                // position to naturally land on the winner (no snap)
                 int durationMs = 5000 + random.Next(10000); // 5-15 seconds
-                var startTime = DateTime.Now;
-                int currentTopPosition = 0;
-
-                while ((DateTime.Now - startTime).TotalMilliseconds < durationMs && !_isRouletteCancelled)
+                var intervals = new List<int>();
+                double elapsed = 0;
+                while (elapsed < durationMs)
                 {
-                    // Calculate progress (0 to 1)
-                    double progress = (DateTime.Now - startTime).TotalMilliseconds / durationMs;
-
-                    // Steep ease-out curve for dramatic deceleration at the end
+                    double progress = elapsed / durationMs;
                     double easeProgress = progress * progress * progress;
-
-                    // Calculate interval based on progress (faster at start, slower at end)
                     int intervalMs = (int)(minIntervalMs + (maxIntervalMs - minIntervalMs) * easeProgress);
+                    intervals.Add(intervalMs);
+                    elapsed += intervalMs;
+                }
 
-                    // Wait before advancing the reel
+                int totalSteps = intervals.Count;
+
+                // Set starting position so the last step lands the winner in the middle
+                // Final top = targetIndex - 2 (so middle slot = targetIndex)
+                int finalTop = ((targetIndex - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
+                int startTop = finalTop + totalSteps; // We decrement each step
+                int currentTopPosition = startTop;
+
+                // Execute the pre-calculated spin
+                for (int step = 0; step < totalSteps && !_isRouletteCancelled; step++)
+                {
                     try
                     {
-                        await Task.Delay(intervalMs, _rouletteCts.Token);
+                        await Task.Delay(intervals[step], _rouletteCts.Token);
                     }
                     catch (TaskCanceledException)
                     {
                         break;
                     }
 
-                    // Check cancellation after delay
                     if (_isRouletteCancelled) break;
 
-                    // Advance reel downward (decrement so tiles move down)
                     currentTopPosition--;
 
-                    // Play tick sound
                     PlayRouletteTick();
 
-                    // Update all 5 reel slots
                     int capturedTop = currentTopPosition;
                     DispatcherQueue.TryEnqueue(() =>
                     {
@@ -1819,15 +1823,8 @@ namespace HUDRA.Pages
                     return;
                 }
 
-                // Play winner sound
+                // Play winner sound (reel already shows winner in middle)
                 _rouletteWinnerPlayer?.Play();
-
-                // Set reel so selected game is in the middle (slot 2)
-                int finalTop = ((targetIndex - 2) % gamesList.Count + gamesList.Count) % gamesList.Count;
-                DispatcherQueue.TryEnqueue(() =>
-                {
-                    UpdateRouletteReel(gamesList, finalTop);
-                });
 
                 // Start countdown
                 await StartRouletteCountdownAsync(selectedGame);
