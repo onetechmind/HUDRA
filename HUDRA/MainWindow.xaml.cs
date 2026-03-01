@@ -68,6 +68,13 @@ namespace HUDRA
         // Public DPI scaling service access for controls
         public DpiScalingService DpiScalingService => _dpiService;
 
+        // Public service accessors for Web Remote bridge
+        public BatteryService BatteryService => _batteryService;
+        public RtssFpsLimiterService FpsLimiterService => _fpsLimiterService;
+        public LosslessScalingService? LosslessScalingService => _losslessScalingService;
+        public GameProfileService? GameProfileService => _gameProfileService;
+        public PowerProfileService PowerProfileService => _powerProfileService;
+
         //Navigation events
         private bool _mainPageInitialized = false;
         private EventHandler<int>? _tdpChangedHandler; // Stored handler to prevent duplicate subscriptions

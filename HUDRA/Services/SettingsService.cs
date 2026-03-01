@@ -70,6 +70,12 @@ namespace HUDRA.Services
         // Hardware detection key (stored permanently)
         private const string DETECTED_DEVICE_KEY = "DetectedDevice";
 
+        // Web Remote settings keys
+        private const string WEB_REMOTE_ENABLED_KEY = "WebRemoteEnabled";
+        private const string WEB_REMOTE_PORT_KEY = "WebRemotePort";
+        private const string WEB_REMOTE_PIN_HASH_KEY = "WebRemotePinHash";
+        private const string WEB_REMOTE_PIN_SALT_KEY = "WebRemotePinSalt";
+
         // Registry path for installer settings
         private const string REGISTRY_PATH = @"SOFTWARE\HUDRA";
 
@@ -1065,5 +1071,68 @@ namespace HUDRA.Services
             }
         }
 
+
+        // ===== Web Remote Settings =====
+
+        public static bool GetWebRemoteEnabled()
+        {
+            lock (_lock)
+            {
+                return GetBooleanSetting(WEB_REMOTE_ENABLED_KEY, false);
+            }
+        }
+
+        public static void SetWebRemoteEnabled(bool enabled)
+        {
+            lock (_lock)
+            {
+                SetBooleanSetting(WEB_REMOTE_ENABLED_KEY, enabled);
+            }
+        }
+
+        public static int GetWebRemotePort()
+        {
+            lock (_lock)
+            {
+                return GetIntegerSetting(WEB_REMOTE_PORT_KEY, 5069);
+            }
+        }
+
+        public static void SetWebRemotePort(int port)
+        {
+            lock (_lock)
+            {
+                SetIntegerSetting(WEB_REMOTE_PORT_KEY, port);
+            }
+        }
+
+        public static string GetWebRemotePinHash()
+        {
+            lock (_lock)
+            {
+                return GetStringSetting(WEB_REMOTE_PIN_HASH_KEY, "");
+            }
+        }
+
+        public static string GetWebRemotePinSalt()
+        {
+            lock (_lock)
+            {
+                return GetStringSetting(WEB_REMOTE_PIN_SALT_KEY, "");
+            }
+        }
+
+        public static void SetWebRemotePin(string pinHash, string pinSalt)
+        {
+            lock (_lock)
+            {
+                if (_settings == null)
+                    _settings = new Dictionary<string, object>();
+
+                _settings[WEB_REMOTE_PIN_HASH_KEY] = pinHash;
+                _settings[WEB_REMOTE_PIN_SALT_KEY] = pinSalt;
+                SaveSettings();
+            }
+        }
     }
 }
