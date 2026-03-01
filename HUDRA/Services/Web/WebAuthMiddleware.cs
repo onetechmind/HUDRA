@@ -7,6 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using HUDRA.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace HUDRA.Services.Web

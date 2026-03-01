@@ -6,6 +6,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using HUDRA.Services;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.SignalR;
@@ -74,21 +75,21 @@ namespace HUDRA.Services.Web
                 var wwwrootPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Services", "Web", "wwwroot");
                 if (System.IO.Directory.Exists(wwwrootPath))
                 {
+                    var fileProvider = new PhysicalFileProvider(wwwrootPath);
+
+                    // UseDefaultFiles must come BEFORE UseStaticFiles for index.html rewriting
+                    _app.UseDefaultFiles(new DefaultFilesOptions
+                    {
+                        FileProvider = fileProvider,
+                        DefaultFileNames = new[] { "index.html" }
+                    });
+
                     _app.UseStaticFiles(new StaticFileOptions
                     {
-                        FileProvider = new PhysicalFileProvider(wwwrootPath),
+                        FileProvider = fileProvider,
                         RequestPath = ""
                     });
                 }
-
-                // Default file (index.html)
-                _app.UseDefaultFiles(new DefaultFilesOptions
-                {
-                    FileProvider = System.IO.Directory.Exists(wwwrootPath)
-                        ? new PhysicalFileProvider(wwwrootPath)
-                        : null,
-                    DefaultFileNames = new[] { "index.html" }
-                });
 
                 // Map SignalR hub
                 _app.MapHub<HudraHub>("/hudrahub");

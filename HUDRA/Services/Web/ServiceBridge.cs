@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using HUDRA.Services;
 using HUDRA.Services.Power;
 using Microsoft.UI.Dispatching;
 
