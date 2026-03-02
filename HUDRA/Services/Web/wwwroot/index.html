@@ -525,6 +525,7 @@ const state = {
 let debounceTimers = {};
 let signalRConnection = null;
 let userInteracting = {}; // Track which sliders the user is actively dragging
+let lastLocalMutation = {}; // Timestamp of last local change per control — suppresses echo broadcasts
 
 // ===== API =====
 async function api(url, method = 'GET', body = null) {
@@ -609,34 +610,48 @@ async function loadStatus() {
     }
 }
 
-// Applies a status snapshot to the UI. Skips sliders the user is actively dragging.
+// Returns true if a control was locally mutated within the cooldown window (suppresses echo).
+function isRecentlyMutated(key, cooldownMs) {
+    if (!lastLocalMutation[key]) return false;
+    if (Date.now() - lastLocalMutation[key] < (cooldownMs || 3000)) return true;
+    delete lastLocalMutation[key];
+    return false;
+}
+
+// Applies a status snapshot to the UI. Skips controls the user recently changed locally.
 function applyStatus(s) {
     // TDP
     if (s.tdp) {
-        state.tdp = s.tdp.current || state.tdp;
-        state.stickyTdp = s.tdp.stickyEnabled;
-        if (!userInteracting['tdp-slider']) {
-            const slider = document.getElementById('tdp-slider');
-            if (s.tdp.min) slider.min = s.tdp.min;
-            if (s.tdp.max) slider.max = s.tdp.max;
-            slider.value = state.tdp;
-            document.getElementById('tdp-value').textContent = state.tdp + 'W';
+        if (!isRecentlyMutated('tdp')) {
+            state.tdp = s.tdp.current || state.tdp;
+            if (!userInteracting['tdp-slider']) {
+                const slider = document.getElementById('tdp-slider');
+                if (s.tdp.min) slider.min = s.tdp.min;
+                if (s.tdp.max) slider.max = s.tdp.max;
+                slider.value = state.tdp;
+                document.getElementById('tdp-value').textContent = state.tdp + 'W';
+            }
         }
-        toggleClass('sticky-tdp', state.stickyTdp);
+        if (!isRecentlyMutated('sticky-tdp')) {
+            state.stickyTdp = s.tdp.stickyEnabled;
+            toggleClass('sticky-tdp', state.stickyTdp);
+        }
     }
 
     // Volume
     if (s.volume) {
-        state.volume = s.volume.level; state.muted = s.volume.muted;
-        if (!userInteracting['vol-slider']) {
-            document.getElementById('vol-slider').value = state.volume;
-            document.getElementById('vol-value').textContent = state.volume + '%';
+        if (!isRecentlyMutated('volume')) {
+            state.volume = s.volume.level; state.muted = s.volume.muted;
+            if (!userInteracting['vol-slider']) {
+                document.getElementById('vol-slider').value = state.volume;
+                document.getElementById('vol-value').textContent = state.volume + '%';
+            }
+            toggleClass('mute-toggle', state.muted);
         }
-        toggleClass('mute-toggle', state.muted);
     }
 
     // Brightness
-    if (s.brightness !== undefined) {
+    if (s.brightness !== undefined && !isRecentlyMutated('brightness')) {
         state.brightness = s.brightness;
         if (!userInteracting['bright-slider']) {
             document.getElementById('bright-slider').value = state.brightness;
@@ -644,13 +659,13 @@ function applyStatus(s) {
         }
     }
 
-    // Temperature
+    // Temperature (never suppressed — read-only)
     if (s.temperature) {
         state.cpuTemp = s.temperature.cpu; state.gpuTemp = s.temperature.gpu;
         updateTempDisplay();
     }
 
-    // Battery
+    // Battery (never suppressed — read-only)
     if (s.battery) {
         state.batteryPercent = s.battery.percent;
         state.batteryCharging = s.battery.isCharging;
@@ -658,21 +673,38 @@ function applyStatus(s) {
     }
 
     // FPS
-    if (s.fpsLimit !== undefined) {
+    if (s.fpsLimit !== undefined && !isRecentlyMutated('fps')) {
         state.fpsLimit = s.fpsLimit;
         document.getElementById('fps-value').textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
         updateFpsButtons();
     }
 
     // HDR
-    if (s.hdr) {
+    if (s.hdr && !isRecentlyMutated('hdr')) {
         state.hdrEnabled = s.hdr.enabled;
         state.hdrSupported = s.hdr.supported;
         toggleClass('hdr-toggle', state.hdrEnabled);
     }
 
+    // Resolution & Refresh Rate
+    if (s.resolution && !isRecentlyMutated('resolution')) {
+        const resKey = s.resolution.width + 'x' + s.resolution.height;
+        const resSel = document.getElementById('res-select');
+        if (resSel.querySelector('option[value="' + resKey + '"]')) {
+            resSel.value = resKey;
+            state.currentRes = s.resolution;
+        }
+    }
+    if (s.refreshRate && !isRecentlyMutated('resolution')) {
+        const refSel = document.getElementById('refresh-select');
+        if (refSel.querySelector('option[value="' + s.refreshRate + '"]')) {
+            refSel.value = s.refreshRate;
+            state.currentRefresh = s.refreshRate;
+        }
+    }
+
     // Fan
-    if (s.fan) {
+    if (s.fan && !isRecentlyMutated('fan')) {
         state.fanSpeed = s.fan.speed;
         state.fanPreset = s.fan.preset;
         state.fanEnabled = s.fan.enabled;
@@ -712,6 +744,7 @@ async function setResolution() {
     if (!val) return;
     const [w, h] = val.split('x').map(Number);
     const hz = parseInt(document.getElementById('refresh-select').value) || state.currentRefresh;
+    lastLocalMutation['resolution'] = Date.now();
     await api('/api/resolution', 'POST', { width: w, height: h, refreshRate: hz });
     await loadResolution();
 }
@@ -719,20 +752,24 @@ async function setResolution() {
 async function setRefreshRate() {
     const hz = parseInt(document.getElementById('refresh-select').value);
     if (!hz || !state.currentRes) return;
+    lastLocalMutation['resolution'] = Date.now();
     await api('/api/resolution', 'POST', { width: state.currentRes.width, height: state.currentRes.height, refreshRate: hz });
 }
 
 // ===== Slider Setup =====
 function setupSliders() {
     setupSlider('tdp-slider', 'tdp-value', v => v + 'W', async v => {
+        lastLocalMutation['tdp'] = Date.now();
         await api('/api/tdp', 'POST', { watts: v });
     }, 300);
 
     setupSlider('vol-slider', 'vol-value', v => v + '%', async v => {
+        lastLocalMutation['volume'] = Date.now();
         await api('/api/volume', 'POST', { level: v });
     }, 200);
 
     setupSlider('bright-slider', 'bright-value', v => v + '%', async v => {
+        lastLocalMutation['brightness'] = Date.now();
         await api('/api/brightness', 'POST', { level: v });
     }, 200);
 }
@@ -766,6 +803,7 @@ async function toggleStickyTdp() {
     state.stickyTdp = !state.stickyTdp;
     toggleClass('sticky-tdp', state.stickyTdp);
     vibrate();
+    lastLocalMutation['sticky-tdp'] = Date.now();
     await api('/api/tdp/sticky', 'POST', { enabled: state.stickyTdp });
 }
 
@@ -773,6 +811,7 @@ async function toggleMute() {
     state.muted = !state.muted;
     toggleClass('mute-toggle', state.muted);
     vibrate();
+    lastLocalMutation['volume'] = Date.now();
     await api('/api/volume/mute', 'POST');
 }
 
@@ -780,6 +819,7 @@ async function toggleHdr() {
     state.hdrEnabled = !state.hdrEnabled;
     toggleClass('hdr-toggle', state.hdrEnabled);
     vibrate();
+    lastLocalMutation['hdr'] = Date.now();
     await api('/api/hdr', 'POST', { enabled: state.hdrEnabled });
 }
 
@@ -787,6 +827,7 @@ async function toggleFanEnabled() {
     state.fanEnabled = !state.fanEnabled;
     toggleClass('fan-enabled', state.fanEnabled);
     vibrate();
+    lastLocalMutation['fan'] = Date.now();
     await api('/api/fan/enabled', 'POST', { enabled: state.fanEnabled });
 }
 
@@ -818,6 +859,7 @@ async function setFps(fps) {
     document.getElementById('fps-value').textContent = fps > 0 ? fps + ' FPS' : 'Off';
     updateFpsButtons();
     vibrate();
+    lastLocalMutation['fps'] = Date.now();
     await api('/api/fps-limit', 'POST', { fps });
 }
 
@@ -833,6 +875,7 @@ async function setFanPreset(preset) {
     state.fanPreset = preset;
     updateFanDisplay();
     vibrate();
+    lastLocalMutation['fan'] = Date.now();
     await api('/api/fan/preset', 'POST', { preset });
 }
 

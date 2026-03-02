@@ -224,10 +224,14 @@ namespace HUDRA.Services.Web
             var audio = CreateAudioService();
             var brightness = CreateBrightnessService();
             var hdr = CreateHdrService();
+            var resolution = CreateResolutionService();
             var fpsLimiter = GetFpsLimiter();
             var fanCurve = SettingsService.GetFanCurve();
             var temp = GetCurrentTemperature();
             var battery = GetCurrentBattery();
+
+            var currentRes = resolution.GetCurrentResolution();
+            var currentRefresh = resolution.GetCurrentRefreshRate();
 
             return new
             {
@@ -250,6 +254,8 @@ namespace HUDRA.Services.Web
                     enabled = hdr.IsHdrEnabled(),
                     supported = hdr.IsHdrSupported()
                 },
+                resolution = currentRes.Success ? new { width = currentRes.CurrentResolution.Width, height = currentRes.CurrentResolution.Height } : null,
+                refreshRate = currentRefresh.Success ? currentRefresh.RefreshRate : 0,
                 fan = new
                 {
                     speed = GetCurrentFanSpeed(),

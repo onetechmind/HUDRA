@@ -330,6 +330,14 @@ namespace HUDRA
                 // Refresh volume and brightness from system state
                 _mainPage.AudioControls.RefreshState();
                 _mainPage.BrightnessControls.RefreshState();
+
+                // Refresh FPS limiter and HDR state
+                var fpsLimit = _fpsLimiterService?.GetCurrentFpsLimit() ?? 0;
+                _mainPage.FpsLimiter.SyncToFpsLimit(fpsLimit);
+                _mainPage.FpsLimiter.RefreshHdrState();
+
+                // Refresh resolution/refresh rate (re-reads from hardware)
+                _mainPage.ResolutionPicker.Initialize();
             }
             else if (_currentPageType == typeof(FanCurvePage) && _fanCurvePage != null)
             {

@@ -264,6 +264,8 @@ namespace HUDRA.Controls
             StartHdrPolling();
         }
 
+        public void RefreshHdrState() => LoadHdrState();
+
         private void LoadHdrState()
         {
             if (_hdrService == null) return;
