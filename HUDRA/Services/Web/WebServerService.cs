@@ -31,6 +31,10 @@ namespace HUDRA.Services.Web
         private EventHandler<TemperatureChangedEventArgs>? _tempHandler;
         private EventHandler<BatteryInfo>? _batteryHandler;
 
+        // Periodic status broadcast for native→web sync
+        private Timer? _statusTimer;
+        private readonly SemaphoreSlim _broadcastLock = new(1, 1);
+
         public bool IsRunning => _app != null;
         public int Port => _port;
 
@@ -103,6 +107,13 @@ namespace HUDRA.Services.Web
                 // Start the server (StartAsync begins listening; RunAsync blocks which we don't want)
                 await _app.StartAsync(_cts.Token);
 
+                // Periodic status broadcast (every 3s) for native→web sync
+                _statusTimer = new Timer(_ => _ = BroadcastControlStateAsync(), null,
+                    TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+
+                // Immediate broadcast when web API mutates state
+                _bridge.WebMutationOccurred += OnWebMutation;
+
                 // Add firewall rule (HUDRA runs as admin)
                 EnsureFirewallRule(port);
 
@@ -123,6 +134,9 @@ namespace HUDRA.Services.Web
 
             try
             {
+                _statusTimer?.Dispose();
+                _statusTimer = null;
+                _bridge.WebMutationOccurred -= OnWebMutation;
                 UnsubscribeFromServiceEvents();
                 _cts?.Cancel();
 
@@ -202,6 +216,27 @@ namespace HUDRA.Services.Web
             }
         }
 
+        private void OnWebMutation() => _ = BroadcastControlStateAsync();
+
+        private async Task BroadcastControlStateAsync()
+        {
+            if (_app == null) return;
+            if (!_broadcastLock.Wait(0)) return; // Skip if already broadcasting
+            try
+            {
+                var snapshot = await _bridge.BuildControlStateSnapshotAsync();
+                BroadcastAsync("StatusUpdated", snapshot);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[WebRemote] Status broadcast error: {ex.Message}");
+            }
+            finally
+            {
+                _broadcastLock.Release();
+            }
+        }
+
         public static string GetLocalIpAddress()
         {
             try
@@ -269,6 +304,8 @@ namespace HUDRA.Services.Web
             if (_disposed) return;
             _disposed = true;
 
+            _statusTimer?.Dispose();
+            _bridge.WebMutationOccurred -= OnWebMutation;
             UnsubscribeFromServiceEvents();
 
             if (_app != null)

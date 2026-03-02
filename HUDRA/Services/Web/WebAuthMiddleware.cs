@@ -72,8 +72,8 @@ namespace HUDRA.Services.Web
                 path.EndsWith(".js") || path.EndsWith(".ico") || path.EndsWith(".png"))
                 return true;
 
-            // Auth endpoints
-            if (path.StartsWith("/api/auth/"))
+            // Auth endpoints and logo
+            if (path.StartsWith("/api/auth/") || path == "/api/logo")
                 return true;
 
             // SignalR negotiation

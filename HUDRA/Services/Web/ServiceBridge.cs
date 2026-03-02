@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using HUDRA.Configuration;
 using HUDRA.Services;
 using HUDRA.Services.Power;
 using Microsoft.UI.Dispatching;
@@ -194,6 +195,71 @@ namespace HUDRA.Services.Web
         public TemperatureMonitorService? GetTemperatureMonitor() => _getTemperatureMonitor();
         public BatteryService? GetBatteryService() => _getBattery();
         public TdpMonitorService? GetTdpMonitor() => _getTdpMonitor();
+
+        // --- Web mutation notification ---
+
+        /// <summary>
+        /// Fired after any state-changing web API call so that native UI and
+        /// other web clients can refresh.
+        /// </summary>
+        public event Action? WebMutationOccurred;
+
+        public void NotifyWebMutation()
+        {
+            // Fire-and-forget on thread pool to avoid blocking the API response
+            Task.Run(() =>
+            {
+                try { WebMutationOccurred?.Invoke(); }
+                catch { /* observers shouldn't throw, but guard anyway */ }
+            });
+        }
+
+        /// <summary>
+        /// Builds a lightweight snapshot of all mutable control state for SignalR broadcast.
+        /// Excludes resolution (rarely changes) and games (loaded separately).
+        /// </summary>
+        public async Task<object> BuildControlStateSnapshotAsync()
+        {
+            var tdpResult = await GetCurrentTdpAsync();
+            var audio = CreateAudioService();
+            var brightness = CreateBrightnessService();
+            var hdr = CreateHdrService();
+            var fpsLimiter = GetFpsLimiter();
+            var fanCurve = SettingsService.GetFanCurve();
+            var temp = GetCurrentTemperature();
+            var battery = GetCurrentBattery();
+
+            return new
+            {
+                tdp = new
+                {
+                    current = tdpResult.Success ? tdpResult.TdpWatts : 0,
+                    min = HudraSettings.MIN_TDP,
+                    max = HudraSettings.MAX_TDP,
+                    stickyEnabled = SettingsService.GetTdpCorrectionEnabled()
+                },
+                volume = new
+                {
+                    level = (int)(audio.GetMasterVolumeScalar() * 100),
+                    muted = audio.GetMuteStatus()
+                },
+                brightness = brightness.GetBrightness(),
+                fpsLimit = fpsLimiter?.GetCurrentFpsLimit() ?? 0,
+                hdr = new
+                {
+                    enabled = hdr.IsHdrEnabled(),
+                    supported = hdr.IsHdrSupported()
+                },
+                fan = new
+                {
+                    speed = GetCurrentFanSpeed(),
+                    preset = fanCurve.ActivePreset,
+                    enabled = SettingsService.GetFanCurveEnabled()
+                },
+                temperature = temp != null ? new { cpu = Math.Round(temp.CpuTemperature, 1), gpu = Math.Round(temp.GpuTemperature, 1) } : null,
+                battery = battery != null ? new { percent = battery.Percent, isCharging = battery.IsCharging, onAc = battery.OnAc } : null
+            };
+        }
 
         public void Dispose()
         {

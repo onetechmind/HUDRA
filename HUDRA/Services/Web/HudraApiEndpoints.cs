@@ -20,6 +20,7 @@ namespace HUDRA.Services.Web
     {
         public static void MapEndpoints(IEndpointRouteBuilder app, ServiceBridge bridge)
         {
+            MapLogoEndpoint(app);
             MapAuthEndpoints(app);
             MapStatusEndpoints(app, bridge);
             MapTdpEndpoints(app, bridge);
@@ -32,6 +33,19 @@ namespace HUDRA.Services.Web
             MapGameEndpoints(app, bridge);
             MapPowerEndpoints(app, bridge);
             MapBatteryEndpoints(app, bridge);
+        }
+
+        // --- Logo ---
+
+        private static void MapLogoEndpoint(IEndpointRouteBuilder app)
+        {
+            app.MapGet("/api/logo", () =>
+            {
+                var logoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "HUDRA-logo-violet.png");
+                if (File.Exists(logoPath))
+                    return Results.File(File.ReadAllBytes(logoPath), "image/png");
+                return Results.NotFound();
+            });
         }
 
         // --- Auth ---
@@ -148,6 +162,7 @@ namespace HUDRA.Services.Web
                 var watts = Math.Clamp(body.watts, HudraSettings.MIN_TDP, HudraSettings.MAX_TDP);
                 var result = await bridge.SetTdpAsync(watts);
 
+                if (result.Success) bridge.NotifyWebMutation();
                 return result.Success
                     ? Results.Ok(new { success = true, tdp = watts })
                     : Results.Problem(result.Message);
@@ -162,6 +177,7 @@ namespace HUDRA.Services.Web
                 if (body == null) return Results.BadRequest(new { error = "Invalid request" });
 
                 SettingsService.SetTdpCorrectionEnabled(body.enabled);
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, enabled = body.enabled });
             });
         }
@@ -183,6 +199,7 @@ namespace HUDRA.Services.Web
 
                 var audio = bridge.CreateAudioService();
                 audio.SetMasterVolumeScalar(Math.Clamp(body.level, 0, 100) / 100f);
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, level = body.level });
             });
 
@@ -192,6 +209,7 @@ namespace HUDRA.Services.Web
                 audio.ToggleMute();
                 // Small delay to let the system process the mute toggle
                 System.Threading.Thread.Sleep(50);
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, muted = audio.GetMuteStatus() });
             });
         }
@@ -213,6 +231,7 @@ namespace HUDRA.Services.Web
 
                 var svc = bridge.CreateBrightnessService();
                 svc.SetBrightness(Math.Clamp(body.level, 0, 100));
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, level = body.level });
             });
         }
@@ -251,6 +270,7 @@ namespace HUDRA.Services.Web
                 };
 
                 var result = svc.SetResolution(resolution);
+                if (result.Success) bridge.NotifyWebMutation();
                 return result.Success
                     ? Results.Ok(new { success = true })
                     : Results.Problem(result.Message);
@@ -286,6 +306,7 @@ namespace HUDRA.Services.Web
                 else
                     success = await svc.SetGlobalFpsLimitAsync(body.fps);
 
+                if (success) bridge.NotifyWebMutation();
                 return success
                     ? Results.Ok(new { success = true, fps = body.fps })
                     : Results.Problem("Failed to set FPS limit");
@@ -310,6 +331,7 @@ namespace HUDRA.Services.Web
                 var svc = bridge.CreateHdrService();
                 var success = svc.SetHdrEnabled(body.enabled);
 
+                if (success) bridge.NotifyWebMutation();
                 return success
                     ? Results.Ok(new { success = true, enabled = body.enabled })
                     : Results.Problem("Failed to set HDR state");
@@ -348,6 +370,7 @@ namespace HUDRA.Services.Web
                 fanCurve.ActivePreset = body.preset;
                 SettingsService.SetFanCurve(fanCurve);
 
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, preset = body.preset });
             });
 
@@ -369,6 +392,7 @@ namespace HUDRA.Services.Web
                     bridge.DisableFanControl();
                 }
 
+                bridge.NotifyWebMutation();
                 return Results.Ok(new { success = true, enabled = body.enabled });
             });
         }
@@ -493,6 +517,7 @@ namespace HUDRA.Services.Web
                     return Results.BadRequest(new { error = "Invalid profile ID" });
 
                 var success = await svc.SetActiveProfileAsync(guid);
+                if (success) bridge.NotifyWebMutation();
                 return success
                     ? Results.Ok(new { success = true })
                     : Results.Problem("Failed to set power profile");
@@ -518,6 +543,7 @@ namespace HUDRA.Services.Web
                     return Results.Problem("Power profile service not available");
 
                 var success = await svc.SetCpuBoostEnabledAsync(body.enabled);
+                if (success) bridge.NotifyWebMutation();
                 return success
                     ? Results.Ok(new { success = true, enabled = body.enabled })
                     : Results.Problem("Failed to set CPU boost");

@@ -47,6 +47,7 @@ html, body {
     background: var(--bg); gap: 24px;
 }
 #login-screen.hidden { display: none; }
+.login-logo-img { height: 72px; width: auto; }
 .login-logo { font-size: 48px; font-weight: 800; color: var(--accent-light); letter-spacing: -2px; }
 .login-sub { color: var(--text-dim); font-size: 14px; }
 .pin-input {
@@ -80,6 +81,7 @@ html, body {
     flex-shrink: 0;
 }
 .header-left { display: flex; align-items: center; gap: 8px; }
+.header-logo-img { height: 26px; width: auto; }
 .header-logo { font-size: 18px; font-weight: 800; color: var(--accent-light); letter-spacing: -1px; }
 .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
 .conn-dot.disconnected { background: var(--danger); }
@@ -288,6 +290,7 @@ select:focus { border-color: var(--accent-light); }
 
 <!-- ===== Login Screen ===== -->
 <div id="login-screen">
+    <img src="/api/logo" class="login-logo-img" alt="">
     <div class="login-logo">HUDRA</div>
     <div class="login-sub">Web Remote Control</div>
     <input type="password" class="pin-input" id="pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="PIN">
@@ -300,6 +303,7 @@ select:focus { border-color: var(--accent-light); }
     <!-- Status Header -->
     <div class="header">
         <div class="header-left">
+            <img src="/api/logo" class="header-logo-img" alt="">
             <span class="header-logo">HUDRA</span>
             <span class="conn-dot" id="conn-dot"></span>
         </div>
@@ -520,6 +524,7 @@ const state = {
 
 let debounceTimers = {};
 let signalRConnection = null;
+let userInteracting = {}; // Track which sliders the user is actively dragging
 
 // ===== API =====
 async function api(url, method = 'GET', body = null) {
@@ -595,73 +600,83 @@ async function initApp() {
 async function loadStatus() {
     try {
         const s = await api('/api/status');
-
-        // TDP
-        if (s.tdp) {
-            state.tdp = s.tdp.current || state.tdp;
-            state.stickyTdp = s.tdp.stickyEnabled;
-            const slider = document.getElementById('tdp-slider');
-            slider.min = s.tdp.min; slider.max = s.tdp.max;
-            slider.value = state.tdp;
-            document.getElementById('tdp-value').textContent = state.tdp + 'W';
-            toggleClass('sticky-tdp', state.stickyTdp);
-        }
-
-        // Volume
-        if (s.volume) {
-            state.volume = s.volume.level; state.muted = s.volume.muted;
-            document.getElementById('vol-slider').value = state.volume;
-            document.getElementById('vol-value').textContent = state.volume + '%';
-            toggleClass('mute-toggle', state.muted);
-        }
-
-        // Brightness
-        if (s.brightness !== undefined) {
-            state.brightness = s.brightness;
-            document.getElementById('bright-slider').value = state.brightness;
-            document.getElementById('bright-value').textContent = state.brightness + '%';
-        }
-
-        // Temperature
-        if (s.temperature) {
-            state.cpuTemp = s.temperature.cpu; state.gpuTemp = s.temperature.gpu;
-            updateTempDisplay();
-        }
-
-        // Battery
-        if (s.battery) {
-            state.batteryPercent = s.battery.percent;
-            state.batteryCharging = s.battery.isCharging;
-            document.getElementById('h-batt').textContent = state.batteryPercent;
-        }
-
-        // FPS
-        state.fpsLimit = s.fpsLimit || 0;
-        document.getElementById('fps-value').textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
-        updateFpsButtons();
-
-        // HDR
-        if (s.hdr) {
-            state.hdrEnabled = s.hdr.enabled;
-            state.hdrSupported = s.hdr.supported;
-            toggleClass('hdr-toggle', state.hdrEnabled);
-        }
-
-        // Fan
-        if (s.fan) {
-            state.fanSpeed = s.fan.speed;
-            state.fanPreset = s.fan.preset;
-            state.fanEnabled = s.fan.enabled;
-            updateFanDisplay();
-        }
-
-        // Resolution
+        applyStatus(s);
         await loadResolution();
-
         state.connected = true;
         document.getElementById('conn-dot').classList.remove('disconnected');
     } catch (e) {
         console.error('Status load failed:', e);
+    }
+}
+
+// Applies a status snapshot to the UI. Skips sliders the user is actively dragging.
+function applyStatus(s) {
+    // TDP
+    if (s.tdp) {
+        state.tdp = s.tdp.current || state.tdp;
+        state.stickyTdp = s.tdp.stickyEnabled;
+        if (!userInteracting['tdp-slider']) {
+            const slider = document.getElementById('tdp-slider');
+            if (s.tdp.min) slider.min = s.tdp.min;
+            if (s.tdp.max) slider.max = s.tdp.max;
+            slider.value = state.tdp;
+            document.getElementById('tdp-value').textContent = state.tdp + 'W';
+        }
+        toggleClass('sticky-tdp', state.stickyTdp);
+    }
+
+    // Volume
+    if (s.volume) {
+        state.volume = s.volume.level; state.muted = s.volume.muted;
+        if (!userInteracting['vol-slider']) {
+            document.getElementById('vol-slider').value = state.volume;
+            document.getElementById('vol-value').textContent = state.volume + '%';
+        }
+        toggleClass('mute-toggle', state.muted);
+    }
+
+    // Brightness
+    if (s.brightness !== undefined) {
+        state.brightness = s.brightness;
+        if (!userInteracting['bright-slider']) {
+            document.getElementById('bright-slider').value = state.brightness;
+            document.getElementById('bright-value').textContent = state.brightness + '%';
+        }
+    }
+
+    // Temperature
+    if (s.temperature) {
+        state.cpuTemp = s.temperature.cpu; state.gpuTemp = s.temperature.gpu;
+        updateTempDisplay();
+    }
+
+    // Battery
+    if (s.battery) {
+        state.batteryPercent = s.battery.percent;
+        state.batteryCharging = s.battery.isCharging;
+        document.getElementById('h-batt').textContent = state.batteryPercent;
+    }
+
+    // FPS
+    if (s.fpsLimit !== undefined) {
+        state.fpsLimit = s.fpsLimit;
+        document.getElementById('fps-value').textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
+        updateFpsButtons();
+    }
+
+    // HDR
+    if (s.hdr) {
+        state.hdrEnabled = s.hdr.enabled;
+        state.hdrSupported = s.hdr.supported;
+        toggleClass('hdr-toggle', state.hdrEnabled);
+    }
+
+    // Fan
+    if (s.fan) {
+        state.fanSpeed = s.fan.speed;
+        state.fanPreset = s.fan.preset;
+        state.fanEnabled = s.fan.enabled;
+        updateFanDisplay();
     }
 }
 
@@ -725,6 +740,13 @@ function setupSliders() {
 function setupSlider(sliderId, valueId, format, onCommit, debounceMs) {
     const slider = document.getElementById(sliderId);
     const valueEl = document.getElementById(valueId);
+
+    // Track interaction so periodic broadcasts don't fight with user dragging
+    const markActive = () => { userInteracting[sliderId] = true; };
+    const markIdle = () => { setTimeout(() => { delete userInteracting[sliderId]; }, 600); };
+    slider.addEventListener('pointerdown', markActive);
+    slider.addEventListener('pointerup', markIdle);
+    slider.addEventListener('pointercancel', markIdle);
 
     slider.addEventListener('input', () => {
         const v = parseInt(slider.value);
@@ -938,6 +960,11 @@ async function connectSignalR() {
         document.getElementById('h-batt').textContent = data.percent;
     });
 
+    // Full state sync — handles native→web and web→web sync
+    signalRConnection.on('StatusUpdated', data => {
+        applyStatus(data);
+    });
+
     signalRConnection.onreconnecting(() => {
         state.connected = false;
         document.getElementById('conn-dot').classList.add('disconnected');
@@ -970,19 +997,7 @@ function startPolling() {
     setInterval(async () => {
         try {
             const s = await api('/api/status');
-            if (s.temperature) {
-                state.cpuTemp = s.temperature.cpu;
-                state.gpuTemp = s.temperature.gpu;
-                updateTempDisplay();
-            }
-            if (s.battery) {
-                state.batteryPercent = s.battery.percent;
-                document.getElementById('h-batt').textContent = s.battery.percent;
-            }
-            if (s.fan) {
-                state.fanSpeed = s.fan.speed;
-                document.getElementById('fan-speed').textContent = Math.round(state.fanSpeed);
-            }
+            applyStatus(s);
             state.connected = true;
             document.getElementById('conn-dot').classList.remove('disconnected');
         } catch {
