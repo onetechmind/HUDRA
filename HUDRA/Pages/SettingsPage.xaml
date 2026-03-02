@@ -157,14 +157,12 @@
                     </StackPanel>
                 </controls:NavigableExpander.Header>
                 <controls:NavigableExpander.Body>
-                    <StackPanel Spacing="12" Padding="10,5">
+                    <StackPanel Padding="15" Spacing="12">
 
                         <!--  Enable Toggle (matches RTSS / Startup toggle styling)  -->
                         <Border
                             Padding="20,5"
                             Background="#22FFFFFF"
-                            BorderBrush="#33FFFFFF"
-                            BorderThickness="2"
                             CornerRadius="12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -204,11 +202,11 @@
                                     Text="Port" />
                                 <NumberBox
                                     x:Name="WebRemotePortBox"
-                                    Minimum="1024"
                                     Maximum="65535"
+                                    Minimum="1024"
                                     SpinButtonPlacementMode="Compact"
-                                    Value="5069"
-                                    ValueChanged="WebRemotePort_ValueChanged" />
+                                    ValueChanged="WebRemotePort_ValueChanged"
+                                    Value="5069" />
                             </StackPanel>
 
                             <!--  PIN  -->
@@ -228,8 +226,8 @@
                         <!--  Save PIN Button (centered, wider)  -->
                         <Button
                             x:Name="WebRemoteSavePinButton"
-                            MinWidth="120"
                             Height="40"
+                            MinWidth="120"
                             HorizontalAlignment="Center"
                             Click="WebRemoteSavePin_Click"
                             Content="Save PIN"
