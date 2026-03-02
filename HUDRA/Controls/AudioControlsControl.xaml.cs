@@ -303,6 +303,12 @@ namespace HUDRA.Controls
             _isUpdatingSlider = false;
         }
 
+        /// <summary>
+        /// Re-reads current system volume/mute and updates the UI.
+        /// Called when an external source (e.g. web remote) changes audio state.
+        /// </summary>
+        public void RefreshState() => LoadCurrentAudioState();
+
         private void LoadCurrentAudioState()
         {
             if (_audioService == null) return;

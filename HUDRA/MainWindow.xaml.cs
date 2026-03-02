@@ -310,6 +310,33 @@ namespace HUDRA
             }
         }
 
+        /// <summary>
+        /// Lightweight refresh triggered when the web remote changes a value.
+        /// Only updates control values on the currently active page without
+        /// full re-initialization.
+        /// </summary>
+        public void OnWebRemoteChanged()
+        {
+            if (_currentPageType == typeof(MainPage) && _mainPage != null)
+            {
+                // Sync TDP picker to current value without triggering hardware set
+                var lastTdp = SettingsService.GetLastUsedTdp();
+                if (lastTdp >= HudraSettings.MIN_TDP && lastTdp <= HudraSettings.MAX_TDP)
+                {
+                    _mainPage.TdpPicker.SyncToCurrentTdp(lastTdp);
+                    _currentTdpValue = lastTdp;
+                }
+
+                // Refresh volume and brightness from system state
+                _mainPage.AudioControls.RefreshState();
+                _mainPage.BrightnessControls.RefreshState();
+            }
+            else if (_currentPageType == typeof(FanCurvePage) && _fanCurvePage != null)
+            {
+                _fanCurvePage.Initialize();
+            }
+        }
+
         private void InitializeWindow()
         {
             TrySetMicaBackdrop();

@@ -492,6 +492,7 @@ namespace HUDRA
                     () => MainWindow?.PowerProfileService,
                     () => TurboService
                 );
+                SubscribeToWebMutations();
 
                 _webServer = new WebServerService(_serviceBridge);
                 _ = _webServer.StartAsync(port);
@@ -532,6 +533,7 @@ namespace HUDRA
                     () => MainWindow?.PowerProfileService,
                     () => TurboService
                 );
+                SubscribeToWebMutations();
 
                 _webServer = new WebServerService(_serviceBridge);
                 await _webServer.StartAsync(port);
@@ -541,6 +543,23 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine($"[WebRemote] Failed to start web remote: {ex.Message}");
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Subscribes to web remote mutation events so the native UI refreshes
+        /// when a value is changed via the web interface.
+        /// </summary>
+        private void SubscribeToWebMutations()
+        {
+            if (_serviceBridge == null) return;
+
+            _serviceBridge.WebMutationOccurred += () =>
+            {
+                MainWindow?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    MainWindow?.OnWebRemoteChanged();
+                });
+            };
         }
 
         /// <summary>
