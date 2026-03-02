@@ -809,6 +809,13 @@ namespace HUDRA.Pages
             {
                 WebRemoteToggle.IsOn = SettingsService.GetWebRemoteEnabled();
                 WebRemotePortBox.Value = SettingsService.GetWebRemotePort();
+
+                // Show bullets if a PIN is already configured
+                if (!string.IsNullOrEmpty(SettingsService.GetWebRemotePinHash()))
+                {
+                    WebRemotePinBox.Password = "\u2022\u2022\u2022\u2022"; // 4 bullet characters
+                }
+
                 UpdateWebRemoteStatus();
             }
             catch (Exception ex)
@@ -896,7 +903,8 @@ namespace HUDRA.Pages
             var hash = WebAuthMiddleware.HashPin(pin, salt);
             SettingsService.SetWebRemotePin(hash, salt);
 
-            WebRemotePinBox.Password = "";
+            // Show bullets to indicate a PIN is set
+            WebRemotePinBox.Password = "\u2022\u2022\u2022\u2022";
             WebRemoteStatusText.Text = "PIN saved successfully.";
             WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.MediumPurple);
         }

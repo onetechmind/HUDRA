@@ -157,69 +157,88 @@
                     </StackPanel>
                 </controls:NavigableExpander.Header>
                 <controls:NavigableExpander.Body>
-                    <StackPanel Spacing="12" Padding="4">
-                        <!--  Enable Toggle  -->
-                        <Grid>
+                    <StackPanel Spacing="12" Padding="10,5">
+
+                        <!--  Enable Toggle (matches RTSS / Startup toggle styling)  -->
+                        <Border
+                            Padding="20,5"
+                            Background="#22FFFFFF"
+                            BorderBrush="#33FFFFFF"
+                            BorderThickness="2"
+                            CornerRadius="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4*" />
+                                    <ColumnDefinition Width="1.2*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Cascadia Code"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    IsTabStop="False"
+                                    Text="Enable Web Remote" />
+                                <ToggleSwitch
+                                    x:Name="WebRemoteToggle"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Toggled="WebRemoteToggle_Toggled" />
+                            </Grid>
+                        </Border>
+
+                        <!--  Port and PIN side by side  -->
+                        <Grid ColumnSpacing="10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock
-                                VerticalAlignment="Center"
-                                FontFamily="Cascadia Code"
-                                FontSize="13"
-                                Text="Enable Web Remote" />
-                            <ToggleSwitch
-                                x:Name="WebRemoteToggle"
-                                Grid.Column="1"
-                                Margin="0,-4,0,0"
-                                OffContent=""
-                                OnContent=""
-                                Toggled="WebRemoteToggle_Toggled" />
-                        </Grid>
 
-                        <!--  Port  -->
-                        <StackPanel Spacing="4">
-                            <TextBlock
-                                FontFamily="Cascadia Code"
-                                FontSize="12"
-                                Foreground="Gray"
-                                Text="Port" />
-                            <NumberBox
-                                x:Name="WebRemotePortBox"
-                                Minimum="1024"
-                                Maximum="65535"
-                                SpinButtonPlacementMode="Compact"
-                                Value="5069"
-                                ValueChanged="WebRemotePort_ValueChanged" />
-                        </StackPanel>
+                            <!--  Port  -->
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock
+                                    FontFamily="Cascadia Code"
+                                    FontSize="12"
+                                    Foreground="Gray"
+                                    Text="Port" />
+                                <NumberBox
+                                    x:Name="WebRemotePortBox"
+                                    Minimum="1024"
+                                    Maximum="65535"
+                                    SpinButtonPlacementMode="Compact"
+                                    Value="5069"
+                                    ValueChanged="WebRemotePort_ValueChanged" />
+                            </StackPanel>
 
-                        <!--  PIN  -->
-                        <StackPanel Spacing="4">
-                            <TextBlock
-                                FontFamily="Cascadia Code"
-                                FontSize="12"
-                                Foreground="Gray"
-                                Text="Set PIN (4-6 digits)" />
-                            <Grid ColumnSpacing="8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
+                            <!--  PIN  -->
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock
+                                    FontFamily="Cascadia Code"
+                                    FontSize="12"
+                                    Foreground="Gray"
+                                    Text="PIN (4-6 digits)" />
                                 <PasswordBox
                                     x:Name="WebRemotePinBox"
                                     MaxLength="6"
                                     PlaceholderText="Enter PIN" />
-                                <Button
-                                    Grid.Column="1"
-                                    Click="WebRemoteSavePin_Click"
-                                    Content="Save" />
-                            </Grid>
-                        </StackPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <!--  Save PIN Button (centered, wider)  -->
+                        <Button
+                            x:Name="WebRemoteSavePinButton"
+                            MinWidth="120"
+                            Height="40"
+                            HorizontalAlignment="Center"
+                            Click="WebRemoteSavePin_Click"
+                            Content="Save PIN"
+                            CornerRadius="16" />
 
                         <!--  Status  -->
                         <TextBlock
                             x:Name="WebRemoteStatusText"
+                            HorizontalAlignment="Center"
                             FontFamily="Cascadia Code"
                             FontSize="12"
                             Foreground="DarkViolet"
