@@ -100,8 +100,8 @@ namespace HUDRA.Services.Web
                 // Subscribe to service events for SignalR broadcast
                 SubscribeToServiceEvents();
 
-                // Start the server
-                _ = _app.RunAsync(_cts.Token);
+                // Start the server (StartAsync begins listening; RunAsync blocks which we don't want)
+                await _app.StartAsync(_cts.Token);
 
                 // Add firewall rule (HUDRA runs as admin)
                 EnsureFirewallRule(port);

@@ -267,7 +267,7 @@ namespace HUDRA.Services.Web
                 return Results.Ok(new
                 {
                     current = svc?.GetCurrentFpsLimit() ?? 0,
-                    isInstalled = svc?.IsInstalled ?? false
+                    isInstalled = RtssFpsLimiterService.GetCachedInstallationStatus()
                 });
             });
 
