@@ -408,16 +408,21 @@ namespace HUDRA.Services.Web
                     return Results.Ok(new { games = Array.Empty<object>() });
 
                 var games = await detection.GetAllGamesAsync();
-                var result = games.Select(g => new
+                var result = games.Select(g =>
                 {
-                    processName = g.ProcessName,
-                    displayName = g.DisplayName,
-                    source = g.Source.ToString(),
-                    hasArtwork = !string.IsNullOrEmpty(g.ArtworkPath) && File.Exists(g.ArtworkPath),
-                    artworkUrl = !string.IsNullOrEmpty(g.ArtworkPath) && File.Exists(g.ArtworkPath)
-                        ? $"/api/games/{Uri.EscapeDataString(g.ProcessName)}/artwork"
-                        : null,
-                    hasProfile = !string.IsNullOrEmpty(g.ProfileJson)
+                    var artPath = CleanArtworkPath(g.ArtworkPath);
+                    var hasArt = !string.IsNullOrEmpty(artPath) && File.Exists(artPath);
+                    return new
+                    {
+                        processName = g.ProcessName,
+                        displayName = g.DisplayName,
+                        source = g.Source.ToString(),
+                        hasArtwork = hasArt,
+                        artworkUrl = hasArt
+                            ? $"/api/games/{Uri.EscapeDataString(g.ProcessName)}/artwork"
+                            : null,
+                        hasProfile = !string.IsNullOrEmpty(g.ProfileJson)
+                    };
                 });
 
                 return Results.Ok(new { games = result });
@@ -433,10 +438,11 @@ namespace HUDRA.Services.Web
                 var game = games.FirstOrDefault(g =>
                     string.Equals(g.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
 
-                if (game == null || string.IsNullOrEmpty(game.ArtworkPath) || !File.Exists(game.ArtworkPath))
+                var artPath = CleanArtworkPath(game?.ArtworkPath);
+                if (game == null || string.IsNullOrEmpty(artPath) || !File.Exists(artPath))
                     return Results.NotFound();
 
-                var ext = Path.GetExtension(game.ArtworkPath).ToLower();
+                var ext = Path.GetExtension(artPath).ToLower();
                 var contentType = ext switch
                 {
                     ".png" => "image/png",
@@ -445,7 +451,7 @@ namespace HUDRA.Services.Web
                     _ => "application/octet-stream"
                 };
 
-                return Results.File(File.ReadAllBytes(game.ArtworkPath), contentType);
+                return Results.File(File.ReadAllBytes(artPath), contentType);
             });
 
             app.MapPost("/api/games/{processName}/launch", async (string processName) =>
@@ -570,6 +576,17 @@ namespace HUDRA.Services.Web
         }
 
         // --- Helpers ---
+
+        /// <summary>
+        /// Strips cache-busting query strings (e.g. "?t=123") that the native Library page
+        /// appends to ArtworkPath on shared DetectedGame objects.
+        /// </summary>
+        private static string? CleanArtworkPath(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            var qi = path.IndexOf('?');
+            return qi > 0 ? path.Substring(0, qi) : path;
+        }
 
         private static async Task<T?> ParseBody<T>(HttpContext ctx) where T : class
         {
