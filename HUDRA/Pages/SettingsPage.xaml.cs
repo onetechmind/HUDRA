@@ -6,7 +6,9 @@ using HUDRA.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
+using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -15,6 +17,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage.Streams;
 
 namespace HUDRA.Pages
 {
@@ -916,13 +919,47 @@ namespace HUDRA.Pages
             {
                 var ip = WebServerService.GetLocalIpAddress();
                 var port = SettingsService.GetWebRemotePort();
-                WebRemoteStatusText.Text = $"Running at http://{ip}:{port}";
+                var url = $"http://{ip}:{port}";
+                WebRemoteStatusText.Text = $"Running at {url}";
                 WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.MediumPurple);
+                GenerateQrCode(url);
             }
             else
             {
                 WebRemoteStatusText.Text = "Disabled";
                 WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray);
+                WebRemoteQrCode.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void GenerateQrCode(string url)
+        {
+            try
+            {
+                var generator = new QRCodeGenerator();
+                var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
+                var qrCode = new PngByteQRCode(data);
+                byte[] pngBytes = qrCode.GetGraphic(10, new byte[] { 190, 130, 255 }, new byte[] { 30, 30, 30 });
+
+                var bitmap = new BitmapImage();
+                using (var stream = new InMemoryRandomAccessStream())
+                {
+                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                    {
+                        writer.WriteBytes(pngBytes);
+                        await writer.StoreAsync();
+                    }
+                    stream.Seek(0);
+                    await bitmap.SetSourceAsync(stream);
+                }
+
+                WebRemoteQrCode.Source = bitmap;
+                WebRemoteQrCode.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error generating QR code: {ex.Message}");
+                WebRemoteQrCode.Visibility = Visibility.Collapsed;
             }
         }
     }

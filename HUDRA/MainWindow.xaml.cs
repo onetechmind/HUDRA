@@ -331,6 +331,9 @@ namespace HUDRA
                 _mainPage.AudioControls.RefreshState();
                 _mainPage.BrightnessControls.RefreshState();
 
+                // Refresh Sticky TDP toggle
+                _mainPage.StickyTdpToggle.UpdateToggleState(SettingsService.GetTdpCorrectionEnabled());
+
                 // Refresh FPS limiter and HDR state
                 var fpsLimit = _fpsLimiterService?.GetCurrentFpsLimit() ?? 0;
                 _mainPage.FpsLimiter.SyncToFpsLimit(fpsLimit);

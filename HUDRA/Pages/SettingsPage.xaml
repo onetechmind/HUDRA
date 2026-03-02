@@ -244,6 +244,14 @@
                             Foreground="DarkViolet"
                             Text="Disabled"
                             TextWrapping="Wrap" />
+
+                        <!--  QR Code (visible only when running)  -->
+                        <Image
+                            x:Name="WebRemoteQrCode"
+                            Width="140"
+                            Height="140"
+                            HorizontalAlignment="Center"
+                            Visibility="Collapsed" />
                     </StackPanel>
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
