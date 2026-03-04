@@ -458,6 +458,13 @@ select:focus { border-color: var(--accent-light); }
                     <span class="control-label">Status</span>
                     <span class="control-value" id="ls-status">--</span>
                 </div>
+                <div class="control-row">
+                    <span class="control-label">Game</span>
+                    <span class="control-value" id="ls-game">--</span>
+                </div>
+                <button class="btn btn-primary btn-block" id="ls-trigger-btn" onclick="triggerLosslessScaling()" style="display:none;margin-top:10px;">
+                    Trigger LS Shortcut
+                </button>
             </div>
         </div>
 
@@ -532,7 +539,8 @@ const state = {
     powerProfiles: [], activeProfile: null,
     boostEnabled: false,
     amdAvailable: false, rsrEnabled: false, rsrSharpness: 80,
-    afmfEnabled: false, antiLagEnabled: false
+    afmfEnabled: false, antiLagEnabled: false,
+    lsRunning: false, lsHasGame: false
 };
 
 let debounceTimers = {};
@@ -601,6 +609,7 @@ function switchTab(tabName) {
     // Lazy-load data for tabs
     if (tabName === 'library' && state.games.length === 0) loadGames();
     if (tabName === 'settings') loadPowerProfiles();
+    if (tabName === 'scaling') loadLsStatus();
 }
 
 // ===== Init =====
@@ -900,6 +909,38 @@ function updateAmdDisplay() {
 function updateRsrSharpnessVisibility() {
     const row = document.getElementById('rsr-sharpness-row');
     if (row) row.style.display = state.rsrEnabled ? '' : 'none';
+}
+
+// ===== Lossless Scaling =====
+
+async function loadLsStatus() {
+    try {
+        const data = await api('/api/lossless/status');
+        state.lsRunning = data.isRunning;
+        state.lsHasGame = data.hasGame;
+        updateLsDisplay();
+    } catch (_) {}
+}
+
+function updateLsDisplay() {
+    const statusEl = document.getElementById('ls-status');
+    const gameEl = document.getElementById('ls-game');
+    const btnEl = document.getElementById('ls-trigger-btn');
+    if (statusEl) statusEl.textContent = state.lsRunning ? 'Running' : 'Not Running';
+    if (gameEl) gameEl.textContent = state.lsHasGame ? 'Detected' : 'None';
+    if (btnEl) btnEl.style.display = (state.lsRunning && state.lsHasGame) ? '' : 'none';
+}
+
+async function triggerLosslessScaling() {
+    const btn = document.getElementById('ls-trigger-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Triggering...'; }
+    vibrate();
+    try {
+        await api('/api/lossless/trigger', 'POST');
+    } catch (_) {}
+    // Refresh status after triggering
+    await loadLsStatus();
+    if (btn) { btn.disabled = false; btn.textContent = 'Trigger LS Shortcut'; }
 }
 
 async function toggleBoost() {

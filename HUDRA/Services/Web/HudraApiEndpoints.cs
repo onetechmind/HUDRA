@@ -34,6 +34,7 @@ namespace HUDRA.Services.Web
             MapPowerEndpoints(app, bridge);
             MapBatteryEndpoints(app, bridge);
             MapAmdEndpoints(app, bridge);
+            MapLosslessScalingEndpoints(app, bridge);
         }
 
         // --- Logo ---
@@ -650,6 +651,33 @@ namespace HUDRA.Services.Web
                 return success
                     ? Results.Ok(new { success = true, enabled = body.enabled })
                     : Results.Problem("Failed to set Anti-Lag state");
+            });
+        }
+
+        // --- Lossless Scaling ---
+
+        private static void MapLosslessScalingEndpoints(IEndpointRouteBuilder app, ServiceBridge bridge)
+        {
+            app.MapGet("/api/lossless/status", () =>
+            {
+                var ls = bridge.GetLosslessScaling();
+                var detection = bridge.GetGameDetection();
+                bool isRunning = ls?.IsLosslessScalingRunning() ?? false;
+                bool hasGame = detection?.CurrentGame != null;
+                return Results.Ok(new
+                {
+                    isRunning,
+                    hasGame,
+                    canTrigger = isRunning && hasGame
+                });
+            });
+
+            app.MapPost("/api/lossless/trigger", async () =>
+            {
+                var error = await bridge.TriggerLosslessScalingAsync();
+                return error == null
+                    ? Results.Ok(new { success = true })
+                    : Results.Problem(error);
             });
         }
 

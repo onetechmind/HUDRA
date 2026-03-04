@@ -193,6 +193,29 @@ namespace HUDRA.Services.Web
 
         public LosslessScalingService? GetLosslessScaling() => _getLosslessScaling();
 
+        /// <summary>
+        /// Triggers the Lossless Scaling hotkey: switches focus to the running game window,
+        /// waits 500 ms, then fires the hotkey exactly as the native LS button does.
+        /// Returns a human-readable error string on failure, or null on success.
+        /// </summary>
+        public async Task<string?> TriggerLosslessScalingAsync()
+        {
+            var ls = _getLosslessScaling();
+            if (ls == null) return "Lossless Scaling service unavailable";
+            if (!ls.IsLosslessScalingRunning()) return "Lossless Scaling is not running";
+
+            var detection = _getGameDetection();
+            if (detection?.CurrentGame == null) return "No game currently detected";
+
+            if (!detection.SwitchToGame()) return "Could not switch to game window";
+
+            await Task.Delay(500);
+
+            var (hotkey, modifiers) = ls.ParseHotkeyFromSettings();
+            bool ok = await ls.ExecuteHotkeyAsync(hotkey, modifiers);
+            return ok ? null : "Failed to send Lossless Scaling hotkey";
+        }
+
         // --- Power ---
 
         public PowerProfileService? GetPowerProfile() => _getPowerProfile();
