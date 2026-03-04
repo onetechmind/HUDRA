@@ -33,6 +33,7 @@ namespace HUDRA.Services.Web
             MapGameEndpoints(app, bridge);
             MapPowerEndpoints(app, bridge);
             MapBatteryEndpoints(app, bridge);
+            MapAmdEndpoints(app, bridge);
         }
 
         // --- Logo ---
@@ -100,6 +101,7 @@ namespace HUDRA.Services.Web
                     var brightness = bridge.CreateBrightnessService();
                     var hdr = bridge.CreateHdrService();
                     var resolution = bridge.CreateResolutionService();
+                    var amdState = await bridge.GetAmdStateAsync();
 
                     var currentRes = resolution.GetCurrentResolution();
                     var currentRefresh = resolution.GetCurrentRefreshRate();
@@ -127,6 +129,14 @@ namespace HUDRA.Services.Web
                             speed = bridge.GetCurrentFanSpeed(),
                             preset = SettingsService.GetFanCurve().ActivePreset,
                             enabled = SettingsService.GetFanCurveEnabled()
+                        },
+                        amd = new
+                        {
+                            available = amdState.available,
+                            rsrEnabled = amdState.rsrEnabled,
+                            rsrSharpness = amdState.rsrSharpness,
+                            afmfEnabled = amdState.afmfEnabled,
+                            antiLagEnabled = amdState.antiLagEnabled
                         }
                     });
                 }
@@ -575,6 +585,74 @@ namespace HUDRA.Services.Web
             });
         }
 
+        // --- AMD Features ---
+
+        private static void MapAmdEndpoints(IEndpointRouteBuilder app, ServiceBridge bridge)
+        {
+            app.MapGet("/api/amd", async () =>
+            {
+                var state = await bridge.GetAmdStateAsync();
+                return Results.Ok(new
+                {
+                    available = state.available,
+                    rsrEnabled = state.rsrEnabled,
+                    rsrSharpness = state.rsrSharpness,
+                    afmfEnabled = state.afmfEnabled,
+                    antiLagEnabled = state.antiLagEnabled
+                });
+            });
+
+            app.MapPost("/api/amd/rsr", async (HttpContext ctx) =>
+            {
+                var body = await ParseBody<AmdRsrRequest>(ctx);
+                if (body == null) return Results.BadRequest(new { error = "Invalid request" });
+
+                var sharpness = Math.Clamp(body.sharpness, 0, 100);
+                var success = await bridge.SetAmdRsrAsync(body.enabled, sharpness);
+                if (success) bridge.NotifyWebMutation();
+                return success
+                    ? Results.Ok(new { success = true, enabled = body.enabled, sharpness })
+                    : Results.Problem("Failed to set RSR state");
+            });
+
+            app.MapPost("/api/amd/rsr/sharpness", async (HttpContext ctx) =>
+            {
+                var body = await ParseBody<SharpnessRequest>(ctx);
+                if (body == null) return Results.BadRequest(new { error = "Invalid request" });
+
+                var sharpness = Math.Clamp(body.sharpness, 0, 100);
+                var success = await bridge.SetAmdRsrSharpnessAsync(sharpness);
+                if (success) bridge.NotifyWebMutation();
+                return success
+                    ? Results.Ok(new { success = true, sharpness })
+                    : Results.Problem("Failed to set RSR sharpness (RSR may not be enabled)");
+            });
+
+            app.MapPost("/api/amd/afmf", async (HttpContext ctx) =>
+            {
+                var body = await ParseBody<EnabledRequest>(ctx);
+                if (body == null) return Results.BadRequest(new { error = "Invalid request" });
+
+                var success = await bridge.SetAmdAfmfAsync(body.enabled);
+                if (success) bridge.NotifyWebMutation();
+                return success
+                    ? Results.Ok(new { success = true, enabled = body.enabled })
+                    : Results.Problem("Failed to set AFMF state");
+            });
+
+            app.MapPost("/api/amd/antilag", async (HttpContext ctx) =>
+            {
+                var body = await ParseBody<EnabledRequest>(ctx);
+                if (body == null) return Results.BadRequest(new { error = "Invalid request" });
+
+                var success = await bridge.SetAmdAntiLagAsync(body.enabled);
+                if (success) bridge.NotifyWebMutation();
+                return success
+                    ? Results.Ok(new { success = true, enabled = body.enabled })
+                    : Results.Problem("Failed to set Anti-Lag state");
+            });
+        }
+
         // --- Helpers ---
 
         /// <summary>
@@ -613,5 +691,7 @@ namespace HUDRA.Services.Web
         private record EnabledRequest(bool enabled);
         private record FanPresetRequest(string preset);
         private record PowerProfileRequest(string profileId);
+        private record AmdRsrRequest(bool enabled, int sharpness);
+        private record SharpnessRequest(int sharpness);
     }
 }

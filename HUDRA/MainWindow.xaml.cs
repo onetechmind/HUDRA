@@ -346,6 +346,10 @@ namespace HUDRA
             {
                 _fanCurvePage.Initialize();
             }
+            else if (_currentPageType == typeof(ScalingPage) && _scalingPage != null)
+            {
+                _scalingPage.RefreshAmdState();
+            }
         }
 
         private void InitializeWindow()

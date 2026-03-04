@@ -430,15 +430,26 @@ select:focus { border-color: var(--accent-light); }
 
         <!-- SCALING TAB -->
         <div class="tab-panel" id="panel-scaling">
-            <div class="card">
+            <div class="card" id="amd-card">
                 <div class="card-title">AMD Features</div>
                 <div class="control-row">
                     <span class="control-label">RSR (Super Resolution)</span>
                     <div class="toggle" id="rsr-toggle" onclick="toggleRsr()"></div>
                 </div>
+                <div class="slider-row" id="rsr-sharpness-row" style="display:none;">
+                    <div class="slider-header">
+                        <span class="slider-label">RSR Sharpness</span>
+                        <span class="slider-value" id="rsr-sharpness-value">80%</span>
+                    </div>
+                    <input type="range" id="rsr-sharpness-slider" min="0" max="100" step="5" value="80">
+                </div>
                 <div class="control-row">
-                    <span class="control-label">AFMF (Fluid Motion)</span>
+                    <span class="control-label">AFMF (Fluid Motion Frames)</span>
                     <div class="toggle" id="afmf-toggle" onclick="toggleAfmf()"></div>
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Anti-Lag</span>
+                    <div class="toggle" id="antilag-toggle" onclick="toggleAntiLag()"></div>
                 </div>
             </div>
             <div class="card">
@@ -519,7 +530,9 @@ const state = {
     resolutions: [], refreshRates: [],
     currentRes: null, currentRefresh: 0,
     powerProfiles: [], activeProfile: null,
-    boostEnabled: false
+    boostEnabled: false,
+    amdAvailable: false, rsrEnabled: false, rsrSharpness: 80,
+    afmfEnabled: false, antiLagEnabled: false
 };
 
 let debounceTimers = {};
@@ -710,6 +723,16 @@ function applyStatus(s) {
         state.fanEnabled = s.fan.enabled;
         updateFanDisplay();
     }
+
+    // AMD features
+    if (s.amd && !isRecentlyMutated('amd')) {
+        state.amdAvailable = s.amd.available;
+        state.rsrEnabled = s.amd.rsrEnabled;
+        state.rsrSharpness = s.amd.rsrSharpness;
+        state.afmfEnabled = s.amd.afmfEnabled;
+        state.antiLagEnabled = s.amd.antiLagEnabled;
+        updateAmdDisplay();
+    }
 }
 
 // ===== Resolution =====
@@ -772,6 +795,12 @@ function setupSliders() {
         lastLocalMutation['brightness'] = Date.now();
         await api('/api/brightness', 'POST', { level: v });
     }, 200);
+
+    setupSlider('rsr-sharpness-slider', 'rsr-sharpness-value', v => v + '%', async v => {
+        lastLocalMutation['amd'] = Date.now();
+        state.rsrSharpness = v;
+        await api('/api/amd/rsr/sharpness', 'POST', { sharpness: v });
+    }, 300);
 }
 
 function setupSlider(sliderId, valueId, format, onCommit, debounceMs) {
@@ -832,18 +861,45 @@ async function toggleFanEnabled() {
 }
 
 async function toggleRsr() {
-    const el = document.getElementById('rsr-toggle');
-    const isActive = el.classList.contains('active');
-    el.classList.toggle('active');
+    state.rsrEnabled = !state.rsrEnabled;
+    toggleClass('rsr-toggle', state.rsrEnabled);
+    updateRsrSharpnessVisibility();
     vibrate();
-    // RSR API would go here when implemented
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/rsr', 'POST', { enabled: state.rsrEnabled, sharpness: state.rsrSharpness });
 }
 
 async function toggleAfmf() {
-    const el = document.getElementById('afmf-toggle');
-    el.classList.toggle('active');
+    state.afmfEnabled = !state.afmfEnabled;
+    toggleClass('afmf-toggle', state.afmfEnabled);
     vibrate();
-    // AFMF API would go here when implemented
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/afmf', 'POST', { enabled: state.afmfEnabled });
+}
+
+async function toggleAntiLag() {
+    state.antiLagEnabled = !state.antiLagEnabled;
+    toggleClass('antilag-toggle', state.antiLagEnabled);
+    vibrate();
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/antilag', 'POST', { enabled: state.antiLagEnabled });
+}
+
+function updateAmdDisplay() {
+    toggleClass('rsr-toggle', state.rsrEnabled);
+    toggleClass('afmf-toggle', state.afmfEnabled);
+    toggleClass('antilag-toggle', state.antiLagEnabled);
+    const slider = document.getElementById('rsr-sharpness-slider');
+    if (slider && !userInteracting['rsr-sharpness-slider']) {
+        slider.value = state.rsrSharpness;
+        document.getElementById('rsr-sharpness-value').textContent = state.rsrSharpness + '%';
+    }
+    updateRsrSharpnessVisibility();
+}
+
+function updateRsrSharpnessVisibility() {
+    const row = document.getElementById('rsr-sharpness-row');
+    if (row) row.style.display = state.rsrEnabled ? '' : 'none';
 }
 
 async function toggleBoost() {
