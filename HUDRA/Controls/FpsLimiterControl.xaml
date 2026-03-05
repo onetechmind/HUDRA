@@ -104,7 +104,7 @@
                 BorderBrush="{x:Bind FpsFocusBrush, Mode=OneWay}"
                 BorderThickness="2"
                 CornerRadius="12">
-                <Grid IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}">
+                <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -136,6 +136,7 @@
                         Grid.Row="1"
                         Grid.ColumnSpan="2"
                         Margin="0,4,0,0"
+                        IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}"
                         Maximum="{x:Bind MaxFps, Mode=OneWay}"
                         Minimum="0"
                         StepFrequency="1"
