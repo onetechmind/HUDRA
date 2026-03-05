@@ -41,7 +41,7 @@ namespace HUDRA.Controls
         private bool _isGameRunning = false;
         private GamepadNavigationService? _gamepadNavigationService;
         private bool _isFocused = false;
-        private int _currentFocusedControl = 0; // 0 = FPS NumberBox, 1 = HDR Toggle
+        private int _currentFocusedControl = 0; // 0 = FPS Slider, 1 = HDR Toggle
 
         // HDR fields
         private bool _isHdrSupported = false;
@@ -49,16 +49,16 @@ namespace HUDRA.Controls
         private bool _cachedHdrState = false;
         private DispatcherTimer? _hdrPollTimer;
 
-        // NumberBox state
+        // Slider state
         private int _maxFps = 120;
         private int _currentFps = 0;
-        private bool _isUpdatingNumberBox = false;
+        private bool _isUpdatingSlider = false;
 
         // Debounce timer — applies the FPS limit to RTSS after the user stops changing
         private DispatcherTimer? _fpsDebounceTimer;
         private int _pendingFps = -1;
 
-        // Gamepad slider state for the NumberBox
+        // Gamepad activation state for the FPS slider
         private bool _isSliderActivated = false;
 
         public int MaxFps
@@ -155,7 +155,7 @@ namespace HUDRA.Controls
         public bool CanActivate => (_currentFocusedControl == 0 && IsRtssInstalled) || (_currentFocusedControl == 1 && IsHdrSupported);
         public FrameworkElement NavigationElement => this;
 
-        // Slider interface — FPS NumberBox behaves as a slider when gamepad-activated
+        // Slider interface — FPS slider activates left/right gamepad adjustment
         public bool IsSlider => _currentFocusedControl == 0 && IsRtssInstalled;
 
         public bool IsSliderActivated
@@ -170,9 +170,9 @@ namespace HUDRA.Controls
 
         public void AdjustSliderValue(int direction)
         {
-            if (!_isSliderActivated || _currentFocusedControl != 0 || FpsNumberBox == null) return;
-            double newValue = Math.Clamp(FpsNumberBox.Value + direction, 0, _maxFps);
-            FpsNumberBox.Value = newValue;
+            if (!_isSliderActivated || _currentFocusedControl != 0 || FpsSlider == null) return;
+            double newValue = Math.Clamp(FpsSlider.Value + direction, 0, _maxFps);
+            FpsSlider.Value = newValue;
         }
 
         // ComboBox interface stubs — no longer applicable
@@ -344,14 +344,18 @@ namespace HUDRA.Controls
             }
         }
 
-        // ── NumberBox value changed ──────────────────────────────────────────────
+        // ── Slider value changed ─────────────────────────────────────────────────
 
-        private void OnFpsValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs e)
+        private void OnFpsSliderValueChanged(object sender, RangeBaseValueChangedEventArgs e)
         {
-            if (_isUpdatingNumberBox) return;
+            if (_isUpdatingSlider) return;
 
-            int newFps = double.IsNaN(e.NewValue) ? 0 : (int)Math.Clamp(e.NewValue, 0, _maxFps);
+            int newFps = (int)Math.Clamp(e.NewValue, 0, _maxFps);
             if (newFps == _currentFps) return;
+
+            // Update label immediately for responsiveness
+            if (FpsValueLabel != null)
+                FpsValueLabel.Text = newFps == 0 ? "Off" : $"{newFps} FPS";
 
             // Restart debounce so we only hit RTSS after the user settles
             _pendingFps = newFps;
@@ -403,14 +407,12 @@ namespace HUDRA.Controls
             _currentFps = clamped;
             _fpsSettings.SelectedFpsLimit = clamped;
 
-            if (FpsNumberBox != null)
-            {
-                _isUpdatingNumberBox = true;
-                FpsNumberBox.Value = clamped;
-                _isUpdatingNumberBox = false;
-            }
+            _isUpdatingSlider = true;
+            if (FpsSlider != null) FpsSlider.Value = clamped;
+            if (FpsValueLabel != null) FpsValueLabel.Text = clamped == 0 ? "Off" : $"{clamped} FPS";
+            _isUpdatingSlider = false;
 
-            System.Diagnostics.Debug.WriteLine($"FpsLimiter synced to: {(clamped == 0 ? "Unlimited" : clamped + " FPS")} (game profile)");
+            System.Diagnostics.Debug.WriteLine($"FpsLimiter synced to: {(clamped == 0 ? "Off" : clamped + " FPS")} (external)");
         }
 
         public async Task RefreshRtssStatus()
@@ -536,7 +538,7 @@ namespace HUDRA.Controls
                 // Toggle adjustment mode for NumberBox
                 _isSliderActivated = !_isSliderActivated;
                 IsSliderActivated = _isSliderActivated;
-                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FPS NumberBox adjustment mode {(_isSliderActivated ? "on" : "off")}");
+                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FPS slider adjustment mode {(_isSliderActivated ? "on" : "off")}");
             }
             else if (_currentFocusedControl == 1 && IsHdrSupported && HdrToggle != null)
             {
