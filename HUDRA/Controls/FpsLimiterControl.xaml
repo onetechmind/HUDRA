@@ -5,7 +5,6 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:helpers="using:HUDRA.Helpers"
     xmlns:local="using:HUDRA.Controls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     ap:GamepadNavigation.IsEnabled="True"
@@ -15,6 +14,27 @@
 
     <UserControl.Resources>
         <local:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <!--  NumberBox styled to match HUDRA design language  -->
+        <Style x:Key="HudraNumberBoxStyle" TargetType="NumberBox">
+            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontFamily" Value="Cascadia Code" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Height" Value="48" />
+            <Setter Property="SpinButtonPlacementMode" Value="Compact" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Minimum" Value="0" />
+            <Setter Property="SmallChange" Value="1" />
+            <Setter Property="LargeChange" Value="5" />
+            <Setter Property="ValidationMode" Value="InvalidInputOverwritten" />
+            <Setter Property="AcceptsExpression" Value="False" />
+        </Style>
+
         <Style x:Key="HudraHyperlinkButtonStyle" TargetType="HyperlinkButton">
             <Setter Property="Foreground" Value="DarkViolet" />
             <Setter Property="Template">
@@ -95,21 +115,19 @@
                 <ColumnDefinition Width="1*" />
             </Grid.ColumnDefinitions>
 
-            <!--  FPS ComboBox with focus border  -->
+            <!--  FPS NumberBox with focus border  -->
             <Border
                 x:Name="FpsFocusBorder"
                 Grid.Column="0"
                 BorderBrush="{x:Bind FpsFocusBrush, Mode=OneWay}"
                 BorderThickness="2"
-                CornerRadius="6">
-                <ComboBox
-                    x:Name="FpsLimitComboBox"
-                    HorizontalAlignment="Stretch"
-                    helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"
+                CornerRadius="12">
+                <NumberBox
+                    x:Name="FpsNumberBox"
                     IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}"
-                    ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
-                    SelectionChanged="OnFpsLimitChanged"
-                    Style="{StaticResource HudraComboBoxStyle}" />
+                    Maximum="{x:Bind MaxFps, Mode=OneWay}"
+                    Style="{StaticResource HudraNumberBoxStyle}"
+                    ValueChanged="OnFpsValueChanged" />
             </Border>
 
             <!--  HDR Toggle with focus border  -->
@@ -130,6 +148,16 @@
                     Toggled="OnHdrToggled" />
             </Border>
         </Grid>
+
+        <!--  "0 = Unlimited" hint  -->
+        <TextBlock
+            Width="280"
+            HorizontalAlignment="Left"
+            FontFamily="Cascadia Code"
+            FontSize="11"
+            Foreground="#66FFFFFF"
+            IsTabStop="False"
+            Text="0 = Unlimited  ·  max = refresh rate" />
 
         <!--  RTSS Not Found Message  -->
         <StackPanel Spacing="8" Visibility="{Binding IsRtssNotInstalled, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">

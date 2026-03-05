@@ -369,15 +369,13 @@ select:focus { border-color: var(--accent-light); }
                 </div>
                 <select id="refresh-select" onchange="setRefreshRate()"></select>
                 <div style="height: 10px;"></div>
-                <div class="control-row">
-                    <span class="control-label">FPS Limit</span>
-                    <span class="control-value" id="fps-value">Off</span>
-                </div>
-                <div class="preset-group" id="fps-presets">
-                    <button class="preset-btn" onclick="setFps(0)">Off</button>
-                    <button class="preset-btn" onclick="setFps(30)">30</button>
-                    <button class="preset-btn" onclick="setFps(40)">40</button>
-                    <button class="preset-btn" onclick="setFps(60)">60</button>
+                <div class="slider-row">
+                    <div class="slider-header">
+                        <span class="slider-label">FPS Limit</span>
+                        <span class="slider-value" id="fps-value">Off</span>
+                    </div>
+                    <input type="range" id="fps-slider" min="0" max="120" step="1" value="0">
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">0 = Unlimited · max = refresh rate</div>
                 </div>
                 <div class="control-row" style="margin-top: 8px;">
                     <span class="control-label">HDR</span>
@@ -694,11 +692,10 @@ function applyStatus(s) {
         document.getElementById('h-batt').textContent = state.batteryPercent;
     }
 
-    // FPS
+    // FPS — also update the slider's max to the current refresh rate
     if (s.fpsLimit !== undefined && !isRecentlyMutated('fps')) {
         state.fpsLimit = s.fpsLimit;
-        document.getElementById('fps-value').textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
-        updateFpsButtons();
+        updateFpsDisplay(s.refreshRate);
     }
 
     // HDR
@@ -722,6 +719,7 @@ function applyStatus(s) {
         if (refSel.querySelector('option[value="' + s.refreshRate + '"]')) {
             refSel.value = s.refreshRate;
             state.currentRefresh = s.refreshRate;
+            updateFpsSliderMax(s.refreshRate);
         }
     }
 
@@ -752,6 +750,7 @@ async function loadResolution() {
         state.refreshRates = r.availableRefreshRates || [];
         state.currentRes = r.current;
         state.currentRefresh = r.refreshRate;
+        updateFpsSliderMax(r.refreshRate);
 
         const resSel = document.getElementById('res-select');
         resSel.innerHTML = state.resolutions.map(res =>
@@ -810,6 +809,12 @@ function setupSliders() {
         state.rsrSharpness = v;
         await api('/api/amd/rsr/sharpness', 'POST', { sharpness: v });
     }, 300);
+
+    setupSlider('fps-slider', 'fps-value', v => v > 0 ? v + ' FPS' : 'Off', async v => {
+        lastLocalMutation['fps'] = Date.now();
+        state.fpsLimit = v;
+        await api('/api/fps-limit', 'POST', { fps: v });
+    }, 500);
 }
 
 function setupSlider(sliderId, valueId, format, onCommit, debounceMs) {
@@ -951,20 +956,26 @@ async function toggleBoost() {
 }
 
 // ===== FPS =====
-async function setFps(fps) {
-    state.fpsLimit = fps;
-    document.getElementById('fps-value').textContent = fps > 0 ? fps + ' FPS' : 'Off';
-    updateFpsButtons();
-    vibrate();
-    lastLocalMutation['fps'] = Date.now();
-    await api('/api/fps-limit', 'POST', { fps });
+
+function updateFpsSliderMax(refreshRate) {
+    const slider = document.getElementById('fps-slider');
+    if (!slider || !refreshRate) return;
+    const max = parseInt(refreshRate) || 120;
+    slider.max = max;
+    // Clamp current value to new max
+    if (parseInt(slider.value) > max) {
+        slider.value = max;
+        state.fpsLimit = max;
+        document.getElementById('fps-value').textContent = max + ' FPS';
+    }
 }
 
-function updateFpsButtons() {
-    document.querySelectorAll('#fps-presets .preset-btn').forEach(btn => {
-        const val = parseInt(btn.textContent) || 0;
-        btn.classList.toggle('active', val === state.fpsLimit);
-    });
+function updateFpsDisplay(refreshRate) {
+    const slider = document.getElementById('fps-slider');
+    const label = document.getElementById('fps-value');
+    if (refreshRate) updateFpsSliderMax(refreshRate);
+    if (slider && !userInteracting['fps-slider']) slider.value = state.fpsLimit;
+    if (label) label.textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
 }
 
 // ===== Fan =====
