@@ -317,7 +317,12 @@ namespace HUDRA.Services.Web
                 else
                     success = await svc.SetGlobalFpsLimitAsync(body.fps);
 
-                if (success) bridge.NotifyWebMutation();
+                if (success)
+                {
+                    // Keep settings in sync so the native UI shows the correct value on next navigation
+                    SettingsService.SetSelectedFpsLimit(Math.Max(0, body.fps));
+                    bridge.NotifyWebMutation();
+                }
                 return success
                     ? Results.Ok(new { success = true, fps = body.fps })
                     : Results.Problem("Failed to set FPS limit");
