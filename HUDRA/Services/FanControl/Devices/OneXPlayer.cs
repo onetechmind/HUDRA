@@ -43,7 +43,9 @@ namespace HUDRA.Services.FanControl.Devices
             MinFanSpeed = 0,
             MaxFanSpeed = 100,
             SupportsAutoDetection = true,
-            SupportedModels = new[] { "ONEXPLAYER X1", "ONEXPLAYER X1 MINI", "ONEXPLAYER X1 PRO" }
+            SupportedModels = new[] { "ONEXPLAYER X1", "ONEXPLAYER X1 MINI", "ONEXPLAYER X1 PRO" },
+            MinTdpWatts = 5,
+            MaxTdpWatts = 30
         };
 
         public override uint? TurboButtonECAddress => 0x4EB;
@@ -119,17 +121,34 @@ namespace HUDRA.Services.FanControl.Devices
             }
         };
 
-        public override DeviceCapabilities Capabilities { get; } = new DeviceCapabilities
+        private DeviceCapabilities? _capabilities;
+        public override DeviceCapabilities Capabilities
         {
-            SupportedFeatures = new HashSet<FanControlCapability>
+            get
             {
-                FanControlCapability.BasicSpeedControl
-            },
-            MinFanSpeed = 5, // ~4.3% (11/255) minimum safe speed, rounded up
-            MaxFanSpeed = 100,
-            SupportsAutoDetection = true,
-            SupportedModels = new[] { "ONEXPLAYER F1", "ONEXPLAYER F1Pro", "OneXFly F1", "OneXFly F1 Pro" }
-        };
+                if (_capabilities != null) return _capabilities;
+
+                // Determine max TDP based on detected model
+                string? model = GetSystemInfo("Model") ?? "";
+                bool isApex = model.Contains("APEX", StringComparison.OrdinalIgnoreCase);
+
+                _capabilities = new DeviceCapabilities
+                {
+                    SupportedFeatures = new HashSet<FanControlCapability>
+                    {
+                        FanControlCapability.BasicSpeedControl
+                    },
+                    MinFanSpeed = 5, // ~4.3% (11/255) minimum safe speed, rounded up
+                    MaxFanSpeed = 100,
+                    SupportsAutoDetection = true,
+                    SupportedModels = new[] { "ONEXPLAYER F1", "ONEXPLAYER F1Pro", "OneXFly F1", "OneXFly F1 Pro", "ONEXPLAYER APEX" },
+                    MinTdpWatts = 5,
+                    MaxTdpWatts = isApex ? 80 : 30
+                };
+
+                return _capabilities;
+            }
+        }
 
         public override uint? TurboButtonECAddress => 0x4F1;
 
@@ -144,7 +163,7 @@ namespace HUDRA.Services.FanControl.Devices
                 DebugLogger.Log($"System Info - Manufacturer: {manufacturer}, Model: {model}, Version: {version}", "F1_DETECT");
 
                 var supportedManufacturers = new[] { "ONE-NETBOOK", "ONEXPLAYER", "ONE NETBOOK" };
-                var supportedModels = new[] { "F1", "ONEXPLAYER F1", "F1Pro", "ONEXPLAYER F1Pro", "OneXFly F1", "OneXFly F1 Pro" };
+                var supportedModels = new[] { "F1", "ONEXPLAYER F1", "F1Pro", "ONEXPLAYER F1Pro", "OneXFly F1", "OneXFly F1 Pro", "APEX" };
 
                 bool manufacturerMatch = supportedManufacturers.Any(m =>
                     manufacturer?.Contains(m, StringComparison.OrdinalIgnoreCase) == true);

@@ -2,7 +2,9 @@ using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Management;
+using HUDRA.Configuration;
 using HUDRA.Models;
+using HUDRA.Services.FanControl;
 
 namespace HUDRA.Services
 {
@@ -104,7 +106,7 @@ namespace HUDRA.Services
 
                     // Check for X1 series
                     var x1Models = new[] { "X1", "ONEXPLAYER X1" };
-                    var f1Models = new[] { "F1", "ONEXFLY" };
+                    var f1Models = new[] { "F1", "ONEXFLY", "APEX" };
 
                     if (x1Models.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
                                           device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
@@ -145,6 +147,29 @@ namespace HUDRA.Services
             {
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Returns the TDP limits appropriate for the detected device.
+        /// Falls back to HudraSettings constants if no device is detected or
+        /// the detected device has not been initialized by FanControlService yet.
+        /// </summary>
+        public static (int MinTdp, int MaxTdp) GetTdpLimits()
+        {
+            try
+            {
+                var fanDevice = DeviceDetectionService.LastDetectedDevice;
+                if (fanDevice?.IsInitialized == true)
+                {
+                    return (fanDevice.Capabilities.MinTdpWatts, fanDevice.Capabilities.MaxTdpWatts);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"HardwareDetection: Failed to get device TDP limits, using defaults. {ex.Message}");
+            }
+
+            return (HudraSettings.MIN_TDP, HudraSettings.MAX_TDP);
         }
 
         private static string? GetSystemInfo(string property)

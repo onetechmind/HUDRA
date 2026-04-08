@@ -594,7 +594,8 @@ namespace HUDRA
                 }
 
                 // Ensure we have a valid TDP value to preserve (only if not using profile TDP)
-                if (!isProfileTdp && (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP))
+                var tdpLimits = HardwareDetectionService.GetTdpLimits();
+                if (!isProfileTdp && (targetTdp < tdpLimits.MinTdp || targetTdp > tdpLimits.MaxTdp))
                 {
                     // Fallback to determining the correct TDP - try Default Profile first
                     var defaultProfile = SettingsService.GetDefaultProfile();
@@ -606,9 +607,9 @@ namespace HUDRA
                     {
                         // Fall back to last used TDP or default
                         targetTdp = SettingsService.GetLastUsedTdp();
-                        if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
+                        if (targetTdp < tdpLimits.MinTdp || targetTdp > tdpLimits.MaxTdp)
                         {
-                            targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;
+                            targetTdp = Math.Clamp(HudraSettings.DEFAULT_STARTUP_TDP, tdpLimits.MinTdp, tdpLimits.MaxTdp);
                         }
                     }
                     System.Diagnostics.Debug.WriteLine($"Corrected TDP value to: {targetTdp}");
@@ -1594,7 +1595,8 @@ namespace HUDRA
                 {
                     // Get the current TDP value from settings and ensure the UI reflects it
                     var currentTdp = SettingsService.GetLastUsedTdp();
-                    if (currentTdp >= HudraSettings.MIN_TDP && currentTdp <= HudraSettings.MAX_TDP)
+                    var hibernateTdpLimits = HardwareDetectionService.GetTdpLimits();
+                    if (currentTdp >= hibernateTdpLimits.MinTdp && currentTdp <= hibernateTdpLimits.MaxTdp)
                     {
                         DispatcherQueue.TryEnqueue(() =>
                         {

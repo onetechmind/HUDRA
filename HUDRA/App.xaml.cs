@@ -255,10 +255,11 @@ namespace HUDRA
                     // Priority 3: Last-Used TDP if default is disabled
                     targetTdp = SettingsService.GetLastUsedTdp();
 
-                    // Priority 4: Fallback to 10W if last-used is invalid
-                    if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
+                    // Priority 4: Fallback to clamped default if last-used is invalid
+                    var startupTdpLimits = HardwareDetectionService.GetTdpLimits();
+                    if (targetTdp < startupTdpLimits.MinTdp || targetTdp > startupTdpLimits.MaxTdp)
                     {
-                        targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;
+                        targetTdp = Math.Clamp(HudraSettings.DEFAULT_STARTUP_TDP, startupTdpLimits.MinTdp, startupTdpLimits.MaxTdp);
                         statusReason = "using fallback (10W) - invalid last-used TDP";
                     }
                     else
@@ -409,9 +410,10 @@ namespace HUDRA
 
                     // Get the last used TDP and re-apply it
                     int lastUsedTdp = SettingsService.GetLastUsedTdp();
-                    
+
                     // Validate the TDP value
-                    if (lastUsedTdp >= HudraSettings.MIN_TDP && lastUsedTdp <= HudraSettings.MAX_TDP)
+                    var resumeTdpLimits = HardwareDetectionService.GetTdpLimits();
+                    if (lastUsedTdp >= resumeTdpLimits.MinTdp && lastUsedTdp <= resumeTdpLimits.MaxTdp)
                     {
                         var setResult = tdpService.SetTdp(lastUsedTdp * 1000); // Convert to milliwatts
                         
