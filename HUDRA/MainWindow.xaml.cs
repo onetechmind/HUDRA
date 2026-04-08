@@ -346,6 +346,10 @@ namespace HUDRA
             {
                 _fanCurvePage.Initialize();
             }
+            else if (_currentPageType == typeof(ScalingPage) && _scalingPage != null)
+            {
+                _scalingPage.RefreshAmdState();
+            }
         }
 
         private void InitializeWindow()
@@ -2313,10 +2317,9 @@ namespace HUDRA
                     // Load saved settings
                     var savedFpsLimit = SettingsService.GetSelectedFpsLimit();
 
-                    // Set selected option (default to "Unlimited" (0) for new users)
-                    FpsSettings.SelectedFpsLimit = FpsSettings.AvailableFpsOptions.Contains(savedFpsLimit)
-                        ? savedFpsLimit
-                        : 0; // Default to "Unlimited" for new users
+                    // Use the saved value directly — slider accepts any value in range, no need
+                    // to validate against the pre-calculated options list.
+                    FpsSettings.SelectedFpsLimit = Math.Max(0, savedFpsLimit);
 
                     // Update the UI control if MainPage is initialized
                     if (_mainPage?.FpsLimiter != null)

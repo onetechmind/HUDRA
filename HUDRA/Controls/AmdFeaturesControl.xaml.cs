@@ -18,6 +18,12 @@ namespace HUDRA.Controls
         private GamepadNavigationService? _gamepadNavigationService;
         private static AmdAdlxService? _sharedAmdAdlxService; // Singleton service instance
         private AmdAdlxService? _amdAdlxService => _sharedAmdAdlxService; // Reference to shared instance
+
+        /// <summary>Exposes the singleton AMD service for use by the web remote.</summary>
+        internal static AmdAdlxService? SharedService => _sharedAmdAdlxService;
+
+        /// <summary>Re-reads AMD state from the driver and refreshes bindings. Called by web remote after a mutation.</summary>
+        public async Task RefreshStateAsync() => await LoadCurrentStateAsync();
         private int _currentFocusedElement = 0; // 0=RSR Toggle, 1=Sharpness Slider, 2=AFMF Toggle, 3=Anti-Lag Toggle
         private bool _isFocused = false;
         private bool _isInitialized = false;

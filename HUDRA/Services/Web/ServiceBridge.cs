@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using HUDRA.Configuration;
+using HUDRA.Controls;
 using HUDRA.Services;
 using HUDRA.Services.Power;
 using Microsoft.UI.Dispatching;
@@ -32,6 +33,10 @@ namespace HUDRA.Services.Web
         private readonly TDPService _tdpService;
         private readonly SemaphoreSlim _tdpLock = new(1, 1);
         private bool _disposed;
+
+        // AMD — lazy fallback if the Scaling page hasn't been opened yet
+        private AmdAdlxService? _ownedAmdService;
+        private readonly object _amdServiceLock = new();
 
         public ServiceBridge(
             DispatcherQueue dispatcherQueue,
@@ -188,6 +193,29 @@ namespace HUDRA.Services.Web
 
         public LosslessScalingService? GetLosslessScaling() => _getLosslessScaling();
 
+        /// <summary>
+        /// Triggers the Lossless Scaling hotkey: switches focus to the running game window,
+        /// waits 500 ms, then fires the hotkey exactly as the native LS button does.
+        /// Returns a human-readable error string on failure, or null on success.
+        /// </summary>
+        public async Task<string?> TriggerLosslessScalingAsync()
+        {
+            var ls = _getLosslessScaling();
+            if (ls == null) return "Lossless Scaling service unavailable";
+            if (!ls.IsLosslessScalingRunning()) return "Lossless Scaling is not running";
+
+            var detection = _getGameDetection();
+            if (detection?.CurrentGame == null) return "No game currently detected";
+
+            if (!detection.SwitchToGame()) return "Could not switch to game window";
+
+            await Task.Delay(500);
+
+            var (hotkey, modifiers) = ls.ParseHotkeyFromSettings();
+            bool ok = await ls.ExecuteHotkeyAsync(hotkey, modifiers);
+            return ok ? null : "Failed to send Lossless Scaling hotkey";
+        }
+
         // --- Power ---
 
         public PowerProfileService? GetPowerProfile() => _getPowerProfile();
@@ -195,6 +223,74 @@ namespace HUDRA.Services.Web
         public TemperatureMonitorService? GetTemperatureMonitor() => _getTemperatureMonitor();
         public BatteryService? GetBatteryService() => _getBattery();
         public TdpMonitorService? GetTdpMonitor() => _getTdpMonitor();
+
+        // --- AMD ---
+
+        private AmdAdlxService? GetAmdService()
+        {
+            // Prefer the control's already-initialised singleton (avoids double ADLX init)
+            var shared = AmdFeaturesControl.SharedService;
+            if (shared != null) return shared;
+
+            if (_ownedAmdService != null) return _ownedAmdService;
+            lock (_amdServiceLock)
+            {
+                if (_ownedAmdService == null)
+                {
+                    try { _ownedAmdService = new AmdAdlxService(); }
+                    catch { return null; }
+                }
+            }
+            return _ownedAmdService;
+        }
+
+        public async Task<(bool available, bool rsrEnabled, int rsrSharpness, bool afmfEnabled, bool antiLagEnabled)> GetAmdStateAsync()
+        {
+            var svc = GetAmdService();
+            if (svc == null || !svc.IsAmdGpuAvailable())
+                return (false, false, 80, false, false);
+
+            var (rsrOk, rsrEnabled, rsrSharpness) = await svc.GetRsrStateAsync();
+            var (afmfOk, afmfEnabled) = await svc.GetAfmfStateAsync();
+            var (antiLagOk, antiLagEnabled) = await svc.GetAntiLagStateAsync();
+
+            return (true,
+                rsrOk ? rsrEnabled : false,
+                rsrOk ? rsrSharpness : 80,
+                afmfOk ? afmfEnabled : false,
+                antiLagOk ? antiLagEnabled : false);
+        }
+
+        public async Task<bool> SetAmdRsrAsync(bool enabled, int sharpness)
+        {
+            var svc = GetAmdService();
+            if (svc == null || !svc.IsAmdGpuAvailable()) return false;
+            return await svc.SetRsrEnabledAsync(enabled, sharpness);
+        }
+
+        public async Task<bool> SetAmdRsrSharpnessAsync(int sharpness)
+        {
+            var svc = GetAmdService();
+            if (svc == null || !svc.IsAmdGpuAvailable()) return false;
+            // Sharpness only applies when RSR is enabled; keep current enabled state
+            var (ok, enabled, _) = await svc.GetRsrStateAsync();
+            if (!ok || !enabled) return false;
+            return await svc.SetRsrEnabledAsync(true, sharpness);
+        }
+
+        public async Task<bool> SetAmdAfmfAsync(bool enabled)
+        {
+            var svc = GetAmdService();
+            if (svc == null || !svc.IsAmdGpuAvailable()) return false;
+            return await svc.SetAfmfEnabledAsync(enabled);
+        }
+
+        public async Task<bool> SetAmdAntiLagAsync(bool enabled)
+        {
+            var svc = GetAmdService();
+            if (svc == null || !svc.IsAmdGpuAvailable()) return false;
+            return await svc.SetAntiLagEnabledAsync(enabled);
+        }
 
         // --- Web mutation notification ---
 
@@ -229,6 +325,7 @@ namespace HUDRA.Services.Web
             var fanCurve = SettingsService.GetFanCurve();
             var temp = GetCurrentTemperature();
             var battery = GetCurrentBattery();
+            var amdState = await GetAmdStateAsync();
 
             var currentRes = resolution.GetCurrentResolution();
             var currentRefresh = resolution.GetCurrentRefreshRate();
@@ -263,7 +360,15 @@ namespace HUDRA.Services.Web
                     enabled = SettingsService.GetFanCurveEnabled()
                 },
                 temperature = temp != null ? new { cpu = Math.Round(temp.CpuTemperature, 1), gpu = Math.Round(temp.GpuTemperature, 1) } : null,
-                battery = battery != null ? new { percent = battery.Percent, isCharging = battery.IsCharging, onAc = battery.OnAc } : null
+                battery = battery != null ? new { percent = battery.Percent, isCharging = battery.IsCharging, onAc = battery.OnAc } : null,
+                amd = new
+                {
+                    available = amdState.available,
+                    rsrEnabled = amdState.rsrEnabled,
+                    rsrSharpness = amdState.rsrSharpness,
+                    afmfEnabled = amdState.afmfEnabled,
+                    antiLagEnabled = amdState.antiLagEnabled
+                }
             };
         }
 
@@ -273,6 +378,7 @@ namespace HUDRA.Services.Web
             _disposed = true;
             _tdpService.Dispose();
             _tdpLock.Dispose();
+            _ownedAmdService?.Dispose();
         }
     }
 }
