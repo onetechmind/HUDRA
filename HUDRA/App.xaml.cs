@@ -1,5 +1,6 @@
 ﻿using HUDRA.Configuration;
 using HUDRA.Services;
+using HUDRA.Services.Web;
 using Microsoft.UI.Xaml;
 using System;
 using System.Collections.Generic;
@@ -24,6 +25,8 @@ namespace HUDRA
 
         private TrayIconService? _trayIcon;
         private PowerEventService? _powerEventService;
+        private WebServerService? _webServer;
+        private ServiceBridge? _serviceBridge;
         private readonly object _reinitializationLock = new object();
         private bool _isReinitializing = false;
         
@@ -194,6 +197,9 @@ namespace HUDRA
             {
                 CleanupAndExit();
             };
+
+            // Initialize Web Remote server if enabled
+            InitializeWebRemote();
 
             // Check "Start Minimized" setting for ALL launches
             bool shouldStartMinimized = SettingsService.GetMinimizeToTrayOnStartup();
@@ -463,10 +469,124 @@ namespace HUDRA
             e.Handled = false;
         }
 
+        private void InitializeWebRemote()
+        {
+            try
+            {
+                if (!SettingsService.GetWebRemoteEnabled())
+                {
+                    System.Diagnostics.Debug.WriteLine("[WebRemote] Web remote is disabled in settings");
+                    return;
+                }
+
+                var port = SettingsService.GetWebRemotePort();
+
+                _serviceBridge = new ServiceBridge(
+                    MainWindow!.DispatcherQueue,
+                    () => TdpMonitor,
+                    () => TemperatureMonitor,
+                    () => FanControlService,
+                    () => MainWindow?.BatteryService,
+                    () => MainWindow?.EnhancedGameDetectionService,
+                    () => MainWindow?.GameProfileService,
+                    () => MainWindow?.FpsLimiterService,
+                    () => MainWindow?.LosslessScalingService,
+                    () => MainWindow?.PowerProfileService,
+                    () => TurboService
+                );
+                SubscribeToWebMutations();
+
+                _webServer = new WebServerService(_serviceBridge);
+                _ = _webServer.StartAsync(port);
+
+                System.Diagnostics.Debug.WriteLine($"[WebRemote] Web remote server starting on port {port}");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebRemote] Failed to initialize web remote: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Start or restart the web remote server (called from Settings page).
+        /// </summary>
+        public async Task StartWebRemoteAsync(int port)
+        {
+            try
+            {
+                // Stop existing server if running
+                if (_webServer != null)
+                {
+                    await _webServer.StopAsync();
+                    _webServer.Dispose();
+                }
+                _serviceBridge?.Dispose();
+
+                _serviceBridge = new ServiceBridge(
+                    MainWindow!.DispatcherQueue,
+                    () => TdpMonitor,
+                    () => TemperatureMonitor,
+                    () => FanControlService,
+                    () => MainWindow?.BatteryService,
+                    () => MainWindow?.EnhancedGameDetectionService,
+                    () => MainWindow?.GameProfileService,
+                    () => MainWindow?.FpsLimiterService,
+                    () => MainWindow?.LosslessScalingService,
+                    () => MainWindow?.PowerProfileService,
+                    () => TurboService
+                );
+                SubscribeToWebMutations();
+
+                _webServer = new WebServerService(_serviceBridge);
+                await _webServer.StartAsync(port);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WebRemote] Failed to start web remote: {ex.Message}");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Subscribes to web remote mutation events so the native UI refreshes
+        /// when a value is changed via the web interface.
+        /// </summary>
+        private void SubscribeToWebMutations()
+        {
+            if (_serviceBridge == null) return;
+
+            _serviceBridge.WebMutationOccurred += () =>
+            {
+                MainWindow?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    MainWindow?.OnWebRemoteChanged();
+                });
+            };
+        }
+
+        /// <summary>
+        /// Stop the web remote server (called from Settings page).
+        /// </summary>
+        public async Task StopWebRemoteAsync()
+        {
+            if (_webServer != null)
+            {
+                await _webServer.StopAsync();
+                _webServer.Dispose();
+                _webServer = null;
+            }
+            _serviceBridge?.Dispose();
+            _serviceBridge = null;
+        }
+
+        public bool IsWebRemoteRunning => _webServer?.IsRunning ?? false;
+
         private void CleanupAndExit()
         {
             try
             {
+                _webServer?.Dispose();
+                _serviceBridge?.Dispose();
                 _trayIcon?.Dispose();
                 _powerEventService?.Dispose();
                 TdpMonitor?.Dispose();

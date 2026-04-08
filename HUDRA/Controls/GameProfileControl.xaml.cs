@@ -25,6 +25,12 @@ namespace HUDRA.Controls
         private bool _suppressEvents = false;
         private bool _tdpPickerInitialized = false;
 
+        // FPS limit slider state
+        private int _maxFpsLimit = 240;
+        private bool _isUpdatingFpsSlider = false;
+
+        public int MaxFpsLimit => _maxFpsLimit;
+
         // Feature availability
         private bool _isRtssAvailable = false;
         private bool _isHdrSupported = false;
@@ -39,7 +45,7 @@ namespace HUDRA.Controls
         private bool _isSliderActivated = false;
 
         // Focus elements mapping (dynamic based on feature availability):
-        // Base: 0=TdpPicker, 1=AutoRevert, 2=Resolution, 3=RefreshRate, 4=Hdr (always present, may be disabled)
+        // Base: 0=AutoRevert, 1=TdpPicker, [FpsLimit if RTSS], Resolution, RefreshRate, Hdr
         // Conditional: FpsLimit (if RTSS), FanCurve (if fan), RSR (if AMD), AFMF (if AMD), AntiLag (if AMD)
         private int MaxFocusIndex
         {
@@ -74,20 +80,24 @@ namespace HUDRA.Controls
 
         private FocusElement GetElementAtIndex(int index)
         {
-            // Base elements: 0-3
-            if (index == 0) return FocusElement.TdpPicker;
-            if (index == 1) return FocusElement.AutoRevert;
-            if (index == 2) return FocusElement.Resolution;
-            if (index == 3) return FocusElement.RefreshRate;
+            // Base elements: AutoRevert, TdpPicker (always first two)
+            if (index == 0) return FocusElement.AutoRevert;
+            if (index == 1) return FocusElement.TdpPicker;
 
-            int offset = 4;
+            int offset = 2;
 
-            // FpsLimit (if RTSS)
+            // FpsLimit (if RTSS) — directly after TDP
             if (_isRtssAvailable)
             {
                 if (index == offset) return FocusElement.FpsLimit;
                 offset++;
             }
+
+            // Resolution, RefreshRate (always)
+            if (index == offset) return FocusElement.Resolution;
+            offset++;
+            if (index == offset) return FocusElement.RefreshRate;
+            offset++;
 
             // Hdr (always present, may be disabled)
             if (index == offset) return FocusElement.Hdr;
@@ -109,7 +119,7 @@ namespace HUDRA.Controls
                 if (index == offset + 3) return FocusElement.AntiLag;
             }
 
-            return FocusElement.TdpPicker; // Fallback
+            return FocusElement.AutoRevert; // Fallback
         }
 
         // Focus brush properties for gamepad navigation
@@ -134,8 +144,8 @@ namespace HUDRA.Controls
             if (_gamepadIsFocused && _gamepadNavigationService?.IsGamepadActive == true
                 && GetElementAtIndex(_currentFocusedElement) == element)
             {
-                // Show DodgerBlue when slider is activated, DarkViolet otherwise
-                if (element == FocusElement.RsrSharpness && _isSliderActivated)
+                // Show DodgerBlue when a slider is activated, DarkViolet otherwise
+                if ((element == FocusElement.RsrSharpness || element == FocusElement.FpsLimit) && _isSliderActivated)
                 {
                     return new SolidColorBrush(Colors.DodgerBlue);
                 }
@@ -154,7 +164,8 @@ namespace HUDRA.Controls
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
 
-        public bool IsSlider => GetElementAtIndex(_currentFocusedElement) == FocusElement.RsrSharpness;
+        public bool IsSlider => GetElementAtIndex(_currentFocusedElement) == FocusElement.RsrSharpness
+                             || GetElementAtIndex(_currentFocusedElement) == FocusElement.FpsLimit;
         public bool IsSliderActivated
         {
             get => _isSliderActivated;
@@ -166,14 +177,20 @@ namespace HUDRA.Controls
         }
         public void AdjustSliderValue(int direction)
         {
-            if (!_isSliderActivated || GetElementAtIndex(_currentFocusedElement) != FocusElement.RsrSharpness) return;
+            if (!_isSliderActivated) return;
 
-            if (RsrSharpnessSlider != null)
+            var element = GetElementAtIndex(_currentFocusedElement);
+            if (element == FocusElement.RsrSharpness && RsrSharpnessSlider != null)
             {
                 double increment = 5.0; // 5% increments
                 double newValue = RsrSharpnessSlider.Value + (direction * increment);
                 newValue = Math.Clamp(newValue, RsrSharpnessSlider.Minimum, RsrSharpnessSlider.Maximum);
                 RsrSharpnessSlider.Value = newValue;
+            }
+            else if (element == FocusElement.FpsLimit && FpsLimitSlider != null)
+            {
+                double newValue = Math.Clamp(FpsLimitSlider.Value + direction, 0, _maxFpsLimit);
+                FpsLimitSlider.Value = newValue;
             }
         }
 
@@ -189,7 +206,6 @@ namespace HUDRA.Controls
             {
                 FocusElement.Resolution => ResolutionComboBox,
                 FocusElement.RefreshRate => RefreshRateComboBox,
-                FocusElement.FpsLimit => FpsLimitComboBox,
                 FocusElement.Hdr => HdrComboBox,
                 FocusElement.FanCurve => FanCurvePresetComboBox,
                 FocusElement.Rsr => RsrComboBox,
@@ -265,7 +281,11 @@ namespace HUDRA.Controls
                     RefreshRateComboBox.IsDropDownOpen = true;
                     break;
                 case FocusElement.FpsLimit:
-                    if (_isRtssAvailable) FpsLimitComboBox.IsDropDownOpen = true;
+                    if (_isRtssAvailable)
+                    {
+                        _isSliderActivated = !_isSliderActivated;
+                        IsSliderActivated = _isSliderActivated;
+                    }
                     break;
                 case FocusElement.Hdr:
                     if (_isHdrSupported) HdrComboBox.IsDropDownOpen = true;
@@ -357,7 +377,7 @@ namespace HUDRA.Controls
                 FocusElement.AutoRevert => AutoRevertToggle,
                 FocusElement.Resolution => ResolutionComboBox,
                 FocusElement.RefreshRate => RefreshRateComboBox,
-                FocusElement.FpsLimit => FpsLimitComboBox,
+                FocusElement.FpsLimit => FpsLimitSlider,
                 FocusElement.Hdr => HdrComboBox,
                 FocusElement.FanCurve => FanCurvePresetComboBox,
                 FocusElement.Rsr => RsrComboBox,
@@ -439,10 +459,28 @@ namespace HUDRA.Controls
                 _isFanControlAvailable = appInstance.FanControlService?.IsDeviceAvailable == true;
             }
 
+            // Compute max available refresh rate for FPS slider.
+            // Resolution.Equals compares only Width/Height, so GetAvailableResolutions deduplicates
+            // by size and loses per-resolution refresh rates. Use GetAvailableRefreshRates instead.
+            try
+            {
+                if (_resolutionService != null)
+                {
+                    var sysRes = _resolutionService.GetCurrentResolution();
+                    if (sysRes.Success)
+                    {
+                        var rates = _resolutionService.GetAvailableRefreshRates(sysRes.CurrentResolution);
+                        if (rates.Count > 0)
+                            _maxFpsLimit = rates.Max();
+                    }
+                }
+            }
+            catch { }
+            OnPropertyChanged(nameof(MaxFpsLimit));
+
             // Populate combo boxes with "Default" options
             PopulateResolutionComboBox();
             PopulateRefreshRateComboBox();
-            PopulateFpsLimitComboBox();
 
             // Initialize TDP picker
             InitializeTdpPicker();
@@ -577,63 +615,15 @@ namespace HUDRA.Controls
             _suppressEvents = false;
         }
 
-        private void PopulateFpsLimitComboBox()
+        private void FpsLimitSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
         {
-            _suppressEvents = true;
-            FpsLimitComboBox.Items.Clear();
+            if (_suppressEvents || _isUpdatingFpsSlider) return;
 
-            // Add "Default" option first (-1 = don't change current FPS limit)
-            FpsLimitComboBox.Items.Add(new ComboBoxItem
-            {
-                Content = "Default",
-                Tag = -1,
-                Style = (Style)Application.Current.Resources["HudraComboBoxItemStyle"]
-            });
-
-            // Add "Unlimited" option (0 = no FPS limit)
-            FpsLimitComboBox.Items.Add(new ComboBoxItem
-            {
-                Content = "Unlimited",
-                Tag = 0,
-                Style = (Style)Application.Current.Resources["HudraComboBoxItemStyle"]
-            });
-
-            // Calculate FPS options based on current refresh rate (same logic as main FPS Limiter)
-            int currentRefreshRate = 60; // Default fallback
-            if (_resolutionService != null)
-            {
-                var refreshRateResult = _resolutionService.GetCurrentRefreshRate();
-                if (refreshRateResult.Success)
-                {
-                    currentRefreshRate = refreshRateResult.RefreshRate;
-                }
-            }
-
-            // Calculate options: quarter, half, three-quarter, full refresh rate + 45 fps magic number
-            var quarter = (int)(currentRefreshRate * 0.25);
-            var half = (int)(currentRefreshRate * 0.5);
-            var threeQuarter = (int)(currentRefreshRate * 0.75);
-            var full = currentRefreshRate;
-            var magicNumber = 45;
-
-            var fpsOptions = new[] { quarter, half, threeQuarter, full, magicNumber }
-                .Where(x => x > 0)
-                .Distinct()
-                .OrderBy(x => x);
-
-            foreach (var fps in fpsOptions)
-            {
-                FpsLimitComboBox.Items.Add(new ComboBoxItem
-                {
-                    Content = $"{fps} FPS",
-                    Tag = fps,
-                    Style = (Style)Application.Current.Resources["HudraComboBoxItemStyle"]
-                });
-            }
-
-            // Select "Default" by default
-            FpsLimitComboBox.SelectedIndex = 0;
-            _suppressEvents = false;
+            int fps = (int)e.NewValue;
+            if (FpsLimitValueLabel != null)
+                FpsLimitValueLabel.Text = fps == 0 ? "Off" : $"{fps} FPS";
+            _profile.FpsLimit = fps;
+            NotifyProfileChanged();
         }
 
         private void LoadProfileIntoUI()
@@ -681,7 +671,15 @@ namespace HUDRA.Controls
             }
 
             // Load FPS Limit
-            SelectComboBoxByTag(FpsLimitComboBox, _profile.FpsLimit);
+            if (FpsLimitSlider != null)
+            {
+                _isUpdatingFpsSlider = true;
+                int displayFps = Math.Max(0, _profile.FpsLimit); // treat -1 (legacy Default) as 0
+                FpsLimitSlider.Value = Math.Clamp(displayFps, 0, _maxFpsLimit);
+                if (FpsLimitValueLabel != null)
+                    FpsLimitValueLabel.Text = displayFps == 0 ? "Off" : $"{displayFps} FPS";
+                _isUpdatingFpsSlider = false;
+            }
 
             // Load HDR
             SelectTriStateComboBox(HdrComboBox, _profile.HdrEnabled);
@@ -803,17 +801,6 @@ namespace HUDRA.Controls
             if (RefreshRateComboBox.SelectedItem is ComboBoxItem item && item.Tag is int rate)
             {
                 _profile.RefreshRateHz = rate;
-                NotifyProfileChanged();
-            }
-        }
-
-        private void FpsLimitComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (_suppressEvents) return;
-
-            if (FpsLimitComboBox.SelectedItem is ComboBoxItem item && item.Tag is int fps)
-            {
-                _profile.FpsLimit = fps;
                 NotifyProfileChanged();
             }
         }

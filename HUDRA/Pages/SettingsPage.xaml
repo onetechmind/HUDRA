@@ -134,6 +134,126 @@
                 </controls:NavigableExpander.Body>
             </controls:NavigableExpander>
 
+            <!--  Web Remote  -->
+            <controls:NavigableExpander
+                x:Name="WebRemoteExpander"
+                Margin="0"
+                Padding="0"
+                HorizontalAlignment="Stretch">
+                <controls:NavigableExpander.Header>
+                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe MDL2 Assets"
+                            FontSize="16"
+                            Text="&#xE774;" />
+                        <TextBlock
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="16"
+                            FontWeight="SemiBold"
+                            Text="Web Remote" />
+                    </StackPanel>
+                </controls:NavigableExpander.Header>
+                <controls:NavigableExpander.Body>
+                    <StackPanel Padding="15" Spacing="12">
+
+                        <!--  Enable Toggle (matches RTSS / Startup toggle styling)  -->
+                        <Border
+                            Padding="20,5"
+                            Background="#22FFFFFF"
+                            CornerRadius="12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4*" />
+                                    <ColumnDefinition Width="1.2*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock
+                                    Grid.Column="0"
+                                    VerticalAlignment="Center"
+                                    FontFamily="Cascadia Code"
+                                    FontSize="13"
+                                    FontWeight="SemiBold"
+                                    IsTabStop="False"
+                                    Text="Enable Web Remote" />
+                                <ToggleSwitch
+                                    x:Name="WebRemoteToggle"
+                                    Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Toggled="WebRemoteToggle_Toggled" />
+                            </Grid>
+                        </Border>
+
+                        <!--  Port and PIN side by side  -->
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <!--  Port  -->
+                            <StackPanel Grid.Column="0" Spacing="4">
+                                <TextBlock
+                                    FontFamily="Cascadia Code"
+                                    FontSize="12"
+                                    Foreground="Gray"
+                                    Text="Port" />
+                                <NumberBox
+                                    x:Name="WebRemotePortBox"
+                                    Maximum="65535"
+                                    Minimum="1024"
+                                    SpinButtonPlacementMode="Compact"
+                                    ValueChanged="WebRemotePort_ValueChanged"
+                                    Value="5069" />
+                            </StackPanel>
+
+                            <!--  PIN  -->
+                            <StackPanel Grid.Column="1" Spacing="4">
+                                <TextBlock
+                                    FontFamily="Cascadia Code"
+                                    FontSize="12"
+                                    Foreground="Gray"
+                                    Text="PIN (4-6 digits)" />
+                                <PasswordBox
+                                    x:Name="WebRemotePinBox"
+                                    MaxLength="6"
+                                    PlaceholderText="Enter PIN" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!--  Save PIN Button (centered, wider)  -->
+                        <Button
+                            x:Name="WebRemoteSavePinButton"
+                            Height="40"
+                            MinWidth="120"
+                            HorizontalAlignment="Center"
+                            Click="WebRemoteSavePin_Click"
+                            Content="Save PIN"
+                            CornerRadius="16" />
+
+                        <!--  Status  -->
+                        <TextBlock
+                            x:Name="WebRemoteStatusText"
+                            HorizontalAlignment="Center"
+                            FontFamily="Cascadia Code"
+                            FontSize="12"
+                            Foreground="DarkViolet"
+                            Text="Disabled"
+                            TextWrapping="Wrap" />
+
+                        <!--  QR Code (visible only when running)  -->
+                        <Image
+                            x:Name="WebRemoteQrCode"
+                            Width="140"
+                            Height="140"
+                            HorizontalAlignment="Center"
+                            Visibility="Collapsed" />
+                    </StackPanel>
+                </controls:NavigableExpander.Body>
+            </controls:NavigableExpander>
+
             <!--  Copy Debug Info Button  -->
             <Button
                 x:Name="CopyDebugInfoButton"

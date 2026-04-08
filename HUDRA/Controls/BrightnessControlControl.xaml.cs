@@ -140,6 +140,12 @@ namespace HUDRA.Controls
             }
         }
 
+        /// <summary>
+        /// Re-reads current system brightness and updates the UI.
+        /// Called when an external source (e.g. web remote) changes brightness.
+        /// </summary>
+        public void RefreshState() => LoadCurrentBrightness();
+
         private void LoadCurrentBrightness()
         {
             if (_brightnessService == null) return;

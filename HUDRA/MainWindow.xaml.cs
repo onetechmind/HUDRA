@@ -68,6 +68,13 @@ namespace HUDRA
         // Public DPI scaling service access for controls
         public DpiScalingService DpiScalingService => _dpiService;
 
+        // Public service accessors for Web Remote bridge
+        public BatteryService BatteryService => _batteryService;
+        public RtssFpsLimiterService FpsLimiterService => _fpsLimiterService;
+        public LosslessScalingService? LosslessScalingService => _losslessScalingService;
+        public GameProfileService? GameProfileService => _gameProfileService;
+        public PowerProfileService PowerProfileService => _powerProfileService;
+
         //Navigation events
         private bool _mainPageInitialized = false;
         private EventHandler<int>? _tdpChangedHandler; // Stored handler to prevent duplicate subscriptions
@@ -300,6 +307,48 @@ namespace HUDRA
             else if (_currentPageType == typeof(SettingsPage))
             {
                 InitializeSettingsPage();
+            }
+        }
+
+        /// <summary>
+        /// Lightweight refresh triggered when the web remote changes a value.
+        /// Only updates control values on the currently active page without
+        /// full re-initialization.
+        /// </summary>
+        public void OnWebRemoteChanged()
+        {
+            if (_currentPageType == typeof(MainPage) && _mainPage != null)
+            {
+                // Sync TDP picker to current value without triggering hardware set
+                var lastTdp = SettingsService.GetLastUsedTdp();
+                if (lastTdp >= HudraSettings.MIN_TDP && lastTdp <= HudraSettings.MAX_TDP)
+                {
+                    _mainPage.TdpPicker.SyncToCurrentTdp(lastTdp);
+                    _currentTdpValue = lastTdp;
+                }
+
+                // Refresh volume and brightness from system state
+                _mainPage.AudioControls.RefreshState();
+                _mainPage.BrightnessControls.RefreshState();
+
+                // Refresh Sticky TDP toggle
+                _mainPage.StickyTdpToggle.UpdateToggleState(SettingsService.GetTdpCorrectionEnabled());
+
+                // Refresh FPS limiter and HDR state
+                var fpsLimit = _fpsLimiterService?.GetCurrentFpsLimit() ?? 0;
+                _mainPage.FpsLimiter.SyncToFpsLimit(fpsLimit);
+                _mainPage.FpsLimiter.RefreshHdrState();
+
+                // Refresh resolution/refresh rate (re-reads from hardware)
+                _mainPage.ResolutionPicker.Initialize();
+            }
+            else if (_currentPageType == typeof(FanCurvePage) && _fanCurvePage != null)
+            {
+                _fanCurvePage.Initialize();
+            }
+            else if (_currentPageType == typeof(ScalingPage) && _scalingPage != null)
+            {
+                _scalingPage.RefreshAmdState();
             }
         }
 
@@ -2270,10 +2319,9 @@ namespace HUDRA
                     // Load saved settings
                     var savedFpsLimit = SettingsService.GetSelectedFpsLimit();
 
-                    // Set selected option (default to "Unlimited" (0) for new users)
-                    FpsSettings.SelectedFpsLimit = FpsSettings.AvailableFpsOptions.Contains(savedFpsLimit)
-                        ? savedFpsLimit
-                        : 0; // Default to "Unlimited" for new users
+                    // Use the saved value directly — slider accepts any value in range, no need
+                    // to validate against the pre-calculated options list.
+                    FpsSettings.SelectedFpsLimit = Math.Max(0, savedFpsLimit);
 
                     // Update the UI control if MainPage is initialized
                     if (_mainPage?.FpsLimiter != null)

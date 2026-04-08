@@ -60,6 +60,15 @@ namespace HUDRA.Pages
             ViewModel.Initialize();
         }
 
+        /// <summary>
+        /// Re-reads AMD state from the driver and refreshes the AmdFeaturesControl bindings.
+        /// Called when a web remote mutation occurs while this page is visible.
+        /// </summary>
+        public void RefreshAmdState()
+        {
+            _ = AmdFeaturesControl.RefreshStateAsync();
+        }
+
         // Expose root for gamepad page navigation
         public FrameworkElement RootPanel => ScalingRootPanel;
 

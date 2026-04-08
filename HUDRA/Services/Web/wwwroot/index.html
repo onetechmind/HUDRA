@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1A1A1A">
+<title>HUDRA Remote</title>
+<style>
+/* ===== CSS Reset & Variables ===== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+    --bg: #1A1A1A;
+    --bg-card: #2d2d2d;
+    --bg-card-hover: #363636;
+    --accent: #670195;
+    --accent-light: #9B30FF;
+    --accent-glow: rgba(155, 48, 255, 0.3);
+    --text: #FFFFFF;
+    --text-dim: #AAAAAA;
+    --text-muted: #666666;
+    --danger: #FF5555;
+    --success: #50FA7B;
+    --warning: #FFB86C;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --tab-height: 64px;
+    --header-height: 52px;
+}
+html, body {
+    height: 100%; width: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    overflow: hidden;
+    user-select: none;
+}
+
+/* ===== Login Screen ===== */
+#login-screen {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: var(--bg); gap: 24px;
+}
+#login-screen.hidden { display: none; }
+.login-logo-img { height: 72px; width: auto; }
+.login-logo { font-size: 48px; font-weight: 800; color: var(--accent-light); letter-spacing: -2px; }
+.login-sub { color: var(--text-dim); font-size: 14px; }
+.pin-input {
+    width: 200px; padding: 14px 20px; text-align: center;
+    font-size: 24px; letter-spacing: 8px; font-weight: 600;
+    background: var(--bg-card); border: 2px solid var(--text-muted);
+    border-radius: var(--radius-sm); color: var(--text);
+    outline: none; -webkit-appearance: none;
+}
+.pin-input:focus { border-color: var(--accent-light); }
+.pin-input::placeholder { letter-spacing: 2px; font-size: 16px; color: var(--text-muted); }
+.login-btn {
+    width: 200px; padding: 14px;
+    background: var(--accent); color: var(--text);
+    border: none; border-radius: var(--radius-sm);
+    font-size: 16px; font-weight: 600; cursor: pointer;
+}
+.login-btn:active { background: var(--accent-light); }
+.login-error { color: var(--danger); font-size: 13px; min-height: 20px; }
+
+/* ===== App Layout ===== */
+#app { display: flex; flex-direction: column; height: 100%; }
+#app.hidden { display: none; }
+
+/* ===== Status Header ===== */
+.header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; padding-top: calc(8px + var(--safe-top));
+    height: calc(var(--header-height) + var(--safe-top));
+    background: var(--bg-card); border-bottom: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+.header-left { display: flex; align-items: center; gap: 8px; }
+.header-logo-img { height: 26px; width: auto; }
+.header-logo { font-size: 18px; font-weight: 800; color: var(--accent-light); letter-spacing: -1px; }
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
+.conn-dot.disconnected { background: var(--danger); }
+.header-right { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--text-dim); }
+.header-stat { display: flex; align-items: center; gap: 4px; }
+.header-stat .icon { font-size: 16px; }
+
+/* ===== Content Area ===== */
+.content {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 12px 16px 16px; -webkit-overflow-scrolling: touch;
+}
+
+/* ===== Bottom Tab Bar ===== */
+.tab-bar {
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 6px 0; padding-bottom: calc(6px + var(--safe-bottom));
+    height: calc(var(--tab-height) + var(--safe-bottom));
+    background: var(--bg-card); border-top: 1px solid #3a3a3a;
+    flex-shrink: 0;
+}
+.tab {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 2px; padding: 6px 12px; cursor: pointer;
+    color: var(--text-muted); font-size: 10px; font-weight: 500;
+    border: none; background: none; min-width: 56px;
+    transition: color 0.15s;
+}
+.tab .icon { font-size: 22px; transition: color 0.15s; }
+.tab.active { color: var(--accent-light); }
+.tab.active .icon { color: var(--accent-light); }
+
+/* ===== Tab Panels ===== */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ===== Cards ===== */
+.card {
+    background: var(--bg-card); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 12px;
+}
+.card-title {
+    font-size: 12px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+}
+
+/* ===== Controls ===== */
+.control-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 0; min-height: 44px;
+}
+.control-label { font-size: 15px; font-weight: 500; }
+.control-value { font-size: 15px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+/* ===== Range Slider ===== */
+.slider-row { padding: 8px 0; }
+.slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.slider-label { font-size: 15px; font-weight: 500; }
+.slider-value {
+    font-size: 20px; font-weight: 700; color: var(--accent-light);
+    font-variant-numeric: tabular-nums; min-width: 50px; text-align: right;
+}
+input[type="range"] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 8px; border-radius: 4px;
+    background: #444; outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--accent-light); cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow);
+}
+
+/* ===== Toggle Switch ===== */
+.toggle {
+    position: relative; width: 50px; height: 28px;
+    background: #444; border-radius: 14px; cursor: pointer;
+    transition: background 0.2s; flex-shrink: 0;
+}
+.toggle.active { background: var(--accent); }
+.toggle::after {
+    content: ''; position: absolute;
+    top: 3px; left: 3px; width: 22px; height: 22px;
+    background: white; border-radius: 50%;
+    transition: transform 0.2s;
+}
+.toggle.active::after { transform: translateX(22px); }
+
+/* ===== Preset Buttons ===== */
+.preset-group { display: flex; gap: 8px; flex-wrap: wrap; }
+.preset-btn {
+    flex: 1; min-width: 80px; padding: 12px 8px;
+    background: var(--bg); border: 2px solid #444;
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    text-align: center; transition: all 0.15s;
+}
+.preset-btn.active { border-color: var(--accent-light); background: rgba(103, 1, 149, 0.2); color: var(--accent-light); }
+.preset-btn:active { transform: scale(0.96); }
+
+/* ===== Button ===== */
+.btn {
+    padding: 12px 20px; border: none; border-radius: var(--radius-sm);
+    font-size: 14px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; color: var(--text);
+}
+.btn-primary { background: var(--accent); }
+.btn-primary:active { background: var(--accent-light); }
+.btn-danger { background: var(--danger); }
+.btn-danger:active { opacity: 0.8; }
+.btn-block { width: 100%; }
+
+/* ===== Game Grid ===== */
+.game-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.game-tile {
+    background: var(--bg-card-hover); border-radius: var(--radius-sm);
+    overflow: hidden; cursor: pointer; transition: transform 0.1s;
+    position: relative;
+}
+.game-tile:active { transform: scale(0.96); }
+.game-tile img {
+    width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
+    background: #333;
+}
+.game-tile .name {
+    padding: 6px 8px; font-size: 11px; font-weight: 500;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.game-tile .source-badge {
+    position: absolute; top: 4px; right: 4px;
+    background: rgba(0,0,0,0.7); padding: 2px 6px;
+    border-radius: 4px; font-size: 9px; color: var(--text-dim);
+}
+.game-tile .no-art {
+    width: 100%; aspect-ratio: 2/3; display: flex;
+    align-items: center; justify-content: center;
+    background: #333; color: var(--text-muted); font-size: 32px;
+}
+.games-empty { text-align: center; padding: 40px 0; color: var(--text-muted); }
+
+/* ===== Active Game Bar ===== */
+.active-game {
+    background: rgba(103, 1, 149, 0.2); border: 1px solid var(--accent);
+    border-radius: var(--radius-sm); padding: 12px 16px;
+    margin-bottom: 12px; display: flex; align-items: center;
+    justify-content: space-between;
+}
+.active-game .name { font-weight: 600; }
+.active-game .quit-btn {
+    padding: 8px 14px; background: var(--danger); color: var(--text);
+    border: none; border-radius: 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+}
+
+/* ===== Temp Gauges ===== */
+.gauge-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.gauge {
+    flex: 1; background: var(--bg); border-radius: var(--radius-sm);
+    padding: 14px; text-align: center;
+}
+.gauge-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.gauge-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; }
+
+/* ===== Select ===== */
+select {
+    background: var(--bg); color: var(--text); border: 2px solid #444;
+    border-radius: 8px; padding: 10px 12px; font-size: 14px;
+    width: 100%; outline: none; -webkit-appearance: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23aaa' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+}
+select:focus { border-color: var(--accent-light); }
+
+/* ===== Settings Inputs ===== */
+.settings-input {
+    width: 100%; padding: 10px 12px; background: var(--bg);
+    border: 2px solid #444; border-radius: 8px;
+    color: var(--text); font-size: 14px; outline: none;
+}
+.settings-input:focus { border-color: var(--accent-light); }
+.settings-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ===== Loading Spinner ===== */
+.spinner {
+    width: 20px; height: 20px; border: 3px solid #444;
+    border-top-color: var(--accent-light); border-radius: 50%;
+    animation: spin 0.8s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ===== Responsive adjustments ===== */
+@media (max-width: 340px) {
+    .game-grid { grid-template-columns: repeat(2, 1fr); }
+    .gauge-value { font-size: 22px; }
+}
+@media (min-width: 500px) {
+    .game-grid { grid-template-columns: repeat(4, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== Login Screen ===== -->
+<div id="login-screen">
+    <img src="/api/logo" class="login-logo-img" alt="">
+    <div class="login-logo">HUDRA</div>
+    <div class="login-sub">Web Remote Control</div>
+    <input type="password" class="pin-input" id="pin-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" placeholder="PIN">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Connect</button>
+    <div class="login-error" id="login-error"></div>
+</div>
+
+<!-- ===== Main App ===== -->
+<div id="app" class="hidden">
+    <!-- Status Header -->
+    <div class="header">
+        <div class="header-left">
+            <img src="/api/logo" class="header-logo-img" alt="">
+            <span class="header-logo">HUDRA</span>
+            <span class="conn-dot" id="conn-dot"></span>
+        </div>
+        <div class="header-right">
+            <span class="header-stat"><span class="icon">🌡</span><span id="h-temp">--</span>°C</span>
+            <span class="header-stat"><span class="icon">🔋</span><span id="h-batt">--</span>%</span>
+        </div>
+    </div>
+
+    <!-- Scrollable Content -->
+    <div class="content" id="content">
+        <!-- HOME TAB -->
+        <div class="tab-panel active" id="panel-home">
+            <!-- TDP -->
+            <div class="card">
+                <div class="card-title">TDP Power</div>
+                <div class="slider-row">
+                    <div class="slider-header">
+                        <span class="slider-label">TDP</span>
+                        <span class="slider-value" id="tdp-value">--W</span>
+                    </div>
+                    <input type="range" id="tdp-slider" min="5" max="30" step="1" value="15">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Sticky TDP</span>
+                    <div class="toggle" id="sticky-tdp" onclick="toggleStickyTdp()"></div>
+                </div>
+            </div>
+
+            <!-- Volume & Brightness -->
+            <div class="card">
+                <div class="card-title">Display & Audio</div>
+                <div class="slider-row">
+                    <div class="slider-header">
+                        <span class="slider-label" id="vol-label">Volume</span>
+                        <span class="slider-value" id="vol-value">--%</span>
+                    </div>
+                    <input type="range" id="vol-slider" min="0" max="100" step="2" value="50">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Mute</span>
+                    <div class="toggle" id="mute-toggle" onclick="toggleMute()"></div>
+                </div>
+                <div class="slider-row">
+                    <div class="slider-header">
+                        <span class="slider-label">Brightness</span>
+                        <span class="slider-value" id="bright-value">--%</span>
+                    </div>
+                    <input type="range" id="bright-slider" min="0" max="100" step="5" value="50">
+                </div>
+            </div>
+
+            <!-- Resolution & FPS -->
+            <div class="card">
+                <div class="card-title">Display Settings</div>
+                <div class="control-row">
+                    <span class="control-label">Resolution</span>
+                </div>
+                <select id="res-select" onchange="setResolution()"></select>
+                <div style="height: 10px;"></div>
+                <div class="control-row">
+                    <span class="control-label">Refresh Rate</span>
+                </div>
+                <select id="refresh-select" onchange="setRefreshRate()"></select>
+                <div style="height: 10px;"></div>
+                <div class="slider-row">
+                    <div class="slider-header">
+                        <span class="slider-label">FPS Limit</span>
+                        <span class="slider-value" id="fps-value">Off</span>
+                    </div>
+                    <input type="range" id="fps-slider" min="0" max="120" step="1" value="0">
+                    <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">0 = Unlimited · max = refresh rate</div>
+                </div>
+                <div class="control-row" style="margin-top: 8px;">
+                    <span class="control-label">HDR</span>
+                    <div class="toggle" id="hdr-toggle" onclick="toggleHdr()"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIBRARY TAB -->
+        <div class="tab-panel" id="panel-library">
+            <div id="active-game-bar"></div>
+            <div class="game-grid" id="game-grid">
+                <div class="games-empty">Loading games...</div>
+            </div>
+        </div>
+
+        <!-- COOLING TAB -->
+        <div class="tab-panel" id="panel-cooling">
+            <div class="card">
+                <div class="card-title">Temperature</div>
+                <div class="gauge-row">
+                    <div class="gauge">
+                        <div class="gauge-value" id="cpu-temp">--</div>
+                        <div class="gauge-label">CPU °C</div>
+                    </div>
+                    <div class="gauge">
+                        <div class="gauge-value" id="gpu-temp">--</div>
+                        <div class="gauge-label">GPU °C</div>
+                    </div>
+                    <div class="gauge">
+                        <div class="gauge-value" id="fan-speed">--</div>
+                        <div class="gauge-label">Fan %</div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Fan Preset</div>
+                <div class="control-row">
+                    <span class="control-label">Custom Fan Curve</span>
+                    <div class="toggle" id="fan-enabled" onclick="toggleFanEnabled()"></div>
+                </div>
+                <div style="height: 8px;"></div>
+                <div class="preset-group">
+                    <button class="preset-btn" id="fan-stealth" onclick="setFanPreset('Stealth')">🤫 Stealth</button>
+                    <button class="preset-btn" id="fan-cruise" onclick="setFanPreset('Cruise')">⛵ Cruise</button>
+                    <button class="preset-btn" id="fan-warp" onclick="setFanPreset('Warp')">🚀 Warp</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- SCALING TAB -->
+        <div class="tab-panel" id="panel-scaling">
+            <div class="card" id="amd-card">
+                <div class="card-title">AMD Features</div>
+                <div class="control-row">
+                    <span class="control-label">RSR (Super Resolution)</span>
+                    <div class="toggle" id="rsr-toggle" onclick="toggleRsr()"></div>
+                </div>
+                <div class="slider-row" id="rsr-sharpness-row" style="display:none;">
+                    <div class="slider-header">
+                        <span class="slider-label">RSR Sharpness</span>
+                        <span class="slider-value" id="rsr-sharpness-value">80%</span>
+                    </div>
+                    <input type="range" id="rsr-sharpness-slider" min="0" max="100" step="5" value="80">
+                </div>
+                <div class="control-row">
+                    <span class="control-label">AFMF (Fluid Motion Frames)</span>
+                    <div class="toggle" id="afmf-toggle" onclick="toggleAfmf()"></div>
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Anti-Lag</span>
+                    <div class="toggle" id="antilag-toggle" onclick="toggleAntiLag()"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Lossless Scaling</div>
+                <div class="control-row">
+                    <span class="control-label">Status</span>
+                    <span class="control-value" id="ls-status">--</span>
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Game</span>
+                    <span class="control-value" id="ls-game">--</span>
+                </div>
+                <button class="btn btn-primary btn-block" id="ls-trigger-btn" onclick="triggerLosslessScaling()" style="display:none;margin-top:10px;">
+                    Trigger LS Shortcut
+                </button>
+            </div>
+        </div>
+
+        <!-- SETTINGS TAB -->
+        <div class="tab-panel" id="panel-settings">
+            <div class="card">
+                <div class="card-title">Power</div>
+                <div class="control-row">
+                    <span class="control-label">Power Profile</span>
+                </div>
+                <select id="power-select" onchange="setPowerProfile()"></select>
+                <div class="control-row" style="margin-top: 12px;">
+                    <span class="control-label">CPU Boost</span>
+                    <div class="toggle" id="boost-toggle" onclick="toggleBoost()"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">Connection</div>
+                <div class="control-row">
+                    <span class="control-label">Status</span>
+                    <span class="control-value" id="ws-status">Connected</span>
+                </div>
+                <div class="control-row">
+                    <span class="control-label">Device</span>
+                    <span class="control-value" id="device-ip">--</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title">About</div>
+                <div class="control-row">
+                    <span class="control-label">HUDRA Web Remote</span>
+                    <span class="control-value">v0.9.0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Tab Bar -->
+    <div class="tab-bar">
+        <button class="tab active" data-tab="home" onclick="switchTab('home')">
+            <span class="icon">⚡</span>Home
+        </button>
+        <button class="tab" data-tab="library" onclick="switchTab('library')">
+            <span class="icon">🎮</span>Library
+        </button>
+        <button class="tab" data-tab="cooling" onclick="switchTab('cooling')">
+            <span class="icon">❄️</span>Cooling
+        </button>
+        <button class="tab" data-tab="scaling" onclick="switchTab('scaling')">
+            <span class="icon">📐</span>Scaling
+        </button>
+        <button class="tab" data-tab="settings" onclick="switchTab('settings')">
+            <span class="icon">⚙️</span>Settings
+        </button>
+    </div>
+</div>
+
+<script>
+// ===== State =====
+const state = {
+    connected: false,
+    tdp: 15, stickyTdp: false,
+    volume: 50, muted: false, brightness: 50,
+    cpuTemp: 0, gpuTemp: 0, fanSpeed: 0,
+    batteryPercent: 0, batteryCharging: false,
+    fanPreset: '', fanEnabled: false,
+    hdrEnabled: false, hdrSupported: false,
+    fpsLimit: 0,
+    games: [], activeGame: null,
+    resolutions: [], refreshRates: [],
+    currentRes: null, currentRefresh: 0,
+    powerProfiles: [], activeProfile: null,
+    boostEnabled: false,
+    amdAvailable: false, rsrEnabled: false, rsrSharpness: 80,
+    afmfEnabled: false, antiLagEnabled: false,
+    lsRunning: false, lsHasGame: false
+};
+
+let debounceTimers = {};
+let signalRConnection = null;
+let userInteracting = {}; // Track which sliders the user is actively dragging
+let lastLocalMutation = {}; // Timestamp of last local change per control — suppresses echo broadcasts
+
+// ===== API =====
+async function api(url, method = 'GET', body = null) {
+    const opts = { method, headers: {} };
+    if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+    }
+    const res = await fetch(url, opts);
+    if (res.status === 401) {
+        showLogin();
+        throw new Error('Authentication required');
+    }
+    return res.json();
+}
+
+// ===== Login =====
+function showLogin() {
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app').classList.add('hidden');
+}
+
+function showApp() {
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+}
+
+async function doLogin() {
+    const pin = document.getElementById('pin-input').value;
+    const errEl = document.getElementById('login-error');
+    if (!pin) { errEl.textContent = 'Enter your PIN'; return; }
+
+    try {
+        document.getElementById('login-btn').innerHTML = '<span class="spinner"></span>';
+        const res = await api('/api/auth/login', 'POST', { pin });
+        if (res.success) {
+            errEl.textContent = '';
+            showApp();
+            initApp();
+        } else {
+            errEl.textContent = res.error || 'Login failed';
+        }
+    } catch (e) {
+        errEl.textContent = e.message || 'Connection failed';
+    } finally {
+        document.getElementById('login-btn').textContent = 'Connect';
+    }
+}
+
+document.getElementById('pin-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+});
+
+// ===== Tab Navigation =====
+function switchTab(tabName) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `panel-${tabName}`));
+    document.getElementById('content').scrollTop = 0;
+
+    // Lazy-load data for tabs
+    if (tabName === 'library' && state.games.length === 0) loadGames();
+    if (tabName === 'settings') loadPowerProfiles();
+    if (tabName === 'scaling') loadLsStatus();
+}
+
+// ===== Init =====
+async function initApp() {
+    await loadStatus();
+    setupSliders();
+    connectSignalR();
+    document.getElementById('device-ip').textContent = location.host;
+}
+
+async function loadStatus() {
+    try {
+        const s = await api('/api/status');
+        applyStatus(s);
+        await loadResolution();
+        state.connected = true;
+        document.getElementById('conn-dot').classList.remove('disconnected');
+    } catch (e) {
+        console.error('Status load failed:', e);
+    }
+}
+
+// Returns true if a control was locally mutated within the cooldown window (suppresses echo).
+function isRecentlyMutated(key, cooldownMs) {
+    if (!lastLocalMutation[key]) return false;
+    if (Date.now() - lastLocalMutation[key] < (cooldownMs || 3000)) return true;
+    delete lastLocalMutation[key];
+    return false;
+}
+
+// Applies a status snapshot to the UI. Skips controls the user recently changed locally.
+function applyStatus(s) {
+    // TDP
+    if (s.tdp) {
+        if (!isRecentlyMutated('tdp')) {
+            state.tdp = s.tdp.current || state.tdp;
+            if (!userInteracting['tdp-slider']) {
+                const slider = document.getElementById('tdp-slider');
+                if (s.tdp.min) slider.min = s.tdp.min;
+                if (s.tdp.max) slider.max = s.tdp.max;
+                slider.value = state.tdp;
+                document.getElementById('tdp-value').textContent = state.tdp + 'W';
+            }
+        }
+        if (!isRecentlyMutated('sticky-tdp')) {
+            state.stickyTdp = s.tdp.stickyEnabled;
+            toggleClass('sticky-tdp', state.stickyTdp);
+        }
+    }
+
+    // Volume
+    if (s.volume) {
+        if (!isRecentlyMutated('volume')) {
+            state.volume = s.volume.level; state.muted = s.volume.muted;
+            if (!userInteracting['vol-slider']) {
+                document.getElementById('vol-slider').value = state.volume;
+                document.getElementById('vol-value').textContent = state.volume + '%';
+            }
+            toggleClass('mute-toggle', state.muted);
+        }
+    }
+
+    // Brightness
+    if (s.brightness !== undefined && !isRecentlyMutated('brightness')) {
+        state.brightness = s.brightness;
+        if (!userInteracting['bright-slider']) {
+            document.getElementById('bright-slider').value = state.brightness;
+            document.getElementById('bright-value').textContent = state.brightness + '%';
+        }
+    }
+
+    // Temperature (never suppressed — read-only)
+    if (s.temperature) {
+        state.cpuTemp = s.temperature.cpu; state.gpuTemp = s.temperature.gpu;
+        updateTempDisplay();
+    }
+
+    // Battery (never suppressed — read-only)
+    if (s.battery) {
+        state.batteryPercent = s.battery.percent;
+        state.batteryCharging = s.battery.isCharging;
+        document.getElementById('h-batt').textContent = state.batteryPercent;
+    }
+
+    // FPS — also update the slider's max to the current refresh rate
+    if (s.fpsLimit !== undefined && !isRecentlyMutated('fps')) {
+        state.fpsLimit = s.fpsLimit;
+        updateFpsDisplay(s.refreshRate);
+    }
+
+    // HDR
+    if (s.hdr && !isRecentlyMutated('hdr')) {
+        state.hdrEnabled = s.hdr.enabled;
+        state.hdrSupported = s.hdr.supported;
+        toggleClass('hdr-toggle', state.hdrEnabled);
+    }
+
+    // Resolution & Refresh Rate
+    if (s.resolution && !isRecentlyMutated('resolution')) {
+        const resKey = s.resolution.width + 'x' + s.resolution.height;
+        const resSel = document.getElementById('res-select');
+        if (resSel.querySelector('option[value="' + resKey + '"]')) {
+            resSel.value = resKey;
+            state.currentRes = s.resolution;
+        }
+    }
+    if (s.refreshRate && !isRecentlyMutated('resolution')) {
+        const refSel = document.getElementById('refresh-select');
+        if (refSel.querySelector('option[value="' + s.refreshRate + '"]')) {
+            refSel.value = s.refreshRate;
+            state.currentRefresh = s.refreshRate;
+            updateFpsSliderMax(s.refreshRate);
+        }
+    }
+
+    // Fan
+    if (s.fan && !isRecentlyMutated('fan')) {
+        state.fanSpeed = s.fan.speed;
+        state.fanPreset = s.fan.preset;
+        state.fanEnabled = s.fan.enabled;
+        updateFanDisplay();
+    }
+
+    // AMD features
+    if (s.amd && !isRecentlyMutated('amd')) {
+        state.amdAvailable = s.amd.available;
+        state.rsrEnabled = s.amd.rsrEnabled;
+        state.rsrSharpness = s.amd.rsrSharpness;
+        state.afmfEnabled = s.amd.afmfEnabled;
+        state.antiLagEnabled = s.amd.antiLagEnabled;
+        updateAmdDisplay();
+    }
+}
+
+// ===== Resolution =====
+async function loadResolution() {
+    try {
+        const r = await api('/api/resolution');
+        state.resolutions = r.available || [];
+        state.refreshRates = r.availableRefreshRates || [];
+        state.currentRes = r.current;
+        state.currentRefresh = r.refreshRate;
+        updateFpsSliderMax(r.refreshRate);
+
+        const resSel = document.getElementById('res-select');
+        resSel.innerHTML = state.resolutions.map(res =>
+            `<option value="${res.width}x${res.height}" ${
+                state.currentRes && res.width === state.currentRes.width && res.height === state.currentRes.height ? 'selected' : ''
+            }>${res.display}</option>`
+        ).join('');
+
+        updateRefreshSelect();
+    } catch (e) { console.error('Resolution load failed:', e); }
+}
+
+function updateRefreshSelect() {
+    const sel = document.getElementById('refresh-select');
+    sel.innerHTML = state.refreshRates.map(hz =>
+        `<option value="${hz}" ${hz === state.currentRefresh ? 'selected' : ''}>${hz} Hz</option>`
+    ).join('');
+}
+
+async function setResolution() {
+    const val = document.getElementById('res-select').value;
+    if (!val) return;
+    const [w, h] = val.split('x').map(Number);
+    const hz = parseInt(document.getElementById('refresh-select').value) || state.currentRefresh;
+    lastLocalMutation['resolution'] = Date.now();
+    await api('/api/resolution', 'POST', { width: w, height: h, refreshRate: hz });
+    await loadResolution();
+}
+
+async function setRefreshRate() {
+    const hz = parseInt(document.getElementById('refresh-select').value);
+    if (!hz || !state.currentRes) return;
+    lastLocalMutation['resolution'] = Date.now();
+    await api('/api/resolution', 'POST', { width: state.currentRes.width, height: state.currentRes.height, refreshRate: hz });
+}
+
+// ===== Slider Setup =====
+function setupSliders() {
+    setupSlider('tdp-slider', 'tdp-value', v => v + 'W', async v => {
+        lastLocalMutation['tdp'] = Date.now();
+        await api('/api/tdp', 'POST', { watts: v });
+    }, 300);
+
+    setupSlider('vol-slider', 'vol-value', v => v + '%', async v => {
+        lastLocalMutation['volume'] = Date.now();
+        await api('/api/volume', 'POST', { level: v });
+    }, 200);
+
+    setupSlider('bright-slider', 'bright-value', v => v + '%', async v => {
+        lastLocalMutation['brightness'] = Date.now();
+        await api('/api/brightness', 'POST', { level: v });
+    }, 200);
+
+    setupSlider('rsr-sharpness-slider', 'rsr-sharpness-value', v => v + '%', async v => {
+        lastLocalMutation['amd'] = Date.now();
+        state.rsrSharpness = v;
+        await api('/api/amd/rsr/sharpness', 'POST', { sharpness: v });
+    }, 300);
+
+    setupSlider('fps-slider', 'fps-value', v => v > 0 ? v + ' FPS' : 'Off', async v => {
+        lastLocalMutation['fps'] = Date.now();
+        state.fpsLimit = v;
+        await api('/api/fps-limit', 'POST', { fps: v });
+    }, 500);
+}
+
+function setupSlider(sliderId, valueId, format, onCommit, debounceMs) {
+    const slider = document.getElementById(sliderId);
+    const valueEl = document.getElementById(valueId);
+
+    // Track interaction so periodic broadcasts don't fight with user dragging
+    const markActive = () => { userInteracting[sliderId] = true; };
+    const markIdle = () => { setTimeout(() => { delete userInteracting[sliderId]; }, 600); };
+    slider.addEventListener('pointerdown', markActive);
+    slider.addEventListener('pointerup', markIdle);
+    slider.addEventListener('pointercancel', markIdle);
+
+    slider.addEventListener('input', () => {
+        const v = parseInt(slider.value);
+        valueEl.textContent = format(v);
+        vibrate();
+    });
+
+    slider.addEventListener('change', () => {
+        const v = parseInt(slider.value);
+        clearTimeout(debounceTimers[sliderId]);
+        debounceTimers[sliderId] = setTimeout(() => onCommit(v), debounceMs);
+    });
+}
+
+// ===== Toggle actions =====
+async function toggleStickyTdp() {
+    state.stickyTdp = !state.stickyTdp;
+    toggleClass('sticky-tdp', state.stickyTdp);
+    vibrate();
+    lastLocalMutation['sticky-tdp'] = Date.now();
+    await api('/api/tdp/sticky', 'POST', { enabled: state.stickyTdp });
+}
+
+async function toggleMute() {
+    state.muted = !state.muted;
+    toggleClass('mute-toggle', state.muted);
+    vibrate();
+    lastLocalMutation['volume'] = Date.now();
+    await api('/api/volume/mute', 'POST');
+}
+
+async function toggleHdr() {
+    state.hdrEnabled = !state.hdrEnabled;
+    toggleClass('hdr-toggle', state.hdrEnabled);
+    vibrate();
+    lastLocalMutation['hdr'] = Date.now();
+    await api('/api/hdr', 'POST', { enabled: state.hdrEnabled });
+}
+
+async function toggleFanEnabled() {
+    state.fanEnabled = !state.fanEnabled;
+    toggleClass('fan-enabled', state.fanEnabled);
+    vibrate();
+    lastLocalMutation['fan'] = Date.now();
+    await api('/api/fan/enabled', 'POST', { enabled: state.fanEnabled });
+}
+
+async function toggleRsr() {
+    state.rsrEnabled = !state.rsrEnabled;
+    toggleClass('rsr-toggle', state.rsrEnabled);
+    updateRsrSharpnessVisibility();
+    vibrate();
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/rsr', 'POST', { enabled: state.rsrEnabled, sharpness: state.rsrSharpness });
+}
+
+async function toggleAfmf() {
+    state.afmfEnabled = !state.afmfEnabled;
+    toggleClass('afmf-toggle', state.afmfEnabled);
+    vibrate();
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/afmf', 'POST', { enabled: state.afmfEnabled });
+}
+
+async function toggleAntiLag() {
+    state.antiLagEnabled = !state.antiLagEnabled;
+    toggleClass('antilag-toggle', state.antiLagEnabled);
+    vibrate();
+    lastLocalMutation['amd'] = Date.now();
+    await api('/api/amd/antilag', 'POST', { enabled: state.antiLagEnabled });
+}
+
+function updateAmdDisplay() {
+    toggleClass('rsr-toggle', state.rsrEnabled);
+    toggleClass('afmf-toggle', state.afmfEnabled);
+    toggleClass('antilag-toggle', state.antiLagEnabled);
+    const slider = document.getElementById('rsr-sharpness-slider');
+    if (slider && !userInteracting['rsr-sharpness-slider']) {
+        slider.value = state.rsrSharpness;
+        document.getElementById('rsr-sharpness-value').textContent = state.rsrSharpness + '%';
+    }
+    updateRsrSharpnessVisibility();
+}
+
+function updateRsrSharpnessVisibility() {
+    const row = document.getElementById('rsr-sharpness-row');
+    if (row) row.style.display = state.rsrEnabled ? '' : 'none';
+}
+
+// ===== Lossless Scaling =====
+
+async function loadLsStatus() {
+    try {
+        const data = await api('/api/lossless/status');
+        state.lsRunning = data.isRunning;
+        state.lsHasGame = data.hasGame;
+        updateLsDisplay();
+    } catch (_) {}
+}
+
+function updateLsDisplay() {
+    const statusEl = document.getElementById('ls-status');
+    const gameEl = document.getElementById('ls-game');
+    const btnEl = document.getElementById('ls-trigger-btn');
+    if (statusEl) statusEl.textContent = state.lsRunning ? 'Running' : 'Not Running';
+    if (gameEl) gameEl.textContent = state.lsHasGame ? 'Detected' : 'None';
+    if (btnEl) btnEl.style.display = (state.lsRunning && state.lsHasGame) ? '' : 'none';
+}
+
+async function triggerLosslessScaling() {
+    const btn = document.getElementById('ls-trigger-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Triggering...'; }
+    vibrate();
+    try {
+        await api('/api/lossless/trigger', 'POST');
+    } catch (_) {}
+    // Refresh status after triggering
+    await loadLsStatus();
+    if (btn) { btn.disabled = false; btn.textContent = 'Trigger LS Shortcut'; }
+}
+
+async function toggleBoost() {
+    state.boostEnabled = !state.boostEnabled;
+    toggleClass('boost-toggle', state.boostEnabled);
+    vibrate();
+    await api('/api/power/boost', 'POST', { enabled: state.boostEnabled });
+}
+
+// ===== FPS =====
+
+function updateFpsSliderMax(refreshRate) {
+    const slider = document.getElementById('fps-slider');
+    if (!slider || !refreshRate) return;
+    const max = parseInt(refreshRate) || 120;
+    slider.max = max;
+    // Clamp current value to new max
+    if (parseInt(slider.value) > max) {
+        slider.value = max;
+        state.fpsLimit = max;
+        document.getElementById('fps-value').textContent = max + ' FPS';
+    }
+}
+
+function updateFpsDisplay(refreshRate) {
+    const slider = document.getElementById('fps-slider');
+    const label = document.getElementById('fps-value');
+    if (refreshRate) updateFpsSliderMax(refreshRate);
+    if (slider && !userInteracting['fps-slider']) slider.value = state.fpsLimit;
+    if (label) label.textContent = state.fpsLimit > 0 ? state.fpsLimit + ' FPS' : 'Off';
+}
+
+// ===== Fan =====
+async function setFanPreset(preset) {
+    state.fanPreset = preset;
+    updateFanDisplay();
+    vibrate();
+    lastLocalMutation['fan'] = Date.now();
+    await api('/api/fan/preset', 'POST', { preset });
+}
+
+function updateFanDisplay() {
+    document.getElementById('fan-speed').textContent = Math.round(state.fanSpeed);
+    toggleClass('fan-enabled', state.fanEnabled);
+    ['stealth', 'cruise', 'warp'].forEach(p => {
+        const el = document.getElementById(`fan-${p}`);
+        if (el) el.classList.toggle('active', state.fanPreset?.toLowerCase() === p);
+    });
+}
+
+// ===== Games =====
+async function loadGames() {
+    try {
+        const data = await api('/api/games');
+        state.games = data.games || [];
+        renderGames();
+    } catch (e) {
+        document.getElementById('game-grid').innerHTML = '<div class="games-empty">Failed to load games</div>';
+    }
+}
+
+function renderGames() {
+    const grid = document.getElementById('game-grid');
+    if (state.games.length === 0) {
+        grid.innerHTML = '<div class="games-empty">No games detected</div>';
+        return;
+    }
+
+    grid.innerHTML = state.games.map(g => `
+        <div class="game-tile" onclick="launchGame('${escHtml(g.processName)}')">
+            ${g.hasArtwork
+                ? `<img src="${g.artworkUrl}" alt="${escHtml(g.displayName)}" loading="lazy">`
+                : `<div class="no-art">🎮</div>`
+            }
+            <div class="name">${escHtml(g.displayName)}</div>
+            <span class="source-badge">${g.source}</span>
+        </div>
+    `).join('');
+}
+
+async function launchGame(processName) {
+    if (!confirm('Launch this game?')) return;
+    try {
+        await api(`/api/games/${encodeURIComponent(processName)}/launch`, 'POST');
+    } catch (e) {
+        alert('Failed to launch game');
+    }
+}
+
+// ===== Power Profiles =====
+async function loadPowerProfiles() {
+    try {
+        const data = await api('/api/power/profile');
+        state.powerProfiles = data.profiles || [];
+        state.activeProfile = data.active;
+
+        const sel = document.getElementById('power-select');
+        sel.innerHTML = state.powerProfiles.map(p =>
+            `<option value="${p.id}" ${p.isActive ? 'selected' : ''}>${p.name}</option>`
+        ).join('');
+
+        const boost = await api('/api/power/boost');
+        state.boostEnabled = boost.enabled;
+        toggleClass('boost-toggle', state.boostEnabled);
+    } catch (e) { console.error('Power profiles load failed:', e); }
+}
+
+async function setPowerProfile() {
+    const profileId = document.getElementById('power-select').value;
+    if (!profileId) return;
+    await api('/api/power/profile', 'POST', { profileId });
+}
+
+// ===== Temperature Display =====
+function updateTempDisplay() {
+    document.getElementById('cpu-temp').textContent = state.cpuTemp.toFixed(0);
+    document.getElementById('gpu-temp').textContent = state.gpuTemp.toFixed(0);
+    document.getElementById('h-temp').textContent = Math.max(state.cpuTemp, state.gpuTemp).toFixed(0);
+
+    // Color coding
+    const cpuEl = document.getElementById('cpu-temp');
+    const gpuEl = document.getElementById('gpu-temp');
+    cpuEl.style.color = tempColor(state.cpuTemp);
+    gpuEl.style.color = tempColor(state.gpuTemp);
+}
+
+function tempColor(t) {
+    if (t < 50) return 'var(--success)';
+    if (t < 70) return 'var(--warning)';
+    return 'var(--danger)';
+}
+
+// ===== SignalR =====
+async function connectSignalR() {
+    // Load SignalR client from the server's built-in endpoint
+    if (typeof signalR === 'undefined') {
+        await loadScript('/_content/Microsoft.AspNetCore.SignalR.Client/signalr.min.js').catch(() => {
+            // Fallback: try the npm CDN
+            return loadScript('https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js');
+        }).catch(() => {
+            console.warn('SignalR client not available, falling back to polling');
+            startPolling();
+            return;
+        });
+    }
+
+    if (typeof signalR === 'undefined') return;
+
+    signalRConnection = new signalR.HubConnectionBuilder()
+        .withUrl('/hudrahub')
+        .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
+        .build();
+
+    signalRConnection.on('TemperatureUpdated', data => {
+        state.cpuTemp = data.cpu;
+        state.gpuTemp = data.gpu;
+        updateTempDisplay();
+    });
+
+    signalRConnection.on('BatteryUpdated', data => {
+        state.batteryPercent = data.percent;
+        state.batteryCharging = data.isCharging;
+        document.getElementById('h-batt').textContent = data.percent;
+    });
+
+    // Full state sync — handles native→web and web→web sync
+    signalRConnection.on('StatusUpdated', data => {
+        applyStatus(data);
+    });
+
+    signalRConnection.onreconnecting(() => {
+        state.connected = false;
+        document.getElementById('conn-dot').classList.add('disconnected');
+        document.getElementById('ws-status').textContent = 'Reconnecting...';
+    });
+
+    signalRConnection.onreconnected(() => {
+        state.connected = true;
+        document.getElementById('conn-dot').classList.remove('disconnected');
+        document.getElementById('ws-status').textContent = 'Connected';
+        loadStatus(); // Refresh full state
+    });
+
+    signalRConnection.onclose(() => {
+        state.connected = false;
+        document.getElementById('conn-dot').classList.add('disconnected');
+        document.getElementById('ws-status').textContent = 'Disconnected';
+    });
+
+    try {
+        await signalRConnection.start();
+        document.getElementById('ws-status').textContent = 'Connected';
+    } catch (e) {
+        console.warn('SignalR connect failed, using polling:', e);
+        startPolling();
+    }
+}
+
+function startPolling() {
+    setInterval(async () => {
+        try {
+            const s = await api('/api/status');
+            applyStatus(s);
+            state.connected = true;
+            document.getElementById('conn-dot').classList.remove('disconnected');
+        } catch {
+            state.connected = false;
+            document.getElementById('conn-dot').classList.add('disconnected');
+        }
+    }, 3000);
+}
+
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = reject;
+        document.head.appendChild(s);
+    });
+}
+
+// ===== Utilities =====
+function toggleClass(id, active) {
+    document.getElementById(id)?.classList.toggle('active', active);
+}
+
+function vibrate() {
+    if (navigator.vibrate) navigator.vibrate(10);
+}
+
+function escHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+// ===== Boot =====
+(async () => {
+    // Check if already authenticated
+    try {
+        const check = await fetch('/api/auth/check');
+        const data = await check.json();
+        if (data.authenticated) {
+            showApp();
+            initApp();
+            return;
+        }
+    } catch {}
+    showLogin();
+    document.getElementById('pin-input').focus();
+})();
+</script>
+</body>
+</html>

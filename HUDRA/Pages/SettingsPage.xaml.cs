@@ -1,11 +1,14 @@
 using HUDRA.Services;
+using HUDRA.Services.Web;
 using HUDRA.Controls;
 using HUDRA.Extensions;
 using HUDRA.Models;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Microsoft.UI.Xaml.Navigation;
+using QRCoder;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -14,6 +17,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Storage.Streams;
 
 namespace HUDRA.Pages
 {
@@ -42,6 +46,7 @@ namespace HUDRA.Pages
             LoadEnhancedScanningSettings();
             LoadDatabaseStatus();
             LoadVersionInfo();
+            LoadWebRemoteSettings();
         }
 
         private void LoadVersionInfo()
@@ -796,5 +801,166 @@ namespace HUDRA.Pages
             }
         }
 
+        // ===== Web Remote Settings =====
+
+        private bool _webRemoteLoading = true;
+
+        private void LoadWebRemoteSettings()
+        {
+            _webRemoteLoading = true;
+            try
+            {
+                WebRemoteToggle.IsOn = SettingsService.GetWebRemoteEnabled();
+                WebRemotePortBox.Value = SettingsService.GetWebRemotePort();
+
+                // Show bullets if a PIN is already configured
+                if (!string.IsNullOrEmpty(SettingsService.GetWebRemotePinHash()))
+                {
+                    WebRemotePinBox.Password = "\u2022\u2022\u2022\u2022"; // 4 bullet characters
+                }
+
+                UpdateWebRemoteStatus();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error loading web remote settings: {ex.Message}");
+            }
+            finally
+            {
+                _webRemoteLoading = false;
+            }
+        }
+
+        private async void WebRemoteToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_webRemoteLoading) return;
+
+            var toggle = sender as ToggleSwitch;
+            var isOn = toggle?.IsOn ?? false;
+
+            try
+            {
+                // Check if PIN is set before enabling
+                if (isOn && string.IsNullOrEmpty(SettingsService.GetWebRemotePinHash()))
+                {
+                    WebRemoteStatusText.Text = "Set a PIN first before enabling.";
+                    WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                    if (toggle != null) toggle.IsOn = false;
+                    return;
+                }
+
+                SettingsService.SetWebRemoteEnabled(isOn);
+
+                var app = Application.Current as App;
+                if (app == null) return;
+
+                if (isOn)
+                {
+                    int port = (int)WebRemotePortBox.Value;
+                    await app.StartWebRemoteAsync(port);
+                }
+                else
+                {
+                    await app.StopWebRemoteAsync();
+                }
+
+                UpdateWebRemoteStatus();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error toggling web remote: {ex.Message}");
+                WebRemoteStatusText.Text = $"Error: {ex.Message}";
+                WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                if (toggle != null) toggle.IsOn = !isOn;
+            }
+        }
+
+        private void WebRemotePort_ValueChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
+        {
+            if (_webRemoteLoading) return;
+            if (double.IsNaN(args.NewValue)) return;
+
+            int port = (int)args.NewValue;
+            SettingsService.SetWebRemotePort(port);
+        }
+
+        private void WebRemoteSavePin_Click(object sender, RoutedEventArgs e)
+        {
+            var pin = WebRemotePinBox.Password;
+            if (string.IsNullOrEmpty(pin) || pin.Length < 4)
+            {
+                WebRemoteStatusText.Text = "PIN must be 4-6 digits.";
+                WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                return;
+            }
+
+            // Check PIN is numeric
+            if (!pin.All(char.IsDigit))
+            {
+                WebRemoteStatusText.Text = "PIN must contain only digits.";
+                WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.OrangeRed);
+                return;
+            }
+
+            var salt = WebAuthMiddleware.GenerateSalt();
+            var hash = WebAuthMiddleware.HashPin(pin, salt);
+            SettingsService.SetWebRemotePin(hash, salt);
+
+            // Show bullets to indicate a PIN is set
+            WebRemotePinBox.Password = "\u2022\u2022\u2022\u2022";
+            WebRemoteStatusText.Text = "PIN saved successfully.";
+            WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.MediumPurple);
+        }
+
+        private void UpdateWebRemoteStatus()
+        {
+            var app = Application.Current as App;
+            if (app?.IsWebRemoteRunning == true)
+            {
+                var ip = WebServerService.GetLocalIpAddress();
+                var port = SettingsService.GetWebRemotePort();
+                var url = $"http://{ip}:{port}";
+                WebRemoteStatusText.Text = $"Running at {url}";
+                WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.MediumPurple);
+                GenerateQrCode(url);
+            }
+            else
+            {
+                WebRemoteStatusText.Text = "Disabled";
+                WebRemoteStatusText.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray);
+                WebRemoteQrCode.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async void GenerateQrCode(string url)
+        {
+            try
+            {
+                var generator = new QRCodeGenerator();
+                var data = generator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
+                var qrCode = new PngByteQRCode(data);
+                byte[] pngBytes = qrCode.GetGraphic(10, new byte[] { 190, 130, 255 }, new byte[] { 30, 30, 30 });
+
+                var bitmap = new BitmapImage();
+                using (var stream = new InMemoryRandomAccessStream())
+                {
+                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                    {
+                        writer.WriteBytes(pngBytes);
+                        await writer.StoreAsync();
+                    }
+                    stream.Seek(0);
+                    await bitmap.SetSourceAsync(stream);
+                }
+
+                WebRemoteQrCode.Source = bitmap;
+                WebRemoteQrCode.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error generating QR code: {ex.Message}");
+                WebRemoteQrCode.Visibility = Visibility.Collapsed;
+            }
+        }
     }
 }

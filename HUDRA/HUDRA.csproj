@@ -35,6 +35,12 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App.WindowsForms" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Services\Web\wwwroot\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <ItemGroup>
     <None Remove="Assets\HUDRA_Logo.ico" />
@@ -146,6 +152,7 @@
     <PackageReference Include="GameLib.NET" Version="1.4.1" />
 	<PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
 	<PackageReference Include="craftersmine.SteamGridDB.Net" Version="1.1.7" />
+	<PackageReference Include="QRCoder" Version="1.6.0" />
 	  <Reference Include="RTSSSharedMemoryNET">
 		  <HintPath>Tools\RTSSSharedMemoryNET.dll</HintPath>
 	  </Reference>
