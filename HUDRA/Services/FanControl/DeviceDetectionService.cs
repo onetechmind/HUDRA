@@ -16,6 +16,10 @@ namespace HUDRA.Services.FanControl
             typeof(LenovoLegionGoDevice) // Lenovo Legion Go / Legion Go 2
         };
 
+        private static IFanControlDevice? _lastDetectedDevice;
+
+        public static IFanControlDevice? LastDetectedDevice => _lastDetectedDevice;
+
         public static IFanControlDevice? DetectDevice()
         {
             foreach (var deviceType in SupportedDeviceTypes)
@@ -27,6 +31,7 @@ namespace HUDRA.Services.FanControl
                         if (device.IsDeviceSupported() && device.Initialize())
                         {
                             Debug.WriteLine($"Successfully detected: {device.ManufacturerName} {device.DeviceName}");
+                            _lastDetectedDevice = device;
                             return device;
                         }
 

@@ -40,6 +40,10 @@ namespace HUDRA.Controls
         private int _lastCenteredTdp = -1;
         private bool _suppressSelectionEvents = false;
 
+        // Device-specific TDP range (populated from HardwareDetectionService at Initialize() time)
+        private int _deviceMinTdp = HudraSettings.MIN_TDP;
+        private int _deviceMaxTdp = HudraSettings.MAX_TDP;
+
         // Scrolling state
         private bool _isScrolling = false;
         private DispatcherTimer? _scrollEndTimer;
@@ -100,7 +104,7 @@ namespace HUDRA.Controls
         /// The minimum valid TDP value for this picker instance.
         /// Returns 0 if IncludeNoneOption is true, otherwise MIN_TDP.
         /// </summary>
-        private int EffectiveMinTdp => _includeNoneOption ? 0 : HudraSettings.MIN_TDP;
+        private int EffectiveMinTdp => _includeNoneOption ? 0 : _deviceMinTdp;
 
         public string StatusText
         {
@@ -120,9 +124,9 @@ namespace HUDRA.Controls
             get => _selectedTdp;
             set
             {
-                // Validate: value must be 0 (if IncludeNoneOption) or within MIN_TDP..MAX_TDP range
+                // Validate: value must be 0 (if IncludeNoneOption) or within device TDP range
                 bool isValid = (_includeNoneOption && value == 0) ||
-                               (value >= HudraSettings.MIN_TDP && value <= HudraSettings.MAX_TDP);
+                               (value >= _deviceMinTdp && value <= _deviceMaxTdp);
 
                 if (_selectedTdp != value && isValid)
                 {
@@ -215,8 +219,8 @@ namespace HUDRA.Controls
                 }
                 _tdpItems.Add(noneItem);
 
-                // Add valid TDP values starting from MIN_TDP (5)
-                for (int tdp = HudraSettings.MIN_TDP; tdp <= HudraSettings.MAX_TDP; tdp++)
+                // Add valid TDP values starting from _deviceMinTdp
+                for (int tdp = _deviceMinTdp; tdp <= _deviceMaxTdp; tdp++)
                 {
                     var item = new TdpItem(tdp);
                     if (tdp == _selectedTdp)
@@ -228,8 +232,8 @@ namespace HUDRA.Controls
             }
             else
             {
-                // No "None" option - start from MIN_TDP
-                for (int tdp = HudraSettings.MIN_TDP; tdp <= HudraSettings.MAX_TDP; tdp++)
+                // No "None" option - start from _deviceMinTdp
+                for (int tdp = _deviceMinTdp; tdp <= _deviceMaxTdp; tdp++)
                 {
                     var item = new TdpItem(tdp);
                     if (tdp == _selectedTdp)
@@ -251,12 +255,12 @@ namespace HUDRA.Controls
             if (_includeNoneOption)
             {
                 if (tdp == 0) return 0;
-                // TDP 5 is at index 1, TDP 6 is at index 2, etc.
-                return tdp - HudraSettings.MIN_TDP + 1;
+                // TDP _deviceMinTdp is at index 1, next is at index 2, etc.
+                return tdp - _deviceMinTdp + 1;
             }
             else
             {
-                return tdp - HudraSettings.MIN_TDP;
+                return tdp - _deviceMinTdp;
             }
         }
 
@@ -268,17 +272,23 @@ namespace HUDRA.Controls
             if (_includeNoneOption)
             {
                 if (index == 0) return 0;
-                // Index 1 is TDP 5, index 2 is TDP 6, etc.
-                return HudraSettings.MIN_TDP + index - 1;
+                // Index 1 is TDP _deviceMinTdp, index 2 is next, etc.
+                return _deviceMinTdp + index - 1;
             }
             else
             {
-                return HudraSettings.MIN_TDP + index;
+                return _deviceMinTdp + index;
             }
         }
 
         public void Initialize(DpiScalingService dpiService, bool autoSetEnabled = true, bool preserveCurrentValue = false)
         {
+            // Fetch device-specific limits before building the item list
+            var limits = HardwareDetectionService.GetTdpLimits();
+            _deviceMinTdp = limits.MinTdp;
+            _deviceMaxTdp = limits.MaxTdp;
+            InitializeData();
+
             _dpiService = dpiService ?? throw new ArgumentNullException(nameof(dpiService));
             _autoSetEnabled = autoSetEnabled;
             _autoSetManager = autoSetEnabled ? new TdpAutoSetManager(SetTdpAsync, status => StatusText = status) : null;
@@ -353,9 +363,9 @@ namespace HUDRA.Controls
                 else
                 {
                     currentTdp = SettingsService.GetLastUsedTdp();
-                    if (currentTdp < HudraSettings.MIN_TDP || currentTdp > HudraSettings.MAX_TDP)
+                    if (currentTdp < _deviceMinTdp || currentTdp > _deviceMaxTdp)
                     {
-                        currentTdp = HudraSettings.DEFAULT_STARTUP_TDP;
+                        currentTdp = Math.Clamp(HudraSettings.DEFAULT_STARTUP_TDP, _deviceMinTdp, _deviceMaxTdp);
                         statusReason = "fallback TDP (already applied)";
                     }
                     else
@@ -394,10 +404,10 @@ namespace HUDRA.Controls
                     // Priority 3: Last-Used TDP if default is disabled
                     targetTdp = SettingsService.GetLastUsedTdp();
 
-                    // Priority 4: Fallback to 10W if last-used is invalid
-                    if (targetTdp < HudraSettings.MIN_TDP || targetTdp > HudraSettings.MAX_TDP)
+                    // Priority 4: Fallback to clamped default if last-used is invalid
+                    if (targetTdp < _deviceMinTdp || targetTdp > _deviceMaxTdp)
                     {
-                        targetTdp = HudraSettings.DEFAULT_STARTUP_TDP;
+                        targetTdp = Math.Clamp(HudraSettings.DEFAULT_STARTUP_TDP, _deviceMinTdp, _deviceMaxTdp);
                         statusReason = "using fallback (10W) - invalid last-used TDP";
                     }
                     else
@@ -621,7 +631,7 @@ namespace HUDRA.Controls
             // Calculate which TDP item was tapped based on position
             var tappedTdp = GetTdpFromPosition(tapPosition.X);
 
-            if (tappedTdp >= EffectiveMinTdp && tappedTdp <= HudraSettings.MAX_TDP)
+            if (tappedTdp >= EffectiveMinTdp && tappedTdp <= _deviceMaxTdp)
             {
                 SelectedTdp = tappedTdp;
 
@@ -667,15 +677,15 @@ namespace HUDRA.Controls
 
             if (_includeNoneOption)
             {
-                // Handle the gap between 0 (Default) and MIN_TDP (5)
+                // Handle the gap between 0 (Default) and _deviceMinTdp
                 if (_selectedTdp == 0 && delta > 0)
                 {
-                    // From 0, go to MIN_TDP
-                    newTdp = HudraSettings.MIN_TDP;
+                    // From 0, go to _deviceMinTdp
+                    newTdp = _deviceMinTdp;
                 }
-                else if (_selectedTdp == HudraSettings.MIN_TDP && delta < 0)
+                else if (_selectedTdp == _deviceMinTdp && delta < 0)
                 {
-                    // From MIN_TDP, go to 0
+                    // From _deviceMinTdp, go to 0
                     newTdp = 0;
                 }
                 else if (_selectedTdp == 0 && delta < 0)
@@ -685,14 +695,14 @@ namespace HUDRA.Controls
                 }
                 else
                 {
-                    // Normal case: clamp to MIN_TDP..MAX_TDP range
-                    newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
+                    // Normal case: clamp to _deviceMinTdp.._deviceMaxTdp range
+                    newTdp = Math.Max(_deviceMinTdp, Math.Min(_deviceMaxTdp, _selectedTdp + delta));
                 }
             }
             else
             {
                 // No "None" option - simple clamp
-                newTdp = Math.Max(HudraSettings.MIN_TDP, Math.Min(HudraSettings.MAX_TDP, _selectedTdp + delta));
+                newTdp = Math.Max(_deviceMinTdp, Math.Min(_deviceMaxTdp, _selectedTdp + delta));
             }
 
             if (newTdp != _selectedTdp)
@@ -758,9 +768,9 @@ namespace HUDRA.Controls
         {
             if (!_isInitialized) return;
 
-            // Validate: value must be 0 (if IncludeNoneOption) or within MIN_TDP..MAX_TDP range
+            // Validate: value must be 0 (if IncludeNoneOption) or within device TDP range
             bool isValid = (_includeNoneOption && tdpValue == 0) ||
-                           (tdpValue >= HudraSettings.MIN_TDP && tdpValue <= HudraSettings.MAX_TDP);
+                           (tdpValue >= _deviceMinTdp && tdpValue <= _deviceMaxTdp);
             if (!isValid) return;
 
             var oldValue = _selectedTdp;

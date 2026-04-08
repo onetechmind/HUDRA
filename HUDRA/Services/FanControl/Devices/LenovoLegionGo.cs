@@ -39,7 +39,9 @@ namespace HUDRA.Services.FanControl.Devices
                 "83N0",            // Legion Go 2 model number (verified)
                 "8ASP2",           // Legion Go 2 model number (alternate)
                 "8AHP2"            // Legion Go 2 model number (alternate)
-            }
+            },
+            MinTdpWatts = 5,
+            MaxTdpWatts = 30
         };
 
         public ECRegisterMap RegisterMap => throw new NotSupportedException(

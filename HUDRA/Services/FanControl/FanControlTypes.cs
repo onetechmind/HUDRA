@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using HUDRA.Configuration;
 
 namespace HUDRA.Services.FanControl
 {
@@ -88,6 +89,10 @@ namespace HUDRA.Services.FanControl
         public int MaxFanSpeed { get; set; } = 100;
         public bool SupportsAutoDetection { get; set; } = true;
         public string[] SupportedModels { get; set; } = Array.Empty<string>();
+
+        // TDP limits for this device
+        public int MinTdpWatts { get; set; } = HudraSettings.MIN_TDP; // 5W safe default
+        public int MaxTdpWatts { get; set; } = HudraSettings.MAX_TDP; // 30W safe default
     }
 
     public class ECRegisterMap

@@ -23,6 +23,10 @@ namespace HUDRA.Models
         public bool SupportsFanControl { get; set; } = false;
         public bool SupportsLenovoWmi { get; set; } = false; // For TDP via WMI
 
+        // Detection schema version - bump CURRENT_DETECTION_VERSION in HardwareDetectionService
+        // to invalidate cached results whenever detection logic changes
+        public int DetectionVersion { get; set; } = 0;
+
         // Convenience properties
         public bool IsLenovo => Manufacturer == DeviceManufacturer.Lenovo;
         public bool IsGPD => Manufacturer == DeviceManufacturer.GPD;

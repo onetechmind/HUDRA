@@ -43,7 +43,9 @@ namespace HUDRA.Services.FanControl.Devices
             MinFanSpeed = 0,
             MaxFanSpeed = 100,
             SupportsAutoDetection = true,
-            SupportedModels = new[] { "G1617", "GPD WIN MINI", "WIN MINI" }
+            SupportedModels = new[] { "G1617", "GPD WIN MINI", "WIN MINI" },
+            MinTdpWatts = 5,
+            MaxTdpWatts = 30
         };
 
         private static readonly string[] SupportedAPUs = { "7640U", "7840U", "8840U", "HX 370" };

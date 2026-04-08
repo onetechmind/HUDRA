@@ -41,7 +41,9 @@ namespace HUDRA.Services.FanControl.Devices
             MinFanSpeed = 0,
             MaxFanSpeed = 100,
             SupportsAutoDetection = true,
-            SupportedModels = new[] { "G1618-04", "GPD WIN 4", "WIN 4" }
+            SupportedModels = new[] { "G1618-04", "GPD WIN 4", "WIN 4" },
+            MinTdpWatts = 5,
+            MaxTdpWatts = 30
         };
 
         public override bool IsDeviceSupported()
