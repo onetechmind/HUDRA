@@ -206,9 +206,18 @@ namespace HUDRA.Services
                     }
                 }
 
+                // Only remove games from sources whose scanner proved it was working this cycle
+                // (returned ≥1 game). An empty result is indistinguishable from a scan failure
+                // (e.g. PowerShell timeout, execution policy block) — if a source returned zero
+                // games we leave existing entries untouched rather than risk deleting them.
+                var scannedSources = new HashSet<GameSource>(
+                    currentlyFoundGames.Values.Select(g => g.Source)
+                );
+
                 // Remove games from database that are no longer found (except Manual and Unknown sources)
                 var gamesToRemove = existingGames.Values
-                    .Where(g => !currentlyFoundGames.ContainsKey(g.ProcessName) &&
+                    .Where(g => scannedSources.Contains(g.Source) &&
+                                !currentlyFoundGames.ContainsKey(g.ProcessName) &&
                                 g.Source != GameSource.Manual &&
                                 g.Source != GameSource.Unknown)
                     .ToList();
@@ -1429,43 +1438,44 @@ namespace HUDRA.Services
         {
             try
             {
-                
-                // Clear existing Xbox games from database
-                var deletedCount = _gameDatabase.ClearXboxGames();
-                
-                // Clear Xbox games from in-memory cache
-                var xboxGamesToRemove = _cachedGames.Where(kvp => kvp.Value.Source == GameSource.Xbox).Select(kvp => kvp.Key).ToList();
-                foreach (var gameKey in xboxGamesToRemove)
-                {
-                    _cachedGames.Remove(gameKey);
-                }
-                
-                // Re-scan Xbox games only
                 var xboxProvider = _providers.OfType<XboxGameProvider>().FirstOrDefault();
-                if (xboxProvider != null && xboxProvider.IsAvailable)
+                if (xboxProvider == null || !xboxProvider.IsAvailable)
+                    return 0;
+
+                // Scan BEFORE touching the database — preserve existing data if scan fails
+                var newXboxGames = await xboxProvider.GetGamesAsync();
+
+                if (newXboxGames.Count == 0)
                 {
-                    var newXboxGames = await xboxProvider.GetGamesAsync();
+                    System.Diagnostics.Debug.WriteLine("Enhanced: ForceXboxRescan returned 0 games — preserving existing entries");
+                    return 0;
+                }
 
-                    // Save new Xbox games to database (excluding non-game utilities)
-                    int savedCount = 0;
-                    foreach (var game in newXboxGames.Values)
+                // Scan succeeded — now replace existing Xbox entries
+                _gameDatabase.ClearXboxGames();
+
+                var xboxGamesToRemove = _cachedGames
+                    .Where(kvp => kvp.Value.Source == GameSource.Xbox)
+                    .Select(kvp => kvp.Key)
+                    .ToList();
+                foreach (var gameKey in xboxGamesToRemove)
+                    _cachedGames.Remove(gameKey);
+
+                int savedCount = 0;
+                foreach (var game in newXboxGames.Values)
+                {
+                    if (IsExcludedUtility(game.DisplayName))
                     {
-                        // Skip non-game utilities
-                        if (IsExcludedUtility(game.DisplayName))
-                        {
-                            System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility during Xbox rescan: {game.DisplayName}");
-                            continue;
-                        }
-
-                        _gameDatabase.SaveGame(game);
-                        _cachedGames[game.ProcessName] = game;
-                        savedCount++;
+                        System.Diagnostics.Debug.WriteLine($"Enhanced: Skipping non-game utility during Xbox rescan: {game.DisplayName}");
+                        continue;
                     }
 
-                    return savedCount;
+                    _gameDatabase.SaveGame(game);
+                    _cachedGames[game.ProcessName] = game;
+                    savedCount++;
                 }
-                
-                return 0;
+
+                return savedCount;
             }
             catch (Exception ex)
             {
