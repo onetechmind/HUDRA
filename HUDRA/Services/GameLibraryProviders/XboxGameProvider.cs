@@ -303,7 +303,7 @@ namespace HUDRA.Services.GameLibraryProviders
                             try {
                                 # Get all .exe files in root and up to 5 levels of subfolders
                                 $exeFiles = Get-ChildItem -Path $actualLocation -Filter '*.exe' -Recurse -Depth 5 -ErrorAction SilentlyContinue
-                                $allExeNames = $exeFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) } | Select-Object -Unique
+                                $allExeNames = @($exeFiles | ForEach-Object { [System.IO.Path]::GetFileNameWithoutExtension($_.Name) } | Select-Object -Unique)
                             } catch {
                                 # If enumeration fails, just use the main exe from config
                                 $allExeNames = @($exeName)
