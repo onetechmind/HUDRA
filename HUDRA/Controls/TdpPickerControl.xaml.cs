@@ -438,8 +438,11 @@ namespace HUDRA.Controls
                 {
                     await Task.Delay(200);
 
-                    using var setService = new TDPService();
-                    var setResult = setService.SetTdp(targetTdp * 1000);
+                    var setResult = await Task.Run(() =>
+                    {
+                        using var setService = new TDPService();
+                        return setService.SetTdp(targetTdp * 1000);
+                    });
 
                     if (setResult.Success)
                     {
@@ -804,9 +807,12 @@ namespace HUDRA.Controls
         {
             try
             {
-                var tdpService = new TDPService();
                 int tdpInMilliwatts = tdpValue * 1000;
-                var result = tdpService.SetTdp(tdpInMilliwatts);
+                var result = await Task.Run(() =>
+                {
+                    using var tdpService = new TDPService();
+                    return tdpService.SetTdp(tdpInMilliwatts);
+                });
 
                 StatusText = result.Success
                     ? $"Current TDP: {tdpValue}W"
