@@ -1481,19 +1481,29 @@ namespace HUDRA
 
         private void OnWindowShown(object? sender, EventArgs e)
         {
-            // When window is unhidden and made active, force input focus to the app
-            // This ensures gamepad and keyboard input will be received by HUDRA
-            try
-            {
-                // Focus LayoutRoot with Pointer state to simulate tapping/clicking in open space
-                // This transfers input focus from any other window/app to HUDRA
-                LayoutRoot.Focus(FocusState.Pointer);
-                System.Diagnostics.Debug.WriteLine("Window shown - forced input focus to LayoutRoot");
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to force focus on window show: {ex.Message}");
-            }
+            // The window has been shown and force-foregrounded by WindowManagementService.
+            // WindowShown fires synchronously inside ToggleVisibility, before the OS
+            // activation handshake has run, so defer the intra-window XAML focus to Low
+            // priority. Running after activation settles lets it override WinUI's default
+            // "focus the first tab stop" behaviour (which would otherwise leave a focus ring
+            // on the Home navbar button), and ensures input lands on HUDRA.
+            DispatcherQueue.TryEnqueue(
+                Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
+                () =>
+                {
+                    try
+                    {
+                        // FocusState.Pointer focuses the transparent LayoutRoot WITHOUT
+                        // drawing a focus visual, so nothing appears selected until the user
+                        // actually presses a gamepad/keyboard button.
+                        LayoutRoot.Focus(FocusState.Pointer);
+                        System.Diagnostics.Debug.WriteLine("Window shown - forced input focus to LayoutRoot");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to force focus on window show: {ex.Message}");
+                    }
+                });
         }
 
         private static string GetBatteryGlyph(int percent, bool charging)

@@ -64,13 +64,20 @@ namespace HUDRA.Services
                     appWindow.Show();
                     _isWindowVisible = true;
 
-                    // CRITICAL: Activate the window to bring it to foreground
-                    _window.Activate();
-                    SetForegroundWindow(_hwnd);
-
-                    // Ensure proper positioning and topmost behavior
+                    // Position BEFORE activation so we activate on the final placement.
                     PositionWindow();
 
+                    // WinUI activation (sets window active-state intent).
+                    _window.Activate();
+
+                    // CRITICAL: force OS foreground from a (likely) background process so
+                    // Windows.Gaming.Input routes gamepad readings to HUDRA immediately,
+                    // without the user having to click the window. A plain Activate/
+                    // SetForegroundWindow is blocked by the Win32 foreground lock here.
+                    ForceForegroundWindow(_hwnd);
+
+                    // Re-assert topmost z-order AFTER foreground. SWP_NOACTIVATE only fixes
+                    // z-order and does not deactivate, so it won't undo the activation above.
                     if (_forceTopmost)
                     {
                         SetWindowPos(_hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -157,6 +164,62 @@ namespace HUDRA.Services
             }
         }
 
+        /// <summary>
+        /// Forces the given window to become the OS foreground/active window, even when
+        /// the calling process is in the background (e.g. shown via global hotkey while a
+        /// game is foreground). A plain SetForegroundWindow call is silently blocked by the
+        /// Win32 foreground lock in that case, leaving the window shown-but-not-activated so
+        /// Windows.Gaming.Input never routes gamepad readings to it until the user clicks.
+        /// This bypasses the lock via AttachThreadInput, hardened by temporarily zeroing the
+        /// foreground lock timeout.
+        /// </summary>
+        private void ForceForegroundWindow(IntPtr hwnd)
+        {
+            try
+            {
+                IntPtr foreground = GetForegroundWindow();
+                if (foreground == hwnd)
+                    return; // already foreground; nothing to do
+
+                uint currentThreadId = GetCurrentThreadId();
+                uint foregroundThreadId = (foreground == IntPtr.Zero)
+                    ? 0u
+                    : GetWindowThreadProcessId(foreground, out _);
+
+                // Temporarily disable the foreground lock timeout, saving the old value.
+                uint oldTimeout = 0;
+                bool timeoutSaved = SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ref oldTimeout, 0);
+                if (timeoutSaved)
+                {
+                    uint zero = 0;
+                    SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref zero, SPIF_SENDCHANGE);
+                }
+
+                // Attaching our input queue to the foreground thread lets SetForegroundWindow succeed.
+                bool attached = false;
+                if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+                    attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
+
+                ShowWindow(hwnd, SW_SHOW);
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+
+                if (attached)
+                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
+
+                // Restore the original foreground lock timeout so we don't permanently weaken it.
+                if (timeoutSaved)
+                {
+                    uint restore = oldTimeout;
+                    SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref restore, SPIF_SENDCHANGE);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ForceForegroundWindow failed: {ex.Message}");
+            }
+        }
+
         private void SetWindowIcon()
         {
             try
@@ -218,6 +281,28 @@ namespace HUDRA.Services
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr hWnd);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern IntPtr GetForegroundWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+        [DllImport("kernel32.dll")]
+        private static extern uint GetCurrentThreadId();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        [DllImport("user32.dll")]
+        private static extern bool BringWindowToTop(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        // Overload taking a uint by-ref; the existing SystemParametersInfo above takes a RECT.
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool SystemParametersInfo(uint uAction, uint uParam, ref uint pvParam, uint fWinIni);
+
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
         {
@@ -229,5 +314,9 @@ namespace HUDRA.Services
         private const uint SWP_NOSIZE = 0x0001;
         private const uint SWP_NOACTIVATE = 0x0010;
         private const int SPI_GETWORKAREA = 48;
+        private const int SW_SHOW = 5;
+        private const uint SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000;
+        private const uint SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001;
+        private const uint SPIF_SENDCHANGE = 0x0002;
     }
 }
