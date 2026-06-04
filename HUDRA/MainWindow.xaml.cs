@@ -1484,15 +1484,19 @@ namespace HUDRA
             // The window has been shown and force-foregrounded by WindowManagementService.
             // WindowShown fires synchronously inside ToggleVisibility, before the OS
             // activation handshake has run, so defer the intra-window XAML focus to Low
-            // priority. Focusing an inactive window is a no-op, so running after activation
-            // settles ensures gamepad/keyboard input lands on HUDRA.
+            // priority. Running after activation settles lets it override WinUI's default
+            // "focus the first tab stop" behaviour (which would otherwise leave a focus ring
+            // on the Home navbar button), and ensures input lands on HUDRA.
             DispatcherQueue.TryEnqueue(
                 Microsoft.UI.Dispatching.DispatcherQueuePriority.Low,
                 () =>
                 {
                     try
                     {
-                        LayoutRoot.Focus(FocusState.Programmatic);
+                        // FocusState.Pointer focuses the transparent LayoutRoot WITHOUT
+                        // drawing a focus visual, so nothing appears selected until the user
+                        // actually presses a gamepad/keyboard button.
+                        LayoutRoot.Focus(FocusState.Pointer);
                         System.Diagnostics.Debug.WriteLine("Window shown - forced input focus to LayoutRoot");
                     }
                     catch (Exception ex)
