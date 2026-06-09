@@ -227,6 +227,7 @@ namespace HUDRA
             _gamepadNavigationService.SetCurrentFrame(ContentFrame);
             _gamepadNavigationService.SetLayoutRoot(LayoutRoot);
             _gamepadNavigationService.SetWindowManager(_windowManager);
+            _gamepadNavigationService.SetContentScrollViewer(ContentScrollViewer);
             FocusIndicator.Attach(_gamepadNavigationService);
             _batteryService = new BatteryService(DispatcherQueue);
             _powerProfileService = new PowerProfileService();

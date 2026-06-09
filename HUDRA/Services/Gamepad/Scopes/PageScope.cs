@@ -19,6 +19,19 @@ namespace HUDRA.Services.GamepadInput
 
         public string Name => "Page";
 
+        // Right stick smoothly scrolls the page (per-tick frames, ~60/s).
+        // Stick up = positive Y = scroll up.
+        private const double ScrollPixelsPerFrame = 18.0;
+
+        public void OnStickFrame(in GamepadStickFrame frame)
+        {
+            var scrollViewer = _service.ContentScrollViewer;
+            if (scrollViewer == null || frame.RightStickY == 0) return;
+
+            double target = scrollViewer.VerticalOffset - frame.RightStickY * ScrollPixelsPerFrame;
+            scrollViewer.ChangeView(null, target, null, disableAnimation: true);
+        }
+
         public bool HandleEvent(in GamepadEvent e)
         {
             switch (e.Action)

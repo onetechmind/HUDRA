@@ -119,6 +119,7 @@ namespace HUDRA.Services
             _reader = new GamepadInputReader();
             _reader.ActionDispatched += OnReaderAction;
             _reader.ReadingAvailable += OnReaderReading;
+            _reader.StickFrame += OnReaderStickFrame;
             _reader.GamepadConnected += (s, e) => GamepadConnected?.Invoke(this, e);
             _reader.GamepadDisconnected += (s, e) =>
             {
@@ -166,6 +167,24 @@ namespace HUDRA.Services
         {
             _windowManager = windowManager;
             System.Diagnostics.Debug.WriteLine("🎮 Set window manager for visibility tracking");
+        }
+
+        // The shared page ScrollViewer (MainWindow.ContentScrollViewer); the
+        // page scope drives it with the right stick
+        private ScrollViewer? _contentScrollViewer;
+        public ScrollViewer? ContentScrollViewer => _contentScrollViewer;
+
+        public void SetContentScrollViewer(ScrollViewer scrollViewer)
+        {
+            _contentScrollViewer = scrollViewer;
+        }
+
+        private void OnReaderStickFrame(object? sender, GamepadStickFrame frame)
+        {
+            if (_windowManager != null && !_windowManager.IsVisible) return;
+
+            // Top scope only: editing/dialog/raw scopes deliberately swallow it
+            _router.DispatchStickFrame(in frame);
         }
 
         /// <summary>
