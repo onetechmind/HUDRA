@@ -19,6 +19,10 @@ namespace HUDRA.Services
     public class GamepadNavigationService : IDisposable
     {
         private readonly GamepadInputReader _reader;
+        private readonly InputRouter _router = new();
+        private readonly ShellScope _shellScope;
+        private readonly PageScope _pageScope;
+        private readonly LegacyRawScope _legacyRawScope;
         private FrameworkElement? _currentFocusedElement;
         private Frame? _currentFrame;
         private UIElement? _layoutRoot;
@@ -27,29 +31,12 @@ namespace HUDRA.Services
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
 
-        // Slider activation state
-        private bool _isSliderActivated = false;
-        private IGamepadNavigable? _activatedSliderControl = null;
-
-        // ComboBox activation state
-        private bool _isComboBoxOpen = false;
-        private IGamepadNavigable? _activeComboBoxControl = null;
-
-        // While input processing is paused (Library page), buttons we intercept
-        // (navbar invoke, page nav) are masked out of the forwarded raw readings
-        // until released, so the page's own edge detection never sees a phantom
-        // "new" press one tick after we consumed it.
+        // While input processing is paused (Library page), buttons consumed by
+        // other scopes (navbar invoke, dialogs, page nav) are masked out of the
+        // forwarded raw readings until released, so the page's own edge detection
+        // never sees a phantom "new" press one tick after we consumed it.
         private GamepadButtons _pausedInterceptMask = GamepadButtons.None;
         private bool _skipRawForwardThisTick = false;
-
-        // Dialog state tracking (to bypass activation input consumption)
-        private bool _isDialogOpen = false;
-        private ContentDialog? _currentDialog = null;
-
-        // Navbar button cycling with LT/RT
-        private List<Button> _navbarButtons = new();
-        private int? _selectedNavbarButtonIndex = null; // null = no selection
-        private Button? _selectedNavbarButton = null;
 
         // Window visibility tracking - ignore input when window is hidden
         private WindowManagementService? _windowManager;
@@ -76,22 +63,26 @@ namespace HUDRA.Services
             }
         }
 
-        // Flag to pause all input processing (for pages that use custom navigation like Library)
-        private bool _inputProcessingPaused = false;
-        public bool IsInputProcessingPaused => _inputProcessingPaused;
+        // Pages that use custom navigation (Library) push the legacy raw scope
+        // and consume forwarded raw readings instead of semantic events
+        public bool IsInputProcessingPaused => _router.Contains(_legacyRawScope);
+
+        private bool IsDialogOpen => _router.HasScope<DialogScope>();
 
         // Delegate for forwarding raw gamepad input to custom pages
         public event EventHandler<GamepadReading>? RawGamepadInput;
 
         public void PauseInputProcessing()
         {
-            _inputProcessingPaused = true;
+            // Clear any transient editing scopes; the page takes over from here
+            _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+            _router.Push(_legacyRawScope);
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED - will forward raw input");
         }
 
         public void ResumeInputProcessing()
         {
-            _inputProcessingPaused = false;
+            _router.Pop(_legacyRawScope);
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing RESUMED");
         }
 
@@ -120,7 +111,19 @@ namespace HUDRA.Services
                 }
             };
 
+            // Permanent bottom of the input stack: shell chrome, then page navigation
+            _shellScope = new ShellScope(this);
+            _pageScope = new PageScope(this, _shellScope);
+            _legacyRawScope = new LegacyRawScope(_shellScope);
+            _router.Push(_shellScope);
+            _router.Push(_pageScope);
+
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService initialized successfully");
+        }
+
+        internal void RaisePageNavigationRequested(GamepadPageDirection direction)
+        {
+            PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(direction));
         }
 
         /// <summary>The raw input layer. Exposed for consumers that need direct access (haptics, key mapping).</summary>
@@ -145,211 +148,71 @@ namespace HUDRA.Services
         }
 
         /// <summary>
-        /// Semantic input from the reader. Single priority chain: window hidden →
-        /// dialog → paused (Library) → activation → normal handling. Dialog A/B
-        /// handling lives ONLY here (it was previously duplicated in two methods).
+        /// Semantic input from the reader. Gate (window hidden / keyboard /
+        /// activation), then dispatch through the scope stack. All mode-specific
+        /// behavior (dialog, Library raw mode, slider edit, dropdown, navbar,
+        /// page navigation) lives in the scopes.
         /// </summary>
         private void OnReaderAction(object? sender, GamepadEvent e)
         {
-            // PRIORITY 0: Ignore all input when window is hidden
-            // This prevents accidental navigation/actions while user plays a game
+            // Ignore all input when window is hidden - prevents accidental
+            // navigation/actions while the user plays a game
             if (_windowManager != null && !_windowManager.IsVisible) return;
 
             // Keyboard-mapped input only participates once gamepad mode is active
             if (e.Source == GamepadEventSource.Keyboard && !_isGamepadActive) return;
 
-            // PRIORITY 1: Dialog has exclusive input (even while input processing is paused)
-            if (_isDialogOpen && _currentDialog != null)
+            // Activate gamepad mode on first input
+            if (!_isGamepadActive)
             {
-                if (!_isGamepadActive)
+                if (IsInputProcessingPaused)
+                {
+                    // Library owns its own visuals - no auto-activation (legacy behavior)
+                }
+                else if (IsDialogOpen)
                 {
                     SetGamepadActive(true);
                 }
-
-                if (e.IsRepeat) return;
-
-                if (e.Action == GamepadAction.Accept)
+                else
                 {
-                    System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
-                    _dispatcherQueue?.TryEnqueue(() =>
+                    SetGamepadActive(true);
+                    System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
+
+                    // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
+                    ClearFocus();
+
+                    // L1/R1/L2/R2 are processed even on the wake press; everything else
+                    // is consumed by activation (it just summons the focus visuals)
+                    bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
+                                                  or GamepadAction.LT or GamepadAction.RT;
+                    if (!isChromeInput)
                     {
-                        if (_currentDialog != null)
+                        if (_currentFrame?.Content is FrameworkElement rootElement && !_suppressAutoFocusOnActivation)
                         {
-                            TriggerDialogPrimaryButton(_currentDialog);
+                            InitializePageNavigation(rootElement);
                         }
-                    });
-                }
-                else if (e.Action == GamepadAction.Back)
-                {
-                    System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
-                    _dispatcherQueue?.TryEnqueue(() => _currentDialog?.Hide());
-                }
-
-                // Block all other input while dialog is open
-                return;
-            }
-
-            // PRIORITY 2: Input processing paused (Library page) - intercept chrome
-            // input (page nav, navbar); everything else reaches the page through
-            // the raw reading forwarded in OnReaderReading.
-            if (_inputProcessingPaused)
-            {
-                HandlePausedAction(e);
-                return;
-            }
-
-            // PRIORITY 3: Activate gamepad mode on first input
-            if (!_isGamepadActive)
-            {
-                SetGamepadActive(true);
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
-
-                // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
-                ClearFocus();
-
-                // L1/R1/L2/R2 are processed even on the wake press; everything else
-                // is consumed by activation (it just summons the focus visuals)
-                bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
-                                              or GamepadAction.LT or GamepadAction.RT;
-                if (!isChromeInput)
-                {
-                    if (_currentFrame?.Content is FrameworkElement rootElement && !_suppressAutoFocusOnActivation)
-                    {
-                        InitializePageNavigation(rootElement);
+                        _suppressAutoFocusOnActivation = false;
+                        return;
                     }
+
                     _suppressAutoFocusOnActivation = false;
-                    return;
                 }
-
-                _suppressAutoFocusOnActivation = false;
             }
 
-            HandleAction(e);
-        }
+            var consumer = _router.Dispatch(in e);
 
-        /// <summary>
-        /// Chrome input that stays live while a page (Library) handles its own
-        /// raw input: L1/R1 page nav, L2/R2 navbar cycling, A/B on a navbar selection.
-        /// Intercepted buttons are masked out of the forwarded raw readings.
-        /// </summary>
-        private void HandlePausedAction(GamepadEvent e)
-        {
-            switch (e.Action)
+            // While the Library consumes raw readings, input another scope consumed
+            // must be hidden from the raw stream (mask held buttons until release)
+            if (consumer != null && consumer is not LegacyRawScope && IsInputProcessingPaused)
             {
-                case GamepadAction.LB when !e.IsRepeat:
-                    InterceptPausedButton(GamepadButtons.LeftShoulder);
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
-                    return;
-
-                case GamepadAction.RB when !e.IsRepeat:
-                    InterceptPausedButton(GamepadButtons.RightShoulder);
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
-                    return;
-
-                case GamepadAction.LT when !e.IsRepeat:
-                    _skipRawForwardThisTick = true;
-                    CycleNavbarButtonSelection(-1);
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.RT when !e.IsRepeat:
-                    _skipRawForwardThisTick = true;
-                    CycleNavbarButtonSelection(1);
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.Accept when !e.IsRepeat
-                                               && _selectedNavbarButtonIndex.HasValue
-                                               && _selectedNavbarButton != null:
-                    InterceptPausedButton(GamepadButtons.A);
-                    InvokeSelectedNavbarButton();
-                    return;
-
-                case GamepadAction.Back when !e.IsRepeat && _selectedNavbarButtonIndex.HasValue:
-                    InterceptPausedButton(GamepadButtons.B);
-                    ClearNavbarButtonSelection();
-                    return;
-            }
-            // Anything else flows to the page via raw forwarding
-        }
-
-        /// <summary>Normal-mode handling of a semantic action.</summary>
-        private void HandleAction(GamepadEvent e)
-        {
-            switch (e.Action)
-            {
-                case GamepadAction.LB:
-                    if (e.IsRepeat) return;
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        ClearNavbarButtonSelection();
-                    }
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.RB:
-                    if (e.IsRepeat) return;
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        ClearNavbarButtonSelection();
-                    }
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.LT:
-                    if (e.IsRepeat) return;
-                    CycleNavbarButtonSelection(-1);
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.RT:
-                    if (e.IsRepeat) return;
-                    CycleNavbarButtonSelection(1);
-                    _reader.PulseHaptics();
-                    return;
-
-                case GamepadAction.NavUp:
-                case GamepadAction.NavDown:
-                case GamepadAction.NavLeft:
-                case GamepadAction.NavRight:
-                    // D-pad/analog use clears any navbar selection
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        ClearNavbarButtonSelection();
-                    }
-                    HandleNavigationAction(e.Action switch
-                    {
-                        GamepadAction.NavUp => GamepadNavigationAction.Up,
-                        GamepadAction.NavDown => GamepadNavigationAction.Down,
-                        GamepadAction.NavLeft => GamepadNavigationAction.Left,
-                        _ => GamepadNavigationAction.Right
-                    });
-                    return;
-
-                case GamepadAction.Accept:
-                    if (e.IsRepeat) return;
-                    _reader.PulseHaptics();
-                    if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
-                    {
-                        InvokeSelectedNavbarButton();
-                        return;
-                    }
-                    HandleNavigationAction(GamepadNavigationAction.Activate);
-                    return;
-
-                case GamepadAction.Back:
-                    if (e.IsRepeat) return;
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        ClearNavbarButtonSelection();
-                        return;
-                    }
-                    HandleNavigationAction(GamepadNavigationAction.Back);
-                    return;
-
-                // X/Y have no global function (Library consumes X via raw input)
+                switch (e.Action)
+                {
+                    case GamepadAction.Accept: InterceptPausedButton(GamepadButtons.A); break;
+                    case GamepadAction.Back: InterceptPausedButton(GamepadButtons.B); break;
+                    case GamepadAction.LB: InterceptPausedButton(GamepadButtons.LeftShoulder); break;
+                    case GamepadAction.RB: InterceptPausedButton(GamepadButtons.RightShoulder); break;
+                    default: _skipRawForwardThisTick = true; break;
+                }
             }
         }
 
@@ -363,14 +226,14 @@ namespace HUDRA.Services
             bool skipThisTick = _skipRawForwardThisTick;
             _skipRawForwardThisTick = false;
 
-            if (!_inputProcessingPaused)
+            if (!IsInputProcessingPaused)
             {
                 _pausedInterceptMask = GamepadButtons.None;
                 return;
             }
 
             if (_windowManager != null && !_windowManager.IsVisible) return;
-            if (_isDialogOpen) return;
+            if (IsDialogOpen) return;
             if (skipThisTick) return;
 
             // Drop released buttons from the mask, then hide still-held intercepted
@@ -387,144 +250,14 @@ namespace HUDRA.Services
             _skipRawForwardThisTick = true;
         }
 
-        private void ActivateSlider(IGamepadNavigable sliderControl)
+        /// <summary>
+        /// Route a navigation action to the focused element (IGamepadNavigable
+        /// dispatch, expander handling) or move focus between elements.
+        /// Called by PageScope; slider/dropdown editing is handled by the
+        /// ValueEditScope/DropdownScope pushed above the page.
+        /// </summary>
+        internal void HandleNavigationAction(GamepadNavigationAction action)
         {
-            _isSliderActivated = true;
-            _activatedSliderControl = sliderControl;
-            sliderControl.IsSliderActivated = true;
-            System.Diagnostics.Debug.WriteLine($"🎮 Slider activated for {sliderControl.GetType().Name}");
-        }
-
-        private void DeactivateSlider()
-        {
-            if (_activatedSliderControl != null)
-            {
-                _activatedSliderControl.IsSliderActivated = false;
-                System.Diagnostics.Debug.WriteLine($"🎮 Slider deactivated for {_activatedSliderControl.GetType().Name}");
-            }
-            
-            _isSliderActivated = false;
-            _activatedSliderControl = null;
-        }
-
-        private void ActivateComboBox(IGamepadNavigable comboBoxControl)
-        {
-            _isComboBoxOpen = true;
-            _activeComboBoxControl = comboBoxControl;
-            comboBoxControl.IsComboBoxOpen = true;
-            
-            // Store the original selection index for cancellation
-            var comboBox = comboBoxControl.GetFocusedComboBox();
-            if (comboBox != null)
-            {
-                comboBoxControl.ComboBoxOriginalIndex = comboBox.SelectedIndex;
-                comboBoxControl.IsNavigatingComboBox = false;
-            }
-            
-            System.Diagnostics.Debug.WriteLine($"🎮 ComboBox activated for {comboBoxControl.GetType().Name}, original index: {comboBoxControl.ComboBoxOriginalIndex}");
-        }
-
-        private void DeactivateComboBox()
-        {
-            if (_activeComboBoxControl != null)
-            {
-                _activeComboBoxControl.IsComboBoxOpen = false;
-                System.Diagnostics.Debug.WriteLine($"🎮 ComboBox deactivated for {_activeComboBoxControl.GetType().Name}");
-            }
-            
-            _isComboBoxOpen = false;
-            _activeComboBoxControl = null;
-        }
-
-        private void NavigateComboBoxItems(ComboBox comboBox, int direction)
-        {
-            if (comboBox.Items.Count == 0 || _activeComboBoxControl == null) return;
-
-            int currentIndex = comboBox.SelectedIndex;
-            int newIndex;
-
-            if (direction > 0)
-            {
-                // Navigate down
-                newIndex = (currentIndex + 1) % comboBox.Items.Count;
-            }
-            else
-            {
-                // Navigate up
-                newIndex = currentIndex <= 0 ? comboBox.Items.Count - 1 : currentIndex - 1;
-            }
-
-            // Set navigation flag to prevent SelectionChanged from applying changes
-            _activeComboBoxControl.IsNavigatingComboBox = true;
-            comboBox.SelectedIndex = newIndex;
-            
-            System.Diagnostics.Debug.WriteLine($"🎮 ComboBox navigated to item {newIndex} (direction: {direction}) - navigation mode active");
-        }
-
-        private void HandleNavigationAction(GamepadNavigationAction action)
-        {
-            // Handle slider-specific actions when a slider is activated
-            if (_isSliderActivated && _activatedSliderControl != null)
-            {
-                switch (action)
-                {
-                    case GamepadNavigationAction.Left:
-                        _activatedSliderControl.AdjustSliderValue(-1);
-                        return;
-                    case GamepadNavigationAction.Right:
-                        _activatedSliderControl.AdjustSliderValue(1);
-                        return;
-                    case GamepadNavigationAction.Activate:
-                    case GamepadNavigationAction.Back:
-                        DeactivateSlider();
-                        return;
-                }
-                // Block all other navigation when slider is active
-                return;
-            }
-            
-            // Handle ComboBox-specific actions when a ComboBox is open
-            if (_isComboBoxOpen && _activeComboBoxControl != null)
-            {
-                var comboBox = _activeComboBoxControl.GetFocusedComboBox();
-                if (comboBox != null)
-                {
-                    switch (action)
-                    {
-                        case GamepadNavigationAction.Up:
-                            // Navigate up in ComboBox items
-                            NavigateComboBoxItems(comboBox, -1);
-                            return;
-                        case GamepadNavigationAction.Down:
-                            // Navigate down in ComboBox items
-                            NavigateComboBoxItems(comboBox, 1);
-                            return;
-                        case GamepadNavigationAction.Activate:
-                            // Clear navigation flag and process selection
-                            _activeComboBoxControl.IsNavigatingComboBox = false;
-                            
-                            // Manually trigger selection processing
-                            _activeComboBoxControl.ProcessCurrentSelection();
-                            
-                            comboBox.IsDropDownOpen = false;
-                            DeactivateComboBox();
-                            System.Diagnostics.Debug.WriteLine($"🎮 ComboBox A button - confirmed selection: {comboBox.SelectedIndex}");
-                            return;
-                        case GamepadNavigationAction.Back:
-                            // Cancel and restore original selection before closing
-                            int originalIndex = _activeComboBoxControl.ComboBoxOriginalIndex;
-                            comboBox.SelectedIndex = originalIndex;
-                            _activeComboBoxControl.IsNavigatingComboBox = false;
-                            comboBox.IsDropDownOpen = false;
-                            DeactivateComboBox();
-                            System.Diagnostics.Debug.WriteLine($"🎮 ComboBox B button - cancelled, restored to index: {originalIndex}");
-                            return;
-                    }
-                }
-                // Block all other navigation when ComboBox is open
-                return;
-            }
-
             if (_currentFocusedElement != null)
             {
                 // Try to handle action with current focused element first
@@ -550,22 +283,22 @@ namespace HUDRA.Services
                             handled = true;
                             break;
                         case GamepadNavigationAction.Activate when navigableControl.CanActivate:
-                            // Check if this is a slider that should be activated
-                            if (navigableControl.IsSlider && !_isSliderActivated)
+                            // Sliders enter edit mode instead of activating directly
+                            if (navigableControl.IsSlider)
                             {
-                                ActivateSlider(navigableControl);
+                                _router.Push(new ValueEditScope(navigableControl));
                             }
                             else
                             {
                                 navigableControl.OnGamepadActivate();
 
-                                // Check if a ComboBox was opened and needs to be tracked
+                                // If a ComboBox dropdown was opened, route input to it
                                 if (navigableControl.HasComboBoxes)
                                 {
                                     var comboBox = navigableControl.GetFocusedComboBox();
                                     if (comboBox != null && comboBox.IsDropDownOpen)
                                     {
-                                        ActivateComboBox(navigableControl);
+                                        _router.Push(new DropdownScope(navigableControl));
                                     }
                                 }
                             }
@@ -836,7 +569,10 @@ namespace HUDRA.Services
         public void InitializePageNavigation(FrameworkElement rootElement, bool isFromPageNavigation = false)
         {
             System.Diagnostics.Debug.WriteLine($"🎮 InitializePageNavigation called for {rootElement.GetType().Name}, fromPageNav: {isFromPageNavigation}");
-            
+
+            // Editing scopes from the previous page no longer apply
+            _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+
             // Clear any existing focus first to prevent lingering borders
             ClearFocus();
             
@@ -888,71 +624,12 @@ namespace HUDRA.Services
             {
                 ClearFocus();
                 SetGamepadActive(false);
-                
-                // Also clear any active states
-                if (_isSliderActivated)
-                {
-                    DeactivateSlider();
-                }
-                if (_isComboBoxOpen)
-                {
-                    DeactivateComboBox();
-                }
-                
+
+                // Editing scopes don't survive leaving gamepad mode
+                _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad mode deactivated");
             }
-        }
-
-        private void TriggerDialogPrimaryButton(ContentDialog dialog)
-        {
-            try
-            {
-                // Find the primary button in the ContentDialog's visual tree and invoke it
-                var primaryButton = FindPrimaryButtonInDialog(dialog);
-                if (primaryButton != null)
-                {
-                    // Use automation peer to invoke the button
-                    var peer = new ButtonAutomationPeer(primaryButton);
-                    var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
-                    invokeProvider?.Invoke();
-                    System.Diagnostics.Debug.WriteLine("🎮 Primary button invoked via automation");
-                }
-                else
-                {
-                    System.Diagnostics.Debug.WriteLine("🎮 Warning: Could not find primary button in dialog");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 Error triggering dialog primary button: {ex.Message}");
-            }
-        }
-
-        private Button? FindPrimaryButtonInDialog(DependencyObject parent)
-        {
-            // Search the visual tree for a button with specific names used by ContentDialog
-            int childCount = VisualTreeHelper.GetChildrenCount(parent);
-            for (int i = 0; i < childCount; i++)
-            {
-                var child = VisualTreeHelper.GetChild(parent, i);
-
-                // ContentDialog typically names its buttons "PrimaryButton", "SecondaryButton", "CloseButton"
-                if (child is Button button && child is FrameworkElement element)
-                {
-                    if (element.Name == "PrimaryButton")
-                    {
-                        return button;
-                    }
-                }
-
-                // Recursively search children
-                var result = FindPrimaryButtonInDialog(child);
-                if (result != null)
-                {
-                    return result;
-                }
-            }
-            return null;
         }
 
         // Keyboard fallback for testing
@@ -994,201 +671,30 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
         }
 
-        // Set dialog open state (prevents activation input from being consumed and blocks UI navigation)
+        // Give a ContentDialog exclusive gamepad input (A = primary, B = cancel)
         public void SetDialogOpen(ContentDialog dialog)
         {
-            _isDialogOpen = true;
-            _currentDialog = dialog;
             // Clear focus from UI to prevent background controls from receiving input
             ClearFocus();
+            _router.Push(new DialogScope(dialog, _dispatcherQueue!));
             System.Diagnostics.Debug.WriteLine("🎮 Dialog opened - UI navigation blocked, dialog has exclusive input");
         }
 
-        // Clear dialog open state
+        // Release dialog input capture
         public void SetDialogClosed()
         {
-            _isDialogOpen = false;
-            _currentDialog = null;
+            var dialogScope = _router.FindScope<DialogScope>();
+            if (dialogScope != null)
+            {
+                _router.Pop(dialogScope);
+            }
             System.Diagnostics.Debug.WriteLine("🎮 Dialog closed - normal activation logic resumed");
         }
 
-        // Register navbar buttons for spatial navigation
+        // Register navbar buttons for LT/RT cycling
         public void RegisterNavbarButtons(List<Button> buttons)
         {
-            _navbarButtons = buttons ?? new List<Button>();
-            System.Diagnostics.Debug.WriteLine($"🎮 Registered {_navbarButtons.Count} navbar buttons");
-        }
-
-        // Cycle through navbar buttons with L2/R2 triggers
-        private void CycleNavbarButtonSelection(int direction)
-        {
-            if (_navbarButtons.Count == 0) return;
-
-            // Check if any navbar buttons are visible
-            var visibleButtons = _navbarButtons
-                .Select((button, index) => new { button, index })
-                .Where(x => x.button.Visibility == Visibility.Visible)
-                .ToList();
-
-            if (visibleButtons.Count == 0)
-            {
-                ClearNavbarButtonSelection();
-                return;
-            }
-
-            // If only one visible button, just select it and don't cycle
-            if (visibleButtons.Count == 1)
-            {
-                int singleIndex = visibleButtons[0].index;
-                if (_selectedNavbarButtonIndex == singleIndex)
-                {
-                    return; // Already selected, nothing to do
-                }
-                _selectedNavbarButtonIndex = singleIndex;
-                SetNavbarButtonSelection(_navbarButtons[singleIndex]);
-                return;
-            }
-
-            int newIndex;
-
-            // If no button currently selected, always start from top-most visible button
-            if (!_selectedNavbarButtonIndex.HasValue)
-            {
-                // Always start from the first visible button (top-most)
-                newIndex = visibleButtons[0].index;
-            }
-            else
-            {
-                // Find current button in visible list
-                int currentVisibleIndex = visibleButtons.FindIndex(x => x.index == _selectedNavbarButtonIndex.Value);
-
-                if (currentVisibleIndex == -1)
-                {
-                    // Current button no longer visible, start from top-most visible button
-                    newIndex = visibleButtons[0].index;
-                }
-                else
-                {
-                    // Move to next/previous visible button
-                    int nextVisibleIndex = currentVisibleIndex + direction;
-
-                    // Wrap around within visible buttons
-                    if (nextVisibleIndex < 0)
-                    {
-                        nextVisibleIndex = visibleButtons.Count - 1;
-                    }
-                    else if (nextVisibleIndex >= visibleButtons.Count)
-                    {
-                        nextVisibleIndex = 0;
-                    }
-
-                    newIndex = visibleButtons[nextVisibleIndex].index;
-                }
-            }
-
-            // Find the actual visible button at newIndex (may need to search)
-            int searchAttempts = 0;
-            int searchIndex = newIndex;
-
-            while (searchAttempts < _navbarButtons.Count)
-            {
-                if (_navbarButtons[searchIndex].Visibility == Visibility.Visible)
-                {
-                    _selectedNavbarButtonIndex = searchIndex;
-                    SetNavbarButtonSelection(_navbarButtons[searchIndex]);
-                    return;
-                }
-
-                // Not visible, continue searching in direction
-                searchIndex += direction;
-
-                // Wrap around
-                if (searchIndex < 0)
-                {
-                    searchIndex = _navbarButtons.Count - 1;
-                }
-                else if (searchIndex >= _navbarButtons.Count)
-                {
-                    searchIndex = 0;
-                }
-
-                searchAttempts++;
-            }
-
-            // Should never reach here since we checked for visible buttons above
-            ClearNavbarButtonSelection();
-        }
-
-        // Set visual selection on navbar button
-        private void SetNavbarButtonSelection(Button button)
-        {
-            try
-            {
-                // Clear previous selection
-                if (_selectedNavbarButton != null && _selectedNavbarButton != button)
-                {
-                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                    _selectedNavbarButton.BorderThickness = new Thickness(0);
-                }
-
-                // Clear main app focus so DarkViolet borders disappear from page controls
-                ClearFocus();
-
-                // Set new selection
-                _selectedNavbarButton = button;
-
-                // Create border properties
-                var darkVioletBrush = new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-                var borderThickness = new Thickness(3);
-
-                // Set properties directly (gamepad timer runs on UI thread)
-                button.BorderBrush = darkVioletBrush;
-                button.BorderThickness = borderThickness;
-
-                // DON'T call Focus() - it can cause WinUI to add its own focus visual
-                // creating a "double border" effect. We only need our custom border.
-
-                // Force visual update
-                button.UpdateLayout();
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 ERROR setting navbar button selection: {ex.Message}");
-                System.Diagnostics.Debug.WriteLine($"🎮 Stack trace: {ex.StackTrace}");
-            }
-        }
-
-        // Clear navbar button selection
-        private void ClearNavbarButtonSelection()
-        {
-            try
-            {
-                if (_selectedNavbarButton != null)
-                {
-                    _selectedNavbarButton.BorderBrush = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-                    _selectedNavbarButton.BorderThickness = new Thickness(0);
-                    _selectedNavbarButton = null;
-                }
-                _selectedNavbarButtonIndex = null;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 ERROR clearing navbar button selection: {ex.Message}");
-            }
-        }
-
-        // Invoke the currently selected navbar button
-        private void InvokeSelectedNavbarButton()
-        {
-            if (_selectedNavbarButton == null) return;
-
-            // Programmatically click the button using UI Automation
-            var peer = new ButtonAutomationPeer(_selectedNavbarButton);
-            var invokeProvider = peer.GetPattern(PatternInterface.Invoke) as IInvokeProvider;
-            invokeProvider?.Invoke();
-
-            // Clear selection after invocation
-            ClearNavbarButtonSelection();
+            _shellScope.RegisterNavbarButtons(buttons);
         }
 
         public void Dispose()
