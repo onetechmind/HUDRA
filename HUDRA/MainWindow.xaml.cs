@@ -1223,6 +1223,15 @@ namespace HUDRA
 
         private void OnNonGamepadInput(object sender, object e)
         {
+            // WinUI synthesizes VirtualKey.Gamepad* key events from gamepad hardware;
+            // those must not be mistaken for keyboard input or every gamepad press
+            // would deactivate gamepad mode (lost focus borders, swallowed presses)
+            if (e is Microsoft.UI.Xaml.Input.KeyRoutedEventArgs keyArgs &&
+                HUDRA.Services.GamepadInput.GamepadInputReader.IsGamepadVirtualKey(keyArgs.Key))
+            {
+                return;
+            }
+
             // Clear gamepad focus when mouse/keyboard/touch is used
             if (_gamepadNavigationService?.IsGamepadActive == true)
             {

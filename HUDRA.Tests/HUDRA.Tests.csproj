@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>HUDRA.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    The main HUDRA project targets net8.0-windows with WinUI and can only build
+    on Windows. The gamepad input core is deliberately written free of WinUI
+    types so it can be tested cross-platform: link those sources directly.
+  -->
+  <ItemGroup>
+    <Compile Include="..\HUDRA\Services\Gamepad\GamepadEvents.cs" Link="Gamepad\GamepadEvents.cs" />
+    <Compile Include="..\HUDRA\Services\Gamepad\GamepadRepeatTracker.cs" Link="Gamepad\GamepadRepeatTracker.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+</Project>

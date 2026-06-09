@@ -1,0 +1,38 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    name: Build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore HUDRA/HUDRA.csproj -p:Platform=x64
+
+      - name: Build
+        run: dotnet build HUDRA/HUDRA.csproj -c Release -p:Platform=x64 --no-restore
+
+  test:
+    name: Unit tests (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Test
+        run: dotnet test HUDRA.Tests/HUDRA.Tests.csproj -c Release

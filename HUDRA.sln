@@ -1,9 +1,10 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.14.36212.18 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HUDRA", "HUDRA\HUDRA.csproj", "{C5BC2191-B075-4640-AB63-2AF2A58FB5DA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HUDRA.Tests", "HUDRA.Tests\HUDRA.Tests.csproj", "{7E2FA8C1-4D26-4A52-9F3B-1B2C8A6D0E47}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,6 +18,10 @@ Global
 		{C5BC2191-B075-4640-AB63-2AF2A58FB5DA}.Release|x64.ActiveCfg = Release|x64
 		{C5BC2191-B075-4640-AB63-2AF2A58FB5DA}.Release|x64.Build.0 = Release|x64
 		{C5BC2191-B075-4640-AB63-2AF2A58FB5DA}.Release|x64.Deploy.0 = Release|x64
+		{7E2FA8C1-4D26-4A52-9F3B-1B2C8A6D0E47}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7E2FA8C1-4D26-4A52-9F3B-1B2C8A6D0E47}.Debug|x64.Build.0 = Debug|Any CPU
+		{7E2FA8C1-4D26-4A52-9F3B-1B2C8A6D0E47}.Release|x64.ActiveCfg = Release|Any CPU
+		{7E2FA8C1-4D26-4A52-9F3B-1B2C8A6D0E47}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

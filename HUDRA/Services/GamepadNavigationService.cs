@@ -9,6 +9,7 @@ using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
 using HUDRA.Controls;
+using HUDRA.Services.GamepadInput;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
@@ -17,35 +18,29 @@ namespace HUDRA.Services
 {
     public class GamepadNavigationService : IDisposable
     {
-        private Microsoft.UI.Dispatching.DispatcherQueueTimer? _gamepadTimer;
-        private readonly List<Gamepad> _connectedGamepads = new();
+        private readonly GamepadInputReader _reader;
         private FrameworkElement? _currentFocusedElement;
         private Frame? _currentFrame;
         private UIElement? _layoutRoot;
-        private readonly HashSet<GamepadButtons> _pressedButtons = new();
-        private DateTime _lastInputTime = DateTime.MinValue;
-        private const double INPUT_REPEAT_DELAY_MS = 150;
         private Microsoft.UI.Dispatching.DispatcherQueue? _dispatcherQueue;
-
-        // Trigger state tracking - hysteresis prevents bouncing at threshold
-        private bool _leftTriggerPressed = false;
-        private bool _rightTriggerPressed = false;
-        private const double TRIGGER_PRESS_THRESHOLD = 0.6;    // Must exceed 0.6 to register press
-        private const double TRIGGER_RELEASE_THRESHOLD = 0.4;  // Must drop below 0.4 to register release
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
-        
+
         // Slider activation state
         private bool _isSliderActivated = false;
         private IGamepadNavigable? _activatedSliderControl = null;
-        
+
         // ComboBox activation state
         private bool _isComboBoxOpen = false;
         private IGamepadNavigable? _activeComboBoxControl = null;
 
-        // Polling suspension (for modal dialogs)
-        private bool _isPollingPaused = false;
+        // While input processing is paused (Library page), buttons we intercept
+        // (navbar invoke, page nav) are masked out of the forwarded raw readings
+        // until released, so the page's own edge detection never sees a phantom
+        // "new" press one tick after we consumed it.
+        private GamepadButtons _pausedInterceptMask = GamepadButtons.None;
+        private bool _skipRawForwardThisTick = false;
 
         // Dialog state tracking (to bypass activation input consumption)
         private bool _isDialogOpen = false;
@@ -106,28 +101,30 @@ namespace HUDRA.Services
 
             // Get dispatcher queue for UI thread operations
             _dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-            
-            if (_dispatcherQueue != null)
-            {
-                // Create timer on UI thread
-                _gamepadTimer = _dispatcherQueue.CreateTimer();
-                _gamepadTimer.Interval = TimeSpan.FromMilliseconds(16); // ~60 FPS
-                _gamepadTimer.Tick += OnGamepadTimerTick;
-            }
-            else
+
+            if (_dispatcherQueue == null)
             {
                 throw new InvalidOperationException("Failed to get DispatcherQueue for GamepadNavigationService");
             }
 
-            // Subscribe to gamepad connection events
-            Gamepad.GamepadAdded += OnGamepadAdded;
-            Gamepad.GamepadRemoved += OnGamepadRemoved;
-
-            // Check for already connected gamepads
-            CheckForConnectedGamepads();
+            _reader = new GamepadInputReader();
+            _reader.ActionDispatched += OnReaderAction;
+            _reader.ReadingAvailable += OnReaderReading;
+            _reader.GamepadConnected += (s, e) => GamepadConnected?.Invoke(this, e);
+            _reader.GamepadDisconnected += (s, e) =>
+            {
+                GamepadDisconnected?.Invoke(this, e);
+                if (!_reader.HasConnectedGamepads)
+                {
+                    SetGamepadActive(false);
+                }
+            };
 
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService initialized successfully");
         }
+
+        /// <summary>The raw input layer. Exposed for consumers that need direct access (haptics, key mapping).</summary>
+        public GamepadInputReader InputReader => _reader;
 
         public void SetCurrentFrame(Frame frame)
         {
@@ -147,88 +144,32 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine("🎮 Set window manager for visibility tracking");
         }
 
-        private void CheckForConnectedGamepads()
-        {
-            var gamepads = Gamepad.Gamepads;
-            foreach (var gamepad in gamepads)
-            {
-                OnGamepadAdded(null, gamepad);
-            }
-        }
-
-        private void OnGamepadAdded(object? sender, Gamepad gamepad)
-        {
-            if (!_connectedGamepads.Contains(gamepad))
-            {
-                _connectedGamepads.Add(gamepad);
-                System.Diagnostics.Debug.WriteLine($"🎮 Gamepad connected: {gamepad}");
-                GamepadConnected?.Invoke(this, new GamepadConnectionEventArgs(gamepad));
-                
-                // Start timer when first gamepad connects
-                if (_connectedGamepads.Count == 1)
-                {
-                    _gamepadTimer.Start();
-                    System.Diagnostics.Debug.WriteLine("🎮 Started gamepad input polling");
-                }
-            }
-        }
-
-        private void OnGamepadRemoved(object? sender, Gamepad gamepad)
-        {
-            if (_connectedGamepads.Contains(gamepad))
-            {
-                _connectedGamepads.Remove(gamepad);
-                System.Diagnostics.Debug.WriteLine($"🎮 Gamepad disconnected: {gamepad}");
-                GamepadDisconnected?.Invoke(this, new GamepadConnectionEventArgs(gamepad));
-                
-                // Stop timer when no gamepads connected
-                if (_connectedGamepads.Count == 0)
-                {
-                    _gamepadTimer.Stop();
-                    SetGamepadActive(false);
-                    System.Diagnostics.Debug.WriteLine("🎮 Stopped gamepad input polling");
-                }
-            }
-        }
-
-        private void OnGamepadTimerTick(object? sender, object e)
-        {
-            if (_connectedGamepads.Count == 0) return;
-
-            foreach (var gamepad in _connectedGamepads.ToList())
-            {
-                try
-                {
-                    var reading = gamepad.GetCurrentReading();
-                    ProcessGamepadInput(reading);
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"🎮 Error reading gamepad: {ex.Message}");
-                }
-            }
-        }
-
-        private void ProcessGamepadInput(GamepadReading reading)
+        /// <summary>
+        /// Semantic input from the reader. Single priority chain: window hidden →
+        /// dialog → paused (Library) → activation → normal handling. Dialog A/B
+        /// handling lives ONLY here (it was previously duplicated in two methods).
+        /// </summary>
+        private void OnReaderAction(object? sender, GamepadEvent e)
         {
             // PRIORITY 0: Ignore all input when window is hidden
             // This prevents accidental navigation/actions while user plays a game
-            if (_windowManager != null && !_windowManager.IsVisible)
-            {
-                // Only update button state to prevent "stuck" buttons when window returns
-                UpdatePressedButtonsState(reading.Buttons);
-                return;
-            }
+            if (_windowManager != null && !_windowManager.IsVisible) return;
 
-            // PRIORITY 1: Handle dialog input FIRST (even if input processing is paused)
-            // This allows modals to work on Library page where input processing is suspended
+            // Keyboard-mapped input only participates once gamepad mode is active
+            if (e.Source == GamepadEventSource.Keyboard && !_isGamepadActive) return;
+
+            // PRIORITY 1: Dialog has exclusive input (even while input processing is paused)
             if (_isDialogOpen && _currentDialog != null)
             {
-                var dialogNewButtons = GetNewlyPressedButtons(reading.Buttons);
-
-                if (dialogNewButtons.Contains(GamepadButtons.A))
+                if (!_isGamepadActive)
                 {
-                    // A button = Primary button (Confirm/OK)
+                    SetGamepadActive(true);
+                }
+
+                if (e.IsRepeat) return;
+
+                if (e.Action == GamepadAction.Accept)
+                {
                     System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
                     _dispatcherQueue?.TryEnqueue(() =>
                     {
@@ -237,198 +178,213 @@ namespace HUDRA.Services
                             TriggerDialogPrimaryButton(_currentDialog);
                         }
                     });
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return;
                 }
-                else if (dialogNewButtons.Contains(GamepadButtons.B))
+                else if (e.Action == GamepadAction.Back)
                 {
-                    // B button = Close/Cancel button
                     System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
-                    _dispatcherQueue?.TryEnqueue(() =>
-                    {
-                        _currentDialog?.Hide();
-                    });
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return;
+                    _dispatcherQueue?.TryEnqueue(() => _currentDialog?.Hide());
                 }
 
                 // Block all other input while dialog is open
-                UpdatePressedButtonsState(reading.Buttons);
                 return;
             }
 
-            // PRIORITY 2: If input processing is paused, check for shoulder buttons first (for page navigation)
-            // and triggers for navbar cycling, then forward remaining input to subscribers (e.g., Library page)
+            // PRIORITY 2: Input processing paused (Library page) - intercept chrome
+            // input (page nav, navbar); everything else reaches the page through
+            // the raw reading forwarded in OnReaderReading.
             if (_inputProcessingPaused)
             {
-                // Still handle shoulder buttons for page navigation even when paused
-                var pausedNewButtons = GetNewlyPressedButtons(reading.Buttons);
-
-                if (pausedNewButtons.Contains(GamepadButtons.LeftShoulder))
-                {
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return; // Don't forward this input
-                }
-
-                if (pausedNewButtons.Contains(GamepadButtons.RightShoulder))
-                {
-                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return; // Don't forward this input
-                }
-
-                // Handle navbar button cycling with L2/R2 triggers even when paused
-                // Left trigger (L2) - cycle up through navbar
-                if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
-                {
-                    _leftTriggerPressed = true;
-                    CycleNavbarButtonSelection(-1);
-                    TriggerHapticFeedback();
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return; // Don't forward this input
-                }
-                else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
-                {
-                    _leftTriggerPressed = false;
-                }
-
-                // Right trigger (R2) - cycle down through navbar
-                if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
-                {
-                    _rightTriggerPressed = true;
-                    CycleNavbarButtonSelection(1);
-                    TriggerHapticFeedback();
-                    UpdatePressedButtonsState(reading.Buttons);
-                    return; // Don't forward this input
-                }
-                else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
-                {
-                    _rightTriggerPressed = false;
-                }
-
-                // Handle A button to invoke selected navbar button (if one is selected)
-                if (pausedNewButtons.Contains(GamepadButtons.A))
-                {
-                    if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
-                    {
-                        InvokeSelectedNavbarButton();
-                        UpdatePressedButtonsState(reading.Buttons);
-                        return; // Don't forward this input
-                    }
-                    // If no navbar button selected, forward A button to page (will invoke focused game)
-                }
-
-                // Forward all other input to subscribers
-                RawGamepadInput?.Invoke(this, reading);
-                UpdatePressedButtonsState(reading.Buttons);
+                HandlePausedAction(e);
                 return;
             }
 
-            // Check if any input is being received OR if we need to check for trigger releases
-            bool hasInput = reading.Buttons != GamepadButtons.None ||
-                           Math.Abs(reading.LeftThumbstickX) > 0.1 ||
-                           Math.Abs(reading.LeftThumbstickY) > 0.1 ||
-                           Math.Abs(reading.RightThumbstickX) > 0.1 ||
-                           Math.Abs(reading.RightThumbstickY) > 0.1 ||
-                           reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD ||
-                           reading.RightTrigger > TRIGGER_PRESS_THRESHOLD ||
-                           _leftTriggerPressed ||  // Need to check for L2 release
-                           _rightTriggerPressed;   // Need to check for R2 release
-
-            if (!hasInput)
-            {
-                // Still need to update button state even when no input to clear released buttons
-                UpdatePressedButtonsState(reading.Buttons);
-                return;
-            }
-
-            // Activate gamepad navigation on first input (unless dialog is open)
-            if (!_isGamepadActive && !_isDialogOpen)
+            // PRIORITY 3: Activate gamepad mode on first input
+            if (!_isGamepadActive)
             {
                 SetGamepadActive(true);
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
                 // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
-                // This prevents lingering keyboard Tab focus from showing alongside gamepad focus
                 ClearFocus();
-                System.Diagnostics.Debug.WriteLine("🎮 Cleared existing keyboard focus on gamepad activation");
 
-                // Check if this is a trigger or shoulder button input (L1/R1 for page nav, L2/R2 for navbar cycling)
-                bool isTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
-                bool isShoulderInput = reading.Buttons.HasFlag(GamepadButtons.LeftShoulder) || reading.Buttons.HasFlag(GamepadButtons.RightShoulder);
-                bool isNavigationInput = isTriggerInput || isShoulderInput;
-
-                // Initialize focus on first input if we have a current frame (unless it's a navigation button press)
-                if (_currentFrame?.Content is FrameworkElement rootElement && !isNavigationInput)
+                // L1/R1/L2/R2 are processed even on the wake press; everything else
+                // is consumed by activation (it just summons the focus visuals)
+                bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
+                                              or GamepadAction.LT or GamepadAction.RT;
+                if (!isChromeInput)
                 {
-                    // Respect suppression flag set by non-gamepad navigation
-                    if (!_suppressAutoFocusOnActivation)
+                    if (_currentFrame?.Content is FrameworkElement rootElement && !_suppressAutoFocusOnActivation)
                     {
                         InitializePageNavigation(rootElement);
                     }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 Auto-focus on activation suppressed (non-gamepad navigation)");
-                    }
-                }
-
-                // Reset suppression after first activation regardless
-                _suppressAutoFocusOnActivation = false;
-
-                // If this is a navigation input (L1/R1/L2/R2), don't consume it - let it be processed below
-                if (isNavigationInput)
-                {
-                    if (isTriggerInput)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L2/R2 trigger press - input will be processed for navbar cycling");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated by L1/R1 shoulder press - input will be processed for page navigation");
-                    }
-                    // Don't return - let the input be processed below
-                }
-                else
-                {
-                    // Don't process the activation input as navigation - just consume it for activation
-                    // Set last input time to prevent repeat logic from triggering immediately
-                    _lastInputTime = DateTime.Now;
-
-                    // Update pressed buttons state to prevent next frame from treating held button as "new"
-                    UpdatePressedButtonsState(reading.Buttons);
-
+                    _suppressAutoFocusOnActivation = false;
                     return;
                 }
+
+                _suppressAutoFocusOnActivation = false;
             }
 
-            // If dialog is open but gamepad not active, activate it without consuming input
-            if (!_isGamepadActive && _isDialogOpen)
+            HandleAction(e);
+        }
+
+        /// <summary>
+        /// Chrome input that stays live while a page (Library) handles its own
+        /// raw input: L1/R1 page nav, L2/R2 navbar cycling, A/B on a navbar selection.
+        /// Intercepted buttons are masked out of the forwarded raw readings.
+        /// </summary>
+        private void HandlePausedAction(GamepadEvent e)
+        {
+            switch (e.Action)
             {
-                SetGamepadActive(true);
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated for dialog - input will be processed");
-                // Don't return - let the input be processed below
+                case GamepadAction.LB when !e.IsRepeat:
+                    InterceptPausedButton(GamepadButtons.LeftShoulder);
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
+                    return;
+
+                case GamepadAction.RB when !e.IsRepeat:
+                    InterceptPausedButton(GamepadButtons.RightShoulder);
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
+                    return;
+
+                case GamepadAction.LT when !e.IsRepeat:
+                    _skipRawForwardThisTick = true;
+                    CycleNavbarButtonSelection(-1);
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.RT when !e.IsRepeat:
+                    _skipRawForwardThisTick = true;
+                    CycleNavbarButtonSelection(1);
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.Accept when !e.IsRepeat
+                                               && _selectedNavbarButtonIndex.HasValue
+                                               && _selectedNavbarButton != null:
+                    InterceptPausedButton(GamepadButtons.A);
+                    InvokeSelectedNavbarButton();
+                    return;
+
+                case GamepadAction.Back when !e.IsRepeat && _selectedNavbarButtonIndex.HasValue:
+                    InterceptPausedButton(GamepadButtons.B);
+                    ClearNavbarButtonSelection();
+                    return;
             }
+            // Anything else flows to the page via raw forwarding
+        }
 
-            // Get newly pressed buttons
-            var newButtons = GetNewlyPressedButtons(reading.Buttons);
-
-            // Check if we should process input (avoid spam)
-            bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
-
-            // Include trigger input in addition to digital buttons and repeats
-            // Also need to process if trigger WAS pressed (to detect releases)
-            bool hasTriggerInput = reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD || reading.RightTrigger > TRIGGER_PRESS_THRESHOLD;
-            bool needTriggerReleaseCheck = _leftTriggerPressed || _rightTriggerPressed;
-
-            if (newButtons.Count > 0 || shouldProcessRepeats || hasTriggerInput || needTriggerReleaseCheck)
+        /// <summary>Normal-mode handling of a semantic action.</summary>
+        private void HandleAction(GamepadEvent e)
+        {
+            switch (e.Action)
             {
-                ProcessNavigationInput(reading, newButtons, shouldProcessRepeats);
-                _lastInputTime = DateTime.Now;
+                case GamepadAction.LB:
+                    if (e.IsRepeat) return;
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        ClearNavbarButtonSelection();
+                    }
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.RB:
+                    if (e.IsRepeat) return;
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        ClearNavbarButtonSelection();
+                    }
+                    PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.LT:
+                    if (e.IsRepeat) return;
+                    CycleNavbarButtonSelection(-1);
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.RT:
+                    if (e.IsRepeat) return;
+                    CycleNavbarButtonSelection(1);
+                    _reader.PulseHaptics();
+                    return;
+
+                case GamepadAction.NavUp:
+                case GamepadAction.NavDown:
+                case GamepadAction.NavLeft:
+                case GamepadAction.NavRight:
+                    // D-pad/analog use clears any navbar selection
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        ClearNavbarButtonSelection();
+                    }
+                    HandleNavigationAction(e.Action switch
+                    {
+                        GamepadAction.NavUp => GamepadNavigationAction.Up,
+                        GamepadAction.NavDown => GamepadNavigationAction.Down,
+                        GamepadAction.NavLeft => GamepadNavigationAction.Left,
+                        _ => GamepadNavigationAction.Right
+                    });
+                    return;
+
+                case GamepadAction.Accept:
+                    if (e.IsRepeat) return;
+                    _reader.PulseHaptics();
+                    if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
+                    {
+                        InvokeSelectedNavbarButton();
+                        return;
+                    }
+                    HandleNavigationAction(GamepadNavigationAction.Activate);
+                    return;
+
+                case GamepadAction.Back:
+                    if (e.IsRepeat) return;
+                    if (_selectedNavbarButtonIndex.HasValue)
+                    {
+                        ClearNavbarButtonSelection();
+                        return;
+                    }
+                    HandleNavigationAction(GamepadNavigationAction.Back);
+                    return;
+
+                // X/Y have no global function (Library consumes X via raw input)
+            }
+        }
+
+        /// <summary>
+        /// Raw per-tick reading from the reader, fired after that tick's semantic
+        /// events. While paused, forwards to RawGamepadInput subscribers with any
+        /// intercepted buttons masked out until they are released.
+        /// </summary>
+        private void OnReaderReading(object? sender, GamepadReading reading)
+        {
+            bool skipThisTick = _skipRawForwardThisTick;
+            _skipRawForwardThisTick = false;
+
+            if (!_inputProcessingPaused)
+            {
+                _pausedInterceptMask = GamepadButtons.None;
+                return;
             }
 
-            // Update pressed buttons state at END of frame after processing input
-            UpdatePressedButtonsState(reading.Buttons);
+            if (_windowManager != null && !_windowManager.IsVisible) return;
+            if (_isDialogOpen) return;
+            if (skipThisTick) return;
+
+            // Drop released buttons from the mask, then hide still-held intercepted
+            // buttons from the page so it never sees them as fresh presses
+            _pausedInterceptMask &= reading.Buttons;
+            reading.Buttons &= ~_pausedInterceptMask;
+
+            RawGamepadInput?.Invoke(this, reading);
+        }
+
+        private void InterceptPausedButton(GamepadButtons button)
+        {
+            _pausedInterceptMask |= button;
+            _skipRawForwardThisTick = true;
         }
 
         private void ActivateSlider(IGamepadNavigable sliderControl)
@@ -503,218 +459,6 @@ namespace HUDRA.Services
             comboBox.SelectedIndex = newIndex;
             
             System.Diagnostics.Debug.WriteLine($"🎮 ComboBox navigated to item {newIndex} (direction: {direction}) - navigation mode active");
-        }
-
-        private void UpdatePressedButtonsState(GamepadButtons currentButtons)
-        {
-            _pressedButtons.Clear();
-            foreach (GamepadButtons button in Enum.GetValues<GamepadButtons>())
-            {
-                if (currentButtons.HasFlag(button))
-                {
-                    _pressedButtons.Add(button);
-                }
-            }
-        }
-
-        private List<GamepadButtons> GetNewlyPressedButtons(GamepadButtons currentButtons)
-        {
-            var newButtons = new List<GamepadButtons>();
-            
-            foreach (GamepadButtons button in Enum.GetValues<GamepadButtons>())
-            {
-                if (currentButtons.HasFlag(button) && !_pressedButtons.Contains(button))
-                {
-                    newButtons.Add(button);
-                }
-            }
-
-            return newButtons;
-        }
-
-        private void ProcessNavigationInput(GamepadReading reading, List<GamepadButtons> newButtons, bool shouldProcessRepeats)
-        {
-            // When dialog is open, only process A/B buttons to control the dialog
-            if (_isDialogOpen && _currentDialog != null)
-            {
-                if (newButtons.Contains(GamepadButtons.A))
-                {
-                    // A button = Primary button (Force Quit)
-                    System.Diagnostics.Debug.WriteLine("🎮 A button pressed - triggering dialog primary action");
-                    _dispatcherQueue?.TryEnqueue(() =>
-                    {
-                        if (_currentDialog != null)
-                        {
-                            // Programmatically click the primary button
-                            TriggerDialogPrimaryButton(_currentDialog);
-                        }
-                    });
-                    return;
-                }
-                else if (newButtons.Contains(GamepadButtons.B))
-                {
-                    // B button = Close/Cancel button
-                    System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
-                    _dispatcherQueue?.TryEnqueue(() =>
-                    {
-                        _currentDialog?.Hide();
-                    });
-                    return;
-                }
-                // Ignore all other input when dialog is open
-                return;
-            }
-
-            // Handle page navigation (L1/R1 shoulder buttons) - only on new presses
-            if (newButtons.Contains(GamepadButtons.LeftShoulder))
-            {
-                // Clear navbar selection when using shoulder buttons for page navigation
-                if (_selectedNavbarButtonIndex.HasValue)
-                {
-                    System.Diagnostics.Debug.WriteLine("🎮 L1 pressed - clearing navbar selection");
-                    ClearNavbarButtonSelection();
-                }
-                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Previous));
-                return;
-            }
-
-            if (newButtons.Contains(GamepadButtons.RightShoulder))
-            {
-                // Clear navbar selection when using shoulder buttons for page navigation
-                if (_selectedNavbarButtonIndex.HasValue)
-                {
-                    System.Diagnostics.Debug.WriteLine("🎮 R1 pressed - clearing navbar selection");
-                    ClearNavbarButtonSelection();
-                }
-                PageNavigationRequested?.Invoke(this, new GamepadPageNavigationEventArgs(GamepadPageDirection.Next));
-                return;
-            }
-
-            // Handle navbar button cycling with L2/R2 triggers - hysteresis edge detection
-            // Hysteresis: press at >0.6, release at <0.4, maintain state in between (0.4-0.6 dead zone)
-
-            // Left trigger (L2) - cycle up through navbar
-            if (!_leftTriggerPressed && reading.LeftTrigger > TRIGGER_PRESS_THRESHOLD)
-            {
-                // Rising edge: trigger exceeded press threshold
-                _leftTriggerPressed = true;
-                CycleNavbarButtonSelection(-1);
-                TriggerHapticFeedback();
-                return;
-            }
-            else if (_leftTriggerPressed && reading.LeftTrigger < TRIGGER_RELEASE_THRESHOLD)
-            {
-                // Falling edge: trigger dropped below release threshold
-                _leftTriggerPressed = false;
-            }
-
-            // Right trigger (R2) - cycle down through navbar
-            if (!_rightTriggerPressed && reading.RightTrigger > TRIGGER_PRESS_THRESHOLD)
-            {
-                // Rising edge: trigger exceeded press threshold
-                _rightTriggerPressed = true;
-                CycleNavbarButtonSelection(1);
-                TriggerHapticFeedback();
-                return;
-            }
-            else if (_rightTriggerPressed && reading.RightTrigger < TRIGGER_RELEASE_THRESHOLD)
-            {
-                // Falling edge: trigger dropped below release threshold
-                _rightTriggerPressed = false;
-            }
-
-            // Handle standard navigation
-            GamepadNavigationAction? action = null;
-
-            // D-pad navigation (both new presses and repeats)
-            if (reading.Buttons.HasFlag(GamepadButtons.DPadUp) || reading.LeftThumbstickY > 0.7)
-            {
-                if (newButtons.Contains(GamepadButtons.DPadUp) || shouldProcessRepeats)
-                {
-                    action = GamepadNavigationAction.Up;
-                    // Clear navbar selection when using d-pad/analog for main UI navigation
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
-                        ClearNavbarButtonSelection();
-                    }
-                }
-            }
-            else if (reading.Buttons.HasFlag(GamepadButtons.DPadDown) || reading.LeftThumbstickY < -0.7)
-            {
-                if (newButtons.Contains(GamepadButtons.DPadDown) || shouldProcessRepeats)
-                {
-                    action = GamepadNavigationAction.Down;
-                    // Clear navbar selection when using d-pad/analog for main UI navigation
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
-                        ClearNavbarButtonSelection();
-                    }
-                }
-            }
-            else if (reading.Buttons.HasFlag(GamepadButtons.DPadLeft) || reading.LeftThumbstickX < -0.7)
-            {
-                if (newButtons.Contains(GamepadButtons.DPadLeft) || shouldProcessRepeats)
-                {
-                    action = GamepadNavigationAction.Left;
-                    // Clear navbar selection when using d-pad/analog for main UI navigation
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
-                        ClearNavbarButtonSelection();
-                    }
-                }
-            }
-            else if (reading.Buttons.HasFlag(GamepadButtons.DPadRight) || reading.LeftThumbstickX > 0.7)
-            {
-                if (newButtons.Contains(GamepadButtons.DPadRight) || shouldProcessRepeats)
-                {
-                    action = GamepadNavigationAction.Right;
-                    // Clear navbar selection when using d-pad/analog for main UI navigation
-                    if (_selectedNavbarButtonIndex.HasValue)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 D-pad/Analog input detected - clearing navbar selection");
-                        ClearNavbarButtonSelection();
-                    }
-                }
-            }
-
-            // Action buttons (only on new presses)
-            if (newButtons.Contains(GamepadButtons.A))
-            {
-                // Check if a navbar button is selected - invoke it directly
-                if (_selectedNavbarButtonIndex.HasValue && _selectedNavbarButton != null)
-                {
-                    InvokeSelectedNavbarButton();
-                    return;
-                }
-                action = GamepadNavigationAction.Activate;
-            }
-            else if (newButtons.Contains(GamepadButtons.B))
-            {
-                // B button clears navbar selection if one exists
-                if (_selectedNavbarButtonIndex.HasValue)
-                {
-                    ClearNavbarButtonSelection();
-                    return;
-                }
-                action = GamepadNavigationAction.Back;
-            }
-
-            if (action.HasValue)
-            {
-                HandleNavigationAction(action.Value);
-            }
-
-            // Add haptic feedback for important actions
-            // Note: Trigger haptic feedback is handled directly in the hysteresis code above
-            if (newButtons.Contains(GamepadButtons.A) ||
-                newButtons.Contains(GamepadButtons.LeftShoulder) ||
-                newButtons.Contains(GamepadButtons.RightShoulder))
-            {
-                TriggerHapticFeedback();
-            }
         }
 
         private void HandleNavigationAction(GamepadNavigationAction action)
@@ -1159,41 +903,6 @@ namespace HUDRA.Services
             }
         }
 
-        private void TriggerHapticFeedback()
-        {
-            try
-            {
-                // Simple haptic feedback for connected gamepads
-                foreach (var gamepad in _connectedGamepads)
-                {
-                    gamepad.Vibration = new GamepadVibration
-                    {
-                        LeftMotor = 0.2,
-                        RightMotor = 0.2,
-                        LeftTrigger = 0.0,
-                        RightTrigger = 0.0
-                    };
-
-                    // Stop vibration after short duration
-                    if (_dispatcherQueue != null)
-                    {
-                        var timer = _dispatcherQueue.CreateTimer();
-                        timer.Interval = TimeSpan.FromMilliseconds(100);
-                        timer.Tick += (s, e) =>
-                        {
-                            gamepad.Vibration = new GamepadVibration();
-                            timer.Stop();
-                        };
-                        timer.Start();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"🎮 Haptic feedback error: {ex.Message}");
-            }
-        }
-
         private void TriggerDialogPrimaryButton(ContentDialog dialog)
         {
             try
@@ -1250,50 +959,22 @@ namespace HUDRA.Services
         public void OnKeyDown(object sender, KeyRoutedEventArgs e)
         {
             if (!_isGamepadActive) return; // Only process when gamepad navigation is active
-            
-            System.Diagnostics.Debug.WriteLine($"🎮 Keyboard input: {e.Key}");
-            
-            GamepadNavigationAction? action = null;
-            
-            // Map keyboard keys to gamepad actions
-            switch (e.Key)
+
+            if (e.Key == VirtualKey.F1)
             {
-                case VirtualKey.Up:
-                case VirtualKey.W:
-                    action = GamepadNavigationAction.Up;
-                    break;
-                case VirtualKey.Down:
-                case VirtualKey.S:
-                    action = GamepadNavigationAction.Down;
-                    break;
-                case VirtualKey.Left:
-                case VirtualKey.A:
-                    action = GamepadNavigationAction.Left;
-                    break;
-                case VirtualKey.Right:
-                case VirtualKey.D:
-                    action = GamepadNavigationAction.Right;
-                    break;
-                case VirtualKey.Enter:
-                case VirtualKey.Space:
-                    action = GamepadNavigationAction.Activate;
-                    break;
-                case VirtualKey.Escape:
-                    action = GamepadNavigationAction.Back;
-                    break;
-                case VirtualKey.F1:
-                    // Special key for manual focus testing
-                    if (_currentFrame?.Content is FrameworkElement rootElement)
-                    {
-                        InitializePageNavigation(rootElement);
-                    }
-                    e.Handled = true;
-                    return;
+                // Special key for manual focus testing
+                if (_currentFrame?.Content is FrameworkElement rootElement)
+                {
+                    InitializePageNavigation(rootElement);
+                }
+                e.Handled = true;
+                return;
             }
 
-            if (action.HasValue)
+            // Reader maps the key to a semantic action and dispatches it through
+            // the same pipeline as polled input (with dedupe against it)
+            if (_reader.ProcessKeyDown(e.Key))
             {
-                HandleNavigationAction(action.Value);
                 e.Handled = true;
             }
         }
@@ -1301,24 +982,16 @@ namespace HUDRA.Services
         // Suspend gamepad polling (for modal dialogs)
         public void SuspendPolling()
         {
-            if (!_isPollingPaused && _gamepadTimer?.IsRunning == true)
-            {
-                _gamepadTimer.Stop();
-                _isPollingPaused = true;
-                DeactivateGamepadMode();
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling suspended (modal dialog)");
-            }
+            _reader.SuspendPolling();
+            DeactivateGamepadMode();
+            System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling suspended (modal dialog)");
         }
 
         // Resume gamepad polling after modal dialog
         public void ResumePolling()
         {
-            if (_isPollingPaused && _connectedGamepads.Count > 0)
-            {
-                _gamepadTimer?.Start();
-                _isPollingPaused = false;
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
-            }
+            _reader.ResumePolling();
+            System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
         }
 
         // Set dialog open state (prevents activation input from being consumed and blocks UI navigation)
@@ -1522,12 +1195,9 @@ namespace HUDRA.Services
         {
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposing...");
 
-            _gamepadTimer?.Stop();
-
-            Gamepad.GamepadAdded -= OnGamepadAdded;
-            Gamepad.GamepadRemoved -= OnGamepadRemoved;
-
-            _connectedGamepads.Clear();
+            _reader.ActionDispatched -= OnReaderAction;
+            _reader.ReadingAvailable -= OnReaderReading;
+            _reader.Dispose();
 
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposed");
         }
