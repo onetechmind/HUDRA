@@ -30,5 +30,10 @@ namespace HUDRA.Configuration
         // Window Positioning
         public const int WINDOW_PADDING = 20;
 
+        // Gamepad navigation: geometry-based (spatial) focus movement.
+        // Escape hatch: set to false to fall back to the legacy
+        // NavigationOrder-based linear traversal.
+        public static bool UseSpatialNavigation = true;
+
     }
 }

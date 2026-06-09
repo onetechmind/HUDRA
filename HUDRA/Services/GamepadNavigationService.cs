@@ -391,6 +391,76 @@ namespace HUDRA.Services
             var navigableElements = GamepadNavigation.GetNavigableElements(rootElement).ToList();
             if (navigableElements.Count == 0) return;
 
+            var nextElement = Configuration.HudraSettings.UseSpatialNavigation
+                ? PickSpatialNeighbor(navigableElements, direction)
+                : PickLinearNeighbor(navigableElements, direction);
+
+            if (nextElement == null || nextElement == _currentFocusedElement) return;
+
+            // Check if next element is an open NavigableExpander
+            if (nextElement is NavigableExpander expander && expander.IsExpanded && expander.Body is IGamepadNavigable bodyControl && expander.Body is FrameworkElement bodyElement)
+            {
+                // For UP navigation, enter the body at the LAST element
+                if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
+                {
+                    SetFocus(bodyElement);
+                    bodyControl.FocusLastElement();
+                    System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP into expanded expander at last element");
+                    return;
+                }
+                // For DOWN navigation, the expander's CanNavigateDown will handle it
+            }
+
+            // Handle hardcoded navigation between dual-control elements
+            // This ensures proper column-aligned navigation (Resolution↔FPS, RefreshRate↔HDR)
+            HandleHardcodedNavigation(_currentFocusedElement, nextElement, direction);
+
+            SetFocus(nextElement);
+        }
+
+        /// <summary>
+        /// Geometry-based neighbor selection: best candidate strictly in the
+        /// requested direction, by XYFocus-style scoring. Bounds are computed
+        /// fresh on every press (pages are recreated per navigation and scroll
+        /// offsets move elements), so there is no cache to go stale. Stops at
+        /// edges - no wrap-around.
+        /// </summary>
+        private FrameworkElement? PickSpatialNeighbor(List<FrameworkElement> navigableElements, GamepadNavigationAction direction)
+        {
+            // No current focus (or it left the tree): start at the first element
+            if (_currentFocusedElement == null || !TryGetScreenRect(_currentFocusedElement, out var fromRect))
+            {
+                return navigableElements.FirstOrDefault(el => TryGetScreenRect(el, out _));
+            }
+
+            var candidates = new List<FrameworkElement>();
+            var rects = new List<ElementRect>();
+            foreach (var element in navigableElements)
+            {
+                if (element == _currentFocusedElement) continue;
+                if (TryGetScreenRect(element, out var rect))
+                {
+                    candidates.Add(element);
+                    rects.Add(rect);
+                }
+            }
+            if (candidates.Count == 0) return null;
+
+            var semanticDirection = direction switch
+            {
+                GamepadNavigationAction.Up => GamepadAction.NavUp,
+                GamepadNavigationAction.Down => GamepadAction.NavDown,
+                GamepadNavigationAction.Left => GamepadAction.NavLeft,
+                _ => GamepadAction.NavRight
+            };
+
+            int best = SpatialScorer.PickBest(fromRect, semanticDirection, rects);
+            return best >= 0 ? candidates[best] : null;
+        }
+
+        /// <summary>Legacy NavigationOrder-based traversal (escape hatch via HudraSettings.UseSpatialNavigation).</summary>
+        private FrameworkElement? PickLinearNeighbor(List<FrameworkElement> navigableElements, GamepadNavigationAction direction)
+        {
             int currentIndex = _currentFocusedElement != null
                 ? navigableElements.IndexOf(_currentFocusedElement)
                 : -1;
@@ -398,18 +468,15 @@ namespace HUDRA.Services
             // If current element is not in the list, check if it's inside a NavigableExpander
             if (currentIndex == -1 && _currentFocusedElement != null)
             {
-                // Find parent NavigableExpander
                 var parent = FindNavigableParent(_currentFocusedElement);
                 if (parent != null)
                 {
                     currentIndex = navigableElements.IndexOf(parent);
-                    System.Diagnostics.Debug.WriteLine($"🎮 Current element not in nav list, using parent expander at index {currentIndex}");
 
                     // For UP navigation, return focus to the parent expander
                     if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
                     {
-                        SetFocus(parent);
-                        return;
+                        return parent;
                     }
                 }
             }
@@ -428,29 +495,25 @@ namespace HUDRA.Services
                     break;
             }
 
-            if (nextIndex != currentIndex)
+            return nextIndex != currentIndex ? navigableElements[nextIndex] : null;
+        }
+
+        /// <summary>Screen-space bounds of an element; false if it is unloaded, collapsed, or detached.</summary>
+        private static bool TryGetScreenRect(FrameworkElement element, out ElementRect rect)
+        {
+            rect = default;
+            try
             {
-                var nextElement = navigableElements[nextIndex];
+                if (!element.IsLoaded || element.ActualWidth <= 0 || element.ActualHeight <= 0) return false;
 
-                // Check if next element is an open NavigableExpander
-                if (nextElement is NavigableExpander expander && expander.IsExpanded && expander.Body is IGamepadNavigable bodyControl && expander.Body is FrameworkElement bodyElement)
-                {
-                    // For UP navigation, enter the body at the LAST element
-                    if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
-                    {
-                        SetFocus(bodyElement);
-                        bodyControl.FocusLastElement();
-                        System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP into expanded expander at last element");
-                        return;
-                    }
-                    // For DOWN navigation, the expander's CanNavigateDown will handle it
-                }
-
-                // Handle hardcoded navigation between dual-control elements
-                // This ensures proper column-aligned navigation (Resolution↔FPS, RefreshRate↔HDR)
-                HandleHardcodedNavigation(_currentFocusedElement, nextElement, direction);
-
-                SetFocus(nextElement);
+                var origin = element.TransformToVisual(null).TransformPoint(new Windows.Foundation.Point(0, 0));
+                rect = new ElementRect(origin.X, origin.Y, element.ActualWidth, element.ActualHeight);
+                return true;
+            }
+            catch
+            {
+                // Element detached mid-press - skip it
+                return false;
             }
         }
 
