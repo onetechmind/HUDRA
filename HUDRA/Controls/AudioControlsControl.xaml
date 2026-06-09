@@ -7,42 +7,36 @@
     xmlns:ap="using:HUDRA.AttachedProperties"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    mc:Ignorable="d"
-    ap:GamepadNavigation.IsEnabled="True"
-    ap:GamepadNavigation.NavigationOrder="5"
-    ap:GamepadNavigation.NavigationGroup="MainControls">
+    mc:Ignorable="d">
 
+    <!--  Inner controls are individual gamepad focus candidates; the shared
+          FocusIndicatorLayer renders the focus ring  -->
     <Grid Width="280" Margin="0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="55"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Mute Button with focus border -->
-        <Border Grid.Column="0"
-                    BorderBrush="{x:Bind MuteButtonFocusBrush, Mode=OneWay}"
-                    BorderThickness="2"
-                    CornerRadius="6">
-            <Button x:Name="MuteButton"
-                        Width="50"
-                        Height="50">
-                <FontIcon x:Name="MuteButtonIcon"
-                              FontFamily="Segoe MDL2 Assets"
-                              Glyph="&#xE767;"
-                              FontSize="20"/>
-            </Button>
-        </Border>
+        <Button x:Name="MuteButton"
+                    Grid.Column="0"
+                    Width="50"
+                    Height="50"
+                    ap:GamepadNavigation.IsEnabled="True"
+                    ap:GamepadNavigation.NavigationOrder="5">
+            <FontIcon x:Name="MuteButtonIcon"
+                          FontFamily="Segoe MDL2 Assets"
+                          Glyph="&#xE767;"
+                          FontSize="20"/>
+        </Button>
 
-        <!-- Volume Slider with focus border -->
-        <Border Grid.Column="1"
-                    BorderBrush="{x:Bind SliderFocusBrush, Mode=OneWay}"
-                    BorderThickness="2"
-                    CornerRadius="6">
-            <Slider x:Name="VolumeSlider"
-                        Margin="8,0"
-                        Minimum="0"
-                        Maximum="100"/>
-        </Border>
+        <Slider x:Name="VolumeSlider"
+                    Grid.Column="1"
+                    Margin="10,0,2,0"
+                    Minimum="0"
+                    Maximum="100"
+                    SmallChange="5"
+                    ap:GamepadNavigation.IsEnabled="True"
+                    ap:GamepadNavigation.NavigationOrder="5"/>
     </Grid>
 
 </UserControl>

@@ -35,6 +35,20 @@ namespace HUDRA.Services.GamepadInput
         bool HandleBack();
     }
 
+    /// <summary>
+    /// Optional callbacks for a control that owns a ComboBox driven by
+    /// DropdownScope, enabling deferred commit: the owner suppresses its
+    /// SelectionChanged handling while the user browses items and only
+    /// applies the selection on A.
+    /// </summary>
+    public interface IDropdownOwner
+    {
+        void OnDropdownOpened(int originalIndex);
+        void OnDropdownNavigating();
+        void OnDropdownCommitted(ComboBox comboBox);
+        void OnDropdownClosed();
+    }
+
     /// <summary>Adapts a standard WinUI Slider for gamepad value editing.</summary>
     public sealed class SliderEditable : IGamepadValueEditable
     {

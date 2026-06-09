@@ -29,7 +29,7 @@ namespace HUDRA.Controls
         }
     }
 
-    public sealed partial class FpsLimiterControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
+    public sealed partial class FpsLimiterControl : UserControl, INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<FpsLimitChangedEventArgs>? FpsLimitChanged;
@@ -40,9 +40,6 @@ namespace HUDRA.Controls
         private bool _isRtssSupported = false;
         private bool _isRtssInstalled = false;
         private bool _isGameRunning = false;
-        private GamepadNavigationService? _gamepadNavigationService;
-        private bool _isFocused = false;
-        private int _currentFocusedControl = 0; // 0 = FPS Slider, 1 = HDR Toggle
 
         // HDR fields
         private bool _isHdrSupported = false;
@@ -58,9 +55,6 @@ namespace HUDRA.Controls
         // Debounce timer — applies the FPS limit to RTSS after the user stops changing
         private DispatcherTimer? _fpsDebounceTimer;
         private int _pendingFps = -1;
-
-        // Gamepad activation state for the FPS slider
-        private bool _isSliderActivated = false;
 
         public int MaxFps
         {
@@ -145,73 +139,6 @@ namespace HUDRA.Controls
             }
         }
 
-        public int CurrentFocusedControl => _currentFocusedControl;
-
-        // IGamepadNavigable implementation
-        public bool CanNavigateUp => false;
-        public bool CanNavigateDown => false;
-        // When slider is activated, left/right adjusts value; otherwise navigates between controls
-        public bool CanNavigateLeft => (_currentFocusedControl == 0 && _isSliderActivated) || _currentFocusedControl == 1;
-        public bool CanNavigateRight => _currentFocusedControl == 0;
-        public bool CanActivate => (_currentFocusedControl == 0 && IsRtssInstalled) || (_currentFocusedControl == 1 && IsHdrSupported);
-        public FrameworkElement NavigationElement => this;
-
-        // Slider interface — FPS slider activates left/right gamepad adjustment
-        public bool IsSlider => _currentFocusedControl == 0 && IsRtssInstalled;
-
-        public bool IsSliderActivated
-        {
-            get => _isSliderActivated;
-            set
-            {
-                _isSliderActivated = value;
-                UpdateFocusVisuals();
-            }
-        }
-
-        public void AdjustSliderValue(int direction)
-        {
-            if (!_isSliderActivated || _currentFocusedControl != 0 || FpsSlider == null) return;
-            double newValue = Math.Clamp(FpsSlider.Value + direction, 0, _maxFps);
-            FpsSlider.Value = newValue;
-        }
-
-        // ComboBox interface stubs — no longer applicable
-        public bool HasComboBoxes => false;
-        public bool IsComboBoxOpen { get; set; } = false;
-        public ComboBox? GetFocusedComboBox() => null;
-        public int ComboBoxOriginalIndex { get; set; } = -1;
-        public bool IsNavigatingComboBox { get; set; } = false;
-        public void ProcessCurrentSelection() { }
-
-        public Brush FpsFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 0)
-                {
-                    return new SolidColorBrush(_isSliderActivated ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.MediumOrchid);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-        public Brush HdrFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 1)
-                {
-                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-        // Keep for compatibility
-        public Brush FocusBorderBrush => new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-        public Thickness FocusBorderThickness => new Thickness(0);
-
         public FpsLimiterControl()
         {
             this.InitializeComponent();
@@ -228,11 +155,6 @@ namespace HUDRA.Controls
         {
             _fpsLimiterService = fpsLimiterService;
             _hdrService = hdrService;
-
-            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
-            {
-                _gamepadNavigationService = mainWindow.GamepadNavigationService;
-            }
 
             if (_fpsLimiterService != null)
             {
@@ -380,11 +302,6 @@ namespace HUDRA.Controls
 
         // ── Public API ───────────────────────────────────────────────────────────
 
-        public void SetInitialFocusedControl(int controlIndex)
-        {
-            _currentFocusedControl = Math.Clamp(controlIndex, 0, 1);
-        }
-
         /// <summary>
         /// Derives the NumberBox maximum from the list of pre-calculated options (max non-zero value = refresh rate).
         /// Called by MainWindow when RTSS and resolution are ready.
@@ -492,104 +409,6 @@ namespace HUDRA.Controls
                 _fpsDebounceTimer.Stop();
                 _fpsDebounceTimer.Tick -= FpsDebounceTimer_Tick;
                 _fpsDebounceTimer = null;
-            }
-        }
-
-        // ── IGamepadNavigable ────────────────────────────────────────────────────
-
-        public void OnGamepadNavigateUp() { }
-        public void OnGamepadNavigateDown() { }
-
-        public void OnGamepadNavigateLeft()
-        {
-            if (_currentFocusedControl == 0 && _isSliderActivated)
-            {
-                AdjustSliderValue(-1);
-                return;
-            }
-            if (_currentFocusedControl == 1)
-            {
-                _currentFocusedControl = 0;
-                _isSliderActivated = false;
-                UpdateFocusVisuals();
-                System.Diagnostics.Debug.WriteLine("🎮 FpsLimiter: Moved left to FPS NumberBox");
-            }
-        }
-
-        public void OnGamepadNavigateRight()
-        {
-            if (_currentFocusedControl == 0 && _isSliderActivated)
-            {
-                AdjustSliderValue(1);
-                return;
-            }
-            if (_currentFocusedControl == 0)
-            {
-                _currentFocusedControl = 1;
-                _isSliderActivated = false;
-                UpdateFocusVisuals();
-                System.Diagnostics.Debug.WriteLine("🎮 FpsLimiter: Moved right to HDR Toggle");
-            }
-        }
-
-        public void OnGamepadActivate()
-        {
-            if (_currentFocusedControl == 0 && IsRtssInstalled)
-            {
-                // Toggle adjustment mode for NumberBox
-                _isSliderActivated = !_isSliderActivated;
-                IsSliderActivated = _isSliderActivated;
-                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: FPS slider adjustment mode {(_isSliderActivated ? "on" : "off")}");
-            }
-            else if (_currentFocusedControl == 1 && IsHdrSupported && HdrToggle != null)
-            {
-                HdrToggle.IsOn = !HdrToggle.IsOn;
-                System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Toggled HDR to {HdrToggle.IsOn}");
-            }
-        }
-
-        public void OnGamepadBack() { }
-
-        public void OnGamepadFocusReceived()
-        {
-            if (_gamepadNavigationService == null)
-                InitializeGamepadNavigationService();
-
-            _isFocused = true;
-            UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 FpsLimiter: Received gamepad focus (control={_currentFocusedControl})");
-        }
-
-        public void OnGamepadFocusLost()
-        {
-            _isFocused = false;
-            _isSliderActivated = false;
-            UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine("🎮 FpsLimiter: Lost gamepad focus");
-        }
-
-        public void FocusLastElement()
-        {
-            _currentFocusedControl = 1;
-            UpdateFocusVisuals();
-        }
-
-        private void UpdateFocusVisuals()
-        {
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                OnPropertyChanged(nameof(FpsFocusBrush));
-                OnPropertyChanged(nameof(HdrFocusBrush));
-                OnPropertyChanged(nameof(FocusBorderBrush));
-                OnPropertyChanged(nameof(FocusBorderThickness));
-            });
-        }
-
-        private void InitializeGamepadNavigationService()
-        {
-            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
-            {
-                _gamepadNavigationService = mainWindow.GamepadNavigationService;
             }
         }
 

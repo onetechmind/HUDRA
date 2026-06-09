@@ -6,21 +6,27 @@ namespace HUDRA.Services.GamepadInput
     /// <summary>
     /// Pushed while a ComboBox dropdown is open. Up/down move the selection,
     /// A commits it, B cancels and restores the original selection. Works for
-    /// any standard ComboBox; an optional legacy IGamepadNavigable owner gets
-    /// its suppression flags driven (IsNavigatingComboBox keeps the owner's
-    /// SelectionChanged inert until commit). Chrome actions fall through.
+    /// any standard ComboBox; an optional IDropdownOwner gets deferred-commit
+    /// callbacks (suppress live apply while browsing, apply on A). Chrome
+    /// actions fall through to the shell.
     /// </summary>
     public sealed class DropdownScope : IInputScope
     {
         private readonly ComboBox _comboBox;
-        private readonly IGamepadNavigable? _legacyControl;
+        private readonly IDropdownOwner? _owner;
         private InputRouter? _router;
         private int _originalIndex;
 
-        public DropdownScope(ComboBox comboBox, IGamepadNavigable? legacyControl = null)
+        public DropdownScope(ComboBox comboBox, IDropdownOwner? owner = null)
         {
             _comboBox = comboBox;
-            _legacyControl = legacyControl;
+            _owner = owner;
+        }
+
+        /// <summary>Legacy IGamepadNavigable controls get their flag-based callbacks adapted.</summary>
+        public DropdownScope(ComboBox comboBox, IGamepadNavigable legacyControl)
+            : this(comboBox, new LegacyDropdownOwner(legacyControl))
+        {
         }
 
         public string Name => "Dropdown";
@@ -29,13 +35,7 @@ namespace HUDRA.Services.GamepadInput
         {
             _router = router;
             _originalIndex = _comboBox.SelectedIndex;
-
-            if (_legacyControl != null)
-            {
-                _legacyControl.IsComboBoxOpen = true;
-                _legacyControl.ComboBoxOriginalIndex = _originalIndex;
-                _legacyControl.IsNavigatingComboBox = false;
-            }
+            _owner?.OnDropdownOpened(_originalIndex);
             System.Diagnostics.Debug.WriteLine($"🎮 Dropdown opened, original index: {_originalIndex}");
         }
 
@@ -46,10 +46,7 @@ namespace HUDRA.Services.GamepadInput
             {
                 _comboBox.IsDropDownOpen = false;
             }
-            if (_legacyControl != null)
-            {
-                _legacyControl.IsComboBoxOpen = false;
-            }
+            _owner?.OnDropdownClosed();
             System.Diagnostics.Debug.WriteLine("🎮 Dropdown closed");
         }
 
@@ -73,12 +70,7 @@ namespace HUDRA.Services.GamepadInput
 
                 case GamepadAction.Accept:
                     if (e.IsRepeat) return true;
-                    // Commit the current selection
-                    if (_legacyControl != null)
-                    {
-                        _legacyControl.IsNavigatingComboBox = false;
-                        _legacyControl.ProcessCurrentSelection();
-                    }
+                    _owner?.OnDropdownCommitted(_comboBox);
                     _comboBox.IsDropDownOpen = false;
                     System.Diagnostics.Debug.WriteLine($"🎮 Dropdown A - confirmed selection: {_comboBox.SelectedIndex}");
                     _router?.Pop(this);
@@ -86,12 +78,10 @@ namespace HUDRA.Services.GamepadInput
 
                 case GamepadAction.Back:
                     if (e.IsRepeat) return true;
-                    // Cancel: restore the original selection before closing
+                    // Cancel: restore the original selection (suppressed so the
+                    // owner doesn't treat the restore as a new selection)
+                    _owner?.OnDropdownNavigating();
                     _comboBox.SelectedIndex = _originalIndex;
-                    if (_legacyControl != null)
-                    {
-                        _legacyControl.IsNavigatingComboBox = false;
-                    }
                     _comboBox.IsDropDownOpen = false;
                     System.Diagnostics.Debug.WriteLine($"🎮 Dropdown B - cancelled, restored index: {_originalIndex}");
                     _router?.Pop(this);
@@ -111,12 +101,37 @@ namespace HUDRA.Services.GamepadInput
                 ? (currentIndex + 1) % _comboBox.Items.Count
                 : currentIndex <= 0 ? _comboBox.Items.Count - 1 : currentIndex - 1;
 
-            // Legacy owners suppress their SelectionChanged while navigating
-            if (_legacyControl != null)
-            {
-                _legacyControl.IsNavigatingComboBox = true;
-            }
+            _owner?.OnDropdownNavigating();
             _comboBox.SelectedIndex = newIndex;
+        }
+    }
+
+    /// <summary>Adapts the IGamepadNavigable ComboBox flags to IDropdownOwner.</summary>
+    internal sealed class LegacyDropdownOwner : IDropdownOwner
+    {
+        private readonly IGamepadNavigable _control;
+
+        public LegacyDropdownOwner(IGamepadNavigable control) => _control = control;
+
+        public void OnDropdownOpened(int originalIndex)
+        {
+            _control.IsComboBoxOpen = true;
+            _control.ComboBoxOriginalIndex = originalIndex;
+            _control.IsNavigatingComboBox = false;
+        }
+
+        public void OnDropdownNavigating() => _control.IsNavigatingComboBox = true;
+
+        public void OnDropdownCommitted(ComboBox comboBox)
+        {
+            _control.IsNavigatingComboBox = false;
+            _control.ProcessCurrentSelection();
+        }
+
+        public void OnDropdownClosed()
+        {
+            _control.IsNavigatingComboBox = false;
+            _control.IsComboBoxOpen = false;
         }
     }
 }

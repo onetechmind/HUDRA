@@ -12,7 +12,7 @@ using System.Runtime.CompilerServices;
 
 namespace HUDRA.Controls
 {
-    public sealed partial class AudioControlsControl : UserControl, INotifyPropertyChanged, IGamepadNavigable
+    public sealed partial class AudioControlsControl : UserControl, INotifyPropertyChanged
     {
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<AudioStateChangedEventArgs>? AudioStateChanged;
@@ -20,22 +20,6 @@ namespace HUDRA.Controls
         private AudioService? _audioService;
         private bool _isUpdatingSlider = false;
         private double _previousVolumeLevel = 50.0; // Remember volume before muting
-        private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedControl = 0; // 0 = MuteButton, 1 = VolumeSlider
-        private bool _isFocused = false;
-        private bool _isSliderActivated = false;
-
-        // Expose current focused control for cross-control navigation
-        public int CurrentFocusedControl => _currentFocusedControl;
-
-        /// <summary>
-        /// Sets which control should be focused when this control receives gamepad focus.
-        /// Called by FpsLimiterControl to indicate whether we came from FPS (0) or HDR (1).
-        /// </summary>
-        public void SetInitialFocusedControl(int controlIndex)
-        {
-            _currentFocusedControl = Math.Clamp(controlIndex, 0, 1);
-        }
 
         private string _audioStatusText = "Audio: Not Set";
         public string AudioStatusText
@@ -51,84 +35,6 @@ namespace HUDRA.Controls
             }
         }
 
-        // IGamepadNavigable implementation
-        public bool CanNavigateUp => false;
-        public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => _currentFocusedControl == 1; // Can move left from Slider to Button
-        public bool CanNavigateRight => _currentFocusedControl == 0; // Can move right from Button to Slider
-        public bool CanActivate => true;
-        public FrameworkElement NavigationElement => this;
-        
-        // Slider-specific interface implementations
-        public bool IsSlider => _currentFocusedControl == 1; // True when VolumeSlider is focused
-        public bool IsSliderActivated 
-        { 
-            get => _isSliderActivated; 
-            set 
-            { 
-                _isSliderActivated = value;
-                OnPropertyChanged(nameof(SliderFocusBrush));
-            } 
-        }
-        
-        // ComboBox interface implementations - AudioControl has no ComboBoxes
-        public bool HasComboBoxes => false;
-        public bool IsComboBoxOpen { get; set; } = false;
-        public ComboBox? GetFocusedComboBox() => null;
-        public int ComboBoxOriginalIndex { get; set; } = -1;
-        public bool IsNavigatingComboBox { get; set; } = false;
-        public void ProcessCurrentSelection() { /* Not applicable - no ComboBoxes */ }
-
-        public Brush FocusBorderBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
-                {
-                    return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-        public Thickness FocusBorderThickness
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true)
-                {
-                    return new Thickness(2);
-                }
-                return new Thickness(0);
-            }
-        }
-
-        public Brush MuteButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 0)
-                {
-                    return new SolidColorBrush(Microsoft.UI.Colors.MediumOrchid);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-        public Brush SliderFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedControl == 1)
-                {
-                    // Different color when slider is activated for value adjustment
-                    return new SolidColorBrush(_isSliderActivated ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.MediumOrchid);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
-
         public AudioControlsControl()
         {
             this.InitializeComponent();
@@ -137,12 +43,6 @@ namespace HUDRA.Controls
         public void Initialize()
         {
             _audioService = new AudioService();
-
-            // Get gamepad service
-            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
-            {
-                _gamepadNavigationService = mainWindow.GamepadNavigationService;
-            }
 
             SetupEventHandlers();
             LoadCurrentAudioState();
@@ -354,86 +254,6 @@ namespace HUDRA.Controls
         public void Dispose()
         {
             // No auto-set managers to dispose for audio controls
-        }
-
-        // IGamepadNavigable event handlers
-        public void OnGamepadNavigateUp() { }
-        public void OnGamepadNavigateDown() { }
-        
-        public void OnGamepadNavigateLeft()
-        {
-            if (_currentFocusedControl == 1) // From Slider to MuteButton
-            {
-                _currentFocusedControl = 0;
-                UpdateFocusVisuals();
-                System.Diagnostics.Debug.WriteLine($"🎮 Audio: Moved left to Mute Button");
-            }
-        }
-
-        public void OnGamepadNavigateRight()
-        {
-            if (_currentFocusedControl == 0) // From MuteButton to Slider
-            {
-                _currentFocusedControl = 1;
-                UpdateFocusVisuals();
-                System.Diagnostics.Debug.WriteLine($"🎮 Audio: Moved right to Volume Slider");
-            }
-        }
-
-        public void OnGamepadActivate()
-        {
-            if (_currentFocusedControl == 0) // MuteButton
-            {
-                OnMuteButtonClick(MuteButton, new RoutedEventArgs());
-                System.Diagnostics.Debug.WriteLine($"🎮 Audio: Triggered Mute Button");
-            }
-            // Slider focus/interaction is handled by the slider itself when focused
-        }
-
-        public void OnGamepadBack() { }
-
-        public void OnGamepadFocusReceived()
-        {
-            _isFocused = true;
-            _currentFocusedControl = 0; // Start with MuteButton
-            UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 Audio: Received gamepad focus");
-        }
-
-        public void OnGamepadFocusLost()
-        {
-            _isFocused = false;
-            UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 Audio: Lost gamepad focus");
-        }
-
-        public void FocusLastElement()
-        {
-            // Not used - AudioControlsControl is not in a NavigableExpander
-        }
-
-        private void UpdateFocusVisuals()
-        {
-            // Dispatch on UI thread to ensure bindings update reliably with gamepad navigation
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                OnPropertyChanged(nameof(FocusBorderBrush));
-                OnPropertyChanged(nameof(FocusBorderThickness));
-                OnPropertyChanged(nameof(MuteButtonFocusBrush));
-                OnPropertyChanged(nameof(SliderFocusBrush));
-            });
-        }
-
-        public void AdjustSliderValue(int direction)
-        {
-            if (VolumeSlider == null || _currentFocusedControl != 1) return;
-            
-            const double increment = 5.0; // 5% increment
-            double currentValue = VolumeSlider.Value;
-            double newValue = Math.Clamp(currentValue + (direction * increment), 0, 100);
-            
-            VolumeSlider.Value = newValue;
-            System.Diagnostics.Debug.WriteLine($"🎮 Audio: Adjusted volume to {newValue}% (direction: {direction})");
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
