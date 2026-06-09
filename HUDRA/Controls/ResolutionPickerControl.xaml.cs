@@ -1,6 +1,7 @@
 using HUDRA.Configuration;
 using HUDRA.Helpers;
 using HUDRA.Services;
+using HUDRA.Services.GamepadInput;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
 using Microsoft.UI.Xaml;
