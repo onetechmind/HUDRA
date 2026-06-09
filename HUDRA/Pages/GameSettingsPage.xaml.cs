@@ -510,15 +510,13 @@ namespace HUDRA.Pages
             {
                 Title = "Delete Game",
                 Content = "Are you sure you want to delete this game from HUDRA's Library?",
-                PrimaryButtonText = "Ⓐ Yes",
-                CloseButtonText = "Ⓑ No",
+                PrimaryButtonText = "Yes",
+                CloseButtonText = "No",
                 DefaultButton = ContentDialogButton.Close,
                 XamlRoot = this.XamlRoot
             };
 
-            var result = mainWindow != null
-                ? await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService)
-                : await dialog.ShowAsync();
+            var result = await dialog.ShowWithGamepadSupportAsync(mainWindow?.GamepadNavigationService);
 
             if (result != ContentDialogResult.Primary) return;
 
@@ -570,9 +568,11 @@ namespace HUDRA.Pages
                     Title = "Error",
                     Content = "Failed to delete the game. Please try again.",
                     CloseButtonText = "OK",
+                    DefaultButton = ContentDialogButton.Close,
                     XamlRoot = this.XamlRoot
                 };
-                await errorDialog.ShowAsync();
+                var mainWindowForDialog = (Application.Current as App)?.MainWindow as MainWindow;
+                await errorDialog.ShowWithGamepadSupportAsync(mainWindowForDialog?.GamepadNavigationService);
             }
         }
 

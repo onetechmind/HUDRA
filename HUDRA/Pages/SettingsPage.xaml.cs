@@ -595,16 +595,14 @@ namespace HUDRA.Pages
                 {
                     Title = "Reset Game Database",
                     Content = "This will clear all detected games and perform a fresh scan. Continue?",
-                    PrimaryButtonText = "Ⓐ Yes",
-                    CloseButtonText = "Ⓑ No",
+                    PrimaryButtonText = "Yes",
+                    CloseButtonText = "No",
                     DefaultButton = ContentDialogButton.Close,
                     XamlRoot = this.XamlRoot,
                     MaxWidth = 448 // Match standard ContentDialog width
                 };
 
-                var result = mainWindow != null
-                    ? await dialog.ShowWithGamepadSupportAsync(mainWindow.GamepadNavigationService)
-                    : await dialog.ShowAsync();
+                var result = await dialog.ShowWithGamepadSupportAsync(mainWindow?.GamepadNavigationService);
 
                 if (result != ContentDialogResult.Primary)
                 {

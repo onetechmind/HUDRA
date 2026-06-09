@@ -1,7 +1,7 @@
-using System;
 using System.Threading.Tasks;
 using Microsoft.UI.Xaml.Controls;
 using HUDRA.Services;
+using HUDRA.Services.GamepadInput;
 
 namespace HUDRA.Extensions
 {
@@ -11,30 +11,15 @@ namespace HUDRA.Extensions
     public static class ContentDialogExtensions
     {
         /// <summary>
-        /// Shows a ContentDialog with automatic gamepad navigation support.
-        /// This method automatically handles dialog state management for gamepad input,
-        /// allowing A/B buttons to control the dialog without manual setup.
+        /// Shows a ContentDialog with gamepad navigation support: d-pad moves
+        /// between the dialog buttons, A invokes the focused button, B cancels.
+        /// Dialogs are serialized so concurrent calls cannot crash ShowAsync.
         /// </summary>
-        /// <param name="dialog">The ContentDialog to show</param>
-        /// <param name="gamepadService">The GamepadNavigationService instance</param>
-        /// <returns>The ContentDialogResult indicating which button was pressed</returns>
-        public static async Task<ContentDialogResult> ShowWithGamepadSupportAsync(
+        public static Task<ContentDialogResult> ShowWithGamepadSupportAsync(
             this ContentDialog dialog,
-            GamepadNavigationService gamepadService)
+            GamepadNavigationService? gamepadService)
         {
-            // Set up gamepad handling for this dialog
-            gamepadService.SetDialogOpen(dialog);
-
-            try
-            {
-                // Show the dialog
-                return await dialog.ShowAsync();
-            }
-            finally
-            {
-                // Clean up gamepad state when dialog closes
-                gamepadService.SetDialogClosed();
-            }
+            return GamepadDialog.ShowAsync(dialog, gamepadService);
         }
     }
 }

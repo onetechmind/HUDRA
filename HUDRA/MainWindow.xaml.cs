@@ -1011,14 +1011,15 @@ namespace HUDRA
             try
             {
                 // Create confirmation dialog
-                // Gamepad support: A button = Force Quit, B button = Cancel
+                // Gamepad: d-pad moves between buttons, A activates the focused
+                // button (starts on the safe default), B cancels
                 var dialog = new ContentDialog()
                 {
                     Title = "Force Quit Game",
                     Content = $"Are you sure you want to force quit {gameName}?\n\n⚠️ Please save your game before proceeding to avoid losing progress.",
-                    PrimaryButtonText = "Ⓐ Force Quit",
-                    CloseButtonText = "Ⓑ Cancel",
-                    DefaultButton = ContentDialogButton.Close, // B button (safer default)
+                    PrimaryButtonText = "Force Quit",
+                    CloseButtonText = "Cancel",
+                    DefaultButton = ContentDialogButton.Close, // safer default
                     XamlRoot = this.Content.XamlRoot,
                     MaxWidth = 448 // Match standard ContentDialog width
                 };

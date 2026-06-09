@@ -162,6 +162,14 @@ namespace HUDRA.Services
             // Keyboard-mapped input only participates once gamepad mode is active
             if (e.Source == GamepadEventSource.Keyboard && !_isGamepadActive) return;
 
+            // Safety net: if a ContentDialog was shown without the GamepadDialog
+            // helper, detect it and give it a DialogScope so every modal behaves
+            // the same regardless of how it was opened
+            if (!e.IsRepeat)
+            {
+                EnsureDialogScopeForOpenPopups();
+            }
+
             // Activate gamepad mode on first input
             if (!_isGamepadActive)
             {
@@ -248,6 +256,39 @@ namespace HUDRA.Services
         {
             _pausedInterceptMask |= button;
             _skipRawForwardThisTick = true;
+        }
+
+        /// <summary>
+        /// Detect a ContentDialog opened outside GamepadDialog.ShowAsync and
+        /// push a DialogScope for it (auto-popped when the dialog closes).
+        /// </summary>
+        private void EnsureDialogScopeForOpenPopups()
+        {
+            if (IsDialogOpen) return;
+
+            try
+            {
+                var xamlRoot = _currentFrame?.XamlRoot ?? (_layoutRoot as FrameworkElement)?.XamlRoot;
+                if (xamlRoot == null) return;
+
+                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot);
+                foreach (var popup in popups)
+                {
+                    if (popup.Child is ContentDialog dialog)
+                    {
+                        System.Diagnostics.Debug.WriteLine("🎮 Safety net: unmanaged ContentDialog detected - pushing DialogScope");
+                        ClearFocus();
+                        var scope = new DialogScope(dialog, _dispatcherQueue!);
+                        _router.Push(scope);
+                        dialog.Closed += (s, args) => _router.Pop(scope);
+                        return;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"🎮 Dialog safety net check failed: {ex.Message}");
+            }
         }
 
         /// <summary>

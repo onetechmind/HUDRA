@@ -1,3 +1,4 @@
+using HUDRA.Extensions;
 using HUDRA.Models;
 using HUDRA.Services;
 using Microsoft.UI.Xaml;
@@ -1393,6 +1394,7 @@ namespace HUDRA.Pages
                 Title = "Enter Game Name",
                 PrimaryButtonText = "Add",
                 CloseButtonText = "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
                 XamlRoot = this.XamlRoot
             };
 
@@ -1405,13 +1407,19 @@ namespace HUDRA.Pages
 
             dialog.Content = textBox;
 
-            // Ensure gamepad navigation works in dialog
+            // A (primary) only confirms when a name has been entered
+            dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(suggestedName);
+            textBox.TextChanged += (s, e) =>
+            {
+                dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(textBox.Text);
+            };
+
             dialog.Loaded += (s, e) =>
             {
                 textBox.Focus(FocusState.Programmatic);
             };
 
-            var result = await dialog.ShowAsync();
+            var result = await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
 
             return result == ContentDialogResult.Primary ? textBox.Text : null;
         }
@@ -1556,10 +1564,11 @@ namespace HUDRA.Pages
                 Title = "Success",
                 Content = message,
                 CloseButtonText = "OK",
+                DefaultButton = ContentDialogButton.Close,
                 XamlRoot = this.XamlRoot
             };
 
-            await dialog.ShowAsync();
+            await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
         }
 
         private async Task ShowErrorDialog(string message)
@@ -1569,10 +1578,11 @@ namespace HUDRA.Pages
                 Title = "Error",
                 Content = message,
                 CloseButtonText = "OK",
+                DefaultButton = ContentDialogButton.Close,
                 XamlRoot = this.XamlRoot
             };
 
-            await dialog.ShowAsync();
+            await dialog.ShowWithGamepadSupportAsync(_gamepadNavigationService);
         }
 
         #endregion
