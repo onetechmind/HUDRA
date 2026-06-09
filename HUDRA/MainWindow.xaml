@@ -504,6 +504,13 @@
                 </ScrollViewer>
             </Grid>
 
+            <!--  Shared gamepad focus ring, drawn above all page content  -->
+            <controls:FocusIndicatorLayer
+                x:Name="FocusIndicator"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                IsHitTestVisible="False" />
+
         </Grid>
     </Border>
 </Window>

@@ -1,22 +1,19 @@
-using HUDRA.Interfaces;
-
 namespace HUDRA.Services.GamepadInput
 {
     /// <summary>
     /// Pushed while a slider-style control is in edit mode (entered with A).
     /// Left/right adjust the value (repeats allowed), A or B exits. Chrome
     /// actions fall through to the shell; if the page changes underneath, the
-    /// router pops this scope and the control's edit state is cleaned up in
-    /// OnPopped.
+    /// router pops this scope and edit state is cleaned up in OnPopped.
     /// </summary>
     public sealed class ValueEditScope : IInputScope
     {
-        private readonly IGamepadNavigable _control;
+        private readonly IGamepadValueEditable _editable;
         private InputRouter? _router;
 
-        public ValueEditScope(IGamepadNavigable control)
+        public ValueEditScope(IGamepadValueEditable editable)
         {
-            _control = control;
+            _editable = editable;
         }
 
         public string Name => "ValueEdit";
@@ -24,14 +21,12 @@ namespace HUDRA.Services.GamepadInput
         public void OnPushed(InputRouter router)
         {
             _router = router;
-            _control.IsSliderActivated = true;
-            System.Diagnostics.Debug.WriteLine($"🎮 Slider activated for {_control.GetType().Name}");
+            _editable.OnEditingChanged(true);
         }
 
         public void OnPopped()
         {
-            _control.IsSliderActivated = false;
-            System.Diagnostics.Debug.WriteLine($"🎮 Slider deactivated for {_control.GetType().Name}");
+            _editable.OnEditingChanged(false);
         }
 
         public bool HandleEvent(in GamepadEvent e)
@@ -39,11 +34,11 @@ namespace HUDRA.Services.GamepadInput
             switch (e.Action)
             {
                 case GamepadAction.NavLeft:
-                    _control.AdjustSliderValue(-1);
+                    _editable.AdjustValue(-1);
                     return true;
 
                 case GamepadAction.NavRight:
-                    _control.AdjustSliderValue(1);
+                    _editable.AdjustValue(1);
                     return true;
 
                 case GamepadAction.NavUp:

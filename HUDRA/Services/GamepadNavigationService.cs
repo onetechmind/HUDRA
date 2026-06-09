@@ -58,10 +58,28 @@ namespace HUDRA.Services
                 {
                     _isGamepadActive = value;
                     GamepadActiveStateChanged?.Invoke(this, value);
+                    FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
                     System.Diagnostics.Debug.WriteLine($"🎮 Gamepad active state changed: {value}");
                 }
             }
         }
+
+        /// <summary>Fired whenever the focus ring may need to move, change color, or hide.</summary>
+        public event EventHandler? FocusVisualStateChanged;
+
+        /// <summary>
+        /// The element the FocusIndicatorLayer should ring, or null to hide it.
+        /// Legacy IGamepadNavigable controls render their own focus visuals, so
+        /// they are excluded until migrated; once a control's candidates are
+        /// plain elements the ring takes over automatically.
+        /// </summary>
+        public FrameworkElement? CurrentFocusVisualTarget =>
+            _isGamepadActive && _currentFocusedElement is not null and not IGamepadNavigable
+                ? _currentFocusedElement
+                : null;
+
+        /// <summary>True while a slider/value edit scope is active (ring turns blue).</summary>
+        public bool IsValueEditing => _router.HasScope<ValueEditScope>();
 
         // Pages that use custom navigation (Library) push the legacy raw scope
         // and consume forwarded raw readings instead of semantic events
@@ -117,6 +135,9 @@ namespace HUDRA.Services
             _legacyRawScope = new LegacyRawScope(_shellScope);
             _router.Push(_shellScope);
             _router.Push(_pageScope);
+
+            // Edit scopes change the ring color; any stack change may affect it
+            _router.StackChanged += (s, e) => FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
 
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService initialized successfully");
         }
@@ -327,7 +348,7 @@ namespace HUDRA.Services
                             // Sliders enter edit mode instead of activating directly
                             if (navigableControl.IsSlider)
                             {
-                                _router.Push(new ValueEditScope(navigableControl));
+                                _router.Push(new ValueEditScope(new NavigableSliderEditable(navigableControl)));
                             }
                             else
                             {
@@ -339,7 +360,7 @@ namespace HUDRA.Services
                                     var comboBox = navigableControl.GetFocusedComboBox();
                                     if (comboBox != null && comboBox.IsDropDownOpen)
                                     {
-                                        _router.Push(new DropdownScope(navigableControl));
+                                        _router.Push(new DropdownScope(comboBox, navigableControl));
                                     }
                                 }
                             }
@@ -368,6 +389,32 @@ namespace HUDRA.Services
                     }
 
                     if (handled) return;
+                }
+                else
+                {
+                    // Standard WinUI control as focus candidate: generic adapters
+                    // (Button invoke, Slider edit mode, ComboBox dropdown, toggles)
+                    switch (action)
+                    {
+                        case GamepadNavigationAction.Activate:
+                            if (ControlAdapters.TryActivate(_currentFocusedElement, _router))
+                            {
+                                NavigationRequested?.Invoke(this, new GamepadNavigationEventArgs(action, _currentFocusedElement));
+                                return;
+                            }
+                            break;
+
+                        case GamepadNavigationAction.Back:
+                            // Collapse the surrounding expander, if any
+                            var plainParent = FindNavigableParent(_currentFocusedElement);
+                            if (plainParent is NavigableExpander plainExpander && plainExpander.IsExpanded)
+                            {
+                                plainExpander.IsExpanded = false;
+                                SetFocus(plainExpander);
+                                return;
+                            }
+                            break;
+                    }
                 }
             }
 
@@ -639,6 +686,8 @@ namespace HUDRA.Services
                     System.Diagnostics.Debug.WriteLine($"🎮 Set focus to: {_currentFocusedElement.GetType().Name} (scroll failed: {ex.Message})");
                 }
             }
+
+            FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void ClearFocus()
@@ -668,6 +717,8 @@ namespace HUDRA.Services
             {
                 System.Diagnostics.Debug.WriteLine($"🎮 Failed to clear WinUI focus: {ex.Message}");
             }
+
+            FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
         }
 
         public void InitializePageNavigation(FrameworkElement rootElement, bool isFromPageNavigation = false)
