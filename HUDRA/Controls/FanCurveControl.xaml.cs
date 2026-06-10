@@ -1531,6 +1531,30 @@ namespace HUDRA.Controls
 
         public void OnGamepadBack() { }
 
+
+        // Focus memory: the position inside this composite is saved when
+        // leaving the page and restored on return. Clamp to what is currently
+        // reachable (presets only exist when their panel is shown; control
+        // points 5-9 only in Custom mode with the curve visible).
+        public int GamepadFocusMemory
+        {
+            get => _currentFocusedElement;
+            set
+            {
+                int max = 0;
+                if (PresetButtonsPanel?.Visibility == Visibility.Visible)
+                {
+                    max = 4;
+                    if (_currentCurve?.ActivePreset == "Custom" && CurvePanel?.Visibility == Visibility.Visible)
+                    {
+                        max = 9;
+                    }
+                }
+                _currentFocusedElement = Math.Clamp(value, 0, max);
+                UpdateFocusVisuals();
+            }
+        }
+
         public void OnGamepadFocusReceived()
         {
             // Ensure gamepad service is initialized

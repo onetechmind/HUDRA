@@ -20,6 +20,12 @@ namespace HUDRA.Interfaces
         void OnGamepadFocusReceived();
         void OnGamepadFocusLost();
         void FocusLastElement(); // Focus the last navigable element within this control
+
+        // Internal focus position for cross-navigation focus memory. Composite
+        // controls (several sub-elements behind one focus candidate) override
+        // both accessors so the position inside them can be saved when leaving
+        // a page and restored on return. Default: no internal state.
+        int GamepadFocusMemory { get => 0; set { } }
         
         FrameworkElement NavigationElement { get; }
         

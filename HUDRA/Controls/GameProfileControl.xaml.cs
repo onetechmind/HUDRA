@@ -316,6 +316,20 @@ namespace HUDRA.Controls
 
         public void OnGamepadBack() { }
 
+
+        // Focus memory: the position inside this composite is saved when
+        // leaving the page and restored on return (after OnGamepadFocusReceived
+        // has reset it to 0).
+        public int GamepadFocusMemory
+        {
+            get => _currentFocusedElement;
+            set
+            {
+                _currentFocusedElement = Math.Clamp(value, 0, MaxFocusIndex);
+                UpdateGamepadFocusVisuals();
+            }
+        }
+
         public void OnGamepadFocusReceived()
         {
             if (_gamepadNavigationService == null)

@@ -622,8 +622,6 @@ namespace HUDRA.Services
                 {
                     System.Diagnostics.Debug.WriteLine($"🎮 Set focus to: {_currentFocusedElement.GetType().Name} (scroll failed: {ex.Message})");
                 }
-
-                RememberFocusForCurrentPage();
             }
 
             FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
@@ -631,36 +629,46 @@ namespace HUDRA.Services
 
         // Focus memory: when returning to a page, focus is restored to where the
         // user left it. Pages are recreated on every navigation, so elements are
-        // remembered by candidate-list index (stable for a given page layout).
-        // Memory is keyed by the PAGE type (Frame.Content) - NOT by the scan
-        // root, which is often a page sub-element (RootPanel, FanCurveControl)
-        // and would never match between remember and restore.
-        private readonly Dictionary<Type, int> _lastFocusedIndexByPage = new();
+        // remembered by candidate-list index (stable for a given page layout),
+        // plus the internal position for legacy composite controls
+        // (IGamepadNavigable.GamepadFocusMemory). The snapshot is taken when the
+        // NEXT page initializes, using the previous page's key and scan root -
+        // internal positions change without SetFocus calls, so capturing at
+        // leave time is the only accurate point.
+        private readonly Dictionary<Type, (int Index, int Internal)> _lastFocusByPage = new();
 
-        // The candidate scan root the current page was initialized with, so
-        // remember/restore index against the same element list.
+        // Scan root + memory key for the page currently being navigated
         private FrameworkElement? _navigationRoot;
+        private Type? _navigationPageKey;
 
-        private Type? CurrentPageKey => (_currentFrame?.Content as FrameworkElement)?.GetType();
-
-        private void RememberFocusForCurrentPage()
+        private void SnapshotFocusForPreviousPage()
         {
-            var root = _navigationRoot ?? _currentFrame?.Content as FrameworkElement;
-            var key = CurrentPageKey;
-            if (_currentFocusedElement == null || root == null || key == null) return;
+            if (_currentFocusedElement == null || _navigationRoot == null || _navigationPageKey == null) return;
 
             try
             {
-                var elements = GamepadNavigation.GetNavigableElements(root).ToList();
+                var elements = GamepadNavigation.GetNavigableElements(_navigationRoot).ToList();
                 int index = elements.IndexOf(_currentFocusedElement);
                 if (index >= 0)
                 {
-                    _lastFocusedIndexByPage[key] = index;
+                    int internalPosition = (_currentFocusedElement as IGamepadNavigable)?.GamepadFocusMemory ?? 0;
+                    _lastFocusByPage[_navigationPageKey] = (index, internalPosition);
+                }
+                else
+                {
+                    // Focused inside an expander body (not a candidate itself):
+                    // remember the surrounding expander header instead
+                    var parent = FindNavigableParent(_currentFocusedElement);
+                    int parentIndex = parent != null ? elements.IndexOf(parent) : -1;
+                    if (parentIndex >= 0)
+                    {
+                        _lastFocusByPage[_navigationPageKey] = (parentIndex, 0);
+                    }
                 }
             }
             catch
             {
-                // Candidate collection mid-layout can fail; memory is best-effort
+                // Candidate collection on a detached tree can fail; memory is best-effort
             }
         }
 
@@ -699,8 +707,12 @@ namespace HUDRA.Services
         {
             System.Diagnostics.Debug.WriteLine($"🎮 InitializePageNavigation called for {rootElement.GetType().Name}, fromPageNav: {isFromPageNavigation}");
 
-            // Remember/restore focus against this scan root from now on
+            // Capture where the user left the previous page before switching over
+            SnapshotFocusForPreviousPage();
+
+            // Remember/restore focus against this scan root and page from now on
             _navigationRoot = rootElement;
+            _navigationPageKey = (_currentFrame?.Content as FrameworkElement)?.GetType() ?? rootElement.GetType();
 
             // Editing scopes from the previous page no longer apply
             _router.PopWhile(s => s is ValueEditScope or DropdownScope);
@@ -719,15 +731,24 @@ namespace HUDRA.Services
                 {
                     // Restore the element the user last focused on this page
                     int startIndex = 0;
-                    var pageKey = CurrentPageKey ?? rootElement.GetType();
-                    if (_lastFocusedIndexByPage.TryGetValue(pageKey, out int remembered) &&
-                        remembered >= 0 && remembered < navigableElements.Count)
+                    int internalPosition = 0;
+                    if (_lastFocusByPage.TryGetValue(_navigationPageKey, out var remembered) &&
+                        remembered.Index >= 0 && remembered.Index < navigableElements.Count)
                     {
-                        startIndex = remembered;
+                        startIndex = remembered.Index;
+                        internalPosition = remembered.Internal;
                     }
 
                     SetFocus(navigableElements[startIndex]);
-                    System.Diagnostics.Debug.WriteLine($"🎮 Initialized page navigation with focus on: {navigableElements[startIndex].GetType().Name} (index {startIndex})");
+
+                    // Composite controls reset their internal position when they
+                    // receive focus; restore it afterwards
+                    if (internalPosition != 0 && navigableElements[startIndex] is IGamepadNavigable composite)
+                    {
+                        composite.GamepadFocusMemory = internalPosition;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"🎮 Initialized page navigation with focus on: {navigableElements[startIndex].GetType().Name} (index {startIndex}, internal {internalPosition})");
 
                     // If navigating between pages but gamepad wasn't active, activate it now
                     if (!_isGamepadActive && isFromPageNavigation)
