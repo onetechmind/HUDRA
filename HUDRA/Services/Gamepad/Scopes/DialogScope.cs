@@ -81,7 +81,20 @@ namespace HUDRA.Services.GamepadInput
                 case GamepadAction.Back:
                     if (e.IsRepeat) return true;
                     System.Diagnostics.Debug.WriteLine("🎮 B button pressed - triggering dialog cancel");
-                    _dispatcherQueue.TryEnqueue(_dialog.Hide);
+                    // NOTE: must be a lambda. Passing the projected WinRT method
+                    // group (_dialog.Hide) as the dispatcher delegate causes an
+                    // InvalidCastException inside WinRT.Runtime on invoke.
+                    _dispatcherQueue.TryEnqueue(() =>
+                    {
+                        try
+                        {
+                            _dialog.Hide();
+                        }
+                        catch (Exception ex)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"🎮 Dialog Hide failed: {ex.Message}");
+                        }
+                    });
                     return true;
             }
 

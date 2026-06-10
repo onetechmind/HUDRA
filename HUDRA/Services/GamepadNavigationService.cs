@@ -632,11 +632,22 @@ namespace HUDRA.Services
         // Focus memory: when returning to a page, focus is restored to where the
         // user left it. Pages are recreated on every navigation, so elements are
         // remembered by candidate-list index (stable for a given page layout).
+        // Memory is keyed by the PAGE type (Frame.Content) - NOT by the scan
+        // root, which is often a page sub-element (RootPanel, FanCurveControl)
+        // and would never match between remember and restore.
         private readonly Dictionary<Type, int> _lastFocusedIndexByPage = new();
+
+        // The candidate scan root the current page was initialized with, so
+        // remember/restore index against the same element list.
+        private FrameworkElement? _navigationRoot;
+
+        private Type? CurrentPageKey => (_currentFrame?.Content as FrameworkElement)?.GetType();
 
         private void RememberFocusForCurrentPage()
         {
-            if (_currentFocusedElement == null || _currentFrame?.Content is not FrameworkElement root) return;
+            var root = _navigationRoot ?? _currentFrame?.Content as FrameworkElement;
+            var key = CurrentPageKey;
+            if (_currentFocusedElement == null || root == null || key == null) return;
 
             try
             {
@@ -644,7 +655,7 @@ namespace HUDRA.Services
                 int index = elements.IndexOf(_currentFocusedElement);
                 if (index >= 0)
                 {
-                    _lastFocusedIndexByPage[root.GetType()] = index;
+                    _lastFocusedIndexByPage[key] = index;
                 }
             }
             catch
@@ -688,6 +699,9 @@ namespace HUDRA.Services
         {
             System.Diagnostics.Debug.WriteLine($"🎮 InitializePageNavigation called for {rootElement.GetType().Name}, fromPageNav: {isFromPageNavigation}");
 
+            // Remember/restore focus against this scan root from now on
+            _navigationRoot = rootElement;
+
             // Editing scopes from the previous page no longer apply
             _router.PopWhile(s => s is ValueEditScope or DropdownScope);
 
@@ -705,7 +719,8 @@ namespace HUDRA.Services
                 {
                     // Restore the element the user last focused on this page
                     int startIndex = 0;
-                    if (_lastFocusedIndexByPage.TryGetValue(rootElement.GetType(), out int remembered) &&
+                    var pageKey = CurrentPageKey ?? rootElement.GetType();
+                    if (_lastFocusedIndexByPage.TryGetValue(pageKey, out int remembered) &&
                         remembered >= 0 && remembered < navigableElements.Count)
                     {
                         startIndex = remembered;

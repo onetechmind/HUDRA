@@ -105,33 +105,43 @@ namespace HUDRA.Services.GamepadInput
             return true;
         }
 
-        /// <summary>Short haptic pulse on all connected gamepads.</summary>
+        /// <summary>
+        /// Short haptic pulse on all connected gamepads. Runs entirely on a
+        /// background thread: the Vibration setter can block for a long time on
+        /// some (especially Bluetooth) controllers, and on the UI thread that
+        /// showed up as random multi-second hitches on page navigation.
+        /// Windows.Gaming.Input objects are agile, so off-thread access is safe.
+        /// </summary>
         public void PulseHaptics(double intensity = 0.2, int durationMs = 100)
         {
-            try
-            {
-                foreach (var gamepad in _gamepads)
-                {
-                    gamepad.Vibration = new GamepadVibration
-                    {
-                        LeftMotor = intensity,
-                        RightMotor = intensity
-                    };
+            var gamepads = _gamepads.ToArray();
+            if (gamepads.Length == 0) return;
 
-                    var timer = _dispatcherQueue.CreateTimer();
-                    timer.Interval = TimeSpan.FromMilliseconds(durationMs);
-                    timer.Tick += (s, e) =>
+            _ = System.Threading.Tasks.Task.Run(async () =>
+            {
+                try
+                {
+                    foreach (var gamepad in gamepads)
+                    {
+                        gamepad.Vibration = new GamepadVibration
+                        {
+                            LeftMotor = intensity,
+                            RightMotor = intensity
+                        };
+                    }
+
+                    await System.Threading.Tasks.Task.Delay(durationMs);
+
+                    foreach (var gamepad in gamepads)
                     {
                         gamepad.Vibration = new GamepadVibration();
-                        timer.Stop();
-                    };
-                    timer.Start();
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"🎮 Haptic feedback error: {ex.Message}");
-            }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"🎮 Haptic feedback error: {ex.Message}");
+                }
+            });
         }
 
         /// <summary>Stop polling (e.g. while a blocking modal suspends gamepad input).</summary>
