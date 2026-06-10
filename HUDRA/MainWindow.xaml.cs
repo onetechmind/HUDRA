@@ -385,15 +385,14 @@ namespace HUDRA
             _isGamepadNavForCurrentPage = _isGamepadPageNavPending;
             _isGamepadPageNavPending = false;
 
-            // Save state and resume gamepad input processing when leaving Library page
-            // (Library pauses it to allow native XYFocus to work)
+            // Save state and remove the Library's input scope when leaving it
             if (_currentPageType == typeof(LibraryPage) && pageType != typeof(LibraryPage))
             {
                 // Save scroll position before leaving (OnNavigatedFrom may not fire due to page caching)
                 _libraryPage?.SaveScrollPosition();
 
-                _gamepadNavigationService.ResumeInputProcessing();
-                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - saved scroll position and resumed GamepadNavigationService");
+                _gamepadNavigationService.SetPageInputScope(null);
+                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - saved scroll position and removed Library input scope");
             }
 
             _currentPageType = pageType;
@@ -831,11 +830,10 @@ namespace HUDRA
                 await _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
-                // Library page uses custom D-pad navigation via GamepadNavigationService raw input forwarding
+                // Library page owns its grid navigation through its own input scope
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
-                    // Pause the gamepad navigation service to forward raw input to Library page
-                    _gamepadNavigationService.PauseInputProcessing();
+                    _gamepadNavigationService.SetPageInputScope(_libraryPage);
 
                     // Note: Focus is now handled in LibraryPage.Initialize() based on whether
                     // this navigation was via gamepad (L1/R1) or mouse/keyboard click

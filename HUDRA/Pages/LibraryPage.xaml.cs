@@ -1,6 +1,7 @@
 using HUDRA.Extensions;
 using HUDRA.Models;
 using HUDRA.Services;
+using HUDRA.Services.GamepadInput;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
@@ -21,7 +22,7 @@ using Windows.System;
 
 namespace HUDRA.Pages
 {
-    public sealed partial class LibraryPage : Page, INotifyPropertyChanged
+    public sealed partial class LibraryPage : Page, INotifyPropertyChanged, IInputScope
     {
         private EnhancedGameDetectionService? _gameDetectionService;
         private GameLauncherService? _gameLauncherService;
@@ -40,11 +41,6 @@ namespace HUDRA.Pages
         public static string? SelectedGameProcessName { get; set; }
         private bool _gamesLoaded = false;
         private bool _isRestoringScroll = false; // Flag to ignore ViewChanged during programmatic scroll restoration
-
-        // Gamepad navigation
-        private readonly HashSet<GamepadButtons> _pressedButtons = new();
-        private DateTime _lastInputTime = DateTime.MinValue;
-        private const double INPUT_REPEAT_DELAY_MS = 150;
 
         // Button zone navigation (Add Game / Rescan / Random buttons above game tiles)
         private enum LibraryFocusZone { Tiles, Buttons }
@@ -172,12 +168,6 @@ namespace HUDRA.Pages
             // SaveScrollPosition() is called from MainWindow before this fires,
             // and it already unsubscribes from ViewChanged
 
-            // Unsubscribe from raw gamepad input (resubscribed on next Initialize)
-            if (_gamepadNavigationService != null)
-            {
-                _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
-            }
-
             // Reset button zone to Tiles so gamepad focus goes to tiles on return
             _currentZone = LibraryFocusZone.Tiles;
 
@@ -195,14 +185,6 @@ namespace HUDRA.Pages
                 // CRITICAL: Unsubscribe IMMEDIATELY to prevent other pages from overwriting _savedScrollOffset
                 // This must happen before the next page loads and scrolls ContentScrollViewer to 0
                 _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
-            }
-
-            // CRITICAL: Unsubscribe from gamepad input to prevent handler accumulation
-            // OnNavigatedFrom may not fire because NavigationService uses direct Content assignment
-            // instead of Frame.Navigate(), bypassing the navigation lifecycle
-            if (_gamepadNavigationService != null)
-            {
-                _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
             }
 
             // NOTE: Focused game is now tracked continuously via SaveCurrentlyFocusedGame()
@@ -233,12 +215,8 @@ namespace HUDRA.Pages
             _gamepadNavigationService = gamepadNavigationService;
             _contentScrollViewer = contentScrollViewer;
 
-            // Unsubscribe first to prevent handler accumulation (Initialize called on every navigation)
-            // The -= on a non-existent subscription is a safe no-op
-            _gamepadNavigationService.RawGamepadInput -= OnRawGamepadInput;
-            _gamepadNavigationService.RawGamepadInput += OnRawGamepadInput;
-
-            // Same pattern for scroll viewer to prevent accumulation
+            // Unsubscribe first to prevent handler accumulation (Initialize called
+            // on every navigation); same pattern for scroll viewer
             _contentScrollViewer.ViewChanged -= OnScrollViewChanged;
             _contentScrollViewer.ViewChanged += OnScrollViewChanged;
 
@@ -897,116 +875,128 @@ namespace HUDRA.Pages
             }
         }
 
-        private void OnRawGamepadInput(object? sender, GamepadReading reading)
+        // ── Gamepad input scope ──────────────────────────────────────────────────
+        // The page is the Library's input scope, installed above the default
+        // page scope while this page is active (MainWindow calls
+        // SetPageInputScope). The reader owns edge detection and repeat; this
+        // just routes semantic events to the existing navigation methods.
+        // Chrome (LB/RB/LT/RT) falls through to the shell; with a navbar
+        // selection active, A/B fall through too so the shell can handle them.
+
+        string IInputScope.Name => "LibraryGrid";
+
+        bool IInputScope.HandleEvent(in GamepadEvent e)
         {
             try
             {
-                ProcessGamepadInput(reading);
+                switch (e.Action)
+                {
+                    case GamepadAction.NavUp:
+                        NavigateUp();
+                        return true;
+
+                    case GamepadAction.NavDown:
+                        NavigateDown();
+                        return true;
+
+                    case GamepadAction.NavLeft:
+                        NavigateLeft();
+                        return true;
+
+                    case GamepadAction.NavRight:
+                        NavigateRight();
+                        return true;
+
+                    case GamepadAction.Accept:
+                        if (_gamepadNavigationService?.HasNavbarSelection == true) return false;
+                        if (e.IsRepeat) return true;
+                        _lastUsedGamepadInput = true;
+                        InvokeFocusedButton();
+                        return true;
+
+                    case GamepadAction.Back:
+                        if (_gamepadNavigationService?.HasNavbarSelection == true) return false;
+                        return true; // no page-level back action
+
+                    case GamepadAction.X:
+                        if (e.IsRepeat) return true;
+                        _lastUsedGamepadInput = true;
+                        OpenGameSettingsForFocusedTile();
+                        return true;
+
+                    case GamepadAction.Y:
+                        return true;
+                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Error processing gamepad input: {ex.Message}");
+                return true;
+            }
+
+            return false; // chrome falls through to the shell
+        }
+
+        void IInputScope.OnStickFrame(in GamepadStickFrame frame)
+        {
+            // Page-specific deadzone matches the old raw handler
+            if (Math.Abs(frame.RightStickY) > 0.2)
+            {
+                ScrollWithAnalogStick(frame.RightStickY);
             }
         }
 
-        private void ProcessGamepadInput(GamepadReading reading)
+        /// <summary>
+        /// Modal scope for the roulette overlay: A spins/stops, B cancels,
+        /// everything else (including page chrome) is blocked while it's open.
+        /// </summary>
+        private sealed class RouletteInputScope : IInputScope
         {
-            // Check for new button presses
-            var newButtons = new List<GamepadButtons>();
-            foreach (GamepadButtons button in Enum.GetValues(typeof(GamepadButtons)))
-            {
-                if (reading.Buttons.HasFlag(button) && !_pressedButtons.Contains(button))
-                {
-                    newButtons.Add(button);
-                    _pressedButtons.Add(button);
-                }
-                else if (!reading.Buttons.HasFlag(button) && _pressedButtons.Contains(button))
-                {
-                    _pressedButtons.Remove(button);
-                }
-            }
+            private readonly LibraryPage _page;
 
-            // When the roulette modal is open, capture all input exclusively
-            if (_isRouletteActive)
+            public RouletteInputScope(LibraryPage page) => _page = page;
+
+            public string Name => "Roulette";
+
+            public bool HandleEvent(in GamepadEvent e)
             {
-                if (newButtons.Contains(GamepadButtons.A))
+                if (e.IsRepeat) return true;
+
+                if (e.Action == GamepadAction.Accept)
                 {
-                    DispatcherQueue.TryEnqueue(() =>
+                    _page.DispatcherQueue.TryEnqueue(() =>
                     {
-                        if (RouletteSpinButton.IsEnabled)
+                        if (_page.RouletteSpinButton.IsEnabled)
                         {
-                            RouletteSpinButton_Click(RouletteSpinButton, new RoutedEventArgs());
+                            _page.RouletteSpinButton_Click(_page.RouletteSpinButton, new RoutedEventArgs());
                         }
                     });
                 }
-                else if (newButtons.Contains(GamepadButtons.B))
+                else if (e.Action == GamepadAction.Back)
                 {
-                    DispatcherQueue.TryEnqueue(() => CancelRoulette());
+                    _page.DispatcherQueue.TryEnqueue(_page.CancelRoulette);
                 }
-                // Block all other input (D-pad, analog sticks, X, etc.)
-                return;
-            }
 
-            // Check for repeat navigation
-            bool shouldProcessRepeats = (DateTime.Now - _lastInputTime).TotalMilliseconds >= INPUT_REPEAT_DELAY_MS;
+                return true; // modal: block everything else
+            }
+        }
 
-            // Track if we navigated (to prevent scroll conflict)
-            bool navigated = false;
+        private RouletteInputScope? _rouletteInputScope;
 
-            // Handle D-pad AND left analog stick navigation (both new presses and repeats)
-            if (newButtons.Contains(GamepadButtons.DPadUp) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadUp)) ||
-                (shouldProcessRepeats && reading.LeftThumbstickY > 0.7))
-            {
-                NavigateUp();
-                _lastInputTime = DateTime.Now;
-                navigated = true;
-            }
-            else if (newButtons.Contains(GamepadButtons.DPadDown) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadDown)) ||
-                     (shouldProcessRepeats && reading.LeftThumbstickY < -0.7))
-            {
-                NavigateDown();
-                _lastInputTime = DateTime.Now;
-                navigated = true;
-            }
+        private void OpenRouletteInputScope()
+        {
+            if (_gamepadNavigationService == null) return;
+            _rouletteInputScope = new RouletteInputScope(this);
+            _gamepadNavigationService.PushScope(_rouletteInputScope);
+        }
 
-            if (newButtons.Contains(GamepadButtons.DPadLeft) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadLeft)) ||
-                (shouldProcessRepeats && reading.LeftThumbstickX < -0.7))
+        private void CloseRouletteInputScope()
+        {
+            if (_rouletteInputScope != null && _gamepadNavigationService != null)
             {
-                NavigateLeft();
-                _lastInputTime = DateTime.Now;
-                navigated = true;
+                _gamepadNavigationService.PopScope(_rouletteInputScope);
             }
-            else if (newButtons.Contains(GamepadButtons.DPadRight) || (shouldProcessRepeats && reading.Buttons.HasFlag(GamepadButtons.DPadRight)) ||
-                     (shouldProcessRepeats && reading.LeftThumbstickX > 0.7))
-            {
-                NavigateRight();
-                _lastInputTime = DateTime.Now;
-                navigated = true;
-            }
-
-            // Handle A button to launch game
-            if (newButtons.Contains(GamepadButtons.A))
-            {
-                InvokeFocusedButton();
-            }
-
-            // Handle B button
-            if (newButtons.Contains(GamepadButtons.B))
-            {
-                // No action when roulette is not active
-            }
-
-            // Handle X button to open game settings
-            if (newButtons.Contains(GamepadButtons.X))
-            {
-                OpenGameSettingsForFocusedTile();
-            }
-
-            // Handle right analog stick for scrolling (only when not navigating with left stick)
-            if (!navigated && Math.Abs(reading.RightThumbstickY) > 0.2)
-            {
-                ScrollWithAnalogStick(reading.RightThumbstickY);
-            }
+            _rouletteInputScope = null;
         }
 
         private void NavigateUp()
@@ -1683,6 +1673,7 @@ namespace HUDRA.Pages
             }
 
             _isRouletteActive = true;
+            OpenRouletteInputScope();
 
             // Ensure audio is preloaded
             PreloadRouletteAudio();
@@ -1874,6 +1865,7 @@ namespace HUDRA.Pages
                         RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
                     });
                     _isRouletteActive = false;
+                    CloseRouletteInputScope();
                 }
             }
             catch (Exception ex)
@@ -1976,6 +1968,7 @@ namespace HUDRA.Pages
 
             // Always close the modal and reset state
             _isRouletteActive = false;
+            CloseRouletteInputScope();
             RouletteOverlay.Visibility = Visibility.Collapsed;
             RouletteCountdownOverlay.Visibility = Visibility.Collapsed;
             System.Diagnostics.Debug.WriteLine("LibraryPage: Roulette modal closed");

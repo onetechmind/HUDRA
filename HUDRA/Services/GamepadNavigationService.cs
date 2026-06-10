@@ -22,7 +22,6 @@ namespace HUDRA.Services
         private readonly InputRouter _router = new();
         private readonly ShellScope _shellScope;
         private readonly PageScope _pageScope;
-        private readonly LegacyRawScope _legacyRawScope;
         private FrameworkElement? _currentFocusedElement;
         private Frame? _currentFrame;
         private UIElement? _layoutRoot;
@@ -30,13 +29,6 @@ namespace HUDRA.Services
 
         // Suppress auto focus on first gamepad activation after mouse/touch navigation
         private bool _suppressAutoFocusOnActivation = false;
-
-        // While input processing is paused (Library page), buttons consumed by
-        // other scopes (navbar invoke, dialogs, page nav) are masked out of the
-        // forwarded raw readings until released, so the page's own edge detection
-        // never sees a phantom "new" press one tick after we consumed it.
-        private GamepadButtons _pausedInterceptMask = GamepadButtons.None;
-        private bool _skipRawForwardThisTick = false;
 
         // Window visibility tracking - ignore input when window is hidden
         private WindowManagementService? _windowManager;
@@ -81,28 +73,42 @@ namespace HUDRA.Services
         /// <summary>True while a slider/value edit scope is active (ring turns blue).</summary>
         public bool IsValueEditing => _router.HasScope<ValueEditScope>();
 
-        // Pages that use custom navigation (Library) push the legacy raw scope
-        // and consume forwarded raw readings instead of semantic events
-        public bool IsInputProcessingPaused => _router.Contains(_legacyRawScope);
+        /// <summary>True while LT/RT has a navbar button selected (shell owns A/B then).</summary>
+        public bool HasNavbarSelection => _shellScope.HasNavbarSelection;
 
         private bool IsDialogOpen => _router.HasScope<DialogScope>();
 
-        // Delegate for forwarding raw gamepad input to custom pages
-        public event EventHandler<GamepadReading>? RawGamepadInput;
+        // A page-supplied scope that replaces the default PageScope behavior
+        // while its page is active (e.g. the Library grid)
+        private IInputScope? _pageCustomScope;
 
-        public void PauseInputProcessing()
+        /// <summary>
+        /// Install (or clear, with null) a page-owned input scope above the
+        /// default page scope. Replaces the old PauseInputProcessing/raw
+        /// forwarding mechanism.
+        /// </summary>
+        public void SetPageInputScope(IInputScope? scope)
         {
-            // Clear any transient editing scopes; the page takes over from here
-            _router.PopWhile(s => s is ValueEditScope or DropdownScope);
-            _router.Push(_legacyRawScope);
-            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing PAUSED - will forward raw input");
+            if (ReferenceEquals(_pageCustomScope, scope)) return;
+
+            if (_pageCustomScope != null)
+            {
+                _router.Pop(_pageCustomScope);
+            }
+            _pageCustomScope = scope;
+            if (scope != null)
+            {
+                // Editing scopes from the previous page no longer apply
+                _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+                _router.Push(scope);
+            }
         }
 
-        public void ResumeInputProcessing()
-        {
-            _router.Pop(_legacyRawScope);
-            System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService: Input processing RESUMED");
-        }
+        /// <summary>Push a transient scope (e.g. a page-modal like the roulette).</summary>
+        public void PushScope(IInputScope scope) => _router.Push(scope);
+
+        /// <summary>Pop a scope pushed with <see cref="PushScope"/> (tolerant no-op if absent).</summary>
+        public void PopScope(IInputScope scope) => _router.Pop(scope);
 
         public GamepadNavigationService()
         {
@@ -118,7 +124,6 @@ namespace HUDRA.Services
 
             _reader = new GamepadInputReader();
             _reader.ActionDispatched += OnReaderAction;
-            _reader.ReadingAvailable += OnReaderReading;
             _reader.StickFrame += OnReaderStickFrame;
             _reader.GamepadConnected += (s, e) => GamepadConnected?.Invoke(this, e);
             _reader.GamepadDisconnected += (s, e) =>
@@ -133,7 +138,6 @@ namespace HUDRA.Services
             // Permanent bottom of the input stack: shell chrome, then page navigation
             _shellScope = new ShellScope(this);
             _pageScope = new PageScope(this, _shellScope);
-            _legacyRawScope = new LegacyRawScope(_shellScope);
             _router.Push(_shellScope);
             _router.Push(_pageScope);
 
@@ -213,9 +217,9 @@ namespace HUDRA.Services
             // Activate gamepad mode on first input
             if (!_isGamepadActive)
             {
-                if (IsInputProcessingPaused)
+                if (_pageCustomScope != null)
                 {
-                    // Library owns its own visuals - no auto-activation (legacy behavior)
+                    // The page (Library) owns its own focus visuals - no auto-activation
                 }
                 else if (IsDialogOpen)
                 {
@@ -247,55 +251,7 @@ namespace HUDRA.Services
                 }
             }
 
-            var consumer = _router.Dispatch(in e);
-
-            // While the Library consumes raw readings, input another scope consumed
-            // must be hidden from the raw stream (mask held buttons until release)
-            if (consumer != null && consumer is not LegacyRawScope && IsInputProcessingPaused)
-            {
-                switch (e.Action)
-                {
-                    case GamepadAction.Accept: InterceptPausedButton(GamepadButtons.A); break;
-                    case GamepadAction.Back: InterceptPausedButton(GamepadButtons.B); break;
-                    case GamepadAction.LB: InterceptPausedButton(GamepadButtons.LeftShoulder); break;
-                    case GamepadAction.RB: InterceptPausedButton(GamepadButtons.RightShoulder); break;
-                    default: _skipRawForwardThisTick = true; break;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Raw per-tick reading from the reader, fired after that tick's semantic
-        /// events. While paused, forwards to RawGamepadInput subscribers with any
-        /// intercepted buttons masked out until they are released.
-        /// </summary>
-        private void OnReaderReading(object? sender, GamepadReading reading)
-        {
-            bool skipThisTick = _skipRawForwardThisTick;
-            _skipRawForwardThisTick = false;
-
-            if (!IsInputProcessingPaused)
-            {
-                _pausedInterceptMask = GamepadButtons.None;
-                return;
-            }
-
-            if (_windowManager != null && !_windowManager.IsVisible) return;
-            if (IsDialogOpen) return;
-            if (skipThisTick) return;
-
-            // Drop released buttons from the mask, then hide still-held intercepted
-            // buttons from the page so it never sees them as fresh presses
-            _pausedInterceptMask &= reading.Buttons;
-            reading.Buttons &= ~_pausedInterceptMask;
-
-            RawGamepadInput?.Invoke(this, reading);
-        }
-
-        private void InterceptPausedButton(GamepadButtons button)
-        {
-            _pausedInterceptMask |= button;
-            _skipRawForwardThisTick = true;
+            _router.Dispatch(in e);
         }
 
         /// <summary>
@@ -820,7 +776,7 @@ namespace HUDRA.Services
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposing...");
 
             _reader.ActionDispatched -= OnReaderAction;
-            _reader.ReadingAvailable -= OnReaderReading;
+            _reader.StickFrame -= OnReaderStickFrame;
             _reader.Dispose();
 
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService disposed");
