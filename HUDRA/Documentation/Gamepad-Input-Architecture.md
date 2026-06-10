@@ -43,7 +43,12 @@ boolean mode flags.
 | `ValueEditScope` | A on a slider | left/right adjust, A/B exit | chrome |
 | `DropdownScope` | A on a ComboBox | up/down browse, A commit, B cancel-and-restore | chrome |
 | `DialogScope` | `GamepadDialog.ShowAsync` | d-pad between dialog buttons, A invokes focused, B cancels | nothing (modal) |
-| `LegacyRawScope` | LibraryPage (transitional) | black-holes what the page reads raw | chrome |
+| LibraryPage (`IInputScope`) | while Library is active (`SetPageInputScope`) | grid/button-zone navigation, A launch, X game settings, stick scroll | chrome; A/B with a navbar selection |
+| Roulette scope | while the roulette overlay is open | A spin/stop, B cancel | nothing (modal) |
+
+Pages with bespoke navigation implement `IInputScope` themselves and are
+installed with `SetPageInputScope` (popped automatically on page change);
+page-modals use `PushScope`/`PopScope`.
 
 Invariants the stack gives you for free:
 
@@ -109,19 +114,31 @@ the Phase 3c pattern (`AudioControlsControl` is the simplest example):
 3. If an inner element needs non-generic activation, implement
    `IGamepadElementHost` on the control (see `ResolutionPickerControl`).
 
+## B-button semantics (one level at a time)
+
+Dialog → dropdown/slider edit → expander collapse → navbar selection →
+page-level `IGamepadBackHandler` (e.g. GameSettingsPage back to Library) →
+no-op. Every layer is tried in that order; nothing else is hardcoded.
+
+## Focus memory
+
+Returning to a page restores focus to the element the user last focused
+there (remembered by candidate index per page type, since pages are
+recreated on each navigation). The Library additionally remembers its
+focused game tile and scroll offset.
+
 ## Remaining transitional pieces (planned follow-ups)
 
-- **LibraryPage** still consumes raw readings via `RawGamepadInput` behind
-  `LegacyRawScope`. Plan: replace with a `LibraryGridScope` built on
-  `GridMath` (X = game settings, A = launch, right-stick scroll, roulette as
-  its own scope), move its static scroll/focus fields into a page-state
-  cache, then delete `RawGamepadInput`/`PauseInputProcessing`/`LegacyRawScope`.
-- **GameSettingsPage** and the remaining `IGamepadNavigable` controls migrate
-  per the recipe above; the SGDB image grid becomes a `GridMath`-based scope.
-- **Per-page focus memory** (restore last-focused element when returning to a
-  page) via a `PageStateCache` keyed by page type.
-- `Helpers/GamepadComboBoxHelper.cs` and `Interfaces/IGamepadNavigable.cs`
-  are deleted once the last consumers are migrated.
+- The remaining `IGamepadNavigable` controls (TdpPickerControl,
+  FanCurveControl, NavigableExpander and the expander-body controls,
+  GameProfileControl, etc.) still use the legacy interface through the
+  router's compatibility path with self-rendered focus visuals. They migrate
+  per the recipe above; FanCurve's control-point editor would become its own
+  scope. `Interfaces/IGamepadNavigable.cs` and
+  `Helpers/GamepadComboBoxHelper.cs` are deleted once the last consumers are
+  migrated.
+- Library scroll/focus state still lives in static fields on the page; a
+  page-state cache service would be cleaner.
 
 ## Testing
 
