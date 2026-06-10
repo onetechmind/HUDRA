@@ -2,6 +2,7 @@ using HUDRA.Extensions;
 using HUDRA.Interfaces;
 using HUDRA.Models;
 using HUDRA.Services;
+using HUDRA.Services.GamepadInput;
 using HUDRA.AttachedProperties;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
@@ -19,11 +20,10 @@ using Windows.Storage.Pickers;
 
 namespace HUDRA.Pages
 {
-    public sealed partial class GameSettingsPage : Page, IGamepadNavigable, INotifyPropertyChanged
+    public sealed partial class GameSettingsPage : Page, INotifyPropertyChanged, IGamepadBackHandler
     {
         private EnhancedGameDatabase? _gameDatabase;
         private SteamGridDbArtworkService? _artworkService;
-        private GamepadNavigationService? _gamepadNavigationService;
         private DetectedGame? _currentGame;
         private string? _originalDisplayName;
         private string? _originalArtworkPath;
@@ -33,21 +33,11 @@ namespace HUDRA.Pages
         private string _artworkDirectory = string.Empty;
         private string? _selectedSgdbPath = null;  // Track selected SGDB tile for visual feedback
 
-        // Gamepad navigation state
-        private bool _isFocused = false;
-        private int _currentFocusedElement = 0; // 0=Back, 1=DisplayName, 2=Delete, 3=Browse, 4=SGDB, 5=ProfileExpander
-        private const int MaxFocusIndex = 5;
-
-        // SGDB grid navigation state
-        private bool _isSgdbGridActive = false;  // Whether we're navigating in the SGDB grid
-        private int _sgdbGridFocusIndex = 0;     // Currently focused tile in the grid (0-9)
-
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public GameSettingsPage()
         {
             this.InitializeComponent();
-            InitializeGamepadNavigation();
 
             // Get artwork directory path
             var appDataPath = Path.Combine(
@@ -61,31 +51,10 @@ namespace HUDRA.Pages
             }
         }
 
-        private void InitializeGamepadNavigation()
-        {
-            GamepadNavigation.SetIsEnabled(this, true);
-            GamepadNavigation.SetNavigationGroup(this, "GameSettings");
-            GamepadNavigation.SetNavigationOrder(this, 1);
-        }
-
         public void Initialize(EnhancedGameDatabase gameDatabase, SteamGridDbArtworkService? artworkService)
         {
             _gameDatabase = gameDatabase;
             _artworkService = artworkService;
-
-            // Lazy init gamepad service
-            if (_gamepadNavigationService == null)
-            {
-                InitializeGamepadNavigationService();
-            }
-        }
-
-        private void InitializeGamepadNavigationService()
-        {
-            if (Application.Current is App app && app.MainWindow is MainWindow mainWindow)
-            {
-                _gamepadNavigationService = mainWindow.GamepadNavigationService;
-            }
         }
 
         public void LoadGame(string processName)
@@ -189,300 +158,18 @@ namespace HUDRA.Pages
             }
         }
 
-        // IGamepadNavigable implementation
-        public bool CanNavigateUp => _isSgdbGridActive || _currentFocusedElement > 0;
-        public bool CanNavigateDown => _isSgdbGridActive || _currentFocusedElement < MaxFocusIndex
-            || (_currentFocusedElement == 4
-                && SgdbResultsSection?.Visibility == Visibility.Visible
-                && SgdbImageGrid?.Items.Count > 0);
-        public bool CanNavigateLeft => _isSgdbGridActive || _currentFocusedElement == 2;
-        public bool CanNavigateRight => _isSgdbGridActive || _currentFocusedElement == 1;
-        public bool CanActivate => true;
-        public FrameworkElement NavigationElement => this;
+        // ── Gamepad integration ─────────────────────────────────────────────────
+        // All interactive elements (including the SGDB result tiles generated
+        // from the item template) are individual focus candidates; spatial
+        // navigation and the generic adapters handle movement and activation,
+        // and the shared FocusIndicatorLayer renders focus. Only the page-wide
+        // B-button behavior needs code:
 
-        // Slider properties (not used)
-        public bool IsSlider => false;
-        public bool IsSliderActivated { get; set; } = false;
-        public void AdjustSliderValue(int direction) { }
-
-        // ComboBox properties (not used)
-        public bool HasComboBoxes => false;
-        public bool IsComboBoxOpen { get; set; } = false;
-        public ComboBox? GetFocusedComboBox() => null;
-        public int ComboBoxOriginalIndex { get; set; } = -1;
-        public bool IsNavigatingComboBox { get; set; } = false;
-        public void ProcessCurrentSelection() { }
-
-        public bool IsFocused
+        /// <summary>B anywhere on this page navigates back to the Library.</summary>
+        public bool HandleBack()
         {
-            get => _isFocused;
-            set
-            {
-                if (_isFocused != value)
-                {
-                    _isFocused = value;
-                    OnPropertyChanged();
-                    UpdateFocusVisuals();
-                }
-            }
-        }
-
-        // Focus brush properties for each element
-        public Brush BackButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 0)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush DisplayNameFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 1)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush DeleteButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 2)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush BrowseButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 3)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush SgdbButtonFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 4)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        public Brush ProfileExpanderFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true
-                    && _currentFocusedElement == 5 && !_isSgdbGridActive)
-                {
-                    return new SolidColorBrush(Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Colors.Transparent);
-            }
-        }
-
-        // Gamepad navigation handlers
-        public void OnGamepadNavigateUp()
-        {
-            if (_isSgdbGridActive)
-            {
-                NavigateSgdbGrid("Up");
-                return;
-            }
-
-            // Normal navigation - UP always goes to previous element (no grid entry from UP)
-            if (_currentFocusedElement > 0)
-            {
-                _currentFocusedElement--;
-                UpdateFocusVisuals();
-            }
-        }
-
-        public void OnGamepadNavigateDown()
-        {
-            if (_isSgdbGridActive)
-            {
-                NavigateSgdbGrid("Down");
-                return;
-            }
-
-            // If at SGDB (4) and SGDB grid is visible, enter grid at top
-            if (_currentFocusedElement == 4
-                && SgdbResultsSection.Visibility == Visibility.Visible
-                && SgdbImageGrid.Items.Count > 0)
-            {
-                EnterSgdbGridNavigation();
-                return;
-            }
-
-            // Normal navigation - go to next element
-            if (_currentFocusedElement < MaxFocusIndex)
-            {
-                _currentFocusedElement++;
-                UpdateFocusVisuals();
-            }
-        }
-
-        public void OnGamepadNavigateLeft()
-        {
-            if (_isSgdbGridActive)
-            {
-                NavigateSgdbGrid("Left");
-                return;
-            }
-
-            // From Delete to DisplayName
-            if (_currentFocusedElement == 2)
-            {
-                _currentFocusedElement = 1;
-                UpdateFocusVisuals();
-            }
-        }
-
-        public void OnGamepadNavigateRight()
-        {
-            if (_isSgdbGridActive)
-            {
-                NavigateSgdbGrid("Right");
-                return;
-            }
-
-            // From DisplayName to Delete
-            if (_currentFocusedElement == 1)
-            {
-                _currentFocusedElement = 2;
-                UpdateFocusVisuals();
-            }
-        }
-
-        public void OnGamepadActivate()
-        {
-            if (_isSgdbGridActive)
-            {
-                ActivateSgdbGridTile();
-                return;
-            }
-
-            switch (_currentFocusedElement)
-            {
-                case 0: // Back button
-                    BackButton_Click(this, new RoutedEventArgs());
-                    break;
-                case 1: // Display name TextBox
-                    DisplayNameTextBox.Focus(FocusState.Programmatic);
-                    DisplayNameTextBox.SelectAll();
-                    break;
-                case 2: // Delete button
-                    DeleteButton_Click(this, new RoutedEventArgs());
-                    break;
-                case 3: // Browse button
-                    BrowseButton_Click(this, new RoutedEventArgs());
-                    break;
-                case 4: // SteamGridDB button
-                    SteamGridDbButton_Click(this, new RoutedEventArgs());
-                    break;
-                case 5: // ProfileExpander - toggle expander
-                    if (GameProfileExpander != null)
-                    {
-                        GameProfileExpander.IsExpanded = !GameProfileExpander.IsExpanded;
-                    }
-                    break;
-            }
-        }
-
-        public void OnGamepadBack()
-        {
-            // B button anywhere on page navigates back (same as Cancel)
             BackButton_Click(this, new RoutedEventArgs());
-        }
-
-        public void OnGamepadFocusReceived()
-        {
-            if (_gamepadNavigationService == null)
-            {
-                InitializeGamepadNavigationService();
-            }
-
-            _isFocused = true;
-            UpdateFocusVisuals();
-        }
-
-        public void OnGamepadFocusLost()
-        {
-            _isFocused = false;
-            UpdateFocusVisuals();
-        }
-
-        public void FocusLastElement()
-        {
-            // Focus the last element (element 5: ProfileExpander)
-            _currentFocusedElement = MaxFocusIndex;
-            UpdateFocusVisuals();
-        }
-
-        private void UpdateFocusVisuals()
-        {
-            // Dispatch on UI thread to ensure bindings update reliably
-            DispatcherQueue.TryEnqueue(() =>
-            {
-                OnPropertyChanged(nameof(BackButtonFocusBrush));
-                OnPropertyChanged(nameof(DisplayNameFocusBrush));
-                OnPropertyChanged(nameof(DeleteButtonFocusBrush));
-                OnPropertyChanged(nameof(BrowseButtonFocusBrush));
-                OnPropertyChanged(nameof(SgdbButtonFocusBrush));
-                OnPropertyChanged(nameof(ProfileExpanderFocusBrush));
-
-                // Scroll the focused element into view
-                ScrollCurrentElementIntoView();
-            });
-        }
-
-        private void ScrollCurrentElementIntoView()
-        {
-            FrameworkElement? elementToScroll = _currentFocusedElement switch
-            {
-                0 => BackButton,
-                1 => DisplayNameTextBox,
-                2 => DeleteButton,
-                3 => BrowseButton,
-                4 => SteamGridDbButton,
-                5 => GameProfileExpander,
-                _ => null
-            };
-
-            if (elementToScroll != null)
-            {
-                elementToScroll.StartBringIntoView(new BringIntoViewOptions
-                {
-                    AnimationDesired = true,
-                    VerticalAlignmentRatio = 0.5 // Center the element vertically
-                });
-            }
+            return true;
         }
 
         // Button click handlers
@@ -804,153 +491,6 @@ namespace HUDRA.Pages
         {
             SgdbErrorText.Text = message;
             SgdbErrorText.Visibility = Visibility.Visible;
-        }
-
-        // SGDB Grid Navigation Methods
-        private void EnterSgdbGridNavigation()
-        {
-            _isSgdbGridActive = true;
-            _sgdbGridFocusIndex = 0;
-            UpdateFocusVisuals(); // Clear button focus visuals
-            UpdateSgdbGridFocusVisual();
-        }
-
-        private void ExitSgdbGridNavigation()
-        {
-            _isSgdbGridActive = false;
-            ClearSgdbGridFocusVisual();
-            UpdateFocusVisuals();
-        }
-
-        private void NavigateSgdbGrid(string direction)
-        {
-            var items = SgdbImageGrid.Items;
-            if (items == null || items.Count == 0) return;
-
-            int columns = 2;
-            int currentRow = _sgdbGridFocusIndex / columns;
-            int currentCol = _sgdbGridFocusIndex % columns;
-
-            switch (direction)
-            {
-                case "Up":
-                    if (currentRow > 0)
-                    {
-                        _sgdbGridFocusIndex -= columns;
-                        UpdateSgdbGridFocusVisual();
-                    }
-                    else
-                    {
-                        // Exit to SGDB button (index 4) - grid is below SGDB button
-                        _currentFocusedElement = 4;
-                        ExitSgdbGridNavigation();
-                    }
-                    break;
-                case "Down":
-                    // Move down within grid if possible, otherwise exit to ProfileExpander
-                    if (_sgdbGridFocusIndex + columns < items.Count)
-                    {
-                        _sgdbGridFocusIndex += columns;
-                        UpdateSgdbGridFocusVisual();
-                    }
-                    else
-                    {
-                        // Exit to ProfileExpander (index 5)
-                        _currentFocusedElement = 5;
-                        ExitSgdbGridNavigation();
-                    }
-                    break;
-                case "Left":
-                    if (currentCol > 0)
-                    {
-                        _sgdbGridFocusIndex--;
-                        UpdateSgdbGridFocusVisual();
-                    }
-                    break;
-                case "Right":
-                    if (currentCol < columns - 1 && _sgdbGridFocusIndex + 1 < items.Count)
-                    {
-                        _sgdbGridFocusIndex++;
-                        UpdateSgdbGridFocusVisual();
-                    }
-                    break;
-            }
-        }
-
-        private void UpdateSgdbGridFocusVisual()
-        {
-            if (SgdbImageGrid.ItemsSource == null) return;
-
-            // Update visual feedback for all tiles
-            for (int i = 0; i < SgdbImageGrid.Items.Count; i++)
-            {
-                var container = SgdbImageGrid.ContainerFromIndex(i) as FrameworkElement;
-                if (container == null) continue;
-
-                var border = FindVisualChild<Border>(container);
-                if (border == null) continue;
-
-                var button = FindVisualChild<Button>(container);
-                if (button?.Tag is SteamGridDbResult result)
-                {
-                    bool isSelected = result.TempFilePath == _selectedSgdbPath;
-                    bool isFocused = _isSgdbGridActive && i == _sgdbGridFocusIndex;
-
-                    if (isFocused)
-                    {
-                        // Gamepad focus - use DarkViolet with thicker border
-                        border.BorderBrush = new SolidColorBrush(Colors.DarkViolet);
-                        border.BorderThickness = new Thickness(3);
-
-                        // Scroll the focused tile into view
-                        container.StartBringIntoView(new BringIntoViewOptions
-                        {
-                            AnimationDesired = true,
-                            VerticalAlignmentRatio = 0.5
-                        });
-                    }
-                    else if (isSelected)
-                    {
-                        // Selected but not focused
-                        border.BorderBrush = new SolidColorBrush(Colors.DarkViolet);
-                        border.BorderThickness = new Thickness(3);
-                    }
-                    else
-                    {
-                        // Neither focused nor selected
-                        border.BorderBrush = new SolidColorBrush(Colors.Transparent);
-                        border.BorderThickness = new Thickness(2);
-                    }
-                }
-            }
-        }
-
-        private void ClearSgdbGridFocusVisual()
-        {
-            // Reset to selection-only state (reuse existing method)
-            UpdateSgdbTileSelection();
-        }
-
-        private void ActivateSgdbGridTile()
-        {
-            var items = SgdbImageGrid.Items;
-            if (items == null || _sgdbGridFocusIndex >= items.Count) return;
-
-            if (items[_sgdbGridFocusIndex] is SteamGridDbResult result)
-            {
-                // Reuse existing selection logic
-                _pendingArtworkPath = result.TempFilePath;
-                _artworkChanged = true;
-                _selectedSgdbPath = result.TempFilePath;
-
-                // Update preview
-                ArtworkPreview.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(
-                    new Uri(result.TempFilePath));
-
-                // Update visual feedback
-                UpdateSgdbGridFocusVisual();
-                HideArtworkError();
-            }
         }
 
         private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

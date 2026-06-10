@@ -881,9 +881,11 @@ namespace HUDRA
                         _gamepadNavigationService.DeactivateGamepadMode();
                     }
 
-                    // Initialize gamepad navigation for GameSettingsPage
+                    // Initialize gamepad navigation for GameSettingsPage. The page
+                    // root is the candidate scan root - its interactive elements
+                    // are individual focus candidates now.
                     _gamepadNavigationService.InitializePageNavigation(
-                        _gameSettingsPage.BackButton,
+                        _gameSettingsPage,
                         isFromPageNavigation: _isGamepadNavForCurrentPage
                     );
 

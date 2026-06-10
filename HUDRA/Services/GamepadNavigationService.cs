@@ -355,9 +355,10 @@ namespace HUDRA.Services
                             }
                             else
                             {
-                                // No expander to collapse - call OnGamepadBack on the control or page
+                                // No expander to collapse - let the control react,
+                                // then fall back to the page-level back handler
                                 navigableControl.OnGamepadBack();
-                                System.Diagnostics.Debug.WriteLine($"🎮 B button: Called OnGamepadBack on {navigableControl.GetType().Name}");
+                                TryPageBack();
                                 handled = true;
                             }
                             break;
@@ -388,6 +389,7 @@ namespace HUDRA.Services
                                 SetFocus(plainExpander);
                                 return;
                             }
+                            if (TryPageBack()) return;
                             break;
                     }
                 }
@@ -401,9 +403,25 @@ namespace HUDRA.Services
             {
                 NavigateToAdjacentElement(action);
             }
+            else if (action == GamepadNavigationAction.Back && _currentFocusedElement == null)
+            {
+                // B with nothing focused still triggers the page-level back handler
+                TryPageBack();
+            }
 
             // Notify any listeners
             NavigationRequested?.Invoke(this, new GamepadNavigationEventArgs(action, _currentFocusedElement));
+        }
+
+        /// <summary>B-button fallback: the current page's IGamepadBackHandler, if any.</summary>
+        private bool TryPageBack()
+        {
+            if (_currentFrame?.Content is IGamepadBackHandler backHandler && backHandler.HandleBack())
+            {
+                System.Diagnostics.Debug.WriteLine("🎮 B button: handled by page IGamepadBackHandler");
+                return true;
+            }
+            return false;
         }
 
         private void NavigateToAdjacentElement(GamepadNavigationAction direction)

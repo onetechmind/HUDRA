@@ -49,6 +49,12 @@ namespace HUDRA.Services.GamepadInput
                     router.Push(new DropdownScope(comboBox));
                     return true;
 
+                case TextBox textBox:
+                    // Give the text box real focus for typing (on-screen keyboard)
+                    textBox.Focus(FocusState.Programmatic);
+                    textBox.SelectAll();
+                    return true;
+
                 // ToggleButton before Button: it derives from ButtonBase too
                 case ToggleButton toggleButton:
                     toggleButton.IsChecked = !(toggleButton.IsChecked ?? false);
