@@ -30,6 +30,8 @@ namespace HUDRA.Services.GamepadInput
 
         public string Name => "Shell";
 
+        public int Layer => ScopeLayer.Shell;
+
         public bool HasNavbarSelection => _selectedIndex.HasValue && _selectedButton != null;
 
         public void RegisterNavbarButtons(List<Button> buttons)

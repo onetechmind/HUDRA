@@ -885,6 +885,10 @@ namespace HUDRA.Pages
 
         string IInputScope.Name => "LibraryGrid";
 
+        // The grid uses real WinUI focus on its tiles rather than the shared
+        // focus ring, so gamepad activation must not auto-focus a candidate here.
+        bool IInputScope.OwnsFocusVisuals => true;
+
         bool IInputScope.HandleEvent(in GamepadEvent e)
         {
             try
@@ -957,6 +961,18 @@ namespace HUDRA.Pages
             public RouletteInputScope(LibraryPage page) => _page = page;
 
             public string Name => "Roulette";
+
+            public int Layer => ScopeLayer.PageModal;
+
+            // A modal scope blocks chrome too, so bind its life to the overlay.
+            public bool IsStillValid
+            {
+                get
+                {
+                    try { return _page.RouletteOverlay.Visibility == Visibility.Visible; }
+                    catch { return true; }
+                }
+            }
 
             public bool HandleEvent(in GamepadEvent e)
             {
@@ -1673,13 +1689,22 @@ namespace HUDRA.Pages
             }
 
             _isRouletteActive = true;
-            OpenRouletteInputScope();
 
-            // Ensure audio is preloaded
-            PreloadRouletteAudio();
-            if (_roulettePreloadTask != null)
+            // Ensure audio is preloaded. Deliberately BEFORE taking gamepad input:
+            // this can take seconds (or fail), and capturing input while nothing is
+            // on screen looks exactly like the app has frozen.
+            try
             {
-                await _roulettePreloadTask;
+                PreloadRouletteAudio();
+                if (_roulettePreloadTask != null)
+                {
+                    await _roulettePreloadTask;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Audio is optional garnish - never let it block or crash the roulette
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Roulette audio preload failed: {ex.Message}");
             }
 
             // Show modal with reel centered on first game (alphabetical)
@@ -1692,6 +1717,10 @@ namespace HUDRA.Pages
             RouletteSpinButton.IsEnabled = true;
             RouletteSpinButton.Opacity = 1.0;
             UpdateRouletteReel(gamesList, initialTop);
+
+            // Capture input only now that the overlay is actually up, so the
+            // scope's validity check (overlay visible) is true from the start.
+            OpenRouletteInputScope();
 
             // Wake audio device silently while user looks at modal
             if (_rouletteTickPlayers != null)

@@ -18,6 +18,11 @@ namespace HUDRA.Services.GamepadInput
 
         public string Name => "ValueEdit";
 
+        public int Layer => ScopeLayer.Edit;
+
+        /// <summary>Invalid once the control being edited leaves the visual tree.</summary>
+        public bool IsStillValid => _editable.IsEditTargetAlive;
+
         public void OnPushed(InputRouter router)
         {
             _router = router;
@@ -51,7 +56,7 @@ namespace HUDRA.Services.GamepadInput
                 case GamepadAction.Back:
                     if (!e.IsRepeat)
                     {
-                        _router?.Pop(this);
+                        _router?.Remove(this);
                     }
                     return true;
             }

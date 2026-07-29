@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Windows.Gaming.Input;
 using Windows.System;
@@ -20,6 +21,7 @@ namespace HUDRA.Services
     {
         private readonly GamepadInputReader _reader;
         private readonly InputRouter _router = new();
+        private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
         private readonly ShellScope _shellScope;
         private readonly PageScope _pageScope;
         private FrameworkElement? _currentFocusedElement;
@@ -83,32 +85,33 @@ namespace HUDRA.Services
         private IInputScope? _pageCustomScope;
 
         /// <summary>
-        /// Install (or clear, with null) a page-owned input scope above the
-        /// default page scope. Replaces the old PauseInputProcessing/raw
-        /// forwarding mechanism.
+        /// Install (or clear, with null) a page-owned input scope. The scope is
+        /// wrapped so its lifetime is tied to <paramref name="owningPage"/> still
+        /// being the displayed content — an init continuation that resumes after
+        /// the user navigated away can therefore no longer strand a scope.
         /// </summary>
-        public void SetPageInputScope(IInputScope? scope)
+        public void SetPageInputScope(IInputScope? inner, FrameworkElement? owningPage = null)
         {
-            if (ReferenceEquals(_pageCustomScope, scope)) return;
+            // Always clear any existing page-owned scope, even when installing
+            // nothing: this used to early-return on reference equality, which made
+            // "clear on leaving the page" a no-op whenever the push had not landed yet.
+            _router.RemoveWhere(s => s.Layer == ScopeLayer.PageCustom);
+            _pageCustomScope = null;
 
-            if (_pageCustomScope != null)
-            {
-                _router.Pop(_pageCustomScope);
-            }
-            _pageCustomScope = scope;
-            if (scope != null)
-            {
-                // Editing scopes from the previous page no longer apply
-                _router.PopWhile(s => s is ValueEditScope or DropdownScope);
-                _router.Push(scope);
-            }
+            if (inner == null || owningPage == null) return;
+
+            // Editing scopes from the previous page no longer apply
+            _router.RemoveWhere(s => s.Layer == ScopeLayer.Edit);
+
+            _pageCustomScope = new PageOwnedScope(inner, owningPage, () => _currentFrame?.Content);
+            _router.Push(_pageCustomScope);
         }
 
         /// <summary>Push a transient scope (e.g. a page-modal like the roulette).</summary>
         public void PushScope(IInputScope scope) => _router.Push(scope);
 
-        /// <summary>Pop a scope pushed with <see cref="PushScope"/> (tolerant no-op if absent).</summary>
-        public void PopScope(IInputScope scope) => _router.Pop(scope);
+        /// <summary>Remove a scope pushed with <see cref="PushScope"/> (tolerant no-op if absent).</summary>
+        public void PopScope(IInputScope scope) => _router.Remove(scope);
 
         public GamepadNavigationService()
         {
@@ -219,77 +222,160 @@ namespace HUDRA.Services
                 EnsureDialogScopeForOpenPopups();
             }
 
-            // Activate gamepad mode on first input
+            // Activate gamepad mode on first input.
+            //
+            // Activation must NOT be conditional on which scopes are installed:
+            // it used to be skipped entirely whenever a page-owned scope existed,
+            // so a stranded one permanently disabled the focus ring everywhere and
+            // caused keyboard-sourced events to be dropped. Only auto-focus is
+            // suppressed now, for pages that draw their own focus visuals.
             if (!_isGamepadActive)
             {
-                if (_pageCustomScope != null)
-                {
-                    // The page (Library) owns its own focus visuals - no auto-activation
-                }
-                else if (IsDialogOpen)
-                {
-                    SetGamepadActive(true);
-                }
-                else
-                {
-                    SetGamepadActive(true);
-                    System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
+                SetGamepadActive(true);
+                System.Diagnostics.Debug.WriteLine("🎮 Gamepad activated on first input");
 
+                bool pageOwnsFocus = _pageCustomScope?.OwnsFocusVisuals == true;
+
+                // L1/R1/L2/R2 are processed even on the wake press; everything else
+                // is consumed by activation (it just summons the focus visuals)
+                bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
+                                              or GamepadAction.LT or GamepadAction.RT;
+
+                if (!pageOwnsFocus && !IsDialogOpen && !isChromeInput)
+                {
                     // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
                     ClearFocus();
 
-                    // L1/R1/L2/R2 are processed even on the wake press; everything else
-                    // is consumed by activation (it just summons the focus visuals)
-                    bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
-                                                  or GamepadAction.LT or GamepadAction.RT;
-                    if (!isChromeInput)
+                    if (!_suppressAutoFocusOnActivation)
                     {
-                        if (_currentFrame?.Content is FrameworkElement rootElement && !_suppressAutoFocusOnActivation)
-                        {
-                            InitializePageNavigation(rootElement);
-                        }
-                        _suppressAutoFocusOnActivation = false;
-                        return;
+                        EnsureGamepadFocusForCurrentPage();
                     }
-
                     _suppressAutoFocusOnActivation = false;
+                    return;
                 }
+
+                _suppressAutoFocusOnActivation = false;
             }
 
             _router.Dispatch(in e);
         }
 
+        // Safety net throttle + one-shot guard. Without these, the net used to fire
+        // on every press and could push a scope for a dialog that had ALREADY
+        // closed (its popup is still enumerable during the close transition),
+        // producing a modal scope whose Closed event would never fire again -
+        // permanent, total input death until the app restarted.
+        private static readonly TimeSpan DialogSafetyNetInterval = TimeSpan.FromMilliseconds(250);
+        private TimeSpan _lastDialogSafetyNetCheck = TimeSpan.MinValue;
+        private readonly List<WeakReference<ContentDialog>> _safetyNetApplied = new();
+
         /// <summary>
-        /// Detect a ContentDialog opened outside GamepadDialog.ShowAsync and
-        /// push a DialogScope for it (auto-popped when the dialog closes).
+        /// Detect a ContentDialog opened outside GamepadDialog.ShowAsync and give
+        /// it a DialogScope so every modal behaves alike. Rate-limited, one-shot
+        /// per dialog instance, and the scope is removed by the router's reaping
+        /// (DialogScope.IsStillValid) rather than by a post-hoc Closed handler.
         /// </summary>
         private void EnsureDialogScopeForOpenPopups()
         {
             if (IsDialogOpen) return;
+
+            var now = _clock.Elapsed;
+            if (now - _lastDialogSafetyNetCheck < DialogSafetyNetInterval) return;
+            _lastDialogSafetyNetCheck = now;
 
             try
             {
                 var xamlRoot = _currentFrame?.XamlRoot ?? (_layoutRoot as FrameworkElement)?.XamlRoot;
                 if (xamlRoot == null) return;
 
-                var popups = VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot);
-                foreach (var popup in popups)
+                foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot))
                 {
-                    if (popup.Child is ContentDialog dialog)
-                    {
-                        System.Diagnostics.Debug.WriteLine("🎮 Safety net: unmanaged ContentDialog detected - pushing DialogScope");
-                        ClearFocus();
-                        var scope = new DialogScope(dialog, _dispatcherQueue!);
-                        _router.Push(scope);
-                        dialog.Closed += (s, args) => _router.Pop(scope);
-                        return;
-                    }
+                    var dialog = FindDialogInPopup(popup);
+                    if (dialog == null) continue;
+                    if (AlreadyCoveredBySafetyNet(dialog)) continue;
+
+                    DebugLogger.Log("Safety net: unmanaged ContentDialog detected - pushing DialogScope", "GPAD");
+                    _safetyNetApplied.Add(new WeakReference<ContentDialog>(dialog));
+                    ClearFocus();
+                    _router.Push(new DialogScope(dialog, _dispatcherQueue!));
+                    return;
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"🎮 Dialog safety net check failed: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// A popup's Child is not reliably the ContentDialog in WinUI 3, so search
+        /// the popup's subtree (shallow - a dialog sits near the top).
+        /// </summary>
+        private static ContentDialog? FindDialogInPopup(Popup popup)
+        {
+            if (popup.Child is ContentDialog direct) return direct;
+            return popup.Child is DependencyObject child ? FindDescendantDialog(child, depth: 0) : null;
+        }
+
+        private static ContentDialog? FindDescendantDialog(DependencyObject parent, int depth)
+        {
+            if (depth > 4) return null;
+
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is ContentDialog dialog) return dialog;
+                var nested = FindDescendantDialog(child, depth + 1);
+                if (nested != null) return nested;
+            }
+            return null;
+        }
+
+        private bool AlreadyCoveredBySafetyNet(ContentDialog dialog)
+        {
+            bool covered = false;
+            for (int i = _safetyNetApplied.Count - 1; i >= 0; i--)
+            {
+                if (!_safetyNetApplied[i].TryGetTarget(out var known))
+                {
+                    _safetyNetApplied.RemoveAt(i);
+                    continue;
+                }
+                if (ReferenceEquals(known, dialog)) covered = true;
+            }
+            return covered;
+        }
+
+        /// <summary>
+        /// Idempotent: establish gamepad focus on the current page if there isn't
+        /// already a live focused element. Single entry point so activation, F1 and
+        /// recovery all behave identically.
+        /// </summary>
+        public void EnsureGamepadFocusForCurrentPage()
+        {
+            if (_pageCustomScope?.OwnsFocusVisuals == true) return;
+
+            if (_currentFocusedElement != null && IsElementLive(_currentFocusedElement))
+            {
+                FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            if (_currentFrame?.Content is FrameworkElement root)
+            {
+                InitializePageNavigation(root);
+            }
+        }
+
+        /// <summary>
+        /// True if the element is still attached to a live visual tree. Used to
+        /// avoid dispatching navigation to controls from a torn-down page.
+        /// </summary>
+        internal static bool IsElementLive(FrameworkElement element)
+        {
+            try { return element.IsLoaded && element.XamlRoot != null; }
+            catch { return false; }
         }
 
         /// <summary>
@@ -720,7 +806,7 @@ namespace HUDRA.Services
             _navigationPageKey = (_currentFrame?.Content as FrameworkElement)?.GetType() ?? rootElement.GetType();
 
             // Editing scopes from the previous page no longer apply
-            _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+            _router.RemoveWhere(s => s.Layer == ScopeLayer.Edit);
 
             // Clear any existing focus first to prevent lingering borders
             ClearFocus();
@@ -793,7 +879,7 @@ namespace HUDRA.Services
                 SetGamepadActive(false);
 
                 // Editing scopes don't survive leaving gamepad mode
-                _router.PopWhile(s => s is ValueEditScope or DropdownScope);
+                _router.RemoveWhere(s => s.Layer == ScopeLayer.Edit);
 
                 System.Diagnostics.Debug.WriteLine("🎮 Gamepad mode deactivated");
             }
@@ -853,7 +939,7 @@ namespace HUDRA.Services
             var dialogScope = _router.FindScope<DialogScope>();
             if (dialogScope != null)
             {
-                _router.Pop(dialogScope);
+                _router.Remove(dialogScope);
             }
             System.Diagnostics.Debug.WriteLine("🎮 Dialog closed - normal activation logic resumed");
         }
@@ -914,7 +1000,7 @@ namespace HUDRA.Services
 
             try
             {
-                _router.PopWhile(s => !ReferenceEquals(s, _shellScope) && !ReferenceEquals(s, _pageScope));
+                _router.RemoveWhere(s => s.Layer > ScopeLayer.Page);
                 _pageCustomScope = null;
                 ClearFocus();
                 SetGamepadActive(false);

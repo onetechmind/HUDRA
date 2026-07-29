@@ -16,6 +16,7 @@ namespace HUDRA.Services.GamepadInput
         private readonly IDropdownOwner? _owner;
         private InputRouter? _router;
         private int _originalIndex;
+        private bool _closedHooked;
 
         public DropdownScope(ComboBox comboBox, IDropdownOwner? owner = null)
         {
@@ -31,16 +32,38 @@ namespace HUDRA.Services.GamepadInput
 
         public string Name => "Dropdown";
 
+        public int Layer => ScopeLayer.Edit;
+
+        /// <summary>
+        /// Invalid once the dropdown is no longer open. Both push sites open the
+        /// dropdown synchronously before pushing, so this arms immediately.
+        /// </summary>
+        public bool IsStillValid => _comboBox.IsDropDownOpen;
+
         public void OnPushed(InputRouter router)
         {
             _router = router;
             _originalIndex = _comboBox.SelectedIndex;
+
+            // The dropdown can also be dismissed by mouse click, Escape or light
+            // dismiss. Those paths bypass the gamepad entirely and used to leave
+            // this scope stacked, after which d-pad presses silently moved the
+            // selection (live-applying settings) with no dropdown on screen.
+            _comboBox.DropDownClosed += OnDropDownClosed;
+            _closedHooked = true;
+
             _owner?.OnDropdownOpened(_originalIndex);
             System.Diagnostics.Debug.WriteLine($"🎮 Dropdown opened, original index: {_originalIndex}");
         }
 
         public void OnPopped()
         {
+            if (_closedHooked)
+            {
+                _comboBox.DropDownClosed -= OnDropDownClosed;
+                _closedHooked = false;
+            }
+
             // Popped without commit/cancel (page change): close, keep selection
             if (_comboBox.IsDropDownOpen)
             {
@@ -49,6 +72,8 @@ namespace HUDRA.Services.GamepadInput
             _owner?.OnDropdownClosed();
             System.Diagnostics.Debug.WriteLine("🎮 Dropdown closed");
         }
+
+        private void OnDropDownClosed(object? sender, object e) => _router?.Remove(this);
 
         public bool HandleEvent(in GamepadEvent e)
         {
@@ -73,7 +98,7 @@ namespace HUDRA.Services.GamepadInput
                     _owner?.OnDropdownCommitted(_comboBox);
                     _comboBox.IsDropDownOpen = false;
                     System.Diagnostics.Debug.WriteLine($"🎮 Dropdown A - confirmed selection: {_comboBox.SelectedIndex}");
-                    _router?.Pop(this);
+                    _router?.Remove(this);
                     return true;
 
                 case GamepadAction.Back:
@@ -84,7 +109,7 @@ namespace HUDRA.Services.GamepadInput
                     _comboBox.SelectedIndex = _originalIndex;
                     _comboBox.IsDropDownOpen = false;
                     System.Diagnostics.Debug.WriteLine($"🎮 Dropdown B - cancelled, restored index: {_originalIndex}");
-                    _router?.Pop(this);
+                    _router?.Remove(this);
                     return true;
             }
 

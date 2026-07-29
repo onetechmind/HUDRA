@@ -15,13 +15,28 @@ namespace HUDRA.Tests
             public int PoppedCount { get; private set; }
             public InputRouter? Router { get; private set; }
 
-            public FakeScope(string name, Func<GamepadEvent, bool>? handler = null)
+            public FakeScope(string name, Func<GamepadEvent, bool>? handler = null,
+                             int layer = ScopeLayer.Page, bool valid = true)
             {
                 Name = name;
                 _handler = handler ?? (_ => true);
+                Layer = layer;
+                Valid = valid;
             }
 
             public string Name { get; }
+
+            public int Layer { get; }
+
+            /// <summary>Mutable so tests can invalidate a scope's context.</summary>
+            public bool Valid { get; set; }
+
+            /// <summary>When set, IsStillValid throws (router must treat as valid).</summary>
+            public bool ThrowOnValidCheck { get; set; }
+
+            public bool IsStillValid => ThrowOnValidCheck
+                ? throw new InvalidOperationException("predicate blew up")
+                : Valid;
 
             public bool HandleEvent(in GamepadEvent e)
             {
@@ -90,7 +105,7 @@ namespace HUDRA.Tests
         }
 
         [Fact]
-        public void Pop_RemovesScope_AndEverythingAboveIt()
+        public void Remove_DoesNotCascade_LeavesScopesAboveIntact()
         {
             var router = new InputRouter();
             var a = new FakeScope("a");
@@ -100,11 +115,14 @@ namespace HUDRA.Tests
             router.Push(b);
             router.Push(c);
 
-            router.Pop(b);
+            router.Remove(b);
 
-            Assert.Equal(new IInputScope[] { a }, router.Stack);
+            // Removing a scope must never take unrelated scopes with it: the old
+            // cascading behaviour is exactly how a transient scope's removal could
+            // silently delete a page scope stacked above it.
+            Assert.Equal(new IInputScope[] { a, c }, router.Stack);
             Assert.Equal(1, b.PoppedCount);
-            Assert.Equal(1, c.PoppedCount);
+            Assert.Equal(0, c.PoppedCount);
             Assert.Equal(0, a.PoppedCount);
         }
 
@@ -115,13 +133,13 @@ namespace HUDRA.Tests
             var a = new FakeScope("a");
             router.Push(a);
 
-            router.Pop(new FakeScope("ghost"));
+            router.Remove(new FakeScope("ghost"));
 
             Assert.Equal(new IInputScope[] { a }, router.Stack);
         }
 
         [Fact]
-        public void PopWhile_RemovesOnlyMatchingTopScopes()
+        public void RemoveWhere_RemovesAllMatchingScopes()
         {
             var router = new InputRouter();
             var keep = new FakeScope("keep");
@@ -131,7 +149,7 @@ namespace HUDRA.Tests
             router.Push(t1);
             router.Push(t2);
 
-            router.PopWhile(s => s.Name.StartsWith("t"));
+            router.RemoveWhere(s => s.Name.StartsWith("t"));
 
             Assert.Equal(new IInputScope[] { keep }, router.Stack);
             Assert.Equal(1, t1.PoppedCount);
@@ -146,7 +164,7 @@ namespace HUDRA.Tests
             FakeScope? self = null;
             self = new FakeScope("self-popping", e =>
             {
-                router.Pop(self!);
+                router.Remove(self!);
                 return true;
             });
             router.Push(bottom);
@@ -167,7 +185,7 @@ namespace HUDRA.Tests
             var middle = new FakeScope("middle");
             var top = new FakeScope("top", e =>
             {
-                router.Pop(middle); // removes middle mid-dispatch
+                router.Remove(middle); // removes middle mid-dispatch
                 return false;       // ...but does not consume
             });
             router.Push(bottom);
@@ -176,7 +194,7 @@ namespace HUDRA.Tests
 
             var consumer = router.Dispatch(Press(GamepadAction.Accept));
 
-            // top was popped along with middle (tolerant pop), so bottom consumes
+            // top declined; middle was removed mid-dispatch so it must be skipped
             Assert.Same(bottom, consumer);
             Assert.Empty(middle.Seen);
         }
@@ -203,9 +221,227 @@ namespace HUDRA.Tests
 
             var scope = new FakeScope("s");
             router.Push(scope);
-            router.Pop(scope);
+            router.Remove(scope);
 
             Assert.Equal(2, changes);
+        }
+        // ---- Layered insertion ------------------------------------------------
+
+        [Fact]
+        public void Push_InsertsByLayer_LateLowLayerLandsBelowHigherLayer()
+        {
+            var router = new InputRouter();
+            var page = new FakeScope("page", layer: ScopeLayer.Page);
+            var modal = new FakeScope("modal", layer: ScopeLayer.Modal);
+            router.Push(page);
+            router.Push(modal);
+
+            // A page-owned scope arriving late (async init continuation) must not
+            // land above an already-open modal.
+            var pageCustom = new FakeScope("pageCustom", layer: ScopeLayer.PageCustom);
+            router.Push(pageCustom);
+
+            Assert.Equal(new IInputScope[] { page, pageCustom, modal }, router.Stack);
+            Assert.Same(modal, router.Top);
+        }
+
+        [Fact]
+        public void Push_WithinSameLayer_KeepsInsertionOrder()
+        {
+            var router = new InputRouter();
+            var first = new FakeScope("first", layer: ScopeLayer.Edit);
+            var second = new FakeScope("second", layer: ScopeLayer.Edit);
+            router.Push(first);
+            router.Push(second);
+
+            Assert.Equal(new IInputScope[] { first, second }, router.Stack);
+        }
+
+        [Fact]
+        public void Dispatch_HighestLayerSeesEventFirst_RegardlessOfPushOrder()
+        {
+            var router = new InputRouter();
+            var modal = new FakeScope("modal", layer: ScopeLayer.Modal);
+            var shell = new FakeScope("shell", layer: ScopeLayer.Shell);
+            router.Push(modal);
+            router.Push(shell);
+
+            var consumer = router.Dispatch(Press(GamepadAction.LB));
+
+            Assert.Same(modal, consumer);
+            Assert.Empty(shell.Seen);
+        }
+
+        // ---- Reaping ----------------------------------------------------------
+
+        private static (InputRouter router, Action<TimeSpan> advance) RouterWithClock()
+        {
+            var now = TimeSpan.Zero;
+            var router = new InputRouter(() => now);
+            return (router, delta => now += delta);
+        }
+
+        [Fact]
+        public void Reap_RemovesInvalidScope_OnceArmed()
+        {
+            var (router, advance) = RouterWithClock();
+            var page = new FakeScope("page", layer: ScopeLayer.Page);
+            var modal = new FakeScope("modal", layer: ScopeLayer.Modal);
+            router.Push(page);
+            router.Push(modal);
+
+            // Arm it by observing a valid state, then invalidate the context.
+            Assert.Equal(0, router.Reap());
+            modal.Valid = false;
+            advance(TimeSpan.FromMilliseconds(16));
+
+            Assert.Equal(1, router.Reap());
+            Assert.Equal(new IInputScope[] { page }, router.Stack);
+            Assert.Equal(1, modal.PoppedCount);
+            Assert.Equal(1, router.ReapCount);
+            Assert.Equal("modal", router.LastReaped);
+        }
+
+        [Fact]
+        public void Reap_LeavesUnarmedScopeAloneDuringGrace_ThenReapsIt()
+        {
+            var (router, advance) = RouterWithClock();
+            // Invalid from the moment it is pushed: models a dialog scope pushed
+            // before ShowAsync has realized the dialog's template.
+            var opening = new FakeScope("opening", layer: ScopeLayer.Modal, valid: false);
+            router.Push(opening);
+
+            advance(TimeSpan.FromMilliseconds(500));
+            Assert.Equal(0, router.Reap());
+            Assert.Contains(opening, router.Stack);
+
+            advance(TimeSpan.FromMilliseconds(400));   // past the 750ms grace
+            Assert.Equal(1, router.Reap());
+            Assert.DoesNotContain(opening, router.Stack);
+        }
+
+        [Fact]
+        public void Reap_ArmedScopeIsNotProtectedByGrace()
+        {
+            var (router, advance) = RouterWithClock();
+            var modal = new FakeScope("modal", layer: ScopeLayer.Modal);
+            router.Push(modal);
+
+            router.Reap();          // arms
+            modal.Valid = false;    // context dies immediately after opening
+
+            Assert.Equal(1, router.Reap());
+        }
+
+        [Fact]
+        public void Reap_NeverRemovesShellOrPage()
+        {
+            var (router, _) = RouterWithClock();
+            var shell = new FakeScope("shell", layer: ScopeLayer.Shell, valid: false);
+            var page = new FakeScope("page", layer: ScopeLayer.Page, valid: false);
+            router.Push(shell);
+            router.Push(page);
+
+            Assert.Equal(0, router.Reap());
+            Assert.Equal(new IInputScope[] { shell, page }, router.Stack);
+        }
+
+        [Fact]
+        public void Reap_TreatsThrowingPredicateAsValid()
+        {
+            var (router, advance) = RouterWithClock();
+            var modal = new FakeScope("modal", layer: ScopeLayer.Modal) { ThrowOnValidCheck = true };
+            router.Push(modal);
+
+            advance(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(0, router.Reap());
+            Assert.Contains(modal, router.Stack);
+        }
+
+        [Fact]
+        public void Reap_RemovesEveryInvalidScope_IncludingBelowAValidOne()
+        {
+            var (router, advance) = RouterWithClock();
+            var page = new FakeScope("page", layer: ScopeLayer.Page);
+            var stalePageCustom = new FakeScope("stale", layer: ScopeLayer.PageCustom);
+            var liveModal = new FakeScope("modal", layer: ScopeLayer.Modal);
+            router.Push(page);
+            router.Push(stalePageCustom);
+            router.Push(liveModal);
+
+            router.Reap();                  // arm both
+            stalePageCustom.Valid = false;  // page navigated away underneath the modal
+            advance(TimeSpan.FromMilliseconds(16));
+
+            Assert.Equal(1, router.Reap());
+            Assert.Equal(new IInputScope[] { page, liveModal }, router.Stack);
+        }
+
+        [Fact]
+        public void Dispatch_ReapsStaleScopeSoLowerScopeReceivesEvent()
+        {
+            var (router, advance) = RouterWithClock();
+            var shell = new FakeScope("shell", layer: ScopeLayer.Shell);
+            var stale = new FakeScope("stale", layer: ScopeLayer.Modal);
+            router.Push(shell);
+            router.Push(stale);
+
+            router.Reap();          // arm
+            stale.Valid = false;    // dialog closed but nothing removed the scope
+            advance(TimeSpan.FromMilliseconds(16));
+
+            // This is the self-heal: input reaches the shell again on the very
+            // next press instead of being swallowed until the app restarts.
+            var consumer = router.Dispatch(Press(GamepadAction.LB));
+
+            Assert.Same(shell, consumer);
+            Assert.Empty(stale.Seen);
+        }
+
+        [Fact]
+        public void Reap_FiresStackChangedOnce()
+        {
+            var (router, advance) = RouterWithClock();
+            var a = new FakeScope("a", layer: ScopeLayer.Edit);
+            var b = new FakeScope("b", layer: ScopeLayer.Modal);
+            router.Push(a);
+            router.Push(b);
+            router.Reap();
+
+            int changes = 0;
+            router.StackChanged += (_, _) => changes++;
+            a.Valid = false;
+            b.Valid = false;
+            advance(TimeSpan.FromMilliseconds(16));
+
+            Assert.Equal(2, router.Reap());
+            Assert.Equal(1, changes);
+        }
+
+        [Fact]
+        public void Describe_ReportsLayersAndStaleness()
+        {
+            var (router, advance) = RouterWithClock();
+            var page = new FakeScope("Page", layer: ScopeLayer.Page);
+            var modal = new FakeScope("Dialog", layer: ScopeLayer.Modal);
+            router.Push(page);
+            router.Push(modal);
+            router.Reap();
+
+            Assert.Equal("Page(10) / Dialog(50)", router.Describe());
+
+            modal.Valid = false;
+            Assert.Contains("Dialog(50):STALE", router.Describe());
+        }
+
+        [Fact]
+        public void Describe_MarksUnarmedScopeAsOpening()
+        {
+            var (router, _) = RouterWithClock();
+            router.Push(new FakeScope("Dialog", layer: ScopeLayer.Modal, valid: false));
+
+            Assert.Contains(":opening", router.Describe());
         }
     }
 }

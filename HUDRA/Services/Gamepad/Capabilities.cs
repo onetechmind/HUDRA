@@ -13,6 +13,14 @@ namespace HUDRA.Services.GamepadInput
     {
         void OnEditingChanged(bool editing);
         void AdjustValue(int direction);
+
+        /// <summary>
+        /// False once the control being edited has left the visual tree, so the
+        /// router can drop an edit scope stranded by a page change. Uses IsLoaded
+        /// rather than visibility, so collapsing a containing expander mid-edit
+        /// does not abort the edit.
+        /// </summary>
+        bool IsEditTargetAlive => true;
     }
 
     /// <summary>
@@ -56,6 +64,15 @@ namespace HUDRA.Services.GamepadInput
 
         public SliderEditable(Slider slider) => _slider = slider;
 
+        public bool IsEditTargetAlive
+        {
+            get
+            {
+                try { return _slider.IsLoaded && _slider.XamlRoot != null; }
+                catch { return false; }
+            }
+        }
+
         public void OnEditingChanged(bool editing) { /* edit visual comes from FocusIndicatorLayer */ }
 
         public void AdjustValue(int direction)
@@ -72,6 +89,15 @@ namespace HUDRA.Services.GamepadInput
         private readonly IGamepadNavigable _control;
 
         public NavigableSliderEditable(IGamepadNavigable control) => _control = control;
+
+        public bool IsEditTargetAlive
+        {
+            get
+            {
+                try { return _control is not FrameworkElement element || element.IsLoaded; }
+                catch { return false; }
+            }
+        }
 
         public void OnEditingChanged(bool editing)
         {

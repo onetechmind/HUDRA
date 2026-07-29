@@ -833,7 +833,7 @@ namespace HUDRA
                 // Library page owns its grid navigation through its own input scope
                 DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
-                    _gamepadNavigationService.SetPageInputScope(_libraryPage);
+                    _gamepadNavigationService.SetPageInputScope(_libraryPage, _libraryPage);
 
                     // Note: Focus is now handled in LibraryPage.Initialize() based on whether
                     // this navigation was via gamepad (L1/R1) or mouse/keyboard click

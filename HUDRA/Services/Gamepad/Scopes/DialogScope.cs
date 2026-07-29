@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Automation.Provider;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 
 namespace HUDRA.Services.GamepadInput
@@ -23,6 +24,8 @@ namespace HUDRA.Services.GamepadInput
         private readonly List<Button> _buttons = new();
         private int _focusedIndex = -1;
         private bool _openedHooked;
+        private bool _closedHooked;
+        private bool _closed;
 
         public DialogScope(ContentDialog dialog, Microsoft.UI.Dispatching.DispatcherQueue dispatcherQueue)
         {
@@ -32,10 +35,26 @@ namespace HUDRA.Services.GamepadInput
 
         public string Name => "Dialog";
 
+        public int Layer => ScopeLayer.Modal;
+
         public ContentDialog Dialog => _dialog;
+
+        /// <summary>
+        /// A dialog scope blocks ALL input including chrome, so an orphaned one
+        /// wedges the whole app until restart. It is invalid as soon as the dialog
+        /// has closed, or once the dialog is no longer hosted in a Popup.
+        /// </summary>
+        public bool IsStillValid => !_closed && HasPopupAncestor(_dialog);
 
         public void OnPushed(InputRouter router)
         {
+            // Subscribe BEFORE inspecting state: if Closed has already fired for
+            // this dialog (the previous implementation subscribed afterwards and
+            // then waited forever for an event that would never come again),
+            // IsStillValid still reports false via the popup-ancestor check.
+            _dialog.Closed += OnDialogClosed;
+            _closedHooked = true;
+
             // The template buttons only exist once the dialog has opened. If it
             // is already open (safety-net push), resolve them now; otherwise
             // wait for Opened.
@@ -52,6 +71,40 @@ namespace HUDRA.Services.GamepadInput
             {
                 _dialog.Opened -= OnDialogOpened;
                 _openedHooked = false;
+            }
+            if (_closedHooked)
+            {
+                _dialog.Closed -= OnDialogClosed;
+                _closedHooked = false;
+            }
+        }
+
+        private void OnDialogClosed(ContentDialog sender, ContentDialogClosedEventArgs args) => _closed = true;
+
+        /// <summary>
+        /// True if the dialog is still hosted in a Popup. Walks UP from the dialog
+        /// rather than enumerating open popups and testing Popup.Child, because in
+        /// WinUI 3 the popup's child is not reliably the ContentDialog itself.
+        /// Errs toward "still open" if the answer is unclear.
+        /// </summary>
+        private static bool HasPopupAncestor(DependencyObject element)
+        {
+            const int maxHops = 30;
+            try
+            {
+                var current = element;
+                for (int hop = 0; hop < maxHops; hop++)
+                {
+                    var parent = VisualTreeHelper.GetParent(current);
+                    if (parent == null) return false;       // detached from any popup
+                    if (parent is Popup) return true;
+                    current = parent;
+                }
+                return true;                               // budget exhausted: assume alive
+            }
+            catch
+            {
+                return true;
             }
         }
 
