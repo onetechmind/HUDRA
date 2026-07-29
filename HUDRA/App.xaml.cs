@@ -327,6 +327,7 @@ namespace HUDRA
 
                 _powerEventService = new PowerEventService(MainWindow, MainWindow.DispatcherQueue);
                 _powerEventService.HibernationResumeDetected += OnHibernationResumeDetected;
+                _powerEventService.SuspendDetected += OnSystemSuspendDetected;
 
                 System.Diagnostics.Debug.WriteLine("⚡ PowerEventService initialized successfully");
             }
@@ -336,8 +337,38 @@ namespace HUDRA
             }
         }
 
+        /// <summary>
+        /// Drop held gamepad state before the machine sleeps, so a button that is
+        /// down across the suspend cannot come back latched.
+        /// </summary>
+        private void OnSystemSuspendDetected(object? sender, EventArgs e)
+        {
+            try
+            {
+                MainWindow?.GamepadNavigationService?.ResetInputState();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚡ Failed to reset gamepad state on suspend: {ex.Message}");
+            }
+        }
+
         private async void OnHibernationResumeDetected(object? sender, EventArgs e)
         {
+            // Re-enumerate controllers FIRST: this is cheap, and the service
+            // reinitialization below is gated behind several seconds of delay, which
+            // is far too late for "I just woke the handheld and the buttons are dead".
+            try
+            {
+                var gamepadService = MainWindow?.GamepadNavigationService;
+                gamepadService?.ResetInputState();
+                gamepadService?.ReconcileDevicesNow();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"⚡ Failed to re-sync gamepads on resume: {ex.Message}");
+            }
+
             // Use lock to prevent concurrent reinitialization
             lock (_reinitializationLock)
             {

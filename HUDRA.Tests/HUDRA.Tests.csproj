@@ -20,6 +20,8 @@
     <Compile Include="..\HUDRA\Services\Gamepad\InputRouter.cs" Link="Gamepad\InputRouter.cs" />
     <Compile Include="..\HUDRA\Services\Gamepad\SpatialScorer.cs" Link="Gamepad\SpatialScorer.cs" />
     <Compile Include="..\HUDRA\Services\Gamepad\GridMath.cs" Link="Gamepad\GridMath.cs" />
+    <Compile Include="..\HUDRA\Services\Gamepad\DirectionReducer.cs" Link="Gamepad\DirectionReducer.cs" />
+    <Compile Include="..\HUDRA\Services\Gamepad\StuckInputGuard.cs" Link="Gamepad\StuckInputGuard.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1493,6 +1493,11 @@ namespace HUDRA
 
         private void OnWindowShown(object? sender, EventArgs e)
         {
+            // A controller may have been re-enumerated while we were hidden (sleep,
+            // dock/undock, an input remapper toggling a virtual pad), which would
+            // otherwise leave the reader holding a stale device.
+            _gamepadNavigationService?.ReconcileDevicesNow();
+
             // The window has been shown and force-foregrounded by WindowManagementService.
             // WindowShown fires synchronously inside ToggleVisibility, before the OS
             // activation handshake has run, so defer the intra-window XAML focus to Low

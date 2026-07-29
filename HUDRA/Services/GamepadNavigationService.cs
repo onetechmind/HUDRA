@@ -134,6 +134,9 @@ namespace HUDRA.Services
                 GamepadDisconnected?.Invoke(this, e);
                 if (!_reader.HasConnectedGamepads)
                 {
+                    // Full deactivation, not just the flag: a controller that sleeps
+                    // mid-edit used to leave its slider/dropdown scope installed.
+                    DeactivateGamepadMode();
                     SetGamepadActive(false);
                 }
             };
@@ -162,6 +165,16 @@ namespace HUDRA.Services
 
         /// <summary>The raw input layer. Exposed for consumers that need direct access (haptics, key mapping).</summary>
         public GamepadInputReader InputReader => _reader;
+
+        /// <summary>
+        /// Re-sync connected controllers immediately. Called when the overlay is
+        /// shown and on resume from sleep, where a controller may have been
+        /// re-enumerated while the app was not looking.
+        /// </summary>
+        public void ReconcileDevicesNow() => _reader.ReconcileDevicesNow();
+
+        /// <summary>Drop transient input state (held buttons, stuck-input masks).</summary>
+        public void ResetInputState() => _reader.ResetInputState();
 
         public void SetCurrentFrame(Frame frame)
         {
@@ -909,21 +922,6 @@ namespace HUDRA.Services
             }
         }
 
-        // Suspend gamepad polling (for modal dialogs)
-        public void SuspendPolling()
-        {
-            _reader.SuspendPolling();
-            DeactivateGamepadMode();
-            System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling suspended (modal dialog)");
-        }
-
-        // Resume gamepad polling after modal dialog
-        public void ResumePolling()
-        {
-            _reader.ResumePolling();
-            System.Diagnostics.Debug.WriteLine("🎮 Gamepad polling resumed");
-        }
-
         // Give a ContentDialog exclusive gamepad input (A = primary, B = cancel)
         public void SetDialogOpen(ContentDialog dialog)
         {
@@ -1005,6 +1003,9 @@ namespace HUDRA.Services
                 ClearFocus();
                 SetGamepadActive(false);
                 _suppressAutoFocusOnActivation = false;
+
+                _reader.ResetInputState();
+                _reader.ReconcileDevicesNow();
 
                 if (_currentFrame?.Content is FrameworkElement root)
                 {
