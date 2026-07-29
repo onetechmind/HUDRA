@@ -31,6 +31,10 @@ namespace HUDRA.Services
             }
         }
 
+        // Keep the log bounded: it is appended to for the lifetime of the install.
+        private const long MaxLogBytes = 2 * 1024 * 1024;
+        private static int _writesSinceSizeCheck;
+
         public static void Log(string message, string category = "DEBUG")
         {
             try
@@ -42,6 +46,8 @@ namespace HUDRA.Services
                     // Also write to debug output for development
                     System.Diagnostics.Debug.WriteLine(logEntry);
 
+                    RotateIfOversizedNoLock();
+
                     // Write to file
                     File.AppendAllText(LogPath, logEntry + Environment.NewLine);
                 }
@@ -49,6 +55,30 @@ namespace HUDRA.Services
             catch
             {
                 // Fail silently - don't crash the app for logging issues
+            }
+        }
+
+        /// <summary>
+        /// Rolls the log over to a single .old file once it exceeds the cap.
+        /// Caller must hold LogLock. Size is only stat'ed periodically.
+        /// </summary>
+        private static void RotateIfOversizedNoLock()
+        {
+            if (++_writesSinceSizeCheck < 200) return;
+            _writesSinceSizeCheck = 0;
+
+            try
+            {
+                var info = new FileInfo(LogPath);
+                if (!info.Exists || info.Length < MaxLogBytes) return;
+
+                var previous = LogPath + ".old";
+                if (File.Exists(previous)) File.Delete(previous);
+                File.Move(LogPath, previous);
+            }
+            catch
+            {
+                // Fail silently
             }
         }
 

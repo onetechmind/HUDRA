@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using Windows.Gaming.Input;
 using Windows.System;
 
@@ -61,6 +62,48 @@ namespace HUDRA.Services.GamepadInput
         public event EventHandler<GamepadConnectionEventArgs>? GamepadDisconnected;
 
         public bool HasConnectedGamepads => _gamepads.Count > 0;
+
+        /// <summary>
+        /// Optional sink for edge-triggered device/input transitions. A delegate
+        /// rather than a logger reference so the reader stays app-type free.
+        /// Never called from the poll hot path.
+        /// </summary>
+        public Action<string>? DiagnosticLog { get; set; }
+
+        /// <summary>True while the poll timer is actually running.</summary>
+        public bool IsPollingActive => _timer.IsRunning;
+
+        /// <summary>Snapshot of the currently-held semantic actions (diagnostics).</summary>
+        public IReadOnlyCollection<GamepadAction> HeldActionsSnapshot => _heldActions.ToArray();
+
+        /// <summary>Human-readable device + input state for bug reports.</summary>
+        public string DescribeDevices()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"devices={_gamepads.Count} polling={IsPollingActive} suspended={_suspended}");
+
+            for (int i = 0; i < _gamepads.Count; i++)
+            {
+                sb.AppendLine();
+                sb.Append($"  [{i}] ");
+                try
+                {
+                    var r = _gamepads[i].GetCurrentReading();
+                    sb.Append($"buttons={r.Buttons} LT={r.LeftTrigger:F2} RT={r.RightTrigger:F2} " +
+                              $"LS=({r.LeftThumbstickX:F2},{r.LeftThumbstickY:F2}) " +
+                              $"RS=({r.RightThumbstickX:F2},{r.RightThumbstickY:F2})");
+                }
+                catch (Exception ex)
+                {
+                    sb.Append($"READ FAILED: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+
+            var held = HeldActionsSnapshot;
+            sb.AppendLine();
+            sb.Append($"  held=[{(held.Count == 0 ? "none" : string.Join(",", held))}]");
+            return sb.ToString();
+        }
 
         public GamepadInputReader()
         {
@@ -181,6 +224,7 @@ namespace HUDRA.Services.GamepadInput
 
             _gamepads.Add(gamepad);
             Debug.WriteLine($"🎮 Gamepad connected ({_gamepads.Count} total)");
+            DiagnosticLog?.Invoke($"device added (now {_gamepads.Count})");
             GamepadConnected?.Invoke(this, new GamepadConnectionEventArgs(gamepad));
 
             if (_gamepads.Count == 1 && !_suspended)
@@ -194,6 +238,7 @@ namespace HUDRA.Services.GamepadInput
             if (!_gamepads.Remove(gamepad)) return;
 
             Debug.WriteLine($"🎮 Gamepad disconnected ({_gamepads.Count} remaining)");
+            DiagnosticLog?.Invoke($"device removed (now {_gamepads.Count})");
             GamepadDisconnected?.Invoke(this, new GamepadConnectionEventArgs(gamepad));
 
             if (_gamepads.Count == 0)

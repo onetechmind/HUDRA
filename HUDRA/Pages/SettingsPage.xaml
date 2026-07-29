@@ -263,6 +263,17 @@
                 Click="CopyDebugInfoButton_Click"
                 Content="Copy Debug Info" />
 
+            <!--  Recovery for a wedged gamepad state. Deliberately NOT a gamepad
+                  focus candidate: it must be reachable by mouse/touch precisely
+                  when gamepad input is not working.  -->
+            <Button
+                x:Name="ResetGamepadInputButton"
+                Width="140"
+                Height="45"
+                HorizontalAlignment="Stretch"
+                Click="ResetGamepadInputButton_Click"
+                Content="Reset Gamepad Input" />
+
             <!--  Version Display  -->
             <TextBlock
                 x:Name="VersionText"

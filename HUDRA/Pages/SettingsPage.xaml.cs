@@ -658,6 +658,34 @@ namespace HUDRA.Pages
             }
         }
 
+        private async void ResetGamepadInputButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            var originalContent = button?.Content;
+
+            try
+            {
+                var gamepadService = ((Application.Current as App)?.MainWindow as MainWindow)?.GamepadNavigationService;
+                gamepadService?.HardResetInput();
+
+                if (button != null)
+                {
+                    button.Content = gamepadService != null ? "Reset!" : "Unavailable";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error resetting gamepad input: {ex.Message}");
+                if (button != null) button.Content = "Failed";
+            }
+
+            if (button != null)
+            {
+                await Task.Delay(2000);
+                button.Content = originalContent;
+            }
+        }
+
         private async void CopyDebugInfoButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -762,6 +790,22 @@ namespace HUDRA.Pages
                 catch
                 {
                     // Temperature not available, skip
+                }
+
+                // Gamepad input state (scope stack, focus, controller readings)
+                debugInfo.AppendLine();
+                debugInfo.AppendLine("=== Gamepad Input ===");
+                try
+                {
+                    var gamepadService = ((Application.Current as App)?.MainWindow as MainWindow)?.GamepadNavigationService;
+                    if (gamepadService != null)
+                        debugInfo.Append(gamepadService.DescribeInputState());
+                    else
+                        debugInfo.AppendLine("(service unavailable)");
+                }
+                catch (Exception ex)
+                {
+                    debugInfo.AppendLine($"Gamepad state: Error - {ex.Message}");
                 }
 
                 debugInfo.AppendLine();

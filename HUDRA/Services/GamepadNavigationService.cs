@@ -144,6 +144,11 @@ namespace HUDRA.Services
             // Edit scopes change the ring color; any stack change may affect it
             _router.StackChanged += (s, e) => FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
 
+            // Edge-triggered diagnostics to the on-disk log (never per-tick), so an
+            // intermittent wedge can be diagnosed from a user's log file
+            _router.DiagnosticLog = message => DebugLogger.Log(message, "GPAD");
+            _reader.DiagnosticLog = message => DebugLogger.Log(message, "GPAD");
+
             System.Diagnostics.Debug.WriteLine("🎮 GamepadNavigationService initialized successfully");
         }
 
@@ -857,6 +862,75 @@ namespace HUDRA.Services
         public void RegisterNavbarButtons(List<Button> buttons)
         {
             _shellScope.RegisterNavbarButtons(buttons);
+        }
+
+        /// <summary>
+        /// Full input state for bug reports (appended to Settings → Copy Debug Info).
+        /// </summary>
+        public string DescribeInputState()
+        {
+            var sb = new System.Text.StringBuilder();
+            try
+            {
+                sb.AppendLine($"IsGamepadActive: {_isGamepadActive}");
+                sb.AppendLine($"SuppressAutoFocusOnActivation: {_suppressAutoFocusOnActivation}");
+                sb.AppendLine($"WindowVisible: {_windowManager?.IsVisible.ToString() ?? "n/a"}");
+                sb.AppendLine($"PageCustomScope: {_pageCustomScope?.Name ?? "(none)"}");
+                sb.AppendLine($"NavigationRoot: {_navigationRoot?.GetType().Name ?? "(none)"}");
+                sb.AppendLine($"NavigationPageKey: {_navigationPageKey?.Name ?? "(none)"}");
+                sb.AppendLine($"CurrentPage: {(_currentFrame?.Content as FrameworkElement)?.GetType().Name ?? "(none)"}");
+
+                if (_currentFocusedElement == null)
+                {
+                    sb.AppendLine("FocusedElement: (none)");
+                }
+                else
+                {
+                    bool live;
+                    try { live = _currentFocusedElement.IsLoaded && _currentFocusedElement.XamlRoot != null; }
+                    catch { live = false; }
+                    sb.AppendLine($"FocusedElement: {_currentFocusedElement.GetType().Name} live={live}");
+                }
+
+                sb.AppendLine($"ScopeStack: {_router.Describe()}");
+                sb.AppendLine($"Reader: {_reader.DescribeDevices()}");
+            }
+            catch (Exception ex)
+            {
+                sb.AppendLine($"(diagnostics failed: {ex.Message})");
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// Manual recovery for a wedged input state. Reachable by mouse/touch from
+        /// Settings, so it works precisely when the gamepad does not: drops every
+        /// scope above the page scope, clears focus, resets the reader, and
+        /// re-initializes navigation for the current page.
+        /// </summary>
+        public void HardResetInput()
+        {
+            DebugLogger.Log($"HARD RESET requested. Prior state:{Environment.NewLine}{DescribeInputState()}", "GPAD");
+
+            try
+            {
+                _router.PopWhile(s => !ReferenceEquals(s, _shellScope) && !ReferenceEquals(s, _pageScope));
+                _pageCustomScope = null;
+                ClearFocus();
+                SetGamepadActive(false);
+                _suppressAutoFocusOnActivation = false;
+
+                if (_currentFrame?.Content is FrameworkElement root)
+                {
+                    InitializePageNavigation(root);
+                }
+
+                DebugLogger.Log($"HARD RESET complete → {_router.Describe()}", "GPAD");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"HARD RESET failed: {ex}", "GPAD");
+            }
         }
 
         public void Dispose()

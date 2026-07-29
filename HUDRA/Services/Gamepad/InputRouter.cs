@@ -15,6 +15,13 @@ namespace HUDRA.Services.GamepadInput
 
         public event EventHandler? StackChanged;
 
+        /// <summary>
+        /// Optional sink for edge-triggered stack transitions (push/remove/reap).
+        /// Kept as a delegate rather than a direct logger reference so this class
+        /// stays free of WinUI/app types and remains unit-testable.
+        /// </summary>
+        public Action<string>? DiagnosticLog { get; set; }
+
         public IInputScope? Top => _stack.Count > 0 ? _stack[^1] : null;
 
         public IReadOnlyList<IInputScope> Stack => _stack;
@@ -31,7 +38,7 @@ namespace HUDRA.Services.GamepadInput
 
             _stack.Add(scope);
             scope.OnPushed(this);
-            System.Diagnostics.Debug.WriteLine($"🎮 InputRouter: pushed [{scope.Name}] → {Describe()}");
+            Report($"pushed [{scope.Name}]");
             StackChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -51,7 +58,7 @@ namespace HUDRA.Services.GamepadInput
                 _stack.RemoveAt(i);
                 removed.OnPopped();
             }
-            System.Diagnostics.Debug.WriteLine($"🎮 InputRouter: popped [{scope.Name}] → {Describe()}");
+            Report($"popped [{scope.Name}]");
             StackChanged?.Invoke(this, EventArgs.Empty);
         }
 
@@ -71,7 +78,7 @@ namespace HUDRA.Services.GamepadInput
             }
             if (changed)
             {
-                System.Diagnostics.Debug.WriteLine($"🎮 InputRouter: popped transient scopes → {Describe()}");
+                Report("popped transient scopes");
                 StackChanged?.Invoke(this, EventArgs.Empty);
             }
         }
@@ -103,8 +110,16 @@ namespace HUDRA.Services.GamepadInput
             Top?.OnStickFrame(in frame);
         }
 
-        private string Describe() => _stack.Count == 0
+        /// <summary>Bottom-to-top description of the stack, for diagnostics.</summary>
+        public string Describe() => _stack.Count == 0
             ? "(empty)"
             : string.Join(" / ", _stack.Select(s => s.Name));
+
+        private void Report(string what)
+        {
+            var message = $"InputRouter: {what} → {Describe()}";
+            System.Diagnostics.Debug.WriteLine($"🎮 {message}");
+            DiagnosticLog?.Invoke(message);
+        }
     }
 }
