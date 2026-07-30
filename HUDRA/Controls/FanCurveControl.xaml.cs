@@ -1577,6 +1577,16 @@ namespace HUDRA.Controls
 
         public void OnGamepadFocusLost()
         {
+            // Leave control-point editing when focus goes away. While a point is
+            // active this control claims ALL four directions, so a page change
+            // mid-edit used to leave it swallowing every directional press even
+            // after the page was gone. Focus loss is not a commit, so the current
+            // point values are simply abandoned (they are re-read from settings on
+            // the next visit; only the explicit A-to-confirm path saves).
+            _isControlPointActivated = false;
+            _activeControlPointIndex = -1;
+            IsSliderActivated = false;
+
             IsFocused = false;
             UpdateFocusVisuals();
         }

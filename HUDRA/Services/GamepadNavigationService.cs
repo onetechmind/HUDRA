@@ -107,6 +107,41 @@ namespace HUDRA.Services
             _router.Push(_pageCustomScope);
         }
 
+        // Monotonic navigation counter. Page initialization is asynchronous, so a
+        // continuation can resume after the user has navigated on; comparing the
+        // generation captured before the await lets those stale callbacks be dropped.
+        private int _navigationGeneration;
+
+        /// <summary>
+        /// Call once per page change, before any page-specific initialization.
+        /// Invalidates in-flight init continuations and tears down all page-scoped
+        /// input state (page-owned scope, edit scopes, focus, focus-memory anchors).
+        /// </summary>
+        public int BeginPageTransition()
+        {
+            _navigationGeneration++;
+
+            // Snapshot focus BEFORE dropping it. Done here rather than in
+            // InitializePageNavigation so it also covers pages that never call that
+            // (the library drives its own focus), which previously left the
+            // focus-memory anchors pointing at the outgoing page.
+            SnapshotFocusForPreviousPage();
+
+            // Page-scoped scopes never survive a navigation. Modal scopes do: a
+            // ContentDialog can outlive the page that opened it.
+            _router.RemoveWhere(s => s.Layer >= ScopeLayer.PageCustom && s.Layer < ScopeLayer.Modal);
+            _pageCustomScope = null;
+
+            ClearFocus();
+            _navigationRoot = null;
+            _navigationPageKey = null;
+
+            return _navigationGeneration;
+        }
+
+        /// <summary>False once a newer page transition has begun.</summary>
+        public bool IsGenerationCurrent(int generation) => generation == _navigationGeneration;
+
         /// <summary>Push a transient scope (e.g. a page-modal like the roulette).</summary>
         public void PushScope(IInputScope scope) => _router.Push(scope);
 
@@ -399,6 +434,19 @@ namespace HUDRA.Services
         /// </summary>
         internal void HandleNavigationAction(GamepadNavigationAction action)
         {
+            // Drop a focus target that belongs to a torn-down page before dispatching.
+            // Without this, legacy controls that claim a direction unconditionally
+            // (the TDP picker claims left/right; the fan curve claims all four while
+            // a control point is active) keep swallowing that direction forever.
+            // Nulling rather than merely skipping matters: the spatial "no current
+            // focus" path then re-establishes focus on this very press.
+            if (_currentFocusedElement != null && !IsElementLive(_currentFocusedElement))
+            {
+                DebugLogger.Log($"Dropped stale focus target {_currentFocusedElement.GetType().Name}", "GPAD");
+                _currentFocusedElement = null;
+                FocusVisualStateChanged?.Invoke(this, EventArgs.Empty);
+            }
+
             if (_currentFocusedElement != null)
             {
                 // Try to handle action with current focused element first
@@ -810,9 +858,6 @@ namespace HUDRA.Services
         public void InitializePageNavigation(FrameworkElement rootElement, bool isFromPageNavigation = false)
         {
             System.Diagnostics.Debug.WriteLine($"🎮 InitializePageNavigation called for {rootElement.GetType().Name}, fromPageNav: {isFromPageNavigation}");
-
-            // Capture where the user left the previous page before switching over
-            SnapshotFocusForPreviousPage();
 
             // Remember/restore focus against this scan root and page from now on
             _navigationRoot = rootElement;

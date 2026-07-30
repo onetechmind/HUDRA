@@ -20,6 +20,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using HUDRA.Services.GamepadInput;
 using WinRT;
 using WinRT.Interop;
 
@@ -79,9 +80,9 @@ namespace HUDRA
         private bool _mainPageInitialized = false;
         private EventHandler<int>? _tdpChangedHandler; // Stored handler to prevent duplicate subscriptions
         // Tracks if the next page navigation was initiated via gamepad (L1/R1)
-        private bool _isGamepadPageNavPending = false;
+        private int _pageGeneration;
         // Latched flag for the page that just became active
-        private bool _isGamepadNavForCurrentPage = false;
+        private bool _pageGenerationFromGamepad;
 
         // Current page references
         private MainPage? _mainPage;
@@ -294,6 +295,12 @@ namespace HUDRA
         {
             System.Diagnostics.Debug.WriteLine($"Refreshing current page: {_currentPageType?.Name ?? "unknown"}");
 
+            // A refresh is not a navigation, so it must not inherit the previous
+            // navigation's gamepad origin - that would force focus (and activate
+            // gamepad mode) on a refresh triggered by mouse or by a background
+            // event such as a profile being applied.
+            _pageGenerationFromGamepad = false;
+
             if (_currentPageType == typeof(MainPage))
             {
                 InitializeMainPage();
@@ -379,32 +386,46 @@ namespace HUDRA
             }
         }
 
-        private void OnPageChanged(object sender, Type pageType)
+        private void OnPageChanged(object sender, PageChangedEventArgs e)
         {
-            // Latch and clear the pending gamepad navigation flag for this page
-            _isGamepadNavForCurrentPage = _isGamepadPageNavPending;
-            _isGamepadPageNavPending = false;
-
-            // Save state and remove the Library's input scope when leaving it
-            if (_currentPageType == typeof(LibraryPage) && pageType != typeof(LibraryPage))
+            // Save state when leaving Library (OnNavigatedFrom does not fire: the
+            // navigation service assigns Frame.Content directly)
+            if (_currentPageType == typeof(LibraryPage) && e.PageType != typeof(LibraryPage))
             {
-                // Save scroll position before leaving (OnNavigatedFrom may not fire due to page caching)
                 _libraryPage?.SaveScrollPosition();
-
-                _gamepadNavigationService.SetPageInputScope(null);
-                System.Diagnostics.Debug.WriteLine("🎮 Left Library page - saved scroll position and removed Library input scope");
             }
 
-            _currentPageType = pageType;
+            // Invalidates any page-init continuation still in flight and clears all
+            // page-scoped input state in one place.
+            _pageGeneration = _gamepadNavigationService.BeginPageTransition();
+            _pageGenerationFromGamepad = e.FromGamepad;
+
+            _currentPageType = e.PageType;
             UpdateNavigationButtonStates();
-            HandlePageSpecificInitialization(pageType);
+            HandlePageSpecificInitialization(e.PageType);
+        }
+
+        /// <summary>
+        /// Run a deferred page-initialization callback only if the page it was queued
+        /// for is still current. Page init is spread across dispatcher callbacks (and
+        /// for the library, across an await), so without this a callback from a
+        /// previous navigation can apply its focus and input scope to the wrong page.
+        /// </summary>
+        private void EnqueueForPage(int generation, Microsoft.UI.Dispatching.DispatcherQueuePriority priority, Action action)
+        {
+            DispatcherQueue.TryEnqueue(priority, () =>
+            {
+                if (!_gamepadNavigationService.IsGenerationCurrent(generation))
+                {
+                    DebugLogger.Log($"Dropped stale page-init callback (generation {generation})", "GPAD");
+                    return;
+                }
+                action();
+            });
         }
 
         private void OnGamepadPageNavigationRequested(object sender, GamepadPageNavigationEventArgs e)
         {
-            // Mark that this navigation originated from gamepad buttons
-            _isGamepadPageNavPending = true;
-
             // Define page order for navigation
             var pageOrder = new List<Type>
             {
@@ -417,7 +438,18 @@ namespace HUDRA
 
             // Find current page index
             int currentIndex = pageOrder.IndexOf(_currentPageType);
-            if (currentIndex == -1) return; // Current page not in order, ignore
+            if (currentIndex == -1)
+            {
+                // Detail pages (game settings) are not peers in the cycle. Shoulder
+                // buttons must still do something - they used to be silently inert
+                // there while the controller still buzzed, which reads as "LB/RB
+                // suddenly stopped working" - so leave the page like B does.
+                if (ContentFrame.Content is IGamepadBackHandler backHandler)
+                {
+                    backHandler.HandleBack();
+                }
+                return;
+            }
 
             // Calculate target page index with wrap-around
             int targetIndex;
@@ -434,15 +466,15 @@ namespace HUDRA
 
             // Navigate to target page using appropriate method
             if (targetPageType == typeof(MainPage))
-                _navigationService.NavigateToMain();
+                _navigationService.NavigateToMain(fromGamepad: true);
             else if (targetPageType == typeof(FanCurvePage))
-                _navigationService.NavigateToFanCurve();
+                _navigationService.NavigateToFanCurve(fromGamepad: true);
             else if (targetPageType == typeof(ScalingPage))
-                _navigationService.NavigateToScaling();
+                _navigationService.NavigateToScaling(fromGamepad: true);
             else if (targetPageType == typeof(LibraryPage))
-                _navigationService.NavigateToLibrary();
+                _navigationService.NavigateToLibrary(fromGamepad: true);
             else if (targetPageType == typeof(SettingsPage))
-                _navigationService.NavigateToSettings();
+                _navigationService.NavigateToSettings(fromGamepad: true);
         }
 
         private void OnGamepadNavbarButtonRequested(object sender, GamepadNavbarButtonEventArgs e)
@@ -490,7 +522,7 @@ namespace HUDRA
             if (pageType == typeof(MainPage))
             {
                 // Wait for navigation to complete then initialize
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is MainPage mainPage)
                     {
@@ -505,7 +537,7 @@ namespace HUDRA
             }
             else if (pageType == typeof(SettingsPage))
             {
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is SettingsPage settingsPage)
                     {
@@ -520,7 +552,7 @@ namespace HUDRA
             }
             else if (pageType == typeof(FanCurvePage))
             {
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is FanCurvePage fanCurvePage)
                     {
@@ -535,7 +567,7 @@ namespace HUDRA
             }
             else if (pageType == typeof(ScalingPage))
             {
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is ScalingPage scalingPage)
                     {
@@ -550,12 +582,12 @@ namespace HUDRA
             }
             else if (pageType == typeof(LibraryPage))
             {
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is LibraryPage libraryPage)
                     {
                         _libraryPage = libraryPage;
-                        InitializeLibraryPage();
+                        _ = InitializeLibraryPageAsync();
                     }
                     else
                     {
@@ -565,7 +597,7 @@ namespace HUDRA
             }
             else if (pageType == typeof(GameSettingsPage))
             {
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
                     if (ContentFrame.Content is GameSettingsPage gameSettingsPage)
                     {
@@ -735,10 +767,9 @@ namespace HUDRA
                 // Initialize gamepad navigation for SettingsPage
                 if (_settingsPage?.RootPanel is FrameworkElement root)
                 {
-                    _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                    _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _pageGenerationFromGamepad);
                 }
 
-                _isGamepadNavForCurrentPage = false;
             }
             catch (Exception ex)
             {
@@ -756,11 +787,11 @@ namespace HUDRA
                 _fanCurvePage.Initialize();
                 
                 // Add a small delay to ensure the control is fully loaded and gamepad navigation is set up
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
                     // If navigation did not originate from the gamepad, ensure gamepad mode is deactivated
                     // so we don't apply initial focus borders due to lingering IsGamepadActive state
-                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    if (!_pageGenerationFromGamepad && _gamepadNavigationService.IsGamepadActive)
                     {
                         _gamepadNavigationService.DeactivateGamepadMode();
                     }
@@ -768,11 +799,10 @@ namespace HUDRA
                     // Initialize gamepad navigation for FanCurvePage only if navigation came from gamepad
                     _gamepadNavigationService.InitializePageNavigation(
                         _fanCurvePage.FanCurveControl,
-                        isFromPageNavigation: _isGamepadNavForCurrentPage
+                        isFromPageNavigation: _pageGenerationFromGamepad
                     );
 
                     // Reset flag after applying to avoid unintended focusing on subsequent navigations
-                    _isGamepadNavForCurrentPage = false;
                 });
             }
             catch (Exception ex)
@@ -793,19 +823,18 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("=== ScalingPage initialization complete ===");
 
                 // After initialization, apply gamepad navigation focus consistent with current nav origin
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
-                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    if (!_pageGenerationFromGamepad && _gamepadNavigationService.IsGamepadActive)
                     {
                         _gamepadNavigationService.DeactivateGamepadMode();
                     }
 
                     if (_scalingPage?.RootPanel is FrameworkElement root)
                     {
-                        _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _isGamepadNavForCurrentPage);
+                        _gamepadNavigationService.InitializePageNavigation(root, isFromPageNavigation: _pageGenerationFromGamepad);
                     }
 
-                    _isGamepadNavForCurrentPage = false;
                 });
             }
             catch (Exception ex)
@@ -814,7 +843,7 @@ namespace HUDRA
             }
         }
 
-        private async void InitializeLibraryPage()
+        private async Task InitializeLibraryPageAsync()
         {
             if (_libraryPage == null) return;
 
@@ -822,23 +851,32 @@ namespace HUDRA
 
             try
             {
-                // Track if this navigation came from gamepad L1/R1
-                bool wasGamepadNav = _isGamepadNavForCurrentPage;
-                System.Diagnostics.Debug.WriteLine($"=== InitializeLibraryPage: wasGamepadNav={wasGamepadNav} ===");
+                // Capture the generation BEFORE awaiting: library init loads the game
+                // database and artwork and can take seconds, during which the user may
+                // well have moved on. Applying this page's input scope afterwards used
+                // to strand a detached page on top of the input stack, swallowing
+                // every directional press on every subsequent page.
+                int generation = _pageGeneration;
+                bool wasGamepadNav = _pageGenerationFromGamepad;
 
                 // AWAIT the async initialization
                 await _libraryPage.Initialize(_enhancedGameDetectionService!, _gamepadNavigationService, ContentScrollViewer, wasGamepadNav);
                 System.Diagnostics.Debug.WriteLine("=== LibraryPage initialization complete ===");
 
+                if (!_gamepadNavigationService.IsGenerationCurrent(generation))
+                {
+                    DebugLogger.Log("Library init finished after navigating away - not installing its input scope", "GPAD");
+                    return;
+                }
+
                 // Library page owns its grid navigation through its own input scope
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                EnqueueForPage(generation, Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
                     _gamepadNavigationService.SetPageInputScope(_libraryPage, _libraryPage);
 
                     // Note: Focus is now handled in LibraryPage.Initialize() based on whether
                     // this navigation was via gamepad (L1/R1) or mouse/keyboard click
 
-                    _isGamepadNavForCurrentPage = false;
                 });
             }
             catch (Exception ex)
@@ -874,9 +912,9 @@ namespace HUDRA
                 System.Diagnostics.Debug.WriteLine("=== GameSettingsPage initialization complete ===");
 
                 // Initialize gamepad navigation
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
+                EnqueueForPage(_pageGeneration, Microsoft.UI.Dispatching.DispatcherQueuePriority.High, () =>
                 {
-                    if (!_isGamepadNavForCurrentPage && _gamepadNavigationService.IsGamepadActive)
+                    if (!_pageGenerationFromGamepad && _gamepadNavigationService.IsGamepadActive)
                     {
                         _gamepadNavigationService.DeactivateGamepadMode();
                     }
@@ -886,10 +924,9 @@ namespace HUDRA
                     // are individual focus candidates now.
                     _gamepadNavigationService.InitializePageNavigation(
                         _gameSettingsPage,
-                        isFromPageNavigation: _isGamepadNavForCurrentPage
+                        isFromPageNavigation: _pageGenerationFromGamepad
                     );
 
-                    _isGamepadNavForCurrentPage = false;
                 });
             }
             catch (Exception ex)

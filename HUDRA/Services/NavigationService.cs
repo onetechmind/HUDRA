@@ -13,7 +13,12 @@ namespace HUDRA.Services
         private Type? _currentPageType;
         private bool _isNavigating = false;
 
-        public event EventHandler<Type>? PageChanged;
+        /// <summary>
+        /// Raised after the frame content has been replaced. Carries whether the
+        /// navigation originated from the gamepad, so focus behaviour does not
+        /// depend on a separate flag that can leak when a navigation is rejected.
+        /// </summary>
+        public event EventHandler<PageChangedEventArgs>? PageChanged;
         public bool IsNavigating => _isNavigating;
         public Type? CurrentPageType => _currentPageType;
 
@@ -22,37 +27,37 @@ namespace HUDRA.Services
             _frame = frame ?? throw new ArgumentNullException(nameof(frame));
         }
 
-        public void NavigateToMain()
+        public void NavigateToMain(bool fromGamepad = false)
         {
-            Navigate(typeof(MainPage));
+            Navigate(typeof(MainPage), fromGamepad);
         }
 
-        public void NavigateToSettings()
+        public void NavigateToSettings(bool fromGamepad = false)
         {
-            Navigate(typeof(SettingsPage));
+            Navigate(typeof(SettingsPage), fromGamepad);
         }
 
-        public void NavigateToFanCurve()
+        public void NavigateToFanCurve(bool fromGamepad = false)
         {
-            Navigate(typeof(FanCurvePage));
+            Navigate(typeof(FanCurvePage), fromGamepad);
         }
 
-        public void NavigateToScaling()
+        public void NavigateToScaling(bool fromGamepad = false)
         {
-            Navigate(typeof(ScalingPage));
+            Navigate(typeof(ScalingPage), fromGamepad);
         }
 
-        public void NavigateToLibrary()
+        public void NavigateToLibrary(bool fromGamepad = false)
         {
-            Navigate(typeof(LibraryPage));
+            Navigate(typeof(LibraryPage), fromGamepad);
         }
 
-        public void NavigateToGameSettings()
+        public void NavigateToGameSettings(bool fromGamepad = false)
         {
-            Navigate(typeof(GameSettingsPage));
+            Navigate(typeof(GameSettingsPage), fromGamepad);
         }
 
-        public void Navigate(Type pageType)
+        public void Navigate(Type pageType, bool fromGamepad = false)
         {
             if (pageType == null) throw new ArgumentNullException(nameof(pageType));
             if (_isNavigating) return; // Prevent concurrent navigation
@@ -76,7 +81,7 @@ namespace HUDRA.Services
 
                                         
                     // Notify after content is set
-                    PageChanged?.Invoke(this, pageType);
+                    PageChanged?.Invoke(this, new PageChangedEventArgs(pageType, fromGamepad));
                 }
                 else
                 {
@@ -112,5 +117,20 @@ namespace HUDRA.Services
             PageChanged = null;
             _navigationStack.Clear();
         }
+    }
+
+    /// <summary>Details of a completed page navigation.</summary>
+    public sealed class PageChangedEventArgs : EventArgs
+    {
+        public PageChangedEventArgs(Type pageType, bool fromGamepad)
+        {
+            PageType = pageType;
+            FromGamepad = fromGamepad;
+        }
+
+        public Type PageType { get; }
+
+        /// <summary>True when the navigation was initiated by gamepad input.</summary>
+        public bool FromGamepad { get; }
     }
 }
