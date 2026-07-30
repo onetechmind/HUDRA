@@ -1775,7 +1775,13 @@ namespace HUDRA.Pages
             {
                 // Get list of games
                 var gamesList = _games.ToList();
-                if (gamesList.Count == 0) return;
+                if (gamesList.Count == 0)
+                {
+                    // Library emptied between opening and spinning (e.g. a rescan):
+                    // close down rather than leaving a dead overlay holding input.
+                    DispatcherQueue.TryEnqueue(CancelRoulette);
+                    return;
+                }
 
                 const int minIntervalMs = 80;   // Fast speed at start
                 const int maxIntervalMs = 700;  // Very slow speed at end for dramatic finish
@@ -1900,6 +1906,10 @@ namespace HUDRA.Pages
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"LibraryPage: Roulette error: {ex.Message}");
+
+                // Recover, don't just log: leaving the modal scope installed would
+                // block ALL input including page cycling, with no way back.
+                DispatcherQueue.TryEnqueue(CancelRoulette);
             }
             finally
             {
@@ -2053,6 +2063,16 @@ namespace HUDRA.Pages
         /// </summary>
         private void PreloadRouletteAudio()
         {
+            // A faulted task must not be cached forever. The preload has a 2s timeout,
+            // so a busy audio device (a game holding it, or a cold boot) leaves a
+            // permanently faulted task here; awaiting it again then rethrows from an
+            // async void handler, which reaches App.OnUnhandledException and - since
+            // that handler does not mark it handled - terminates the process.
+            if (_roulettePreloadTask is { IsFaulted: true } or { IsCanceled: true })
+            {
+                _roulettePreloadTask = null;
+            }
+
             // If already preloading or preloaded, don't start again
             if (_roulettePreloadTask != null) return;
 
@@ -2060,6 +2080,20 @@ namespace HUDRA.Pages
         }
 
         private static async Task PreloadRouletteAudioAsync()
+        {
+            try
+            {
+                await PreloadRouletteAudioCoreAsync();
+            }
+            catch (Exception ex)
+            {
+                // Roulette audio is optional garnish. Swallow here so the cached task
+                // can never be faulted, and the roulette still works silently.
+                System.Diagnostics.Debug.WriteLine($"LibraryPage: Roulette audio unavailable: {ex.Message}");
+            }
+        }
+
+        private static async Task PreloadRouletteAudioCoreAsync()
         {
             var tickSoundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "random-tick.wav");
 

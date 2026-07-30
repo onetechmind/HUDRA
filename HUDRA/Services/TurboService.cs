@@ -97,6 +97,12 @@ namespace HUDRA.Services
             }
         }
 
+        // A low-level keyboard hook receives auto-repeat KeyDown messages while a key
+        // is held, so without this latch holding the hotkey fired the event dozens of
+        // times - a show/hide storm that also re-fired the window-shown focus assist
+        // and stole focus. Fires once per physical press.
+        private bool _hotkeyLatched;
+
         private void OnKeyDown(object? sender, KeyEventArgs e)
         {
             _pressed.Add(e.KeyCode);
@@ -104,14 +110,25 @@ namespace HUDRA.Services
             // Check if all required keys are pressed
             if (IsHotkeyPressed())
             {
+                if (_hotkeyLatched) return;
+                _hotkeyLatched = true;
+
                 System.Diagnostics.Debug.WriteLine($"🔑 ✅ HOTKEY ACTIVATED!");
                 TurboButtonPressed?.Invoke(this, EventArgs.Empty);
+            }
+            else
+            {
+                // A different key completed/broke the combination.
+                _hotkeyLatched = false;
             }
         }
 
         private void OnKeyUp(object? sender, KeyEventArgs e)
         {
             _pressed.Remove(e.KeyCode);
+
+            // Re-arm as soon as the combination is no longer fully held.
+            if (!IsHotkeyPressed()) _hotkeyLatched = false;
         }
 
         private void LoadHotkeyConfiguration()

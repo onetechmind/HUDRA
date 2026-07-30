@@ -28,6 +28,13 @@ namespace HUDRA.Services
         /// </summary>
         public event EventHandler? WindowShown;
 
+        /// <summary>
+        /// Raised after the window has been hidden. Exists so state teardown happens
+        /// once, here, instead of being duplicated at each hide call site - the
+        /// hotkey and tray paths used to skip it, leaving gamepad focus state behind.
+        /// </summary>
+        public event EventHandler? WindowHidden;
+
         public WindowManagementService(Window window, DpiScalingService dpiService)
         {
             _window = window;
@@ -45,8 +52,22 @@ namespace HUDRA.Services
             StartTopmostBehavior();
         }
 
+        // Guards against multi-fire from any source (held hotkey, tray double-click,
+        // rapid button presses): repeated toggles produce show/hide storms which
+        // re-fire WindowShown and steal focus.
+        private static readonly TimeSpan ToggleDebounce = TimeSpan.FromMilliseconds(250);
+        private DateTime _lastToggle = DateTime.MinValue;
+
         public void ToggleVisibility()
         {
+            var now = DateTime.UtcNow;
+            if (now - _lastToggle < ToggleDebounce)
+            {
+                System.Diagnostics.Debug.WriteLine("Ignoring window toggle within debounce window");
+                return;
+            }
+            _lastToggle = now;
+
             try
             {
                 var windowId = Win32Interop.GetWindowIdFromWindow(_hwnd);
@@ -57,6 +78,8 @@ namespace HUDRA.Services
                     // Hide window
                     appWindow.Hide();
                     _isWindowVisible = false;
+
+                    WindowHidden?.Invoke(this, EventArgs.Empty);
                 }
                 else
                 {
@@ -175,20 +198,28 @@ namespace HUDRA.Services
         /// </summary>
         private void ForceForegroundWindow(IntPtr hwnd)
         {
+            IntPtr foreground = GetForegroundWindow();
+            if (foreground == hwnd)
+                return; // already foreground; nothing to do
+
+            uint currentThreadId = GetCurrentThreadId();
+            uint foregroundThreadId = (foreground == IntPtr.Zero)
+                ? 0u
+                : GetWindowThreadProcessId(foreground, out _);
+
+            // Both of the following mutate state that outlives this method - an
+            // attached input queue is shared with another process's UI thread, and the
+            // foreground lock timeout is machine-wide. They MUST be undone even if
+            // anything in between throws, hence the try/finally: previously an
+            // exception left HUDRA's input queue attached to a game's thread and the
+            // system's foreground lock disabled until reboot.
+            bool attached = false;
+            bool timeoutSaved = false;
+            uint oldTimeout = 0;
+
             try
             {
-                IntPtr foreground = GetForegroundWindow();
-                if (foreground == hwnd)
-                    return; // already foreground; nothing to do
-
-                uint currentThreadId = GetCurrentThreadId();
-                uint foregroundThreadId = (foreground == IntPtr.Zero)
-                    ? 0u
-                    : GetWindowThreadProcessId(foreground, out _);
-
-                // Temporarily disable the foreground lock timeout, saving the old value.
-                uint oldTimeout = 0;
-                bool timeoutSaved = SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ref oldTimeout, 0);
+                timeoutSaved = SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ref oldTimeout, 0);
                 if (timeoutSaved)
                 {
                     uint zero = 0;
@@ -196,27 +227,37 @@ namespace HUDRA.Services
                 }
 
                 // Attaching our input queue to the foreground thread lets SetForegroundWindow succeed.
-                bool attached = false;
                 if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
                     attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
 
                 ShowWindow(hwnd, SW_SHOW);
                 BringWindowToTop(hwnd);
                 SetForegroundWindow(hwnd);
-
-                if (attached)
-                    AttachThreadInput(currentThreadId, foregroundThreadId, false);
-
-                // Restore the original foreground lock timeout so we don't permanently weaken it.
-                if (timeoutSaved)
-                {
-                    uint restore = oldTimeout;
-                    SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref restore, SPIF_SENDCHANGE);
-                }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"ForceForegroundWindow failed: {ex.Message}");
+            }
+            finally
+            {
+                if (attached)
+                {
+                    try { AttachThreadInput(currentThreadId, foregroundThreadId, false); }
+                    catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Failed to detach thread input: {ex.Message}"); }
+                }
+
+                if (timeoutSaved)
+                {
+                    try
+                    {
+                        uint restore = oldTimeout;
+                        SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref restore, SPIF_SENDCHANGE);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Failed to restore foreground lock timeout: {ex.Message}");
+                    }
+                }
             }
         }
 

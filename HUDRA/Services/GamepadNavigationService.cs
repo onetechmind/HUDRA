@@ -396,6 +396,37 @@ namespace HUDRA.Services
         }
 
         /// <summary>
+        /// Called when the overlay is hidden. Single teardown point for all hide
+        /// paths, so hiding via the hotkey or tray behaves exactly like the navbar
+        /// buttons (which used to be the only paths that cleaned up).
+        /// </summary>
+        public void OnWindowHidden()
+        {
+            // Must be cleared here: it is otherwise only consumed on the next
+            // activation, so a value set by a mouse navbar click survived the whole
+            // hide/show cycle and silently swallowed the first press after re-show.
+            _suppressAutoFocusOnActivation = false;
+
+            _router.RemoveWhere(s => s.Layer >= ScopeLayer.Edit && s.Layer < ScopeLayer.Modal);
+            ClearFocus();
+            SetGamepadActive(false);
+
+            // A button held while hiding must not look held when we come back.
+            _reader.ResetInputState();
+        }
+
+        /// <summary>
+        /// Called when the overlay is shown. Deliberately does NOT set focus: the
+        /// ring should appear only once the user actually presses something, so an
+        /// overlay summoned by hotkey or mouse does not show a selection.
+        /// </summary>
+        public void OnWindowShownFromHidden()
+        {
+            _suppressAutoFocusOnActivation = false;
+            _reader.ReconcileDevicesNow();
+        }
+
+        /// <summary>
         /// Idempotent: establish gamepad focus on the current page if there isn't
         /// already a live focused element. Single entry point so activation, F1 and
         /// recovery all behave identically.

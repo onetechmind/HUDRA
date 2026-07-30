@@ -241,6 +241,7 @@ namespace HUDRA
             _gamepadNavigationService.PageNavigationRequested += OnGamepadPageNavigationRequested;
             _gamepadNavigationService.NavbarButtonRequested += OnGamepadNavbarButtonRequested;
             _windowManager.WindowShown += OnWindowShown;
+            _windowManager.WindowHidden += OnWindowHidden;
 
             InitializeWindow();
             SetupEventHandlers();
@@ -1008,19 +1009,11 @@ namespace HUDRA
         // Existing event handlers
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
-            // Clear gamepad focus to prevent lingering borders
-            _gamepadNavigationService?.ClearFocus();
-            _gamepadNavigationService?.DeactivateGamepadMode();
-
             _windowManager.ToggleVisibility();
         }
 
         private void AltTabButton_Click(object sender, RoutedEventArgs e)
         {
-            // Clear gamepad focus to prevent lingering borders
-            _gamepadNavigationService?.ClearFocus();
-            _gamepadNavigationService?.DeactivateGamepadMode();
-
             _windowManager.ToggleVisibility();
 
             if (_enhancedGameDetectionService?.SwitchToGame() == true)
@@ -1129,10 +1122,6 @@ namespace HUDRA
 
             try
             {
-                // Clear gamepad focus to prevent lingering borders
-                _gamepadNavigationService?.ClearFocus();
-                _gamepadNavigationService?.DeactivateGamepadMode();
-
                 // 1. Hide HUDRA
                 _windowManager.ToggleVisibility();
 
@@ -1528,12 +1517,19 @@ namespace HUDRA
             BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
         }
 
+        private void OnWindowHidden(object? sender, EventArgs e)
+        {
+            // One teardown point for every hide path (navbar buttons, Turbo hotkey,
+            // tray). Clears gamepad focus, edit scopes, the suppress-auto-focus flag
+            // and any held input, so the next show always starts from a clean state.
+            _gamepadNavigationService?.OnWindowHidden();
+        }
+
         private void OnWindowShown(object? sender, EventArgs e)
         {
-            // A controller may have been re-enumerated while we were hidden (sleep,
-            // dock/undock, an input remapper toggling a virtual pad), which would
-            // otherwise leave the reader holding a stale device.
-            _gamepadNavigationService?.ReconcileDevicesNow();
+            // Re-sync controllers (one may have been re-enumerated while hidden) and
+            // clear any stale suppress-focus state.
+            _gamepadNavigationService?.OnWindowShownFromHidden();
 
             // The window has been shown and force-foregrounded by WindowManagementService.
             // WindowShown fires synchronously inside ToggleVisibility, before the OS
@@ -1547,6 +1543,10 @@ namespace HUDRA
                 {
                     try
                     {
+                        // If the user already pressed something in the meantime, this
+                        // callback would take focus back off whatever they selected.
+                        if (_gamepadNavigationService?.IsGamepadActive == true) return;
+
                         // FocusState.Pointer focuses the transparent LayoutRoot WITHOUT
                         // drawing a focus visual, so nothing appears selected until the user
                         // actually presses a gamepad/keyboard button.

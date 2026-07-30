@@ -28,13 +28,40 @@ detection, key repeat, hysteresis, haptics. Emits semantic `GamepadEvent`s
   from controllers. The reader maps/dedupes them against polled input, and
   `MainWindow.OnNonGamepadInput` ignores them so a controller can never
   deactivate its own gamepad mode.
-- Multiple controllers are combined per tick (buttons OR'd, largest axis).
+- **Multiple controllers**: most-recently-active device wins (2 s handover).
+  Readings are NOT merged — OR'ing buttons across devices meant one controller
+  with a latched button or drifting stick overrode every other device forever.
+- **Fault isolation**: each device is read in its own try/catch and evicted after
+  30 consecutive failures; the tick's state machine always advances, so release
+  edges are guaranteed even when every read fails.
+- **Ghost tolerance** (`StuckInputGuard`): masks a non-repeatable action held
+  ≥ 8 s, a direction held ≥ 20 s, and everything from a device that has never
+  reported neutral within 3 s. Masking is applied to the raw held set *before*
+  `DirectionReducer` collapses it to one direction — masking afterwards would
+  leave a stuck direction occupying the slot. Masks clear on release/neutral.
+- **Device reconciliation** against `Gamepad.Gamepads` every 2 s, on window show,
+  and on resume from sleep, so a re-enumerated controller cannot leave a ghost.
 
 ### 2. `InputRouter` + scopes (`Services/Gamepad/InputRouter.cs`, `Scopes/`)
 
 An explicit stack; each event is offered to the top scope first and falls
 through until consumed. **All modal behavior is a scope** — there are no
 boolean mode flags.
+
+Two invariants keep a leaked scope from wedging input:
+
+- **Layered insertion.** Every scope declares a `Layer` (`ScopeLayer`:
+  Shell 0, Page 10, PageCustom 20, Edit 30, PageModal 40, Modal 50) and
+  `Push` inserts at the top of that band. A scope arriving late — e.g. a page
+  scope from an async init continuation — can never outrank an open modal.
+  Removal is non-cascading (`Remove`/`RemoveWhere`); the old cascading `Pop`
+  is what let a transient scope's removal silently delete a page scope.
+- **Reaping.** Each scope declares `IsStillValid`; `Reap()` runs before every
+  dispatch (throttled to 100 ms for 60 Hz stick frames) and drops scopes whose
+  context is gone, so a missed removal self-heals on the next press instead of
+  wedging until restart. Shell and Page are never reapable. A scope not yet
+  observed valid gets a 750 ms arming grace (a dialog is pushed before its
+  template exists), and a throwing predicate counts as valid.
 
 | Scope | Pushed | Handles | Falls through |
 |---|---|---|---|
@@ -46,19 +73,31 @@ boolean mode flags.
 | LibraryPage (`IInputScope`) | while Library is active (`SetPageInputScope`) | grid/button-zone navigation, A launch, X game settings, stick scroll | chrome; A/B with a navbar selection |
 | Roulette scope | while the roulette overlay is open | A spin/stop, B cancel | nothing (modal) |
 
+Validity per scope: dialog → not closed and still has a `Popup` ancestor;
+dropdown → `IsDropDownOpen` (plus a `DropDownClosed` subscription, so a
+mouse/Escape dismissal removes it); value edit → edit target still loaded;
+page-owned → wrapped in `PageOwnedScope`, valid only while its page is
+`Frame.Content`; roulette → its overlay is visible.
+
 Pages with bespoke navigation implement `IInputScope` themselves and are
-installed with `SetPageInputScope` (popped automatically on page change);
-page-modals use `PushScope`/`PopScope`.
+installed with `SetPageInputScope(inner, owningPage)`, which wraps them in a
+`PageOwnedScope` so the scope cannot outlive its page; page-modals use
+`PushScope`/`PopScope`.
 
 Invariants the stack gives you for free:
 
 - Chrome (page cycling, navbar) works in every mode because unconsumed events
   reach the shell.
-- Page changes call `PopWhile(transient)`, so slider/dropdown edit state can
-  never leak across pages.
+- Page changes drop all page-scoped scopes via `BeginPageTransition()`, so
+  slider/dropdown/page state can never leak across pages. Modal scopes survive,
+  since a dialog can outlive the page that opened it.
+- A scope whose context dies is reaped on the next press, so a missed removal
+  costs one press instead of requiring an app restart.
 - **Dialog safety net**: if a `ContentDialog` is open with no `DialogScope`
-  (someone bypassed `GamepadDialog.ShowAsync`), the service detects the open
-  popup and pushes a scope automatically, popping it on `Closed`. Always show
+  (someone bypassed `GamepadDialog.ShowAsync`), the service pushes one — but
+  rate-limited to 250 ms and one-shot per dialog instance, with removal handled
+  by reaping. It previously ran on every press and could push a scope for an
+  already-closed dialog, which blocked all input permanently. Always show
   dialogs via `dialog.ShowWithGamepadSupportAsync(service)` anyway — it also
   serializes dialogs (WinUI throws on two at once).
 
@@ -120,12 +159,55 @@ Dialog → dropdown/slider edit → expander collapse → navbar selection →
 page-level `IGamepadBackHandler` (e.g. GameSettingsPage back to Library) →
 no-op. Every layer is tried in that order; nothing else is hardcoded.
 
+**LB/RB on a detail page.** The game settings page is not a peer in the LB/RB
+page cycle (it requires a selected game), so shoulder buttons there leave the
+page via the same `IGamepadBackHandler`. They must never be silently inert:
+that state — shoulder press does nothing while the controller still buzzes —
+is indistinguishable from "LB/RB stopped working".
+
 ## Focus memory
 
 Returning to a page restores focus to the element the user last focused
 there (remembered by candidate index per page type, since pages are
 recreated on each navigation). The Library additionally remembers its
 focused game tile and scroll offset.
+
+## Recovery and diagnostics
+
+- `Settings → Copy Debug Info` includes a `=== Gamepad Input ===` section:
+  active state, page scope, focused element + liveness, the router stack with
+  layers and staleness, and per-device readings/faults/masks.
+- `Settings → Reset Gamepad Input` (`HardResetInput()`) drops every scope above
+  the page scope, clears focus, resets and re-syncs the reader, and re-inits the
+  page. Mouse/touch reachable on purpose — it must work when the pad does not.
+- Edge-triggered `DebugLogger` entries under the `GPAD` category record scope
+  push/remove/reap, device add/remove/evict, stuck-mask changes, navigation
+  generation changes and dropped stale init callbacks. Never called from the
+  poll path (it appends synchronously under a lock).
+
+## Window hide/show
+
+`WindowManagementService` raises `WindowHidden` as well as `WindowShown`, and
+`ToggleVisibility` is debounced (250 ms) against multi-fire from any source (a
+held hotkey, tray double-click). `GamepadNavigationService.OnWindowHidden()` is
+the single teardown point — the hotkey and tray paths previously skipped the
+cleanup the navbar buttons did — and it clears `_suppressAutoFocusOnActivation`,
+which otherwise survived a hide/show and silently swallowed the first press.
+`OnWindowShownFromHidden()` re-syncs controllers but deliberately sets no focus:
+the ring should appear only once the user presses something. The Low-priority
+`LayoutRoot.Focus` assist on show now yields if gamepad mode is already active,
+so it cannot steal focus the user just established.
+
+## Page transitions
+
+`MainWindow.OnPageChanged` calls `BeginPageTransition()`, which bumps a
+navigation generation and tears down all page-scoped input state in one place.
+Deferred init callbacks go through `EnqueueForPage(generation, …)` and are
+dropped if superseded — page init spans dispatcher callbacks and, for the
+library, a multi-second await, so without this a continuation could apply its
+focus and input scope to the wrong page. Navigation origin travels as data
+(`PageChangedEventArgs.FromGamepad`) rather than a mutable flag that could leak
+when a navigation was rejected.
 
 ## Remaining transitional pieces (planned follow-ups)
 
@@ -139,6 +221,13 @@ focused game tile and scroll offset.
   migrated.
 - Library scroll/focus state still lives in static fields on the page; a
   page-state cache service would be cleaner.
+- `PulseHaptics` starts an unbounded `Task.Run` per press, and overlapping
+  pulses cancel each other (pulse N's zero-write lands during pulse N+1), so
+  under button-mashing the rumble stops even though navigation still works.
+  Coalescing it behind a single in-flight flag is a one-line fix, deferred.
+- `TdpPickerControl.CanNavigateLeft/Right` return true unconditionally. That is
+  no longer able to wedge navigation (a detached focus target is dropped before
+  dispatch), but making them honest at the ends would still be an improvement.
 
 ## Testing
 
