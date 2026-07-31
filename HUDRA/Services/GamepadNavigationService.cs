@@ -289,20 +289,33 @@ namespace HUDRA.Services
                 bool isChromeInput = e.Action is GamepadAction.LB or GamepadAction.RB
                                               or GamepadAction.LT or GamepadAction.RT;
 
+                bool suppressed = _suppressAutoFocusOnActivation;
+                _suppressAutoFocusOnActivation = false;
+
                 if (!pageOwnsFocus && !IsDialogOpen && !isChromeInput)
                 {
                     // CRITICAL: Clear any existing keyboard focus borders before gamepad takes over
                     ClearFocus();
 
-                    if (!_suppressAutoFocusOnActivation)
+                    if (!suppressed)
                     {
+                        // Classic wake press: consumed, it just summons the ring.
+                        DebugLogger.Log($"Activated by {e.Action}; wake press consumed, focus set", "GPAD");
                         EnsureGamepadFocusForCurrentPage();
+                        return;
                     }
-                    _suppressAutoFocusOnActivation = false;
-                    return;
-                }
 
-                _suppressAutoFocusOnActivation = false;
+                    // Suppressed (last navigation was mouse/touch): skip auto-focus
+                    // but let the press ACT. Eating it here used to make the first
+                    // press after any mouse interaction feel dead; dispatching
+                    // instead lets a directional press establish focus via the
+                    // no-current-focus spatial fallback on this same press.
+                    DebugLogger.Log($"Activated by {e.Action}; auto-focus suppressed, dispatching press", "GPAD");
+                }
+                else
+                {
+                    DebugLogger.Log($"Activated by {e.Action} (chrome={isChromeInput}, dialog={IsDialogOpen}, pageOwnsFocus={pageOwnsFocus})", "GPAD");
+                }
             }
 
             _router.Dispatch(in e);
@@ -972,7 +985,9 @@ namespace HUDRA.Services
                 // Editing scopes don't survive leaving gamepad mode
                 _router.RemoveWhere(s => s.Layer == ScopeLayer.Edit);
 
-                System.Diagnostics.Debug.WriteLine("🎮 Gamepad mode deactivated");
+                // Edge-triggered: fires once per mouse/touch takeover or hide,
+                // never per-tick. This is the "why did the ring disappear" line.
+                DebugLogger.Log("Gamepad mode deactivated (mouse/touch/hide/disconnect)", "GPAD");
             }
         }
 

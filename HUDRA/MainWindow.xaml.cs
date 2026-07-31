@@ -1187,6 +1187,25 @@ namespace HUDRA
             LayoutRoot.PointerPressed += OnNonGamepadInput;  // Mouse clicks and touch
             LayoutRoot.Tapped += OnNonGamepadInput;          // Additional touch detection
             LayoutRoot.KeyDown += OnNonGamepadInput;         // Keyboard input
+
+            // Kill WinUI's NATIVE gamepad handling app-wide. Windows synthesizes
+            // VirtualKey.Gamepad* key events from the controller, and WinUI's
+            // built-in behaviors act on them: XYFocus moves REAL focus between
+            // focusable elements (d-pad/left stick landing on navbar buttons),
+            // focused ScrollViewers react to shoulder keys (LB/RB changing the
+            // TDP picker), GamepadA clicks whatever has real focus. All gamepad
+            // semantics belong to GamepadInputReader's polling; swallowing the
+            // synthesized keys at the root (tunneling, so before any control
+            // sees them) leaves exactly one input system.
+            LayoutRoot.PreviewKeyDown += OnPreviewKeyDown;
+        }
+
+        private void OnPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+        {
+            if (HUDRA.Services.GamepadInput.GamepadInputReader.IsGamepadVirtualKey(e.Key))
+            {
+                e.Handled = true;
+            }
         }
 
         private void OnLogoDragHandlePointerPressed(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
