@@ -1287,6 +1287,15 @@ namespace HUDRA
                 return;
             }
 
+            // A tap on the (topmost) overlay is received even when another app
+            // holds the foreground - and gamepad readings follow the foreground.
+            // Re-assert it so the controller comes back with the tap instead of
+            // staying dead until the OS happens to re-route input.
+            if (e is Microsoft.UI.Xaml.Input.PointerRoutedEventArgs or Microsoft.UI.Xaml.Input.TappedRoutedEventArgs)
+            {
+                _windowManager?.EnsureForeground();
+            }
+
             // Clear gamepad focus when mouse/keyboard/touch is used
             if (_gamepadNavigationService?.IsGamepadActive == true)
             {

@@ -1052,6 +1052,9 @@ namespace HUDRA.Services
                 sb.AppendLine($"IsGamepadActive: {_isGamepadActive}");
                 sb.AppendLine($"SuppressAutoFocusOnActivation: {_suppressAutoFocusOnActivation}");
                 sb.AppendLine($"WindowVisible: {_windowManager?.IsVisible.ToString() ?? "n/a"}");
+                // Foreground matters: Windows routes gamepad readings to the
+                // foreground process, so visible-but-not-foreground = deaf.
+                sb.AppendLine($"WindowForeground: {_windowManager?.IsForeground.ToString() ?? "n/a"}");
                 sb.AppendLine($"PageCustomScope: {_pageCustomScope?.Name ?? "(none)"}");
                 sb.AppendLine($"NavigationRoot: {_navigationRoot?.GetType().Name ?? "(none)"}");
                 sb.AppendLine($"NavigationPageKey: {_navigationPageKey?.Name ?? "(none)"}");

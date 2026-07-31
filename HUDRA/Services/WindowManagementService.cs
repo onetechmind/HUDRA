@@ -22,6 +22,26 @@ namespace HUDRA.Services
 
         public bool IsVisible => _isWindowVisible;
 
+        /// <summary>True if this window is the OS foreground window right now.</summary>
+        public bool IsForeground => GetForegroundWindow() == _hwnd;
+
+        /// <summary>
+        /// Force this window to the foreground if it is visible but not
+        /// foreground. Needed because gamepad readings are foreground-gated by
+        /// Windows: a topmost overlay receives clicks WITHOUT becoming the
+        /// foreground window, so after another app steals foreground (e.g. a web
+        /// link opening the browser) the user taps HUDRA, sees it respond to the
+        /// tap, and the controller stays dead - the readings are still routed to
+        /// the other app. Every tap therefore re-asserts foreground.
+        /// </summary>
+        public void EnsureForeground()
+        {
+            if (!_isWindowVisible || IsForeground) return;
+
+            DebugLogger.Log("Window tapped while not foreground - forcing foreground (gamepad readings are foreground-gated)", "GPAD");
+            ForceForegroundWindow(_hwnd);
+        }
+
         /// <summary>
         /// Fired when the window is shown (unhidden) via ToggleVisibility.
         /// Use this to force input focus to the app when it becomes visible.
