@@ -243,6 +243,13 @@ namespace HUDRA
             _windowManager.WindowShown += OnWindowShown;
             _windowManager.WindowHidden += OnWindowHidden;
 
+            // Windows removes the gamepad from this process's view while another
+            // app is foreground (observed: clicking a web link opened the browser
+            // and the pad vanished for 13s). Re-scan the instant we regain
+            // activation so control returns immediately instead of waiting for
+            // the OS to re-announce the device.
+            this.Activated += OnWindowActivated;
+
             InitializeWindow();
             SetupEventHandlers();
             SetupDragHandling();
@@ -1534,6 +1541,14 @@ namespace HUDRA
 
             string timeStr = info.RemainingDischargeTime == TimeSpan.Zero ? "--" : info.RemainingDischargeTime.ToString(@"hh\:mm");
             BatteryToolTip = $"{info.Percent}% - {(info.IsCharging ? "Charging" : info.OnAc ? "Plugged in" : "On battery")}\nTime remaining: {timeStr}";
+        }
+
+        private void OnWindowActivated(object sender, Microsoft.UI.Xaml.WindowActivatedEventArgs args)
+        {
+            if (args.WindowActivationState != Microsoft.UI.Xaml.WindowActivationState.Deactivated)
+            {
+                _gamepadNavigationService?.ReconcileDevicesNow();
+            }
         }
 
         private void OnWindowHidden(object? sender, EventArgs e)

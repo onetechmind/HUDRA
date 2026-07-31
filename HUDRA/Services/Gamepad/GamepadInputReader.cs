@@ -160,6 +160,9 @@ namespace HUDRA.Services.GamepadInput
             {
                 AddGamepad(gamepad);
             }
+
+            // Always polling, even with no devices yet - see EnsureTimerState.
+            EnsureTimerState();
         }
 
         /// <summary>True for the VirtualKey.Gamepad* keys WinUI synthesizes from gamepad hardware.</summary>
@@ -300,14 +303,18 @@ namespace HUDRA.Services.GamepadInput
         }
 
         /// <summary>
-        /// Start or stop the poll timer to match the tracked device set. Called on
-        /// every topology change so the timer can never be left stopped while a
-        /// controller is connected (or running with none).
+        /// The poll timer runs for the life of the reader, even with zero devices.
+        /// Windows removes the gamepad from this process's view whenever another
+        /// app takes the foreground (observed on OneXPlayer: clicking a link that
+        /// opened the browser removed the pad for 13 seconds). Stopping the timer
+        /// at zero devices also stopped the periodic re-scan, so recovery waited
+        /// entirely on the OS re-announcing the device; with the timer alive, the
+        /// 2s reconcile re-adds it as soon as the platform lists it again. An idle
+        /// tick with no devices is a throttled list check and an early return.
         /// </summary>
         private void EnsureTimerState()
         {
-            if (_devices.Count > 0 && !_timer.IsRunning) _timer.Start();
-            else if (_devices.Count == 0 && _timer.IsRunning) _timer.Stop();
+            if (!_timer.IsRunning) _timer.Start();
         }
 
         /// <summary>
