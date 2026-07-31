@@ -67,7 +67,9 @@ namespace HUDRA.Services.GamepadInput
         private readonly Dictionary<GamepadAction, TimeSpan> _lastKeyboardEmit = new();
         private int _nextDeviceId = 1;
         private DeviceSlot? _activeDevice;
-        private TimeSpan _lastReconcile = TimeSpan.MinValue;
+        // Start one interval in the past so the first check runs immediately.
+        // NOT TimeSpan.MinValue: "now - MinValue" overflows TimeSpan.
+        private TimeSpan _lastReconcile = -ReconcileInterval;
 
         // Stick-as-dpad and trigger hysteresis state
         private bool _stickUp, _stickDown, _stickLeft, _stickRight;

@@ -314,7 +314,9 @@ namespace HUDRA.Services
         // producing a modal scope whose Closed event would never fire again -
         // permanent, total input death until the app restarted.
         private static readonly TimeSpan DialogSafetyNetInterval = TimeSpan.FromMilliseconds(250);
-        private TimeSpan _lastDialogSafetyNetCheck = TimeSpan.MinValue;
+        // One interval in the past so the first check runs immediately; MinValue
+        // would overflow in "now - _lastDialogSafetyNetCheck".
+        private TimeSpan _lastDialogSafetyNetCheck = -DialogSafetyNetInterval;
         private readonly List<WeakReference<ContentDialog>> _safetyNetApplied = new();
 
         /// <summary>

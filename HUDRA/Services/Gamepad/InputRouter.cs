@@ -243,7 +243,9 @@ namespace HUDRA.Services.GamepadInput
         }
 
         private static readonly TimeSpan StickReapInterval = TimeSpan.FromMilliseconds(100);
-        private TimeSpan _lastStickReap = TimeSpan.MinValue;
+        // One interval in the past so the first frame reaps; MinValue would
+        // overflow in "now - _lastStickReap".
+        private TimeSpan _lastStickReap = -StickReapInterval;
 
         /// <summary>Bottom-to-top description of the stack, for diagnostics.</summary>
         public string Describe()
