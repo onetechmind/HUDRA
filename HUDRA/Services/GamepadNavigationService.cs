@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
-using Windows.Gaming.Input;
 using Windows.System;
 using HUDRA.Interfaces;
 using HUDRA.AttachedProperties;
@@ -1153,11 +1152,12 @@ namespace HUDRA.Services
 
     public class GamepadConnectionEventArgs : EventArgs
     {
-        public Gamepad Gamepad { get; }
+        /// <summary>Reader device id (XInput user index + 1; 0 is the "no device" sentinel).</summary>
+        public int DeviceId { get; }
 
-        public GamepadConnectionEventArgs(Gamepad gamepad)
+        public GamepadConnectionEventArgs(int deviceId)
         {
-            Gamepad = gamepad;
+            DeviceId = deviceId;
         }
     }
 

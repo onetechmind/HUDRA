@@ -15,7 +15,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Windows.Gaming.Input;
 using Windows.Media.Core;
 using Windows.Media.Playback;
 using Windows.System;

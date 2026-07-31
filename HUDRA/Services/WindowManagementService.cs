@@ -22,25 +22,12 @@ namespace HUDRA.Services
 
         public bool IsVisible => _isWindowVisible;
 
-        /// <summary>True if this window is the OS foreground window right now.</summary>
-        public bool IsForeground => GetForegroundWindow() == _hwnd;
-
         /// <summary>
-        /// Force this window to the foreground if it is visible but not
-        /// foreground. Needed because gamepad readings are foreground-gated by
-        /// Windows: a topmost overlay receives clicks WITHOUT becoming the
-        /// foreground window, so after another app steals foreground (e.g. a web
-        /// link opening the browser) the user taps HUDRA, sees it respond to the
-        /// tap, and the controller stays dead - the readings are still routed to
-        /// the other app. Every tap therefore re-asserts foreground.
+        /// True if this window is the OS foreground window right now. Reported in
+        /// diagnostics for keyboard/focus questions; gamepad input does not depend
+        /// on it (XInput reads regardless of who owns the foreground).
         /// </summary>
-        public void EnsureForeground()
-        {
-            if (!_isWindowVisible || IsForeground) return;
-
-            DebugLogger.Log("Window tapped while not foreground - forcing foreground (gamepad readings are foreground-gated)", "GPAD");
-            ForceForegroundWindow(_hwnd);
-        }
+        public bool IsForeground => GetForegroundWindow() == _hwnd;
 
         /// <summary>
         /// Fired when the window is shown (unhidden) via ToggleVisibility.
@@ -113,10 +100,11 @@ namespace HUDRA.Services
                     // WinUI activation (sets window active-state intent).
                     _window.Activate();
 
-                    // CRITICAL: force OS foreground from a (likely) background process so
-                    // Windows.Gaming.Input routes gamepad readings to HUDRA immediately,
-                    // without the user having to click the window. A plain Activate/
-                    // SetForegroundWindow is blocked by the Win32 foreground lock here.
+                    // Force OS foreground from a (likely) background process so the
+                    // overlay the user just summoned actually takes keyboard focus -
+                    // a plain Activate/SetForegroundWindow is blocked by the Win32
+                    // foreground lock here. Gamepad input no longer depends on this;
+                    // XInput reads regardless of who owns the foreground.
                     ForceForegroundWindow(_hwnd);
 
                     // Re-assert topmost z-order AFTER foreground. SWP_NOACTIVATE only fixes
@@ -211,10 +199,11 @@ namespace HUDRA.Services
         /// Forces the given window to become the OS foreground/active window, even when
         /// the calling process is in the background (e.g. shown via global hotkey while a
         /// game is foreground). A plain SetForegroundWindow call is silently blocked by the
-        /// Win32 foreground lock in that case, leaving the window shown-but-not-activated so
-        /// Windows.Gaming.Input never routes gamepad readings to it until the user clicks.
-        /// This bypasses the lock via AttachThreadInput, hardened by temporarily zeroing the
-        /// foreground lock timeout.
+        /// Win32 foreground lock in that case, leaving the overlay shown but not activated,
+        /// so keyboard focus and the caret stay with the game. This is now purely about the
+        /// window the user summoned behaving like the window they are using - gamepad
+        /// readings are no longer routed by foreground. Bypasses the lock via
+        /// AttachThreadInput.
         /// </summary>
         private void ForceForegroundWindow(IntPtr hwnd)
         {
@@ -227,25 +216,14 @@ namespace HUDRA.Services
                 ? 0u
                 : GetWindowThreadProcessId(foreground, out _);
 
-            // Both of the following mutate state that outlives this method - an
-            // attached input queue is shared with another process's UI thread, and the
-            // foreground lock timeout is machine-wide. They MUST be undone even if
-            // anything in between throws, hence the try/finally: previously an
-            // exception left HUDRA's input queue attached to a game's thread and the
-            // system's foreground lock disabled until reboot.
+            // An attached input queue is shared with another process's UI thread and
+            // outlives this method, so it MUST be detached even if anything in between
+            // throws - an earlier version left HUDRA's input queue attached to a game's
+            // thread when the call in between failed.
             bool attached = false;
-            bool timeoutSaved = false;
-            uint oldTimeout = 0;
 
             try
             {
-                timeoutSaved = SystemParametersInfo(SPI_GETFOREGROUNDLOCKTIMEOUT, 0, ref oldTimeout, 0);
-                if (timeoutSaved)
-                {
-                    uint zero = 0;
-                    SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref zero, SPIF_SENDCHANGE);
-                }
-
                 // Attaching our input queue to the foreground thread lets SetForegroundWindow succeed.
                 if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
                     attached = AttachThreadInput(currentThreadId, foregroundThreadId, true);
@@ -264,19 +242,6 @@ namespace HUDRA.Services
                 {
                     try { AttachThreadInput(currentThreadId, foregroundThreadId, false); }
                     catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Failed to detach thread input: {ex.Message}"); }
-                }
-
-                if (timeoutSaved)
-                {
-                    try
-                    {
-                        uint restore = oldTimeout;
-                        SystemParametersInfo(SPI_SETFOREGROUNDLOCKTIMEOUT, 0, ref restore, SPIF_SENDCHANGE);
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Failed to restore foreground lock timeout: {ex.Message}");
-                    }
                 }
             }
         }
@@ -360,10 +325,6 @@ namespace HUDRA.Services
         [DllImport("user32.dll")]
         private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
-        // Overload taking a uint by-ref; the existing SystemParametersInfo above takes a RECT.
-        [DllImport("user32.dll", SetLastError = true)]
-        private static extern bool SystemParametersInfo(uint uAction, uint uParam, ref uint pvParam, uint fWinIni);
-
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
         {
@@ -376,8 +337,5 @@ namespace HUDRA.Services
         private const uint SWP_NOACTIVATE = 0x0010;
         private const int SPI_GETWORKAREA = 48;
         private const int SW_SHOW = 5;
-        private const uint SPI_GETFOREGROUNDLOCKTIMEOUT = 0x2000;
-        private const uint SPI_SETFOREGROUNDLOCKTIMEOUT = 0x2001;
-        private const uint SPIF_SENDCHANGE = 0x0002;
     }
 }

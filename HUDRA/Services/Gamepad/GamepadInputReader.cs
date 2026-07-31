@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using Windows.Gaming.Input;
 using Windows.System;
 
 namespace HUDRA.Services.GamepadInput
@@ -10,14 +9,20 @@ namespace HUDRA.Services.GamepadInput
     /// <summary>
     /// Owns all raw gamepad input: polling, connection tracking, edge detection,
     /// press/repeat timing, stick and trigger hysteresis, and haptics. Emits
-    /// semantic <see cref="GamepadEvent"/>s plus the raw per-tick reading for
-    /// legacy consumers. Knows nothing about focus, pages, or dialogs.
+    /// semantic <see cref="GamepadEvent"/>s. Knows nothing about focus, pages or dialogs.
     ///
-    /// All state is touched only on the UI thread: connection callbacks from
-    /// Windows.Gaming.Input arrive on background threads and are marshaled via
-    /// the DispatcherQueue before mutating the gamepad list (the previous
-    /// implementation mutated the list directly from those callbacks while the
-    /// poll timer iterated it).
+    /// Readings come from XInput (<see cref="XInputNative"/>), not the WinRT
+    /// gaming-input API (WGI). WGI routes readings to the FOREGROUND process,
+    /// which is fatal for an always-on-top overlay: field logs show the pad
+    /// withdrawn from this process for 13 seconds after a clicked link brought
+    /// the browser forward, and a separate 32-second stretch where reads kept
+    /// succeeding while returning nothing but neutral values. XInput is not
+    /// foreground-gated, so the overlay keeps reading while a game owns the
+    /// screen.
+    ///
+    /// A consequence of the swap: there are no connection callbacks at all any
+    /// more, so every field here is touched only on the UI thread, from the poll
+    /// timer. The DispatcherQueue is still needed to create that timer.
     /// </summary>
     public sealed class GamepadInputReader : IDisposable
     {
@@ -35,37 +40,77 @@ namespace HUDRA.Services.GamepadInput
         /// <summary>Consecutive read failures before a device is evicted (~480ms at 16ms).</summary>
         private const int MaxConsecutiveFailures = 30;
 
-        /// <summary>Upper bound on tracked devices, to bound damage from pathological re-enumeration.</summary>
-        private const int MaxDevices = 8;
-
         private static readonly TimeSpan ReconcileInterval = TimeSpan.FromSeconds(2);
         private static readonly TimeSpan ActiveDeviceTimeout = TimeSpan.FromSeconds(2);
         private const double ActivityThreshold = 0.2;
 
         /// <summary>
-        /// One tracked controller. Holds its own failure count so a single dead
-        /// device cannot stop the others from being read.
+        /// One normalized controller snapshot. XInput reports raw bytes and shorts;
+        /// normalizing here, at the boundary, is what keeps every threshold
+        /// downstream (StickPressThreshold and friends) expressed in the same
+        /// 0..1 / -1..1 units it has always used.
+        /// </summary>
+        private readonly struct PadReading
+        {
+            public ushort Buttons { get; init; }
+            public double LeftTrigger { get; init; }
+            public double RightTrigger { get; init; }
+            public double LeftThumbstickX { get; init; }
+            public double LeftThumbstickY { get; init; }
+            public double RightThumbstickX { get; init; }
+            public double RightThumbstickY { get; init; }
+
+            public static PadReading From(in XInputNative.XINPUT_GAMEPAD pad) => new()
+            {
+                Buttons = pad.wButtons,
+                LeftTrigger = pad.bLeftTrigger / 255.0,
+                RightTrigger = pad.bRightTrigger / 255.0,
+                LeftThumbstickX = Axis(pad.sThumbLX),
+                LeftThumbstickY = Axis(pad.sThumbLY),
+                RightThumbstickX = Axis(pad.sThumbRX),
+                RightThumbstickY = Axis(pad.sThumbRY)
+            };
+
+            // Clamped because the short range is asymmetric: -32768 / 32767 lands
+            // just past -1, and an out-of-range magnitude would defeat hysteresis.
+            private static double Axis(short raw) => Math.Clamp(raw / 32767.0, -1.0, 1.0);
+        }
+
+        /// <summary>
+        /// One XInput user index. The slot object persists across disconnects -
+        /// XInput's identity IS the index, so there is nothing to allocate or free
+        /// on hotplug. Holds its own failure count so one misbehaving controller
+        /// cannot stop the others from being read.
         /// </summary>
         private sealed class DeviceSlot
         {
-            public required Windows.Gaming.Input.Gamepad Pad { get; init; }
+            public required uint UserIndex { get; init; }
+
+            /// <summary>
+            /// User index + 1. The pipeline passes <c>_activeDevice?.Id ?? 0</c> to
+            /// StuckInputGuard, so 0 is the "no device" sentinel and user index 0
+            /// must not be able to collide with it.
+            /// </summary>
             public required int Id { get; init; }
+
+            public bool Connected { get; set; }
             public int ConsecutiveFailures { get; set; }
             public TimeSpan LastActivity { get; set; }
-            public GamepadReading LastReading { get; set; }
+            public PadReading LastReading { get; set; }
+            public uint PacketNumber { get; set; }
+            public uint LastResult { get; set; }
             public bool ReadOkThisTick { get; set; }
         }
 
         private readonly Microsoft.UI.Dispatching.DispatcherQueue _dispatcherQueue;
         private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _timer;
-        private readonly List<DeviceSlot> _devices = new();
+        private readonly DeviceSlot[] _slots;
         private readonly Stopwatch _clock = Stopwatch.StartNew();
         private readonly GamepadRepeatTracker _repeatTracker = new(InitialRepeatDelay, RepeatInterval);
         private readonly StuckInputGuard _stuckGuard = new();
         private readonly HashSet<GamepadAction> _rawHeld = new();
         private readonly HashSet<GamepadAction> _heldActions = new();
         private readonly Dictionary<GamepadAction, TimeSpan> _lastKeyboardEmit = new();
-        private int _nextDeviceId = 1;
         private DeviceSlot? _activeDevice;
         // Start one interval in the past so the first check runs immediately.
         // NOT TimeSpan.MinValue: "now - MinValue" overflows TimeSpan.
@@ -79,19 +124,23 @@ namespace HUDRA.Services.GamepadInput
         /// <summary>Semantic input events (presses and directional repeats).</summary>
         public event EventHandler<GamepadEvent>? ActionDispatched;
 
-        /// <summary>
-        /// Raw combined reading, fired once per poll tick AFTER any semantic
-        /// events for that tick. Used for legacy raw forwarding (LibraryPage).
-        /// </summary>
-        public event EventHandler<GamepadReading>? ReadingAvailable;
-
         /// <summary>Right-stick analog frames for scroll consumers.</summary>
         public event EventHandler<GamepadStickFrame>? StickFrame;
 
         public event EventHandler<GamepadConnectionEventArgs>? GamepadConnected;
         public event EventHandler<GamepadConnectionEventArgs>? GamepadDisconnected;
 
-        public bool HasConnectedGamepads => _devices.Count > 0;
+        public bool HasConnectedGamepads
+        {
+            get
+            {
+                foreach (var slot in _slots)
+                {
+                    if (slot.Connected) return true;
+                }
+                return false;
+            }
+        }
 
         /// <summary>
         /// Optional sink for edge-triggered device/input transitions. A delegate
@@ -110,24 +159,30 @@ namespace HUDRA.Services.GamepadInput
         public string DescribeDevices()
         {
             var sb = new System.Text.StringBuilder();
-            sb.Append($"devices={_devices.Count} polling={IsPollingActive} " +
+            int connected = _slots.Count(slot => slot.Connected);
+            sb.Append($"backend=XInput connected={connected} polling={IsPollingActive} " +
                       $"active=#{_activeDevice?.Id.ToString() ?? "none"}");
 
-            foreach (var slot in _devices)
+            // Every slot is listed, connected or not: "which indexes came back
+            // ERROR_DEVICE_NOT_CONNECTED" is the first question in a dead-pad report.
+            foreach (var slot in _slots)
             {
                 sb.AppendLine();
-                sb.Append($"  #{slot.Id} fails={slot.ConsecutiveFailures} " +
+                sb.Append($"  #{slot.Id} user={slot.UserIndex} connected={slot.Connected} " +
+                          $"fails={slot.ConsecutiveFailures} " +
                           $"suspect={_stuckGuard.IsDeviceSuspect(slot.Id)} ");
-                try
+
+                if (slot.Connected)
                 {
-                    var r = slot.Pad.GetCurrentReading();
-                    sb.Append($"buttons={r.Buttons} LT={r.LeftTrigger:F2} RT={r.RightTrigger:F2} " +
+                    var r = slot.LastReading;
+                    sb.Append($"packet={slot.PacketNumber} buttons=0x{r.Buttons:X4} " +
+                              $"LT={r.LeftTrigger:F2} RT={r.RightTrigger:F2} " +
                               $"LS=({r.LeftThumbstickX:F2},{r.LeftThumbstickY:F2}) " +
                               $"RS=({r.RightThumbstickX:F2},{r.RightThumbstickY:F2})");
                 }
-                catch (Exception ex)
+                else
                 {
-                    sb.Append($"READ FAILED: {ex.GetType().Name}: {ex.Message}");
+                    sb.Append($"error=0x{slot.LastResult:X4}");
                 }
             }
 
@@ -151,17 +206,22 @@ namespace HUDRA.Services.GamepadInput
             _timer.Interval = PollInterval;
             _timer.Tick += OnTick;
 
-            Windows.Gaming.Input.Gamepad.GamepadAdded += OnGamepadAdded;
-            Windows.Gaming.Input.Gamepad.GamepadRemoved += OnGamepadRemoved;
+            // Fixed slots, one per XInput user index: the index is the identity, so
+            // slots are never added or removed, only marked connected/disconnected.
+            _slots = new DeviceSlot[XInputNative.MaxUserCount];
+            for (uint i = 0; i < XInputNative.MaxUserCount; i++)
+            {
+                _slots[i] = new DeviceSlot { UserIndex = i, Id = (int)i + 1 };
+            }
 
             _stuckGuard.MaskChanged += message => DiagnosticLog?.Invoke(message);
 
-            foreach (var gamepad in Windows.Gaming.Input.Gamepad.Gamepads)
-            {
-                AddGamepad(gamepad);
-            }
-
-            // Always polling, even with no devices yet - see EnsureTimerState.
+            // No initial census here, deliberately: the reconcile throttle starts
+            // one interval in the past, so the timer's FIRST tick (within 16 ms)
+            // probes all four slots. Doing it synchronously in the constructor
+            // would fire connect events and diagnostic lines before the owning
+            // service has subscribed, losing the "device connected" session
+            // markers that make field logs decodable.
             EnsureTimerState();
         }
 
@@ -191,35 +251,43 @@ namespace HUDRA.Services.GamepadInput
         }
 
         /// <summary>
-        /// Short haptic pulse on all connected gamepads. Runs entirely on a
-        /// background thread: the Vibration setter can block for a long time on
-        /// some (especially Bluetooth) controllers, and on the UI thread that
-        /// showed up as random multi-second hitches on page navigation.
-        /// Windows.Gaming.Input objects are agile, so off-thread access is safe.
+        /// Short haptic pulse on every connected controller. Runs entirely on a
+        /// background thread: the vibration call can block for a long time on some
+        /// (especially Bluetooth) controllers, and on the UI thread that showed up
+        /// as random multi-second hitches on page navigation. XInputSetState is a
+        /// plain P/Invoke with no thread affinity, so off-thread use is safe.
         /// </summary>
         public void PulseHaptics(double intensity = 0.2, int durationMs = 100)
         {
-            var gamepads = _devices.Select(slot => slot.Pad).ToArray();
-            if (gamepads.Length == 0) return;
+            // Snapshot on the calling (UI) thread; the background task must not
+            // walk slot state that the poll timer is mutating.
+            var userIndexes = _slots.Where(slot => slot.Connected)
+                                    .Select(slot => slot.UserIndex)
+                                    .ToArray();
+            if (userIndexes.Length == 0) return;
+
+            ushort speed = (ushort)(Math.Clamp(intensity, 0.0, 1.0) * ushort.MaxValue);
 
             _ = System.Threading.Tasks.Task.Run(async () =>
             {
                 try
                 {
-                    foreach (var gamepad in gamepads)
+                    var on = new XInputNative.XINPUT_VIBRATION
                     {
-                        gamepad.Vibration = new GamepadVibration
-                        {
-                            LeftMotor = intensity,
-                            RightMotor = intensity
-                        };
+                        wLeftMotorSpeed = speed,
+                        wRightMotorSpeed = speed
+                    };
+                    foreach (var index in userIndexes)
+                    {
+                        XInputNative.XInputSetState(index, ref on);
                     }
 
                     await System.Threading.Tasks.Task.Delay(durationMs);
 
-                    foreach (var gamepad in gamepads)
+                    var off = default(XInputNative.XINPUT_VIBRATION);
+                    foreach (var index in userIndexes)
                     {
-                        gamepad.Vibration = new GamepadVibration();
+                        XInputNative.XInputSetState(index, ref off);
                     }
                 }
                 catch (Exception ex)
@@ -229,88 +297,57 @@ namespace HUDRA.Services.GamepadInput
             });
         }
 
-        private void OnGamepadAdded(object? sender, Windows.Gaming.Input.Gamepad gamepad)
+        /// <summary>
+        /// Mark a slot live. Fired edge-triggered only - never per tick.
+        /// </summary>
+        private void MarkConnected(DeviceSlot slot, TimeSpan now)
         {
-            // Fires on a background thread - marshal before touching state
-            _dispatcherQueue.TryEnqueue(() => AddGamepad(gamepad));
-        }
+            slot.Connected = true;
+            slot.ConsecutiveFailures = 0;
+            slot.LastActivity = now;
 
-        private void OnGamepadRemoved(object? sender, Windows.Gaming.Input.Gamepad gamepad)
-        {
-            _dispatcherQueue.TryEnqueue(() => RemoveGamepad(gamepad));
-        }
-
-        private void AddGamepad(Windows.Gaming.Input.Gamepad gamepad)
-        {
-            if (FindSlot(gamepad) != null) return;
-            if (_devices.Count >= MaxDevices)
-            {
-                DiagnosticLog?.Invoke($"device add ignored: already tracking {_devices.Count}");
-                return;
-            }
-
-            var slot = new DeviceSlot { Pad = gamepad, Id = _nextDeviceId++, LastActivity = _clock.Elapsed };
-            _devices.Add(slot);
-            Debug.WriteLine($"🎮 Gamepad connected ({_devices.Count} total)");
-            DiagnosticLog?.Invoke($"device #{slot.Id} added (now {_devices.Count})");
-            GamepadConnected?.Invoke(this, new GamepadConnectionEventArgs(gamepad));
+            Debug.WriteLine($"🎮 Gamepad connected (XInput user index {slot.UserIndex})");
+            DiagnosticLog?.Invoke($"device #{slot.Id} connected (XInput user index {slot.UserIndex})");
+            GamepadConnected?.Invoke(this, new GamepadConnectionEventArgs(slot.Id));
 
             // Held state from before the topology change is no longer meaningful.
             ResetInputState();
             EnsureTimerState();
         }
 
-        private void RemoveGamepad(Windows.Gaming.Input.Gamepad gamepad)
+        /// <summary>
+        /// Mark a slot empty and drop everything derived from it. The slot object
+        /// stays: the user index still exists, it just has nothing plugged into it.
+        /// </summary>
+        private void MarkDisconnected(DeviceSlot slot, string reason)
         {
-            var slot = FindSlot(gamepad);
-            if (slot == null)
-            {
-                // The removal notification did not match any tracked wrapper.
-                // Windows.Gaming.Input can hand out a different wrapper for the
-                // same physical device, so trust the platform list instead of
-                // silently doing nothing (which used to leave a dead device in
-                // place, latching input forever).
-                DiagnosticLog?.Invoke("device removal did not match a tracked device - reconciling");
-                ReconcileDevices(force: true);
-                return;
-            }
-
-            EvictSlot(slot, "disconnected");
-        }
-
-        private void EvictSlot(DeviceSlot slot, string reason)
-        {
-            if (!_devices.Remove(slot)) return;
+            slot.Connected = false;
+            slot.ConsecutiveFailures = 0;
+            slot.ReadOkThisTick = false;
+            slot.LastReading = default;
+            slot.PacketNumber = 0;
 
             if (ReferenceEquals(_activeDevice, slot)) _activeDevice = null;
             _stuckGuard.ForgetDevice(slot.Id);
 
-            Debug.WriteLine($"🎮 Gamepad removed ({_devices.Count} remaining)");
-            DiagnosticLog?.Invoke($"device #{slot.Id} removed ({reason}, now {_devices.Count})");
-            GamepadDisconnected?.Invoke(this, new GamepadConnectionEventArgs(slot.Pad));
+            Debug.WriteLine($"🎮 Gamepad removed (XInput user index {slot.UserIndex})");
+            DiagnosticLog?.Invoke($"device #{slot.Id} removed ({reason})");
+            GamepadDisconnected?.Invoke(this, new GamepadConnectionEventArgs(slot.Id));
 
             ResetInputState();
             EnsureTimerState();
         }
 
-        private DeviceSlot? FindSlot(Windows.Gaming.Input.Gamepad pad)
-        {
-            foreach (var slot in _devices)
-            {
-                if (ReferenceEquals(slot.Pad, pad)) return slot;
-            }
-            return null;
-        }
-
         /// <summary>
         /// The poll timer runs for the life of the reader, even with zero devices.
-        /// Windows removes the gamepad from this process's view whenever another
-        /// app takes the foreground (observed on OneXPlayer: clicking a link that
-        /// opened the browser removed the pad for 13 seconds). Stopping the timer
-        /// at zero devices also stopped the periodic re-scan, so recovery waited
-        /// entirely on the OS re-announcing the device; with the timer alive, the
-        /// 2s reconcile re-adds it as soon as the platform lists it again. An idle
-        /// tick with no devices is a throttled list check and an early return.
+        /// XInput has no hotplug notification of any kind, so this timer IS device
+        /// discovery: the 2 s probe of the empty user indexes only happens on a
+        /// tick, and stopping the timer at zero devices would mean a controller
+        /// plugged in afterwards is never noticed at all. (The same always-on timer
+        /// is what recovered from the WGI foreground-gating incidents - a pad
+        /// withdrawn for 13 s while a browser held the foreground, and 32 s of
+        /// successful-but-neutral readings.) An idle tick with no devices is four
+        /// slot checks and an early return.
         /// </summary>
         private void EnsureTimerState()
         {
@@ -318,44 +355,20 @@ namespace HUDRA.Services.GamepadInput
         }
 
         /// <summary>
-        /// Re-sync the tracked devices against the platform's own list. This is the
-        /// recovery path for ghost devices: entries the platform no longer reports
-        /// are evicted, and newly present ones are added. Both sides come from
-        /// Windows.Gaming.Input, so wrapper identity matches within a session.
+        /// Probe every XInput user index, empty ones included, so a controller that
+        /// appeared or vanished since the last probe is picked up. Runs on the 2 s
+        /// cadence from the tick, or immediately when forced (window shown, resume
+        /// from sleep). Shares <see cref="PollSlots"/> with the tick so a forced
+        /// reconcile on a tick boundary can never read a slot twice.
         /// </summary>
         public void ReconcileDevices(bool force = false)
         {
             var now = _clock.Elapsed;
-            if (!force && now - _lastReconcile < ReconcileInterval) return;
-            _lastReconcile = now;
+            if (force) _lastReconcile = now;
+            else if (!TryConsumeReconcile(now)) return;
 
-            IReadOnlyList<Windows.Gaming.Input.Gamepad> current;
-            try
-            {
-                current = Windows.Gaming.Input.Gamepad.Gamepads;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"🎮 Device reconcile failed: {ex.Message}");
-                return;
-            }
-
-            for (int i = _devices.Count - 1; i >= 0; i--)
-            {
-                var slot = _devices[i];
-                bool stillPresent = false;
-                foreach (var pad in current)
-                {
-                    if (ReferenceEquals(pad, slot.Pad)) { stillPresent = true; break; }
-                }
-                if (!stillPresent) EvictSlot(slot, "absent from platform list");
-            }
-
-            foreach (var pad in current)
-            {
-                if (FindSlot(pad) == null) AddGamepad(pad);
-            }
-
+            PollSlots(now, probeDisconnected: true);
+            SelectActiveSlot(now);
             EnsureTimerState();
         }
 
@@ -383,15 +396,14 @@ namespace HUDRA.Services.GamepadInput
         {
             var now = _clock.Elapsed;
 
-            // Periodic self-check so a ghost device cannot persist indefinitely.
-            ReconcileDevices();
+            // Live slots are read every tick; empty user indexes only on the
+            // reconcile cadence. One read per slot per tick either way.
+            bool probe = TryConsumeReconcile(now);
+            PollSlots(now, probeDisconnected: probe);
 
-            if (_devices.Count == 0) return;
+            var reading = SelectActiveSlot(now);
 
-            // Read every device independently. A failing device must never be able
-            // to abort the tick: doing so previously skipped the whole state machine,
-            // so no release edges were produced and the held set froze permanently.
-            var reading = ReadDevices(now);
+            if (!HasConnectedGamepads) return;
 
             BuildRawHeld(reading);
 
@@ -422,13 +434,96 @@ namespace HUDRA.Services.GamepadInput
                 StickFrame?.Invoke(this, new GamepadStickFrame(rightY));
             }
             _lastRightStickY = rightY;
-
-            ReadingAvailable?.Invoke(this, reading);
         }
 
         /// <summary>
-        /// Read all devices (each isolated from the others' failures) and return the
-        /// reading of the most recently active one.
+        /// True at most once per <see cref="ReconcileInterval"/>, and consumes the
+        /// slot when it returns true - so the tick and an unforced
+        /// <see cref="ReconcileDevices"/> can never both probe in the same window.
+        /// </summary>
+        private bool TryConsumeReconcile(TimeSpan now)
+        {
+            if (now - _lastReconcile < ReconcileInterval) return false;
+            _lastReconcile = now;
+            return true;
+        }
+
+        /// <summary>
+        /// The single read path. Connected slots are always read; empty user
+        /// indexes only when <paramref name="probeDisconnected"/> is set, because
+        /// XInputGetState on an index with nothing plugged in is markedly slower
+        /// than on a live one (the documented reason XInput callers are told not to
+        /// scan empty slots every frame) - hence the 2 s cadence.
+        /// </summary>
+        private void PollSlots(TimeSpan now, bool probeDisconnected)
+        {
+            foreach (var slot in _slots)
+            {
+                if (!slot.Connected && !probeDisconnected)
+                {
+                    slot.ReadOkThisTick = false;
+                    continue;
+                }
+
+                ReadSlot(slot, now);
+            }
+        }
+
+        /// <summary>
+        /// Read one user index. A failing slot must never be able to abort the
+        /// tick: aborting previously skipped the whole state machine, so no release
+        /// edges were produced and the held set froze permanently.
+        /// </summary>
+        private void ReadSlot(DeviceSlot slot, TimeSpan now)
+        {
+            slot.ReadOkThisTick = false;
+
+            uint result = XInputNative.XInputGetState(slot.UserIndex, out var state);
+            slot.LastResult = result;
+
+            if (result == XInputNative.ERROR_DEVICE_NOT_CONNECTED)
+            {
+                // Authoritative "nothing is plugged in here", not a fault: counting
+                // it as a failure would drift a permanently-empty index towards an
+                // eviction that means nothing for a fixed slot.
+                slot.ConsecutiveFailures = 0;
+                if (slot.Connected) MarkDisconnected(slot, "device not connected");
+                return;
+            }
+
+            if (result != XInputNative.ERROR_SUCCESS)
+            {
+                // Some other Win32 error: could be transient, so fall back to the
+                // consecutive-failure budget rather than dropping the pad at once.
+                if (slot.Connected && ++slot.ConsecutiveFailures >= MaxConsecutiveFailures)
+                {
+                    MarkDisconnected(slot,
+                        $"evicted after {slot.ConsecutiveFailures} read failures, error=0x{result:X4}");
+                }
+                return;
+            }
+
+            slot.ConsecutiveFailures = 0;
+            slot.PacketNumber = state.dwPacketNumber;
+            slot.LastReading = PadReading.From(state.Gamepad);
+            slot.ReadOkThisTick = true;
+
+            if (!slot.Connected) MarkConnected(slot, now);
+
+            if (IsActive(slot.LastReading) && !_stuckGuard.IsDeviceSuspect(slot.Id))
+            {
+                slot.LastActivity = now;
+                if (!ReferenceEquals(_activeDevice, slot))
+                {
+                    _activeDevice = slot;
+                    DiagnosticLog?.Invoke($"active device is now #{slot.Id}");
+                }
+            }
+        }
+
+        /// <summary>
+        /// Return the reading the pipeline uses this tick: the most recently active
+        /// controller's.
         ///
         /// Deliberately NOT a merge of all devices. Merging (OR'ing buttons, taking
         /// the largest axis) meant one controller with a latched button or drifting
@@ -437,57 +532,24 @@ namespace HUDRA.Services.GamepadInput
         /// cannot interfere) while letting a stuck one be ignored, and hands over
         /// instantly when the user picks up a different controller.
         /// </summary>
-        private GamepadReading ReadDevices(TimeSpan now)
+        private PadReading SelectActiveSlot(TimeSpan now)
         {
-            for (int i = _devices.Count - 1; i >= 0; i--)
-            {
-                var slot = _devices[i];
-                slot.ReadOkThisTick = false;
-
-                try
-                {
-                    slot.LastReading = slot.Pad.GetCurrentReading();
-                    slot.ConsecutiveFailures = 0;
-                    slot.ReadOkThisTick = true;
-                }
-                catch (Exception ex)
-                {
-                    if (++slot.ConsecutiveFailures >= MaxConsecutiveFailures)
-                    {
-                        DiagnosticLog?.Invoke($"device #{slot.Id} evicted after " +
-                                              $"{slot.ConsecutiveFailures} read failures ({ex.GetType().Name})");
-                        EvictSlot(slot, "read failures");
-                    }
-                    continue;
-                }
-
-                if (IsActive(slot.LastReading) && !_stuckGuard.IsDeviceSuspect(slot.Id))
-                {
-                    slot.LastActivity = now;
-                    if (!ReferenceEquals(_activeDevice, slot))
-                    {
-                        _activeDevice = slot;
-                        DiagnosticLog?.Invoke($"active device is now #{slot.Id}");
-                    }
-                }
-            }
-
             // Release the active slot once it has been quiet for a while, so another
             // controller can take over immediately when it is used.
             if (_activeDevice != null &&
-                (!_devices.Contains(_activeDevice) || now - _activeDevice.LastActivity > ActiveDeviceTimeout))
+                (!_activeDevice.Connected || now - _activeDevice.LastActivity > ActiveDeviceTimeout))
             {
                 _activeDevice = null;
             }
 
-            _activeDevice ??= _devices.FirstOrDefault(slot => slot.ReadOkThisTick);
+            _activeDevice ??= _slots.FirstOrDefault(slot => slot.Connected && slot.ReadOkThisTick);
 
             return _activeDevice is { ReadOkThisTick: true } ? _activeDevice.LastReading : default;
         }
 
         /// <summary>Any input at all, used to decide which device the user is holding.</summary>
-        private static bool IsActive(in GamepadReading reading) =>
-            reading.Buttons != GamepadButtons.None ||
+        private static bool IsActive(in PadReading reading) =>
+            reading.Buttons != 0 ||
             reading.LeftTrigger > ActivityThreshold ||
             reading.RightTrigger > ActivityThreshold ||
             Math.Abs(reading.LeftThumbstickX) > ActivityThreshold ||
@@ -500,10 +562,10 @@ namespace HUDRA.Services.GamepadInput
         /// direction that is held. Reduction to a single direction happens later, so
         /// that stuck-input masking can act on the complete picture.
         /// </summary>
-        private void BuildRawHeld(in GamepadReading reading)
+        private void BuildRawHeld(in PadReading reading)
         {
             _rawHeld.Clear();
-            var buttons = reading.Buttons;
+            ushort buttons = reading.Buttons;
 
             // Stick-as-dpad with per-direction hysteresis
             _stickUp = ApplyHysteresis(_stickUp, reading.LeftThumbstickY);
@@ -511,23 +573,25 @@ namespace HUDRA.Services.GamepadInput
             _stickLeft = ApplyHysteresis(_stickLeft, -reading.LeftThumbstickX);
             _stickRight = ApplyHysteresis(_stickRight, reading.LeftThumbstickX);
 
-            if (buttons.HasFlag(GamepadButtons.DPadUp) || _stickUp) _rawHeld.Add(GamepadAction.NavUp);
-            if (buttons.HasFlag(GamepadButtons.DPadDown) || _stickDown) _rawHeld.Add(GamepadAction.NavDown);
-            if (buttons.HasFlag(GamepadButtons.DPadLeft) || _stickLeft) _rawHeld.Add(GamepadAction.NavLeft);
-            if (buttons.HasFlag(GamepadButtons.DPadRight) || _stickRight) _rawHeld.Add(GamepadAction.NavRight);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_DPAD_UP) || _stickUp) _rawHeld.Add(GamepadAction.NavUp);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_DPAD_DOWN) || _stickDown) _rawHeld.Add(GamepadAction.NavDown);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_DPAD_LEFT) || _stickLeft) _rawHeld.Add(GamepadAction.NavLeft);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_DPAD_RIGHT) || _stickRight) _rawHeld.Add(GamepadAction.NavRight);
 
-            if (buttons.HasFlag(GamepadButtons.A)) _rawHeld.Add(GamepadAction.Accept);
-            if (buttons.HasFlag(GamepadButtons.B)) _rawHeld.Add(GamepadAction.Back);
-            if (buttons.HasFlag(GamepadButtons.X)) _rawHeld.Add(GamepadAction.X);
-            if (buttons.HasFlag(GamepadButtons.Y)) _rawHeld.Add(GamepadAction.Y);
-            if (buttons.HasFlag(GamepadButtons.LeftShoulder)) _rawHeld.Add(GamepadAction.LB);
-            if (buttons.HasFlag(GamepadButtons.RightShoulder)) _rawHeld.Add(GamepadAction.RB);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_A)) _rawHeld.Add(GamepadAction.Accept);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_B)) _rawHeld.Add(GamepadAction.Back);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_X)) _rawHeld.Add(GamepadAction.X);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_Y)) _rawHeld.Add(GamepadAction.Y);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_LEFT_SHOULDER)) _rawHeld.Add(GamepadAction.LB);
+            if (IsSet(buttons, XInputNative.XINPUT_GAMEPAD_RIGHT_SHOULDER)) _rawHeld.Add(GamepadAction.RB);
 
             _leftTriggerHeld = ApplyTriggerHysteresis(_leftTriggerHeld, reading.LeftTrigger);
             _rightTriggerHeld = ApplyTriggerHysteresis(_rightTriggerHeld, reading.RightTrigger);
             if (_leftTriggerHeld) _rawHeld.Add(GamepadAction.LT);
             if (_rightTriggerHeld) _rawHeld.Add(GamepadAction.RT);
         }
+
+        private static bool IsSet(ushort buttons, ushort mask) => (buttons & mask) != 0;
 
         private static bool ApplyHysteresis(bool wasHeld, double value) =>
             wasHeld ? value > StickReleaseThreshold : value > StickPressThreshold;
@@ -586,9 +650,15 @@ namespace HUDRA.Services.GamepadInput
         public void Dispose()
         {
             _timer.Stop();
-            Windows.Gaming.Input.Gamepad.GamepadAdded -= OnGamepadAdded;
-            Windows.Gaming.Input.Gamepad.GamepadRemoved -= OnGamepadRemoved;
-            _devices.Clear();
+
+            // No hotplug subscriptions to unhook any more; just drop derived state.
+            foreach (var slot in _slots)
+            {
+                slot.Connected = false;
+                slot.ReadOkThisTick = false;
+                slot.LastReading = default;
+            }
+            _activeDevice = null;
         }
     }
 }

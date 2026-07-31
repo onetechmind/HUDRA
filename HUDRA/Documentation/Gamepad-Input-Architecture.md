@@ -12,11 +12,26 @@ hardware ──► GamepadInputReader ──► InputRouter (scope stack) ──
 
 ### 1. `GamepadInputReader` (`Services/Gamepad/GamepadInputReader.cs`)
 
-Owns everything raw: 16 ms polling, connection tracking (connection callbacks
-are marshaled to the UI thread — they arrive on background threads), edge
+Owns everything raw: 16 ms polling of XInput, connection tracking, edge
 detection, key repeat, hysteresis, haptics. Emits semantic `GamepadEvent`s
 (`NavUp/NavDown/NavLeft/NavRight, Accept, Back, X, Y, LB, RB, LT, RT`):
 
+- **Backend: XInput** (`Services/Gamepad/XInputNative.cs`, P/Invoke into
+  `xinput1_4.dll`), not the WinRT gaming-input API. That API routes readings to
+  the *foreground* process, which is fatal for an always-on-top overlay: the pad
+  was withdrawn from HUDRA for 13 s when a clicked link brought the browser
+  forward, and in another incident reads kept succeeding for 32 s while
+  returning nothing but neutral values. XInput is not foreground-gated.
+- **Four fixed slots** — the XInput user index (0-3) *is* the device identity, so
+  slots are created once and only flip connected/disconnected. The reader's
+  device id is `user index + 1`, keeping index 0 clear of the "no device"
+  sentinel `StuckInputGuard` is keyed with. Raw bytes/shorts are normalized at
+  the boundary (triggers `/255`, sticks `/32767` clamped to ±1), so every
+  threshold below is unchanged.
+- **Discovery is the poll loop.** XInput has no hotplug events, so the always-on
+  16 ms timer *is* device discovery: connected slots are read every tick, empty
+  user indexes are probed every 2 s (probing an empty index is comparatively
+  slow, so it is not done per frame).
 - **Repeat**: directional actions only — 400 ms initial delay, then every
   110 ms (`GamepadRepeatTracker`, pure & unit-tested). Action buttons never
   repeat.
@@ -31,16 +46,19 @@ detection, key repeat, hysteresis, haptics. Emits semantic `GamepadEvent`s
 - **Multiple controllers**: most-recently-active device wins (2 s handover).
   Readings are NOT merged — OR'ing buttons across devices meant one controller
   with a latched button or drifting stick overrode every other device forever.
-- **Fault isolation**: each device is read in its own try/catch and evicted after
-  30 consecutive failures; the tick's state machine always advances, so release
-  edges are guaranteed even when every read fails.
+- **Fault isolation**: each slot carries its own result code and failure count.
+  `ERROR_DEVICE_NOT_CONNECTED` disconnects that slot immediately; any other error
+  is treated as possibly transient and evicts only after 30 consecutive failures.
+  The tick's state machine always advances, so release edges are guaranteed even
+  when every read fails.
 - **Ghost tolerance** (`StuckInputGuard`): masks a non-repeatable action held
   ≥ 8 s, a direction held ≥ 20 s, and everything from a device that has never
   reported neutral within 3 s. Masking is applied to the raw held set *before*
   `DirectionReducer` collapses it to one direction — masking afterwards would
   leave a stuck direction occupying the slot. Masks clear on release/neutral.
-- **Device reconciliation** against `Gamepad.Gamepads` every 2 s, on window show,
-  and on resume from sleep, so a re-enumerated controller cannot leave a ghost.
+- **Device reconciliation**: the 2 s probe of all four user indexes, also forced
+  on window show and on resume from sleep, so a re-enumerated controller cannot
+  leave a ghost.
 
 ### 2. `InputRouter` + scopes (`Services/Gamepad/InputRouter.cs`, `Scopes/`)
 
