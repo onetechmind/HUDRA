@@ -481,8 +481,9 @@ namespace HUDRA.Services
         {
             // Drop a focus target that belongs to a torn-down page before dispatching.
             // Without this, legacy controls that claim a direction unconditionally
-            // (the TDP picker claims left/right; the fan curve claims all four while
-            // a control point is active) keep swallowing that direction forever.
+            // (the TDP picker claims left/right by design - direct adjust, no edit
+            // mode; the fan curve claims all four while a control point is active)
+            // keep swallowing that direction forever.
             // Nulling rather than merely skipping matters: the spatial "no current
             // focus" path then re-establishes focus on this very press.
             if (_currentFocusedElement != null && !IsElementLive(_currentFocusedElement))

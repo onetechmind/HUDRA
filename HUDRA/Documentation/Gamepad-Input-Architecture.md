@@ -309,9 +309,13 @@ when a navigation was rejected.
   pulses cancel each other (pulse N's zero-write lands during pulse N+1), so
   under button-mashing the rumble stops even though navigation still works.
   Coalescing it behind a single in-flight flag is a one-line fix, deferred.
-- `TdpPickerControl.CanNavigateLeft/Right` return true unconditionally. That is
-  no longer able to wedge navigation (a detached focus target is dropped before
-  dispatch), but making them honest at the ends would still be an improvement.
+- `TdpPickerControl.CanNavigateLeft/Right` return true unconditionally — now a
+  documented product decision, not an accident: TDP is the most-used control,
+  so left/right adjust it DIRECTLY while focused (no edit mode, no A press,
+  unlike every other slider). It applies the shared `HoldRamp` acceleration
+  locally by inferring holds from repeat timing. Focus can still leave via
+  up/down; making the left/right claims honest at the range ends remains a
+  possible refinement.
 
 ## Testing
 

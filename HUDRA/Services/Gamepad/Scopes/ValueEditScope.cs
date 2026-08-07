@@ -92,13 +92,7 @@ namespace HUDRA.Services.GamepadInput
                 _repeatStreak++;
             }
 
-            int steps = _repeatStreak switch
-            {
-                < 8 => 1,
-                < 16 => 2,
-                < 24 => 4,
-                _ => 8
-            };
+            int steps = HoldRamp.Multiplier(_repeatStreak);
 
             for (int i = 0; i < steps; i++)
             {

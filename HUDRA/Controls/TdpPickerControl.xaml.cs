@@ -49,6 +49,8 @@ namespace HUDRA.Controls
         private DispatcherTimer? _scrollEndTimer;
         private bool _isProgrammaticScroll = false; // True when scrolling programmatically (not user-initiated)
         private int _programmaticRetries = 0; // Re-center attempts after a programmatic scroll landed off-target
+        private long _lastSetterLogTicks; // Throttle for the setter's TDP log line
+        private int _lastLoggedTdp = -1;  // Value at the last setter log, so coalesced runs read start -> end
 
         //Mouse drag state
         private bool _isMouseDragging = false;
@@ -142,10 +144,18 @@ namespace HUDRA.Controls
                     var oldValue = _selectedTdp;
                     _selectedTdp = value;
 
-                    // Every accepted change is logged: the field 45W->10W state
-                    // corruption had no visible writer. Low-frequency (wheel
-                    // scrolling bypasses this setter), so no throttle needed.
-                    DebugLogger.Log($"SelectedTdp {oldValue}W -> {value}W (via setter, init={_isInitialized})", "TDP");
+                    // Accepted changes are logged so no writer is ever invisible
+                    // (a field incident had none). Throttled: edit-mode holds
+                    // with acceleration step up to 8x per 110 ms repeat, and
+                    // per-step lines would flood the file log.
+                    long nowTicks = Environment.TickCount64;
+                    if (nowTicks - _lastSetterLogTicks >= 400)
+                    {
+                        int from = _lastLoggedTdp >= 0 ? _lastLoggedTdp : oldValue;
+                        DebugLogger.Log($"SelectedTdp {from}W -> {value}W (via setter, init={_isInitialized})", "TDP");
+                        _lastSetterLogTicks = nowTicks;
+                        _lastLoggedTdp = value;
+                    }
 
                     if (_isInitialized && !_suppressSelectionEvents)
                     {
@@ -1016,15 +1026,21 @@ namespace HUDRA.Controls
 
         #region IGamepadNavigable Implementation
 
-        public bool CanNavigateUp => false; // TDP picker only supports left/right navigation
+        // Deliberate UX: left/right adjust the TDP DIRECTLY while the picker
+        // is focused - no edit mode, no A press. TDP is the most-used control
+        // in the app, so the extra press every other slider requires is not
+        // worth the consistency. The unconditional left/right claims are part
+        // of that contract; hold-acceleration is applied locally (see
+        // OnDirectionalStep) since the ValueEditScope ramp never runs here.
+        public bool CanNavigateUp => false;
         public bool CanNavigateDown => false;
-        public bool CanNavigateLeft => true; // Always navigable
-        public bool CanNavigateRight => true; // Always navigable
+        public bool CanNavigateLeft => true;
+        public bool CanNavigateRight => true;
         public bool CanActivate => false; // TDP picker doesn't use activation
 
         public FrameworkElement NavigationElement => this;
 
-        // Slider interface implementations - TDP picker is not a slider
+        // Slider interface implementations - TDP picker adjusts directly instead
         public bool IsSlider => false;
         public bool IsSliderActivated { get; set; } = false;
         public void AdjustSliderValue(int direction)
@@ -1045,12 +1061,43 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateLeft()
         {
-            ChangeTdpBy(-1);
+            OnDirectionalStep(-1);
         }
 
         public void OnGamepadNavigateRight()
         {
-            ChangeTdpBy(1);
+            OnDirectionalStep(1);
+        }
+
+        // Hold-acceleration for the direct adjust path. HandleNavigationAction
+        // does not carry the IsRepeat flag, but repeats arrive every ~110 ms
+        // while a direction is held, so a hold is inferred from timing: same
+        // direction within 250 ms extends the streak, anything else is a fresh
+        // press. Multiplier thresholds are shared with ValueEditScope via
+        // HoldRamp so every hold-to-adjust surface ramps identically.
+        private long _lastStepTicks;
+        private int _lastStepDirection;
+        private int _stepStreak;
+
+        private void OnDirectionalStep(int direction)
+        {
+            long now = Environment.TickCount64;
+            if (direction != _lastStepDirection || now - _lastStepTicks > 250)
+            {
+                _stepStreak = 0;
+            }
+            else
+            {
+                _stepStreak++;
+            }
+            _lastStepTicks = now;
+            _lastStepDirection = direction;
+
+            int steps = HUDRA.Services.GamepadInput.HoldRamp.Multiplier(_stepStreak);
+            for (int i = 0; i < steps; i++)
+            {
+                ChangeTdpBy(direction);
+            }
         }
 
         public void OnGamepadActivate()
