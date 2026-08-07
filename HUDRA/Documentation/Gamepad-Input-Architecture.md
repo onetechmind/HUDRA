@@ -38,7 +38,13 @@ detection, key repeat, hysteresis, haptics. Emits semantic `GamepadEvent`s
 - **Left stick** acts as d-pad (press > 0.5, release < 0.4 hysteresis); at
   most one direction per tick (dominant wins) so diagonals can't double-step.
 - **Triggers** are digital LT/RT with 0.6/0.4 hysteresis.
-- **Right stick** is forwarded as analog `GamepadStickFrame`s for scrolling.
+- **Right stick** is forwarded as analog `GamepadStickFrame`s for scrolling,
+  behind a 0.25 radial deadzone with rescaled output (0 at the gate ramping to
+  ±1 at full deflection). 0.25 mirrors Microsoft's own right-thumb deadzone
+  (`XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE` ≈ 0.265); the original 0.10 let a
+  field unit's -0.16 resting drift slow-scroll every page on its own. Raw
+  (unrescaled) values remain visible in Copy Debug Info, so drift stays
+  diagnosable.
 - **Synthesized keys**: WinUI synthesizes `VirtualKey.Gamepad*` key events
   from controllers. The reader maps/dedupes them against polled input, and
   `MainWindow.OnNonGamepadInput` ignores them so a controller can never

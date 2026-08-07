@@ -30,7 +30,13 @@ namespace HUDRA.Services.GamepadInput
         public const double StickReleaseThreshold = 0.4;
         public const double TriggerPressThreshold = 0.6;
         public const double TriggerReleaseThreshold = 0.4;
-        public const double RightStickDeadzone = 0.10;
+        // Matches Microsoft's XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE (8689/32767
+        // = 0.265) in spirit. The original 0.10 was too tight for real sticks:
+        // a field unit rested at Y=-0.16 with the stick untouched, which
+        // slow-scrolled every page on its own. Output is RESCALED above the
+        // deadzone (see RescaleStick), so raising it costs no scroll-speed
+        // smoothness - speed still ramps from zero at the gate.
+        public const double RightStickDeadzone = 0.25;
 
         private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(16);
         private static readonly TimeSpan InitialRepeatDelay = TimeSpan.FromMilliseconds(400);
@@ -475,8 +481,12 @@ namespace HUDRA.Services.GamepadInput
                 ActionDispatched?.Invoke(this, ev);
             }
 
-            double rightY = reading.RightThumbstickY;
-            if (Math.Abs(rightY) > RightStickDeadzone || Math.Abs(_lastRightStickY) > RightStickDeadzone)
+            // Deadzone-rescaled: consumers see 0 at the gate ramping to ±1 at
+            // full deflection, never a raw drift value. The extra frame after
+            // returning to zero is preserved so scroll consumers get a final
+            // stop frame.
+            double rightY = RescaleStick(reading.RightThumbstickY);
+            if (rightY != 0 || _lastRightStickY != 0)
             {
                 StickFrame?.Invoke(this, new GamepadStickFrame(rightY));
             }
@@ -639,6 +649,20 @@ namespace HUDRA.Services.GamepadInput
         }
 
         private static bool IsSet(ushort buttons, ushort mask) => (buttons & mask) != 0;
+
+        /// <summary>
+        /// Radial deadzone with rescaling: 0 inside the deadzone, then the
+        /// remaining travel remapped to 0..1 so consumers get a smooth ramp
+        /// from the gate instead of a jump to the raw value.
+        /// </summary>
+        private static double RescaleStick(double value)
+        {
+            double magnitude = Math.Abs(value);
+            if (magnitude <= RightStickDeadzone) return 0;
+
+            double scaled = (magnitude - RightStickDeadzone) / (1.0 - RightStickDeadzone);
+            return Math.CopySign(scaled, value);
+        }
 
         private static bool ApplyHysteresis(bool wasHeld, double value) =>
             wasHeld ? value > StickReleaseThreshold : value > StickPressThreshold;
