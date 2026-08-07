@@ -1200,11 +1200,40 @@ namespace HUDRA
             LayoutRoot.PreviewKeyDown += OnPreviewKeyDown;
         }
 
+        // Throttle for the echo-swallow log line: the mapper's key repeat would
+        // otherwise write one line per repeat while a direction is held.
+        private long _lastEchoSwallowLogTicks;
+
         private void OnPreviewKeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
         {
             if (HUDRA.Services.GamepadInput.GamepadInputReader.IsGamepadVirtualKey(e.Key))
             {
                 e.Handled = true;
+                return;
+            }
+
+            // Mapper software (OneXConsole, Steam Input desktop configs) translates
+            // controller input into PLAIN keyboard events. Field log: every d-pad
+            // press arrived as an arrow KeyDown (0x28) ~15ms before the XInput poll
+            // saw the button, deactivating gamepad mode via OnNonGamepadInput and
+            // getting the polled press consumed as the wake press - visible as
+            // flicker-instead-of-navigation on every step. A plain key that mirrors
+            // what a controller is physically pressing right now is controller
+            // input wearing a keyboard costume: swallow it here (tunneling, so
+            // nothing downstream sees it) and let the polled pipeline stay the
+            // only gamepad input system. Keys from a real keyboard while the
+            // controller is idle match nothing and behave as before.
+            var reader = _gamepadNavigationService?.InputReader;
+            if (reader != null && reader.IsKeyEchoOfController(e.Key))
+            {
+                e.Handled = true;
+
+                long now = Environment.TickCount64;
+                if (now - _lastEchoSwallowLogTicks >= 2000)
+                {
+                    _lastEchoSwallowLogTicks = now;
+                    DebugLogger.Log($"Swallowed key echo of controller input: {e.Key}", "GPAD");
+                }
             }
         }
 
@@ -1283,11 +1312,26 @@ namespace HUDRA
             // Clear gamepad focus when mouse/keyboard/touch is used
             if (_gamepadNavigationService?.IsGamepadActive == true)
             {
+                // Field diagnosis: gamepad mode was observed deactivating around
+                // every d-pad press on device, meaning SOMETHING here fires on
+                // controller input despite the Gamepad* key filter above. Record
+                // exactly what before deactivating, so the log names the culprit.
+                string offender = e switch
+                {
+                    Microsoft.UI.Xaml.Input.KeyRoutedEventArgs k =>
+                        $"KeyDown key={k.Key} (0x{(int)k.Key:X})",
+                    Microsoft.UI.Xaml.Input.PointerRoutedEventArgs p =>
+                        $"PointerPressed type={p.Pointer.PointerDeviceType}",
+                    Microsoft.UI.Xaml.Input.TappedRoutedEventArgs t =>
+                        $"Tapped type={t.PointerDeviceType}",
+                    _ => e.GetType().Name
+                };
+                DebugLogger.Log($"Deactivating gamepad mode due to non-gamepad input: {offender}", "GPAD");
+
                 // CRITICAL: Clear gamepad focus borders before deactivating
                 // This prevents lingering gamepad focus from showing alongside keyboard focus
                 _gamepadNavigationService.ClearFocus();
                 _gamepadNavigationService.DeactivateGamepadMode();
-                System.Diagnostics.Debug.WriteLine("🎮 Cleared gamepad focus due to mouse/keyboard/touch input");
             }
         }
 

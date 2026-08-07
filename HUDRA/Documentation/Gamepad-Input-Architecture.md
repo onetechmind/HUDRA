@@ -43,6 +43,17 @@ detection, key repeat, hysteresis, haptics. Emits semantic `GamepadEvent`s
   from controllers. The reader maps/dedupes them against polled input, and
   `MainWindow.OnNonGamepadInput` ignores them so a controller can never
   deactivate its own gamepad mode.
+- **Key echoes** (`IsKeyEchoOfController`): mapper software (OneXConsole,
+  Steam Input desktop configs) translates controller input into *plain*
+  keyboard events — a field log showed every d-pad press arriving as an arrow
+  KeyDown ~15 ms *before* the poll saw the button, deactivating gamepad mode
+  and getting the polled press consumed as the wake press (flicker instead of
+  navigation). A plain key (arrow/WASD/Enter/Space/Escape) that mirrors what a
+  connected controller is physically pressing right now — per the held sets or
+  a fresh `XInputGetState`, since the injected key beats the poll — is
+  swallowed by `MainWindow.OnPreviewKeyDown` (tunneling), so it never reaches
+  `OnNonGamepadInput` or WinUI's own key handling. Keys from a real keyboard
+  while the controller is idle match nothing and keep their normal meaning.
 - **Multiple controllers**: most-recently-active device wins (2 s handover).
   Readings are NOT merged — OR'ing buttons across devices meant one controller
   with a latched button or drifting stick overrode every other device forever.
@@ -171,6 +182,31 @@ the Phase 3c pattern (`AudioControlsControl` is the simplest example):
 3. If an inner element needs non-generic activation, implement
    `IGamepadElementHost` on the control (see `ResolutionPickerControl`).
 
+## Gamepad mode (activation / deactivation)
+
+Gamepad mode (`IsGamepadActive`) gates the focus ring and all gamepad-driven
+focus. Its transitions are field-hardened:
+
+- **Activation** happens on the first semantic event while inactive, and is
+  never conditional on which scopes are installed (a stranded page scope used
+  to permanently disable the ring). The **wake press is consumed** — it just
+  summons the ring — with two exceptions: chrome inputs (LB/RB/LT/RT) act even
+  on the wake press, and when auto-focus is suppressed (last navigation was
+  mouse/touch) the press is **dispatched instead of eaten**, so a directional
+  press establishes focus via the spatial no-current-focus fallback on that
+  same press. Eating it used to make the first press after any mouse
+  interaction feel dead.
+- **Deactivation** is driven by `MainWindow.OnNonGamepadInput`
+  (pointer/tap/plain-keyboard input) plus hide and last-controller-disconnect.
+  Controller input can never deactivate its own mode: synthesized `Gamepad*`
+  keys are filtered, and mapper-injected key echoes are swallowed before the
+  handler sees them (see **Key echoes** above).
+- **Keyboard-sourced semantic events** (`GamepadEventSource.Keyboard`) only
+  participate while mode is already active; they never activate it.
+- Input while the window is hidden is blocked by HUDRA's own `IsVisible` gate
+  on reader events — product intent, enforced by us rather than accidentally
+  by the OS (XInput keeps reading regardless of visibility).
+
 ## B-button semantics (one level at a time)
 
 Dialog → dropdown/slider edit → expander collapse → navbar selection →
@@ -200,8 +236,12 @@ focused game tile and scroll offset.
   page. Mouse/touch reachable on purpose — it must work when the pad does not.
 - Edge-triggered `DebugLogger` entries under the `GPAD` category record scope
   push/remove/reap, device add/remove/evict, stuck-mask changes, navigation
-  generation changes and dropped stale init callbacks. Never called from the
-  poll path (it appends synchronously under a lock).
+  generation changes, dropped stale init callbacks, gamepad mode activation
+  (with trigger action and suppress/dialog/chrome disposition), deactivation
+  with the exact offending input named (key code / pointer type — this is what
+  identified the mapper key-echo bug), and swallowed key echoes (throttled to
+  one line per 2 s against key repeat). Never called from the poll path (it
+  appends synchronously under a lock).
 
 ## Window hide/show
 
@@ -215,6 +255,12 @@ which otherwise survived a hide/show and silently swallowed the first press.
 the ring should appear only once the user presses something. The Low-priority
 `LayoutRoot.Focus` assist on show now yields if gamepad mode is already active,
 so it cannot steal focus the user just established.
+
+Foreground is **UX-only** since the XInput swap: the show path still calls
+`ForceForegroundWindow` (AttachThreadInput with try/finally detach) so the
+keyboard works in the overlay, but nothing about gamepad input depends on
+being foreground, and the old tap-time foreground assertion — which stole
+foreground from the game on every tap — is gone.
 
 ## Page transitions
 

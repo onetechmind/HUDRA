@@ -230,6 +230,53 @@ namespace HUDRA.Services.GamepadInput
             key >= VirtualKey.GamepadA && key <= VirtualKey.GamepadRightThumbstickLeft;
 
         /// <summary>
+        /// True when a PLAIN keyboard key (arrow/WASD/Enter/Space/Escape) mirrors
+        /// input a connected controller is physically producing right now. Mapper
+        /// software (OneXConsole, Steam Input desktop configs) translates
+        /// controller input into REAL keyboard events - a field log showed every
+        /// d-pad press arriving as an arrow KeyDown ~15ms before the poll saw the
+        /// button, so held-state alone cannot identify the echo: a fresh
+        /// XInputGetState of the connected slots is the tiebreak. Used by the
+        /// window's tunneling key filter to swallow such echoes so they are never
+        /// mistaken for keyboard input (which deactivates gamepad mode) and never
+        /// reach WinUI's own key handling. A key pressed on a real keyboard while
+        /// the controller is idle matches nothing and keeps its normal meaning.
+        /// </summary>
+        public bool IsKeyEchoOfController(VirtualKey key)
+        {
+            if (!TryMapKey(key, out var action)) return false;
+
+            // Cheap path: the poll already sees this input as held (covers the
+            // mapper's key-repeat while the button stays down).
+            if (_heldActions.Contains(action) || _rawHeld.Contains(action)) return true;
+
+            foreach (var slot in _slots)
+            {
+                if (!slot.Connected) continue;
+                if (XInputNative.XInputGetState(slot.UserIndex, out var state) != XInputNative.ERROR_SUCCESS) continue;
+                if (MatchesAction(action, PadReading.From(state.Gamepad))) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Does this reading physically express the action? Sticks use the lenient
+        /// activity threshold rather than the press threshold: the mapper's own
+        /// stick threshold is unknown, and a too-strict match here reintroduces
+        /// the deactivation flicker this check exists to stop.
+        /// </summary>
+        private static bool MatchesAction(GamepadAction action, in PadReading r) => action switch
+        {
+            GamepadAction.NavUp => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_DPAD_UP) || r.LeftThumbstickY > ActivityThreshold,
+            GamepadAction.NavDown => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_DPAD_DOWN) || -r.LeftThumbstickY > ActivityThreshold,
+            GamepadAction.NavLeft => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_DPAD_LEFT) || -r.LeftThumbstickX > ActivityThreshold,
+            GamepadAction.NavRight => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_DPAD_RIGHT) || r.LeftThumbstickX > ActivityThreshold,
+            GamepadAction.Accept => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_A),
+            GamepadAction.Back => IsSet(r.Buttons, XInputNative.XINPUT_GAMEPAD_B),
+            _ => false
+        };
+
+        /// <summary>
         /// Map a key press (physical keyboard fallback or synthesized Gamepad* key)
         /// to a semantic event. Returns true if the key maps to a gamepad action,
         /// whether or not an event was dispatched (duplicates of recent polled
