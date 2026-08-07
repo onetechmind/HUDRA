@@ -9,7 +9,8 @@ namespace HUDRA.Services.FanControl
     {
         private static readonly List<Type> SupportedDeviceTypes = new()
         {
-            typeof(OneXFlyF1Device),    // Check F1 series first (more specific)
+            typeof(OneXPlayerX2Device), // Strict DMI match on X2 Mini - check first
+            typeof(OneXFlyF1Device),    // Check F1 series next (more specific than X1)
             typeof(OneXPlayerX1Device), // Then check X1 series
             typeof(GPDWinMiniDevice),   // Check Win Mini before generic GPD
             typeof(GPDDevice),

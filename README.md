@@ -99,6 +99,7 @@ Take manual control of your thermals with custom fan curves.
 | Device | Fan Curves | Fully Tested? | 
 |--------|------------| ------------- |
 | OneXPlayer X1 / X1 Mini / X1 Pro | ✅ | ✅ |
+| OneXPlayer X2 Mini / X2 Mini Pro | ✅ | ✅ |
 | OneXFly F1 / F1 Pro| ✅ | ✅ |
 | Legion Go 1/S| ✅ | ❌ |
 | Legion Go 2| ✅ | ✅ |

@@ -93,6 +93,148 @@ namespace HUDRA.Services.FanControl.Devices
         }
     }
 
+    public class OneXPlayerX2Device : FanControlDeviceBase
+    {
+        public override string ManufacturerName => "OneXPlayer";
+        public override string DeviceName => "X2 Series";
+
+        // EC interface per the fly/APEX family. The Linux oxpec driver maps the
+        // APEX - the X2 Mini Pro's Strix Halo sibling - to the same family as
+        // the OneXFly: PWM enable 0x4A / duty 0x4B (0x44A/0x44B in the extended
+        // ITE address space used here), native 0-255 duty scale, turbo button
+        // at 0xF1. The X1 family shares the fan registers and differs only in
+        // duty scale (184) and turbo address (0xEB); LogEcDiagnostics() reads
+        // both candidates read-only on init so the first on-device log can
+        // confirm the family assignment empirically.
+        public override ECRegisterMap RegisterMap { get; } = new ECRegisterMap
+        {
+            FanControlAddress = 0x44A,
+            FanDutyAddress = 0x44B,
+            StatusCommandPort = 0x4E,
+            DataPort = 0x4F,
+            FanValueMin = 11,  // Safety minimum - prevents fan shutdown (F1-family convention)
+            FanValueMax = 255, // Native fly-family scale
+            Protocol = new ECProtocolConfig
+            {
+                // Same ITE protocol as every ONE-NETBOOK device
+                AddressSelectHigh = 0x2E,
+                AddressSetHigh = 0x11,
+                AddressSelectLow = 0x2E,
+                AddressSetLow = 0x10,
+                DataSelect = 0x2E,
+                DataCommand = 0x12,
+                AddressPort = 0x2F,
+                ReadDataSelect = 0x2F
+            }
+        };
+
+        public override DeviceCapabilities Capabilities { get; } = new DeviceCapabilities
+        {
+            SupportedFeatures = new HashSet<FanControlCapability>
+            {
+                FanControlCapability.BasicSpeedControl
+            },
+            MinFanSpeed = 5, // ~4.3% (11/255) minimum safe speed, rounded up
+            MaxFanSpeed = 100,
+            SupportsAutoDetection = true,
+            SupportedModels = new[] { "ONEXPLAYER X2Mini PRO", "ONEXPLAYER X2 MINI" },
+            MinTdpWatts = 5,
+            // 80 W is the official air-cooled sustained limit (the Frost Bay
+            // liquid dock allows 120 W sustained; not exposed until verified)
+            MaxTdpWatts = 80
+        };
+
+        // Fly-family turbo register (0xF1), matching the APEX generation
+        public override uint? TurboButtonECAddress => 0x4F1;
+
+        public override bool IsDeviceSupported()
+        {
+            try
+            {
+                string? manufacturer = GetSystemInfo("Manufacturer");
+                string? model = GetSystemInfo("Model");
+                string? version = GetSystemInfo("Version");
+
+                DebugLogger.Log($"System Info - Manufacturer: {manufacturer}, Model: {model}, Version: {version}", "X2_DETECT");
+
+                var supportedManufacturers = new[] { "ONE-NETBOOK", "ONEXPLAYER", "ONE NETBOOK" };
+                // The device reports "ONEXPLAYER X2Mini PRO" (no space in
+                // "X2Mini"); match both spellings. Deliberately NOT matching a
+                // bare "ONEXPLAYER X2": the 10.95" Intel X2 is a different
+                // machine whose EC behavior is unverified.
+                var supportedModels = new[] { "X2MINI", "X2 MINI" };
+
+                bool manufacturerMatch = supportedManufacturers.Any(m =>
+                    manufacturer?.Contains(m, StringComparison.OrdinalIgnoreCase) == true);
+
+                bool modelMatch = supportedModels.Any(m =>
+                    model?.Contains(m, StringComparison.OrdinalIgnoreCase) == true ||
+                    version?.Contains(m, StringComparison.OrdinalIgnoreCase) == true);
+
+                if (manufacturerMatch && modelMatch)
+                {
+                    DebugLogger.Log("OneXPlayer X2 device detected by manufacturer + model", "X2_DETECT");
+                    return true;
+                }
+
+                DebugLogger.Log("Device not recognized as OneXPlayer X2", "X2_DETECT");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"Error checking device support: {ex.Message}", "X2_DETECT");
+                return false;
+            }
+        }
+
+        public override bool Initialize()
+        {
+            if (!base.Initialize()) return false;
+
+            LogEcDiagnostics();
+            return true;
+        }
+
+        /// <summary>
+        /// Read-only probe of the registers whose values differ between the two
+        /// candidate EC families, logged once at init. This is the field
+        /// evidence for the family assignment above: the turbo byte should live
+        /// at 0x4F1 (fly) rather than 0x4EB (X1), and the duty byte under
+        /// hardware control indicates the scale in use. Never writes.
+        /// </summary>
+        private void LogEcDiagnostics()
+        {
+            try
+            {
+                string Probe(ushort address)
+                {
+                    return ReadECRegister(address, RegisterMap, out byte value)
+                        ? $"0x{value:X2}"
+                        : "read-failed";
+                }
+
+                DebugLogger.Log(
+                    $"EC probe: control[0x44A]={Probe(0x44A)} duty[0x44B]={Probe(0x44B)} " +
+                    $"turboFly[0x4F1]={Probe(0x4F1)} turboX1[0x4EB]={Probe(0x4EB)} " +
+                    $"tachX1[0x458/0x459]={Probe(0x458)}/{Probe(0x459)} " +
+                    $"tachFly[0x476/0x477]={Probe(0x476)}/{Probe(0x477)}",
+                    "X2_DETECT");
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"EC probe failed: {ex.Message}", "X2_DETECT");
+            }
+        }
+
+        protected override double ApplySafetyConstraints(double percent)
+        {
+            // Same floor as the F1: ~4.3% (11/255) prevents the fan stopping
+            // entirely under software control - this is an 80 W device.
+            double safePercent = Math.Max(percent, Capabilities.MinFanSpeed);
+            return Math.Clamp(safePercent, Capabilities.MinFanSpeed, 100.0);
+        }
+    }
+
     public class OneXFlyF1Device : FanControlDeviceBase
     {
         public override string ManufacturerName => "OneXPlayer";

@@ -16,7 +16,8 @@ namespace HUDRA.Services
     {
         // Bump this version whenever detection logic changes (e.g. new device added, new model string).
         // Any cached result with a lower version is discarded and detection re-runs automatically.
-        private const int CURRENT_DETECTION_VERSION = 1;
+        // v2: OneXPlayer X2 Mini series added.
+        private const int CURRENT_DETECTION_VERSION = 2;
 
         private static DetectedDevice? _cachedDevice;
 
@@ -117,11 +118,19 @@ namespace HUDRA.Services
                 {
                     device.Manufacturer = DeviceManufacturer.OneXPlayer;
 
-                    // Check for X1 series
+                    // X2 Mini before X1 (most specific). The device reports
+                    // "ONEXPLAYER X2Mini PRO" - no space in "X2Mini".
+                    var x2Models = new[] { "X2MINI", "X2 MINI" };
                     var x1Models = new[] { "X1", "ONEXPLAYER X1" };
                     var f1Models = new[] { "F1", "ONEXFLY", "APEX" };
 
-                    if (x1Models.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
+                    if (x2Models.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
+                                          device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        device.DeviceName = "X2 Series";
+                        device.SupportsFanControl = true;
+                    }
+                    else if (x1Models.Any(m => device.RawModel.Contains(m, StringComparison.OrdinalIgnoreCase) ||
                                           device.RawVersion.Contains(m, StringComparison.OrdinalIgnoreCase)))
                     {
                         device.DeviceName = "X1 Series";
