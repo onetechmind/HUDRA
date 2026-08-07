@@ -96,7 +96,7 @@ Two invariants keep a leaked scope from wedging input:
 |---|---|---|---|
 | `ShellScope` | always (bottom) | LB/RB page cycling, LT/RT navbar selection, A/B on a selection | everything else |
 | `PageScope` | always (above shell) | directional focus moves, A activate, B back/collapse, right-stick scroll | chrome (LB/RB/LT/RT) |
-| `ValueEditScope` | A on a slider | left/right adjust, A/B exit | chrome |
+| `ValueEditScope` | A on a slider | left/right adjust (hold accelerates: ×2/×4/×8 at ~1.3/2.2/3 s), A/B exit | chrome |
 | `DropdownScope` | A on a ComboBox | up/down browse, A commit, B cancel-and-restore | chrome |
 | `DialogScope` | `GamepadDialog.ShowAsync` | d-pad between dialog buttons, A invokes focused, B cancels | nothing (modal) |
 | LibraryPage (`IInputScope`) | while Library is active (`SetPageInputScope`) | grid/button-zone navigation, A launch, X game settings, stick scroll | chrome; A/B with a navbar selection |

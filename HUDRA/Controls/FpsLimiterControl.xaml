@@ -117,6 +117,7 @@
                         IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}"
                         Maximum="{x:Bind MaxFps, Mode=OneWay}"
                         Minimum="0"
+                        SmallChange="1"
                         StepFrequency="1"
                         TickFrequency="1"
                         ValueChanged="OnFpsSliderValueChanged" />

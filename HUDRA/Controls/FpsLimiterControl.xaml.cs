@@ -274,11 +274,26 @@ namespace HUDRA.Controls
             if (_isUpdatingSlider) return;
 
             int newFps = (int)Math.Clamp(e.NewValue, 0, _maxFps);
-            if (newFps == _currentFps) return;
 
-            // Update label immediately for responsiveness
+            // Label always tracks the slider. It used to sit behind the
+            // same-value gate below, so returning to the applied value inside
+            // the debounce window left it showing the intermediate value -
+            // with the slider parked at 0 displaying "1 FPS", further LEFT
+            // presses raise no ValueChanged at all, which read as "the cap
+            // can't be turned off with the controller".
             if (FpsValueLabel != null)
                 FpsValueLabel.Text = newFps == 0 ? "Off" : $"{newFps} FPS";
+
+            if (newFps == _currentFps)
+            {
+                // Back at the value RTSS already has: cancel any pending write
+                // instead of letting a stale intermediate value apply itself
+                // 500 ms later (0 -> 1 -> 0 within the window used to end with
+                // RTSS limited to 1 FPS while the slider showed Off).
+                _pendingFps = -1;
+                _fpsDebounceTimer?.Stop();
+                return;
+            }
 
             // Restart debounce so we only hit RTSS after the user settles
             _pendingFps = newFps;

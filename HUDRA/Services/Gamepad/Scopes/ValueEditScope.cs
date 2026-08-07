@@ -11,6 +11,11 @@ namespace HUDRA.Services.GamepadInput
         private readonly IGamepadValueEditable _editable;
         private InputRouter? _router;
 
+        // Hold-to-accelerate state: consecutive repeats in the SAME direction.
+        // A fresh press or a direction change resets the ramp.
+        private GamepadAction _repeatAction;
+        private int _repeatStreak;
+
         public ValueEditScope(IGamepadValueEditable editable)
         {
             _editable = editable;
@@ -39,11 +44,11 @@ namespace HUDRA.Services.GamepadInput
             switch (e.Action)
             {
                 case GamepadAction.NavLeft:
-                    _editable.AdjustValue(-1);
+                    Adjust(-1, in e);
                     return true;
 
                 case GamepadAction.NavRight:
-                    _editable.AdjustValue(1);
+                    Adjust(1, in e);
                     return true;
 
                 case GamepadAction.NavUp:
@@ -63,6 +68,42 @@ namespace HUDRA.Services.GamepadInput
 
             // LB/RB/LT/RT fall through to the shell
             return false;
+        }
+
+        /// <summary>
+        /// Apply one adjustment event, accelerating while the direction is held:
+        /// repeats arrive every 110 ms (after the 400 ms initial delay), so the
+        /// ramp reaches x2 after ~1.3 s, x4 after ~2.2 s and x8 after ~3 s of
+        /// holding. Without it, crossing a wide range (the 0-120 FPS slider) at
+        /// 1 step per repeat took over 13 seconds. The multiplier is applied as
+        /// N unit steps rather than one big step, so clamping at the range ends
+        /// stays exact and legacy sign-based AdjustSliderValue implementations
+        /// accelerate identically.
+        /// </summary>
+        private void Adjust(int direction, in GamepadEvent e)
+        {
+            if (!e.IsRepeat || e.Action != _repeatAction)
+            {
+                _repeatAction = e.Action;
+                _repeatStreak = 0;
+            }
+            else
+            {
+                _repeatStreak++;
+            }
+
+            int steps = _repeatStreak switch
+            {
+                < 8 => 1,
+                < 16 => 2,
+                < 24 => 4,
+                _ => 8
+            };
+
+            for (int i = 0; i < steps; i++)
+            {
+                _editable.AdjustValue(direction);
+            }
         }
     }
 }
