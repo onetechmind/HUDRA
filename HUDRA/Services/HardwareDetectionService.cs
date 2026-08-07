@@ -176,14 +176,20 @@ namespace HUDRA.Services
         /// Falls back to HudraSettings constants if no device is detected or
         /// the detected device has not been initialized by FanControlService yet.
         /// </summary>
+        // Last limits handed out, for edge-triggered logging of flips between
+        // the device range and the constant fallback (a mid-session flip is a
+        // bug symptom - it capped the TDP picker at 30 W in the field).
+        private static (int MinTdp, int MaxTdp)? _lastReportedLimits;
+
         public static (int MinTdp, int MaxTdp) GetTdpLimits()
         {
+            (int MinTdp, int MaxTdp) result = (HudraSettings.MIN_TDP, HudraSettings.MAX_TDP);
             try
             {
                 var fanDevice = DeviceDetectionService.LastDetectedDevice;
                 if (fanDevice?.IsInitialized == true)
                 {
-                    return (fanDevice.Capabilities.MinTdpWatts, fanDevice.Capabilities.MaxTdpWatts);
+                    result = (fanDevice.Capabilities.MinTdpWatts, fanDevice.Capabilities.MaxTdpWatts);
                 }
             }
             catch (Exception ex)
@@ -191,7 +197,13 @@ namespace HUDRA.Services
                 Debug.WriteLine($"HardwareDetection: Failed to get device TDP limits, using defaults. {ex.Message}");
             }
 
-            return (HudraSettings.MIN_TDP, HudraSettings.MAX_TDP);
+            if (_lastReportedLimits != result)
+            {
+                DebugLogger.Log($"TDP limits now {result.MinTdp}-{result.MaxTdp}W (was {(_lastReportedLimits.HasValue ? $"{_lastReportedLimits.Value.MinTdp}-{_lastReportedLimits.Value.MaxTdp}W" : "unset")})", "TDP");
+                _lastReportedLimits = result;
+            }
+
+            return result;
         }
 
         private static string? GetSystemInfo(string property)

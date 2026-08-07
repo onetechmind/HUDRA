@@ -329,9 +329,14 @@ namespace HUDRA
         {
             if (_currentPageType == typeof(MainPage) && _mainPage != null)
             {
-                // Sync TDP picker to current value without triggering hardware set
+                // Sync TDP picker to current value without triggering hardware
+                // set. Validate against DEVICE limits, not the 5-30 constants:
+                // the constant gate silently skipped the sync (and the
+                // _currentTdpValue update) for any TDP above 30 on high-TDP
+                // devices, leaving stale state for the next page revisit.
                 var lastTdp = SettingsService.GetLastUsedTdp();
-                if (lastTdp >= HudraSettings.MIN_TDP && lastTdp <= HudraSettings.MAX_TDP)
+                var webTdpLimits = HardwareDetectionService.GetTdpLimits();
+                if (lastTdp >= webTdpLimits.MinTdp && lastTdp <= webTdpLimits.MaxTdp)
                 {
                     _mainPage.TdpPicker.SyncToCurrentTdp(lastTdp);
                     _currentTdpValue = lastTdp;
@@ -1366,6 +1371,27 @@ namespace HUDRA
         /// Updates the GameProfileService with the FanControlService reference.
         /// Called from App after FanControlService is initialized.
         /// </summary>
+        /// <summary>
+        /// Called when FanControlService finishes initializing. The first TDP
+        /// picker of a session is built BEFORE device detection completes, so
+        /// it runs with the 5-30 W fallback limits; this widens it to the real
+        /// device range in place, preserving the current selection.
+        /// </summary>
+        public void RefreshTdpLimits()
+        {
+            try
+            {
+                DispatcherQueue.TryEnqueue(() =>
+                {
+                    _mainPage?.TdpPicker?.RefreshDeviceLimits();
+                });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshTdpLimits failed: {ex.Message}");
+            }
+        }
+
         public void ConnectFanControlService()
         {
             try

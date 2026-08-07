@@ -48,6 +48,7 @@ namespace HUDRA.Controls
         private bool _isScrolling = false;
         private DispatcherTimer? _scrollEndTimer;
         private bool _isProgrammaticScroll = false; // True when scrolling programmatically (not user-initiated)
+        private int _programmaticRetries = 0; // Re-center attempts after a programmatic scroll landed off-target
 
         //Mouse drag state
         private bool _isMouseDragging = false;
@@ -128,10 +129,23 @@ namespace HUDRA.Controls
                 bool isValid = (_includeNoneOption && value == 0) ||
                                (value >= _deviceMinTdp && value <= _deviceMaxTdp);
 
+                if (!isValid && _selectedTdp != value)
+                {
+                    // Never silent: a rejected set with stale limits was the
+                    // invisible half of the "picker shows 30, hardware says 45"
+                    // field bug.
+                    DebugLogger.Log($"SelectedTdp={value}W rejected (limits {_deviceMinTdp}-{_deviceMaxTdp}W, current {_selectedTdp}W)", "TDP");
+                }
+
                 if (_selectedTdp != value && isValid)
                 {
                     var oldValue = _selectedTdp;
                     _selectedTdp = value;
+
+                    // Every accepted change is logged: the field 45W->10W state
+                    // corruption had no visible writer. Low-frequency (wheel
+                    // scrolling bypasses this setter), so no throttle needed.
+                    DebugLogger.Log($"SelectedTdp {oldValue}W -> {value}W (via setter, init={_isInitialized})", "TDP");
 
                     if (_isInitialized && !_suppressSelectionEvents)
                     {
@@ -288,6 +302,8 @@ namespace HUDRA.Controls
             _deviceMinTdp = limits.MinTdp;
             _deviceMaxTdp = limits.MaxTdp;
             InitializeData();
+
+            DebugLogger.Log($"Picker init: limits {_deviceMinTdp}-{_deviceMaxTdp}W, preserve={preserveCurrentValue}, selected={_selectedTdp}W, items={_tdpItems.Count}", "TDP");
 
             _dpiService = dpiService ?? throw new ArgumentNullException(nameof(dpiService));
             _autoSetEnabled = autoSetEnabled;
@@ -518,18 +534,32 @@ namespace HUDRA.Controls
                 // Target scroll position to center the item
                 var targetScrollPosition = itemCenter - viewportCenter;
 
-                // Clamp to valid scroll range
+                // Clamp to valid scroll range. NOTE: during an item-list rebuild
+                // the ScrollViewer's extent is stale until the next layout pass,
+                // so this clamp can land the wheel short of the target (field
+                // bug: a preserved 45W landed on the stale list's bottom item,
+                // 30). The settle handlers treat programmatic scrolls as
+                // corrections toward _selectedTdp and re-issue the scroll if the
+                // wheel lands elsewhere, so a stale-extent landing self-heals
+                // instead of silently rewriting the selection.
                 var maxScroll = Math.Max(0, TdpScrollViewer.ExtentWidth - TdpScrollViewer.ViewportWidth);
-                targetScrollPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
+                var clampedPosition = Math.Max(0, Math.Min(maxScroll, targetScrollPosition));
 
-                // Perform the scroll
-                TdpScrollViewer.ScrollToHorizontalOffset(targetScrollPosition);
-
-                // Reset flag after scroll completes (use dispatcher to ensure it happens after scroll events)
-                DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                if (Math.Abs(clampedPosition - TdpScrollViewer.HorizontalOffset) < 0.5)
                 {
+                    // Already there: no scroll events will fire, so the flag
+                    // must be cleared here or user scrolls would be
+                    // misclassified as programmatic forever.
                     _isProgrammaticScroll = false;
-                });
+                    return;
+                }
+
+                // Perform the scroll. The flag stays set until the settle
+                // handler (EnsureProperSelection) observes the scroll end - the
+                // old Low-priority dispatcher reset raced the scroll events,
+                // and a mis-landing processed after the early reset was
+                // adopted as a USER selection, scheduling a hardware write.
+                TdpScrollViewer.ScrollToHorizontalOffset(clampedPosition);
             }
         }
 
@@ -561,10 +591,20 @@ namespace HUDRA.Controls
         {
             if (!_isInitialized) return;
 
+            // Page-hide/teardown collapses the viewport, and the resulting
+            // scroll events "center" a bogus low item (field log: a selected
+            // 45W read back as 10W at the next revisit's init). Degenerate
+            // geometry means no real scroll is happening - ignore it.
+            if (TdpScrollViewer.ViewportWidth <= 0) return;
+
             var centeredTdp = GetCenteredTdpFromScroll();
 
-            // Update selection if centered item changed
-            if (centeredTdp != _lastCenteredTdp && centeredTdp != _selectedTdp)
+            // Update selection if centered item changed. Never during a
+            // programmatic scroll: those move the wheel TOWARD _selectedTdp, so
+            // the logical value is authoritative - adopting the physically
+            // centered item mid-flight (or after a stale-extent clamp) is what
+            // silently rewrote a preserved 45W to the wheel's landing spot.
+            if (!_isProgrammaticScroll && centeredTdp != _lastCenteredTdp && centeredTdp != _selectedTdp)
             {
                 _suppressSelectionEvents = true;
 
@@ -572,6 +612,14 @@ namespace HUDRA.Controls
                 _selectedTdp = centeredTdp;
                 UpdateSelection(oldSelected, centeredTdp);
                 OnPropertyChanged(nameof(SelectedTdp));
+
+                // Adjacent item crossings are normal scrolling; a JUMP in one
+                // event is the signature of an offset-reset adoption (the
+                // suspected 45W->10W corruption path) - log those only.
+                if (Math.Abs(centeredTdp - oldSelected) >= 5)
+                {
+                    DebugLogger.Log($"Scroll adoption jump: {oldSelected}W -> {centeredTdp}W (offset={TdpScrollViewer.HorizontalOffset:F0}, extent={TdpScrollViewer.ExtentWidth:F0}, viewport={TdpScrollViewer.ViewportWidth:F0}, intermediate={e.IsIntermediate})", "TDP");
+                }
 
                 // Play audio feedback only for user-initiated scrolls
                 if (_lastCenteredTdp != -1 && _audioHelper != null && !_isProgrammaticScroll)
@@ -617,9 +665,38 @@ namespace HUDRA.Controls
 
         private void EnsureProperSelection()
         {
+            // Same degenerate-geometry guard as ViewChanged: the deferred
+            // scroll-end timer can fire after the page is already hidden.
+            if (TdpScrollViewer.ViewportWidth <= 0) return;
+
             var centeredTdp = GetCenteredTdpFromScroll();
+
+            if (_isProgrammaticScroll)
+            {
+                // A programmatic scroll moves the wheel toward _selectedTdp -
+                // the value is the truth and the wheel is the thing being
+                // corrected. If it landed elsewhere (stale extent during a
+                // rebuild), re-issue the scroll now that layout has caught up.
+                _isProgrammaticScroll = false;
+
+                if (centeredTdp != _selectedTdp && _programmaticRetries < 3)
+                {
+                    _programmaticRetries++;
+                    DebugLogger.Log($"Wheel landed on {centeredTdp}W after programmatic scroll to {_selectedTdp}W - re-centering (attempt {_programmaticRetries})", "TDP");
+                    ScrollToSelectedItem();
+                }
+                else
+                {
+                    _programmaticRetries = 0;
+                }
+                return;
+            }
+
+            _programmaticRetries = 0;
+
             if (centeredTdp != _selectedTdp)
             {
+                DebugLogger.Log($"Scroll-end adoption: {_selectedTdp}W -> {centeredTdp}W (offset={TdpScrollViewer.HorizontalOffset:F0}, extent={TdpScrollViewer.ExtentWidth:F0}, viewport={TdpScrollViewer.ViewportWidth:F0})", "TDP");
                 SelectedTdp = centeredTdp;
             }
 
@@ -774,7 +851,11 @@ namespace HUDRA.Controls
             // Validate: value must be 0 (if IncludeNoneOption) or within device TDP range
             bool isValid = (_includeNoneOption && tdpValue == 0) ||
                            (tdpValue >= _deviceMinTdp && tdpValue <= _deviceMaxTdp);
-            if (!isValid) return;
+            if (!isValid)
+            {
+                DebugLogger.Log($"SyncToCurrentTdp({tdpValue}W) rejected (limits {_deviceMinTdp}-{_deviceMaxTdp}W, current {_selectedTdp}W)", "TDP");
+                return;
+            }
 
             var oldValue = _selectedTdp;
             _selectedTdp = tdpValue;
@@ -787,6 +868,41 @@ namespace HUDRA.Controls
             StatusText = $"Current TDP: {tdpValue}W (game profile)";
 
             OnPropertyChanged(nameof(SelectedTdp));
+        }
+
+        /// <summary>
+        /// Re-read device TDP limits and rebuild the wheel if they changed.
+        /// Exists because the FIRST picker of a session races
+        /// FanControlService initialization: GetTdpLimits falls back to the
+        /// 5-30 W constants until the fan device is detected, capping the wheel
+        /// at 30 on devices that go higher. Called when fan init completes.
+        /// Preserves the current selection (clamped only if now out of range).
+        /// </summary>
+        public void RefreshDeviceLimits()
+        {
+            if (!_isInitialized) return;
+
+            var limits = HardwareDetectionService.GetTdpLimits();
+            if (limits.MinTdp == _deviceMinTdp && limits.MaxTdp == _deviceMaxTdp) return;
+
+            DebugLogger.Log($"Device TDP limits refreshed: {_deviceMinTdp}-{_deviceMaxTdp}W -> {limits.MinTdp}-{limits.MaxTdp}W (selected {_selectedTdp}W)", "TDP");
+
+            _deviceMinTdp = limits.MinTdp;
+            _deviceMaxTdp = limits.MaxTdp;
+            InitializeData();
+
+            // Selection normally survives (limits only ever widen here); clamp
+            // defensively if it does not, without touching hardware.
+            if (_selectedTdp != 0 || !_includeNoneOption)
+            {
+                _selectedTdp = Math.Clamp(_selectedTdp, _deviceMinTdp, _deviceMaxTdp);
+            }
+
+            UpdateSelection(-1, _selectedTdp);
+            DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+            {
+                ScrollToSelectedItem();
+            });
         }
 
         public void SetAudioFeedbackEnabled(bool enabled)

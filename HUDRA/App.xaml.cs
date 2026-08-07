@@ -144,6 +144,11 @@ namespace HUDRA
 
                         // Connect FanControlService to GameProfileService for per-game fan curves
                         MainWindow?.ConnectFanControlService();
+
+                        // The first TDP picker was built with fallback limits
+                        // (device detection had not completed) - widen it to the
+                        // real device range now
+                        MainWindow?.RefreshTdpLimits();
                     }
                     catch (Exception turboEx)
                     {
