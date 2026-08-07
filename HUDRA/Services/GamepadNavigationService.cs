@@ -640,6 +640,21 @@ namespace HUDRA.Services
                 // For UP navigation, enter the body at the LAST element
                 if (direction == GamepadNavigationAction.Up || direction == GamepadNavigationAction.Left)
                 {
+                    // ...but only when approaching from OUTSIDE the expander. From
+                    // the top-most element inside its own body (CanNavigateUp is
+                    // false there, so the press falls through to the spatial pick,
+                    // and the element directly above the body IS this expander's
+                    // header), re-entering at the last element made UP wrap around
+                    // the body forever. Leave to the header instead - the mirror
+                    // of DOWN from the last element selecting the next header.
+                    if (_currentFocusedElement != null &&
+                        ReferenceEquals(FindNavigableParent(_currentFocusedElement), expander))
+                    {
+                        SetFocus(expander);
+                        System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP out of expander body to its own header");
+                        return;
+                    }
+
                     SetFocus(bodyElement);
                     bodyControl.FocusLastElement();
                     System.Diagnostics.Debug.WriteLine($"🎮 Navigated UP into expanded expander at last element");

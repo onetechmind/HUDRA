@@ -207,6 +207,26 @@ focus. Its transitions are field-hardened:
   on reader events — product intent, enforced by us rather than accidentally
   by the OS (XInput keeps reading regardless of visibility).
 
+## Expander traversal
+
+`NavigableExpander` is a header that is itself a focus candidate; its body is
+page-provided content (a legacy composite control or migrated inner elements).
+
+- A on the header toggles open/closed; focus stays on the header either way.
+- DOWN from an open header enters the body; DOWN from the last body element
+  leaves to the next candidate below (typically the next expander's header).
+- UP from the top-most body element leaves to the expander's **own header**.
+  The top-most element reports `CanNavigateUp = false`, so the press falls
+  through to the spatial pick — and the element directly above the body is
+  this very expander's header. Re-entering there at the last element (the
+  approach-from-outside behavior) made UP wrap around the body forever
+  (field report); the parent-expander guard in `NavigateToAdjacentElement`
+  leaves to the header instead, mirroring DOWN from the last element.
+- UP from a candidate *below* an open expander enters its body at the LAST
+  element, preserving approach direction.
+- B anywhere inside a body collapses the expander and returns focus to the
+  header.
+
 ## B-button semantics (one level at a time)
 
 Dialog → dropdown/slider edit → expander collapse → navbar selection →
