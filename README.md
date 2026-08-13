@@ -174,12 +174,16 @@ HUDRA uses `Win + Alt + Control` by default as a hotkey to show/hide the app. Th
 
 ## Installation
 
-**Requirements:** Windows 10 (1903+) or 11, AMD Ryzen processor, admin privileges.
+**Requirements:** Windows 10 (1903+) or 11, AMD Ryzen processor, admin privileges, [PawnIO](https://pawnio.eu) driver.
+
+HUDRA controls TDP and fan curves through [PawnIO](https://pawnio.eu), a signed, sandboxed kernel driver. On first launch, HUDRA offers to download and silently install the official PawnIO driver for you (no reboot required); you can also install or reinstall it anytime from **Settings → Install PawnIO Driver**.
+
+Because PawnIO is signed and sandboxed (unlike the WinRing0 driver older versions relied on, which is on Microsoft's vulnerable-driver blocklist), HUDRA is compatible with **Windows Memory Integrity (HVCI / Core Isolation)** — no need to disable it to use HUDRA.
 
 1. Download the installer from [Releases](../../releases)
 2. Run installer
 3. (Optional) HUDRA will offer to install RTSS if you do not already have it. Recommended for frame limiting
-4. Launch from Start menu
+4. Launch from Start menu — HUDRA will prompt to install the PawnIO driver if it isn't already present
 5. Enjoy!
 
 ---
@@ -205,7 +209,8 @@ See [LICENSE.md](https://github.com/onetechmind/HUDRA/blob/0.9.9470-beta/LICENSE
 
 ## Acknowledgments
 
-- [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) — TDP control
+- [PawnIO](https://pawnio.eu) — Signed, sandboxed kernel driver used for TDP and fan control
+- [PawnIO Modules](https://github.com/namazso/PawnIO.Modules) — SMU/EC access modules bundled with HUDRA
 - [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) — Hardware monitoring
 - [SteamGridDB](https://www.steamgriddb.com/) — Game artwork
 - [Lossless Scaling](https://store.steampowered.com/app/993090/Lossless_Scaling/) — Scaling and frame generation
@@ -213,7 +218,10 @@ See [LICENSE.md](https://github.com/onetechmind/HUDRA/blob/0.9.9470-beta/LICENSE
 - [GameLib.NET](https://github.com/tekgator/GameLib.NET) — Launcher detection
 - [ADLX-SDK-Wrapper](https://github.com/JamesCJ60/ADLX-SDK-Wrapper) - AMD features integration
 - [Handheld Companion](https://github.com/Valkirie/HandheldCompanion)
+- [RyzenAdj](https://github.com/FlyGoat/RyzenAdj) — SMU mailbox approach referenced for AMD TDP control
 - [Claude Code](https://www.claude.com/product/claude-code)
+
+See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for full third-party license details.
 
 ---
 

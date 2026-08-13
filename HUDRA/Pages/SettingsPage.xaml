@@ -274,6 +274,16 @@
                 Click="ResetGamepadInputButton_Click"
                 Content="Reset Gamepad Input" />
 
+            <!--  Recovery for a user who declined the first-launch PawnIO prompt: lets
+                  them install the TDP/fan control driver later without a fresh install.  -->
+            <Button
+                x:Name="InstallPawnIoButton"
+                Width="140"
+                Height="45"
+                HorizontalAlignment="Stretch"
+                Click="InstallPawnIoButton_Click"
+                Content="Install PawnIO Driver" />
+
             <!--  Version Display  -->
             <TextBlock
                 x:Name="VersionText"

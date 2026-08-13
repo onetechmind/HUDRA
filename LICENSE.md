@@ -36,6 +36,10 @@ If you wish to use HUDRA or portions of this codebase for commercial purposes, p
 **Enforcement:**
 We reserve the right to take any action necessary to block partial or full access to the application to any entities that do not comply with this license or the fair use principles outlined above.
 
+## Third-Party Components
+
+HUDRA incorporates or interoperates with third-party software (including PawnIO, PawnIO Modules, and LibreHardwareMonitorLib) that remain licensed under their own terms. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) for details.
+
 ## Contact
 
 For licensing inquiries, OEM partnerships, or commercial use requests, please open an issue on the GitHub repository or contact lance@onetechmind.com directly.

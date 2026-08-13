@@ -686,6 +686,46 @@ namespace HUDRA.Pages
             }
         }
 
+        private async void InstallPawnIoButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            try
+            {
+                if (button != null) button.IsEnabled = false;
+
+                var detect = HUDRA.Services.PawnIO.PawnIoInstallService.Detect();
+                if (detect.Installed)
+                {
+                    await ShowSimpleDialogAsync("PawnIO", $"PawnIO is already installed{(string.IsNullOrEmpty(detect.Version) ? "" : $" (version {detect.Version})")}.");
+                    return;
+                }
+
+                var (ok, msg) = await Task.Run(() => HUDRA.Services.PawnIO.PawnIoInstallService.InstallSilent());
+                SettingsService.SetPawnIoInstallDeclined(false); // clear the earlier decline either way
+                await ShowSimpleDialogAsync("PawnIO", ok ? "PawnIO installed. TDP and fan control are now available." : $"PawnIO installation did not complete: {msg}");
+            }
+            catch (Exception ex)
+            {
+                await ShowSimpleDialogAsync("PawnIO", $"Install failed: {ex.Message}");
+            }
+            finally
+            {
+                if (button != null) button.IsEnabled = true;
+            }
+        }
+
+        private async Task ShowSimpleDialogAsync(string title, string message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = title,
+                Content = message,
+                CloseButtonText = "OK",
+                XamlRoot = this.XamlRoot
+            };
+            await dialog.ShowAsync();
+        }
+
         private async void CopyDebugInfoButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -716,12 +756,14 @@ namespace HUDRA.Pages
                 bool isAdmin = StartupService.IsRunningAsAdmin();
                 debugInfo.AppendLine($"Running as Admin: {isAdmin}");
 
-                // RyzenAdj status
+                // PawnIO / TDP backend status
                 try
                 {
+                    var pawnIo = HUDRA.Services.PawnIO.PawnIoInstallService.Detect();
+                    debugInfo.AppendLine($"PawnIO Installed: {(pawnIo.Installed ? (string.IsNullOrEmpty(pawnIo.Version) ? "Yes" : pawnIo.Version) : "No")}");
+
                     using var tdpService = new TDPService();
-                    debugInfo.AppendLine($"RyzenAdj Status: {tdpService.InitializationStatus}");
-                    debugInfo.AppendLine($"RyzenAdj Mode: {(tdpService.IsDllMode ? "DLL (Fast)" : "EXE (Fallback)")}");
+                    debugInfo.AppendLine($"TDP Backend: {tdpService.InitializationStatus}");
 
                     // Current TDP if available
                     var tdpResult = tdpService.GetCurrentTdp();
@@ -732,7 +774,7 @@ namespace HUDRA.Pages
                 }
                 catch (Exception ex)
                 {
-                    debugInfo.AppendLine($"RyzenAdj Status: Error - {ex.Message}");
+                    debugInfo.AppendLine($"TDP Backend Status: Error - {ex.Message}");
                 }
 
                 // Fan control status

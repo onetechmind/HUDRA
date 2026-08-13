@@ -1,5 +1,6 @@
 ﻿using HUDRA.Configuration;
 using HUDRA.Services;
+using HUDRA.Services.PawnIO;
 using HUDRA.Services.Web;
 using Microsoft.UI.Xaml;
 using System;
@@ -22,6 +23,9 @@ namespace HUDRA
         private const uint MB_OK = 0x00000000;
         private const uint MB_ICONINFORMATION = 0x00000040;
         private const uint MB_ICONERROR = 0x00000010;
+        private const uint MB_YESNO = 0x00000004;
+        private const uint MB_ICONQUESTION = 0x00000020;
+        private const int IDYES = 6;
 
         private TrayIconService? _trayIcon;
         private PowerEventService? _powerEventService;
@@ -78,6 +82,59 @@ namespace HUDRA
             }
         }
 
+        // Detect -> consent -> install the bundled PawnIO driver at first launch.
+        // Never throws: a failed prompt must not block startup. Degraded mode is
+        // acceptable (TDPService / LpcIoPort already report unavailable gracefully).
+        private void EnsurePawnIoInstalled()
+        {
+            try
+            {
+                var (installed, version, _) = PawnIoInstallService.Detect();
+                if (installed)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[PAWNIO] PawnIO detected (version {version})");
+                    return;
+                }
+
+                if (SettingsService.GetPawnIoInstallDeclined())
+                {
+                    System.Diagnostics.Debug.WriteLine("[PAWNIO] PawnIO not installed; user previously declined");
+                    return;
+                }
+
+                int choice = MessageBox(IntPtr.Zero,
+                    "HUDRA now uses the signed PawnIO driver (in place of the old WinRing0 driver) " +
+                    "to control TDP and fan speed. PawnIO is compatible with Windows Memory Integrity / HVCI.\n\n" +
+                    "Install the bundled PawnIO driver now? (a silent install; no reboot needed)",
+                    "Install PawnIO driver",
+                    MB_YESNO | MB_ICONQUESTION);
+
+                if (choice == IDYES)
+                {
+                    var (ok, msg) = PawnIoInstallService.InstallSilent();
+                    System.Diagnostics.Debug.WriteLine($"[PAWNIO] Install result: ok={ok}, message={msg}");
+
+                    if (!ok)
+                    {
+                        MessageBox(IntPtr.Zero,
+                            $"PawnIO installation did not complete: {msg}\n\n" +
+                            "TDP and fan control may be unavailable. You can retry from Settings.",
+                            "PawnIO",
+                            MB_OK | MB_ICONERROR);
+                    }
+                }
+                else
+                {
+                    SettingsService.SetPawnIoInstallDeclined(true);
+                    System.Diagnostics.Debug.WriteLine("[PAWNIO] user declined PawnIO install");
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PAWNIO] EnsurePawnIoInstalled failed: {ex.Message}");
+            }
+        }
+
         protected override async void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             // Check for administrator rights before proceeding
@@ -96,6 +153,11 @@ namespace HUDRA
 
             // Apply any preferences set by the installer (first launch only)
             SettingsService.ApplyInstallerPreferences();
+
+            // Ensure the PawnIO driver is installed before any hardware service starts.
+            // Synchronous by design: the (one-time, first-launch) installer must finish
+            // before FanControlService.InitializeAsync() (LpcIO) and any TDP apply run.
+            EnsurePawnIoInstalled();
 
             // Check if launched at startup
             var commandLineArgs = Environment.GetCommandLineArgs();
@@ -629,6 +691,9 @@ namespace HUDRA
                 TemperatureMonitor?.Dispose();
                 FanControlService?.Dispose();
                 TurboService?.Dispose();
+
+                try { HUDRA.Services.PawnIO.RyzenSmuService.Instance.Dispose(); }
+                catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Error disposing RyzenSmuService: {ex.Message}"); }
 
                 // Release the single instance mutex
                 _instanceMutex?.ReleaseMutex();
