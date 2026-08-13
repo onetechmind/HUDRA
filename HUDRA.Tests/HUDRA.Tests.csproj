@@ -22,6 +22,9 @@
     <Compile Include="..\HUDRA\Services\Gamepad\GridMath.cs" Link="Gamepad\GridMath.cs" />
     <Compile Include="..\HUDRA\Services\Gamepad\DirectionReducer.cs" Link="Gamepad\DirectionReducer.cs" />
     <Compile Include="..\HUDRA\Services\Gamepad\StuckInputGuard.cs" Link="Gamepad\StuckInputGuard.cs" />
+    <Compile Include="..\HUDRA\Services\PawnIO\PawnIoFraming.cs" Link="PawnIO\PawnIoFraming.cs" />
+    <Compile Include="..\HUDRA\Services\PawnIO\AmdCodename.cs" Link="PawnIO\AmdCodename.cs" />
+    <Compile Include="..\HUDRA\Services\PawnIO\SmuMailboxTables.cs" Link="PawnIO\SmuMailboxTables.cs" />
   </ItemGroup>
 
   <ItemGroup>

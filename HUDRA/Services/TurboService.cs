@@ -1,6 +1,6 @@
 using Gma.System.MouseKeyHook;
 using HUDRA.Services.FanControl;
-using OpenLibSys;
+using HUDRA.Services.PawnIO;
 using System;
 using System.Collections.Generic;
 using System.Drawing.Text;
@@ -16,7 +16,7 @@ namespace HUDRA.Services
     {
         private readonly IKeyboardMouseEvents _hook;
         private readonly HashSet<Keys> _pressed = new();
-        private OpenLibSys.Ols? _ec;
+        private LpcIoPort? _ec;
         private readonly IFanControlDevice? _device;
 
         // Dynamic hotkey configuration
@@ -35,11 +35,12 @@ namespace HUDRA.Services
             
             try
             {
-                _ec = new Ols();
+                var (port, msg) = LpcIoPort.TryCreate();
+                _ec = port;
 
-                if (_ec.GetStatus() != (uint)Ols.Status.NO_ERROR)
+                if (_ec == null || !_ec.IsOpen)
                 {
-                    throw new InvalidOperationException("Failed to initialize OpenLibSys");
+                    throw new InvalidOperationException($"Failed to initialize PawnIO LpcIO: {msg}");
                 }
 
                 // Initialize turbo button if device supports it
@@ -62,7 +63,7 @@ namespace HUDRA.Services
             }
         }
 
-        private void InitializeTurboButton(uint ecAddress, Ols? ec = null)
+        private void InitializeTurboButton(uint ecAddress, LpcIoPort? ec = null)
         {
             try
             {
@@ -253,13 +254,14 @@ namespace HUDRA.Services
                 _ec?.Dispose();
                 _ec = null;
 
-                // Re-create the OpenLibSys connection
-                _ec = new Ols();
-                if (_ec.GetStatus() != (uint)Ols.Status.NO_ERROR)
+                // Re-create the PawnIO LpcIO connection
+                var (port, msg) = LpcIoPort.TryCreate();
+                _ec = port;
+                if (_ec == null || !_ec.IsOpen)
                 {
-                    _ec.Dispose();
+                    _ec?.Dispose();
                     _ec = null;
-                    var errorMessage = "Failed to reinitialize OpenLibSys for turbo button";
+                    var errorMessage = $"Failed to reinitialize PawnIO LpcIO for turbo button: {msg}";
                     System.Diagnostics.Debug.WriteLine($"⚠️ {errorMessage}");
                     return (false, errorMessage);
                 }

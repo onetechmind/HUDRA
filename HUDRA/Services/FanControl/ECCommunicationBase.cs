@@ -1,4 +1,4 @@
-﻿using OpenLibSys;
+﻿using HUDRA.Services.PawnIO;
 using System;
 using System.Diagnostics;
 
@@ -6,22 +6,22 @@ namespace HUDRA.Services.FanControl
 {
     public abstract class ECCommunicationBase : IDisposable
     {
-        protected Ols? _ols;
+        protected LpcIoPort? _port;
         protected bool _disposed = false;
         private readonly object _lockObject = new object();
 
-        public bool IsOpen => _ols != null && _ols.GetStatus() == (uint)Ols.Status.NO_ERROR;
+        public bool IsOpen => _port != null && _port.IsOpen;
 
         protected virtual bool InitializeEC()
         {
             try
             {
-                _ols = new Ols();
-                var status = _ols.GetStatus();
+                var (port, msg) = LpcIoPort.TryCreate();
+                _port = port;
 
-                if (status != (uint)Ols.Status.NO_ERROR)
+                if (_port == null || !_port.IsOpen)
                 {
-                    Debug.WriteLine($"OpenLibSys initialization failed with status: {status}");
+                    Debug.WriteLine($"EC init failed: {msg}");
                     return false;
                 }
 
@@ -103,8 +103,8 @@ namespace HUDRA.Services.FanControl
                                  protocol.DataSelect, protocol.DataCommand);
 
                     // Use protocol-specific read sequence
-                    _ols!.WriteIoPortByte(registerMap.StatusCommandPort, protocol.ReadDataSelect);
-                    data = _ols.ReadIoPortByte(registerMap.DataPort);
+                    _port!.WriteIoPortByte(registerMap.StatusCommandPort, protocol.ReadDataSelect);
+                    data = _port.ReadIoPortByte(registerMap.DataPort);
 
                     return true;
                 }
@@ -118,8 +118,8 @@ namespace HUDRA.Services.FanControl
 
         private void WritePortPair(ushort commandPort, ushort dataPort, byte command, byte data)
         {
-            _ols!.WriteIoPortByte(commandPort, command);
-            _ols.WriteIoPortByte(dataPort, data);
+            _port!.WriteIoPortByte(commandPort, command);
+            _port.WriteIoPortByte(dataPort, data);
         }
 
         protected static byte PercentageToDuty(double percentage, byte minValue, byte maxValue)
@@ -143,8 +143,8 @@ namespace HUDRA.Services.FanControl
         {
             if (!_disposed)
             {
-                _ols?.Dispose();
-                _ols = null;
+                _port?.Dispose();
+                _port = null;
                 _disposed = true;
             }
         }

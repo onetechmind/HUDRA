@@ -83,24 +83,15 @@ namespace HUDRA.Services
 
             try
             {
-                var result = _tdpService.GetCurrentTdp();
-                if (!result.Success)
+                // Unconditional re-assert. The live SMU read is unreliable on some APUs
+                // (e.g. StrixHalo returns 0 for the arg-0 query), so instead of
+                // read-compare-correct we re-apply the target every interval. The SMU
+                // write is idempotent and echo-verified, so re-writing an unchanged limit
+                // is harmless; if a game or the firmware lowered it, this restores it.
+                var setResult = _tdpService.SetTdp(target * 1000);
+                if (!setResult.Success)
                 {
-                    Debug.WriteLine($"TDP monitor read failed: {result.Message}");
-                    return;
-                }
-
-                var current = result.TdpWatts;
-                if (Math.Abs(current - target) > 2)
-                {
-                    var setResult = _tdpService.SetTdp(target * 1000);
-                    Debug.WriteLine($"TDP drift detected. Current: {current}W, Target: {target}W - {(setResult.Success ? "corrected" : "failed")}");
-
-                    _dispatcher.TryEnqueue(() =>
-                    {
-                        TdpDriftDetected?.Invoke(this,
-                            new TdpDriftEventArgs(current, target, setResult.Success));
-                    });
+                    Debug.WriteLine($"TDP sticky re-assert to {target}W failed: {setResult.Message}");
                 }
             }
             catch (Exception ex)

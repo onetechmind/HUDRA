@@ -70,6 +70,9 @@ namespace HUDRA.Services
         // Hardware detection key (stored permanently)
         private const string DETECTED_DEVICE_KEY = "DetectedDevice";
 
+        // PawnIO driver keys
+        private const string PAWNIO_INSTALL_DECLINED_KEY = "PawnIoInstallDeclined";
+
         // Web Remote settings keys
         private const string WEB_REMOTE_ENABLED_KEY = "WebRemoteEnabled";
         private const string WEB_REMOTE_PORT_KEY = "WebRemotePort";
@@ -826,6 +829,17 @@ namespace HUDRA.Services
         public static void SetSgdbHintDismissed(bool dismissed)
         {
             SetBooleanSetting(SGDB_HINT_DISMISSED_KEY, dismissed);
+        }
+
+        // PawnIO driver install prompt methods
+        public static bool GetPawnIoInstallDeclined()
+        {
+            return GetBooleanSetting(PAWNIO_INSTALL_DECLINED_KEY, false);
+        }
+
+        public static void SetPawnIoInstallDeclined(bool declined)
+        {
+            SetBooleanSetting(PAWNIO_INSTALL_DECLINED_KEY, declined);
         }
 
         /// <summary>
