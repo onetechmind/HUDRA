@@ -10,6 +10,8 @@ namespace HUDRA.Models
     {
         public int TdpWatts { get; set; }
         public bool StickyTdpEnabled { get; set; }
+        // Nullable so snapshots saved before EPP existed skip it on revert
+        public int? EppValue { get; set; }
         public int ResolutionWidth { get; set; }
         public int ResolutionHeight { get; set; }
         public int RefreshRateHz { get; set; }

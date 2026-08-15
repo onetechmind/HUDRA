@@ -55,7 +55,17 @@ namespace HUDRA.Services.Power
             try
             {
                 var output = await ExecutePowerCfgCommandAsync($"/setactive {profileId:D}");
-                return !output.Contains("error", StringComparison.OrdinalIgnoreCase);
+                var success = !output.Contains("error", StringComparison.OrdinalIgnoreCase);
+
+                if (success)
+                {
+                    // EPP is stored per-scheme, so a scheme switch (intelligent
+                    // switching, Settings page, web remote) would otherwise
+                    // silently revert the user's EPP to the new scheme's value.
+                    await ReapplyEppToCurrentSchemeAsync();
+                }
+
+                return success;
             }
             catch (Exception ex)
             {
@@ -268,6 +278,91 @@ namespace HUDRA.Services.Power
                 System.Diagnostics.Debug.WriteLine($"Failed to set CPU boost: {ex.Message}");
                 return false;
             }
+        }
+
+        // EPP (Energy Performance Preference) Control Methods
+        // Explicit GUIDs rather than the PERFEPP alias: they work even when the
+        // setting is hidden from the powercfg UI (ATTRIB_HIDE, the Windows 11
+        // Balanced-scheme default).
+        private const string SubProcessorGuid = "54533251-82be-4824-96c1-47b60b740d00";
+        private const string PerfEppGuid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
+        private const string PerfEpp1Guid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6864";
+        private bool? _perfEpp1Supported;
+
+        public async Task<(bool Success, int Value)> GetEppAsync()
+        {
+            try
+            {
+                var output = await ExecutePowerCfgCommandAsync($"/query SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid}");
+                var (ac, dc) = PowercfgEppParser.ParseSettingIndexes(output);
+
+                // Prefer the DC (battery) value on a handheld; after HUDRA's
+                // first write AC and DC are always identical anyway.
+                var value = dc >= 0 ? dc : ac;
+                return value >= 0 ? (true, value) : (false, -1);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to get EPP: {ex.Message}");
+                return (false, -1);
+            }
+        }
+
+        public async Task<(bool Success, string Message)> SetEppAsync(int value)
+        {
+            var epp = PowercfgEppParser.ClampEpp(value);
+
+            try
+            {
+                var setAcOutput = await ExecutePowerCfgCommandAsync($"/setacvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid} {epp}");
+                var setDcOutput = await ExecutePowerCfgCommandAsync($"/setdcvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid} {epp}");
+
+                // PERFEPP1 covers efficiency-class-1 cores on heterogeneous AMD
+                // parts; homogeneous CPUs reject the GUID, so its failure never
+                // affects the result and is only probed once.
+                if (_perfEpp1Supported != false)
+                {
+                    try
+                    {
+                        await ExecutePowerCfgCommandAsync($"/setacvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEpp1Guid} {epp}");
+                        await ExecutePowerCfgCommandAsync($"/setdcvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEpp1Guid} {epp}");
+                        _perfEpp1Supported = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _perfEpp1Supported = false;
+                        System.Diagnostics.Debug.WriteLine($"PERFEPP1 not supported on this CPU, skipping from now on: {ex.Message}");
+                    }
+                }
+
+                var applyOutput = await ExecutePowerCfgCommandAsync("/setactive SCHEME_CURRENT");
+
+                var success = !setAcOutput.Contains("error", StringComparison.OrdinalIgnoreCase) &&
+                             !setDcOutput.Contains("error", StringComparison.OrdinalIgnoreCase) &&
+                             !applyOutput.Contains("error", StringComparison.OrdinalIgnoreCase);
+
+                if (success)
+                {
+                    System.Diagnostics.Debug.WriteLine($"⚡ EPP set to {epp} for both AC and DC power");
+                    return (true, $"EPP set to {epp}");
+                }
+
+                return (false, "powercfg reported an error setting EPP");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set EPP: {ex.Message}");
+                return (false, $"Failed to set EPP: {ex.Message}");
+            }
+        }
+
+        private async Task ReapplyEppToCurrentSchemeAsync()
+        {
+            var epp = SettingsService.GetEppValue();
+            if (epp < 0) return; // never set by the user
+
+            var result = await SetEppAsync(epp);
+            System.Diagnostics.Debug.WriteLine($"⚡ Re-applied EPP {epp} after scheme change - {(result.Success ? "OK" : result.Message)}");
         }
 
         // Intelligent Power Switching Methods

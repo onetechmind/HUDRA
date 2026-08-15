@@ -29,6 +29,7 @@ namespace HUDRA.Services
         private const string RestorePowerProfileOnStartupKey = "RestorePowerProfileOnStartup";
         private const string CpuBoostEnabledKey = "CpuBoostEnabled";
         private const string RestoreCpuBoostOnStartupKey = "RestoreCpuBoostOnStartup";
+        private const string EppValueKey = "EppValue";
         
         // New intelligent power switching keys
         private const string DefaultPowerProfileKey = "DefaultPowerProfile";
@@ -645,6 +646,16 @@ namespace HUDRA.Services
         public static void SetRestoreCpuBoostOnStartup(bool restore)
         {
             SetBooleanSetting(RestoreCpuBoostOnStartupKey, restore);
+        }
+
+        public static int GetEppValue()
+        {
+            return GetIntegerSetting(EppValueKey, -1); // -1 = never set, don't restore
+        }
+
+        public static void SetEppValue(int value)
+        {
+            SetIntegerSetting(EppValueKey, value);
         }
 
         // Intelligent Power Switching Settings

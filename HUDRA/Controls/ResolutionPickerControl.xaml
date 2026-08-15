@@ -52,7 +52,7 @@
                           ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                           HorizontalAlignment="Stretch"
                           ap:GamepadNavigation.IsEnabled="True"
-                          ap:GamepadNavigation.NavigationOrder="3"
+                          ap:GamepadNavigation.NavigationOrder="4"
                           helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
 
             <ComboBox x:Name="RefreshRateComboBox"
@@ -61,7 +61,7 @@
                           ItemContainerStyle="{StaticResource HudraComboBoxItemStyle}"
                           HorizontalAlignment="Stretch"
                           ap:GamepadNavigation.IsEnabled="True"
-                          ap:GamepadNavigation.NavigationOrder="3"
+                          ap:GamepadNavigation.NavigationOrder="4"
                           helpers:GamepadComboBoxHelper.IsGamepadEnabled="True"/>
         </Grid>
     </StackPanel>

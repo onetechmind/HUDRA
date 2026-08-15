@@ -34,6 +34,7 @@ Your performance/quick settings command center. Everything you need to tweak on 
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
 - **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
+- **EPP Control** — Energy Performance Preference slider (0 = max CPU boost, 100 = max efficiency). Higher values make the CPU boost less aggressively, which on a shared-TDP APU leaves more power headroom for the GPU in GPU-bound games. Note: Windows' "Best performance" power slider can override EPP on AC power
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 

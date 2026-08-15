@@ -25,6 +25,7 @@
     <Compile Include="..\HUDRA\Services\PawnIO\PawnIoFraming.cs" Link="PawnIO\PawnIoFraming.cs" />
     <Compile Include="..\HUDRA\Services\PawnIO\AmdCodename.cs" Link="PawnIO\AmdCodename.cs" />
     <Compile Include="..\HUDRA\Services\PawnIO\SmuMailboxTables.cs" Link="PawnIO\SmuMailboxTables.cs" />
+    <Compile Include="..\HUDRA\Services\Power\PowercfgEppParser.cs" Link="Power\PowercfgEppParser.cs" />
   </ItemGroup>
 
   <ItemGroup>

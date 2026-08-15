@@ -317,6 +317,7 @@ namespace HUDRA.Services.Web
         public async Task<object> BuildControlStateSnapshotAsync()
         {
             var tdpResult = await GetCurrentTdpAsync();
+            var eppValue = await GetEppForSnapshotAsync();
             var audio = CreateAudioService();
             var brightness = CreateBrightnessService();
             var hdr = CreateHdrService();
@@ -368,8 +369,27 @@ namespace HUDRA.Services.Web
                     rsrSharpness = amdState.rsrSharpness,
                     afmfEnabled = amdState.afmfEnabled,
                     antiLagEnabled = amdState.antiLagEnabled
-                }
+                },
+                epp = eppValue
             };
+        }
+
+        /// <summary>
+        /// EPP for the periodic snapshot. The persisted value is authoritative
+        /// once the user has set one (native and web writes both update it);
+        /// only before that do we shell out to powercfg, so the 3s broadcast
+        /// doesn't spawn a process per tick. null = unavailable.
+        /// </summary>
+        private async Task<int?> GetEppForSnapshotAsync()
+        {
+            var stored = SettingsService.GetEppValue();
+            if (stored >= 0) return stored;
+
+            var powerProfile = GetPowerProfile();
+            if (powerProfile == null) return null;
+
+            var result = await powerProfile.GetEppAsync();
+            return result.Success ? result.Value : null;
         }
 
         public void Dispose()

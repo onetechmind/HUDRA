@@ -129,6 +129,12 @@ namespace HUDRA.Controls
                 DefaultTdpValue.Text = $"{defaults.TdpWatts}W";
             }
 
+            // EPP
+            if (DefaultEppValue != null)
+            {
+                DefaultEppValue.Text = defaults.EppValue is int epp ? $"{epp}" : "--";
+            }
+
             // Resolution
             if (DefaultResolutionValue != null)
             {

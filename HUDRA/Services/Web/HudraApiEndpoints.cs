@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HUDRA.Configuration;
 using HUDRA.Models;
 using HUDRA.Services;
+using HUDRA.Services.Power;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -570,6 +571,37 @@ namespace HUDRA.Services.Web
                     ? Results.Ok(new { success = true, enabled = body.enabled })
                     : Results.Problem("Failed to set CPU boost");
             });
+
+            app.MapGet("/api/power/epp", async () =>
+            {
+                var svc = bridge.GetPowerProfile();
+                if (svc == null)
+                    return Results.Ok(new { value = -1 });
+
+                var (success, value) = await svc.GetEppAsync();
+                return Results.Ok(new { value = success ? value : -1 });
+            });
+
+            app.MapPost("/api/power/epp", async (HttpContext ctx) =>
+            {
+                var body = await ParseBody<EppRequest>(ctx);
+                if (body == null) return Results.BadRequest(new { error = "Invalid request" });
+
+                var svc = bridge.GetPowerProfile();
+                if (svc == null)
+                    return Results.Problem("Power profile service not available");
+
+                var epp = PowercfgEppParser.ClampEpp(body.value);
+                var result = await svc.SetEppAsync(epp);
+                if (result.Success)
+                {
+                    SettingsService.SetEppValue(epp);
+                    bridge.NotifyWebMutation();
+                }
+                return result.Success
+                    ? Results.Ok(new { success = true, value = epp })
+                    : Results.Problem("Failed to set EPP");
+            });
         }
 
         // --- Battery ---
@@ -724,6 +756,7 @@ namespace HUDRA.Services.Web
         private record EnabledRequest(bool enabled);
         private record FanPresetRequest(string preset);
         private record PowerProfileRequest(string profileId);
+        private record EppRequest(int value);
         private record AmdRsrRequest(bool enabled, int sharpness);
         private record SharpnessRequest(int sharpness);
     }

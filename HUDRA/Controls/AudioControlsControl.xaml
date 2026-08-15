@@ -22,7 +22,7 @@
                     Width="50"
                     Height="50"
                     ap:GamepadNavigation.IsEnabled="True"
-                    ap:GamepadNavigation.NavigationOrder="5">
+                    ap:GamepadNavigation.NavigationOrder="6">
             <FontIcon x:Name="MuteButtonIcon"
                           FontFamily="Segoe MDL2 Assets"
                           Glyph="&#xE767;"
@@ -36,7 +36,7 @@
                     Maximum="100"
                     SmallChange="5"
                     ap:GamepadNavigation.IsEnabled="True"
-                    ap:GamepadNavigation.NavigationOrder="5"/>
+                    ap:GamepadNavigation.NavigationOrder="6"/>
     </Grid>
 
 </UserControl>

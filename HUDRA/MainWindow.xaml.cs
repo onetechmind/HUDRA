@@ -625,7 +625,7 @@ namespace HUDRA
             if (!_mainPageInitialized)
             {
                 // First visit - full initialization
-                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService);
+                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService, _powerProfileService);
                 _mainPageInitialized = true;
 
                 // Set up TDP change tracking (store handler to prevent duplicate subscriptions)
@@ -720,6 +720,7 @@ namespace HUDRA
                 }
 
                 // Initialize other controls
+                _mainPage.EppControl.Initialize(_powerProfileService);
                 _mainPage.ResolutionPicker.Initialize();
                 _mainPage.AudioControls.Initialize();
                 _mainPage.BrightnessControls.Initialize();
@@ -2666,6 +2667,25 @@ namespace HUDRA
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"  Sticky TDP failed: {ex.Message}");
+                }
+
+                // Apply EPP (null on profiles saved before EPP existed)
+                if (defaultProfile.EppValue is int epp)
+                {
+                    try
+                    {
+                        var eppResult = await _powerProfileService.SetEppAsync(epp);
+                        if (eppResult.Success)
+                        {
+                            SettingsService.SetEppValue(epp);
+                            _mainPage?.EppControl?.SyncToEpp(epp);
+                        }
+                        System.Diagnostics.Debug.WriteLine($"  EPP: {epp} - {(eppResult.Success ? "OK" : "FAILED")}");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"  EPP failed: {ex.Message}");
+                    }
                 }
 
                 // Note: Resolution/Refresh Rate are NOT applied on startup to avoid window rendering issues.

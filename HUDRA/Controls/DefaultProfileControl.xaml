@@ -62,6 +62,36 @@
                     Text="--" />
             </Grid>
 
+            <!--  EPP Row  -->
+            <Grid Height="30">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <FontIcon
+                    Grid.Column="0"
+                    FontFamily="Segoe MDL2 Assets"
+                    FontSize="14"
+                    Foreground="#9B8ACA"
+                    Glyph="&#xEC48;" />
+                <TextBlock
+                    Grid.Column="1"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="#CCFFFFFF"
+                    Text="EPP" />
+                <TextBlock
+                    x:Name="DefaultEppValue"
+                    Grid.Column="2"
+                    VerticalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="14"
+                    Foreground="White"
+                    Text="--" />
+            </Grid>
+
             <!--  Resolution Row  -->
             <Grid Height="30">
                 <Grid.ColumnDefinitions>
