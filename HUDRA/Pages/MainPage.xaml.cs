@@ -1,6 +1,5 @@
 using HUDRA.Controls;
 using HUDRA.Services;
-using HUDRA.Services.Power;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;
@@ -53,11 +52,9 @@ namespace HUDRA.Pages
                                AudioService audioService,
                                BrightnessService brightnessService,
                                RtssFpsLimiterService fpsLimiterService,
-                               HdrService hdrService,
-                               PowerProfileService powerProfileService)
+                               HdrService hdrService)
         {
             TdpPicker.Initialize(dpiService);
-            EppControl.Initialize(powerProfileService);
             ResolutionPicker.Initialize();
             AudioControls.Initialize();
             BrightnessControls.Initialize();

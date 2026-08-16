@@ -625,7 +625,7 @@ namespace HUDRA
             if (!_mainPageInitialized)
             {
                 // First visit - full initialization
-                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService, _powerProfileService);
+                _mainPage.Initialize(_dpiService, _resolutionService, _audioService, _brightnessService, _fpsLimiterService, _hdrService);
                 _mainPageInitialized = true;
 
                 // Set up TDP change tracking (store handler to prevent duplicate subscriptions)
@@ -720,7 +720,6 @@ namespace HUDRA
                 }
 
                 // Initialize other controls
-                _mainPage.EppControl.Initialize(_powerProfileService);
                 _mainPage.ResolutionPicker.Initialize();
                 _mainPage.AudioControls.Initialize();
                 _mainPage.BrightnessControls.Initialize();
@@ -1931,6 +1930,11 @@ namespace HUDRA
                 _enhancedGameDetectionService.ScanningStateChanged += OnScanningStateChanged;
                 _enhancedGameDetectionService.DatabaseReady += OnDatabaseReady;
 
+                // Hook up intelligent power switching at startup; previously this
+                // only happened on first Settings-page visit, leaving the enabled
+                // setting dead for the whole session until then.
+                _powerProfileService.InitializeIntelligentSwitching(_enhancedGameDetectionService);
+
                 // Initialize game database for GameSettingsPage
                 _gameDatabase = _enhancedGameDetectionService.Database;
 
@@ -2678,7 +2682,7 @@ namespace HUDRA
                         if (eppResult.Success)
                         {
                             SettingsService.SetEppValue(epp);
-                            _mainPage?.EppControl?.SyncToEpp(epp);
+                            _settingsPage?.PowerProfileControl?.SyncToEpp(epp);
                         }
                         System.Diagnostics.Debug.WriteLine($"  EPP: {epp} - {(eppResult.Success ? "OK" : "FAILED")}");
                     }

@@ -33,9 +33,6 @@
             <controls:StickyTdpToggle
                 x:Name="StickyTdpToggle"
                 x:FieldModifier="public" />
-            <controls:EppControl
-                x:Name="EppControl"
-                x:FieldModifier="public" />
             <Rectangle Style="{StaticResource HudraHorizontalRule}" IsTabStop="False" />
             <controls:ResolutionPickerControl
                 x:Name="ResolutionPicker"

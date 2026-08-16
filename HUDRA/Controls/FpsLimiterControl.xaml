@@ -113,7 +113,7 @@
                         x:Name="FpsSlider"
                         Margin="0,4,0,0"
                         ap:GamepadNavigation.IsEnabled="True"
-                        ap:GamepadNavigation.NavigationOrder="5"
+                        ap:GamepadNavigation.NavigationOrder="4"
                         IsEnabled="{Binding IsRtssInstalled, Mode=OneWay}"
                         Maximum="{x:Bind MaxFps, Mode=OneWay}"
                         Minimum="0"
@@ -134,7 +134,7 @@
                 <ToggleSwitch
                     x:Name="HdrToggle"
                     ap:GamepadNavigation.IsEnabled="True"
-                    ap:GamepadNavigation.NavigationOrder="5"
+                    ap:GamepadNavigation.NavigationOrder="4"
                     FontSize="13"
                     IsEnabled="{x:Bind IsHdrSupported, Mode=OneWay}"
                     OffContent="OFF"

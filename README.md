@@ -34,7 +34,6 @@ Your performance/quick settings command center. Everything you need to tweak on 
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
 - **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
-- **EPP Control** — Energy Performance Preference slider (0 = max CPU boost, 100 = max efficiency). Higher values make the CPU boost less aggressively, which on a shared-TDP APU leaves more power headroom for the GPU in GPU-bound games. Note: Windows' "Best performance" power slider can override EPP on AC power
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 
@@ -139,6 +138,7 @@ Configure HUDRA to your liking.
 
 - **Power Profile Switcher** — Select your Normal and Gaming plans for automatic switching when gaming starts and ends
 - **CPU Boost** — Enable/disable processor boost for thermal or battery management (not needed for most games)
+- **EPP Control** — Energy Performance Preference slider (0 = max CPU boost, 100 = max efficiency). Higher values make the CPU boost less aggressively, which on a shared-TDP APU leaves more power headroom for the GPU in GPU-bound games. Note: Windows' "Best performance" power slider can override EPP on AC power
 - **Game Detection** — Enable/disable Library Scanning to take advantage of dynamic navbar actions and the Library page
 - **SteamGridDB API key** — Paste your key for automatic cover art downloads in the Library (key encrypted locally on your device)
 - **Startup Options** — Launch HUDRA with Windows and/or RTSS and Lossless Scaling with HUDRA. Start HUDRA minimzed

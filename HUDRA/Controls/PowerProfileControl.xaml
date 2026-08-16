@@ -166,6 +166,57 @@
             </Grid>
         </Border>
 
+        <!--  EPP Slider  -->
+        <Border
+            x:Name="EppBorder"
+            Margin="0,10,0,0"
+            Padding="10,5,10,8"
+            Background="#22FFFFFF"
+            BorderBrush="{x:Bind EppFocusBrush, Mode=OneWay}"
+            BorderThickness="2"
+            CornerRadius="12">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock
+                        Grid.Column="0"
+                        VerticalAlignment="Center"
+                        IsTabStop="False"
+                        Style="{StaticResource SettingsLabelStyle}"
+                        Text="EPP" />
+                    <TextBlock
+                        x:Name="EppValueLabel"
+                        Grid.Column="1"
+                        VerticalAlignment="Center"
+                        FontFamily="Cascadia Code"
+                        FontSize="14"
+                        FontWeight="SemiBold"
+                        Foreground="#CCFFFFFF"
+                        IsTabStop="False"
+                        Text="--" />
+                </Grid>
+                <Slider
+                    x:Name="EppSlider"
+                    Margin="0,4,0,0"
+                    Maximum="100"
+                    Minimum="0"
+                    SmallChange="5"
+                    StepFrequency="5"
+                    TickFrequency="25"
+                    ValueChanged="OnEppSliderValueChanged" />
+                <TextBlock
+                    x:Name="EppCaption"
+                    HorizontalAlignment="Center"
+                    FontFamily="Cascadia Code"
+                    FontSize="12"
+                    Foreground="#99FFFFFF"
+                    Text="0 = CPU boost · 100 = Efficiency" />
+            </StackPanel>
+        </Border>
+
         <Border
             x:Name="PowerOptionsLinkBorder"
             HorizontalAlignment="Center"
