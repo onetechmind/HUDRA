@@ -287,7 +287,9 @@ namespace HUDRA.Services.Power
         private const string SubProcessorGuid = "54533251-82be-4824-96c1-47b60b740d00";
         private const string PerfEppGuid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
         private const string PerfEpp1Guid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6864";
+        private const string PerfEpp2Guid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6865";
         private bool? _perfEpp1Supported;
+        private bool? _perfEpp2Supported;
 
         public async Task<(bool Success, int Value)> GetEppAsync()
         {
@@ -317,9 +319,11 @@ namespace HUDRA.Services.Power
                 var setAcOutput = await ExecutePowerCfgCommandAsync($"/setacvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid} {epp}");
                 var setDcOutput = await ExecutePowerCfgCommandAsync($"/setdcvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid} {epp}");
 
-                // PERFEPP1 covers efficiency-class-1 cores on heterogeneous AMD
-                // parts; homogeneous CPUs reject the GUID, so its failure never
-                // affects the result and is only probed once.
+                // PERFEPP1/PERFEPP2 cover efficiency-class-1/2 cores on
+                // heterogeneous AMD parts (Strix Halo exposes class 2, left at
+                // aggressive defaults if unset); CPUs without those classes
+                // reject the GUID, so their failure never affects the result
+                // and is only probed once each.
                 if (_perfEpp1Supported != false)
                 {
                     try
@@ -332,6 +336,21 @@ namespace HUDRA.Services.Power
                     {
                         _perfEpp1Supported = false;
                         System.Diagnostics.Debug.WriteLine($"PERFEPP1 not supported on this CPU, skipping from now on: {ex.Message}");
+                    }
+                }
+
+                if (_perfEpp2Supported != false)
+                {
+                    try
+                    {
+                        await ExecutePowerCfgCommandAsync($"/setacvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEpp2Guid} {epp}");
+                        await ExecutePowerCfgCommandAsync($"/setdcvalueindex SCHEME_CURRENT {SubProcessorGuid} {PerfEpp2Guid} {epp}");
+                        _perfEpp2Supported = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        _perfEpp2Supported = false;
+                        System.Diagnostics.Debug.WriteLine($"PERFEPP2 not supported on this CPU, skipping from now on: {ex.Message}");
                     }
                 }
 
