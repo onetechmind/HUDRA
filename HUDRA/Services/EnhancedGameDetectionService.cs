@@ -571,6 +571,10 @@ namespace HUDRA.Services
                 {
                     _currentGame = detectedGame;
 
+                    DebugLogger.Log(_currentGame != null
+                        ? $"Game detected: {_currentGame.ProcessName} ({_currentGame.WindowTitle})"
+                        : "Game stopped", "PWR");
+
                     // Update monitoring state
                     if (_currentGame != null)
                     {

@@ -281,9 +281,9 @@ namespace HUDRA.Services.Power
         }
 
         // EPP (Energy Performance Preference) Control Methods
-        // Explicit GUIDs rather than the PERFEPP alias: they work even when the
-        // setting is hidden from the powercfg UI (ATTRIB_HIDE, the Windows 11
-        // Balanced-scheme default).
+        // Explicit GUIDs rather than the PERFEPP alias: writes accept them even
+        // when the setting is hidden (ATTRIB_HIDE, the Windows 11 default).
+        // Reads must use /qh — plain /query omits hidden settings entirely.
         private const string SubProcessorGuid = "54533251-82be-4824-96c1-47b60b740d00";
         private const string PerfEppGuid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6863";
         private const string PerfEpp1Guid = "36687f9e-e3a5-4dbf-b1dc-15eb381c6864";
@@ -293,7 +293,7 @@ namespace HUDRA.Services.Power
         {
             try
             {
-                var output = await ExecutePowerCfgCommandAsync($"/query SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid}");
+                var output = await ExecutePowerCfgCommandAsync($"/qh SCHEME_CURRENT {SubProcessorGuid} {PerfEppGuid}");
                 var (ac, dc) = PowercfgEppParser.ParseSettingIndexes(output);
 
                 // Prefer the DC (battery) value on a handheld; after HUDRA's
@@ -362,7 +362,7 @@ namespace HUDRA.Services.Power
             if (epp < 0) return; // never set by the user
 
             var result = await SetEppAsync(epp);
-            System.Diagnostics.Debug.WriteLine($"⚡ Re-applied EPP {epp} after scheme change - {(result.Success ? "OK" : result.Message)}");
+            DebugLogger.Log($"Re-applied EPP {epp} after scheme change: {(result.Success ? "OK" : result.Message)}", "PWR");
         }
 
         // Intelligent Power Switching Methods
@@ -370,12 +370,16 @@ namespace HUDRA.Services.Power
         {
             _enhancedGameDetectionService = enhancedGameDetectionService;
             _isIntelligentSwitchingEnabled = SettingsService.GetIntelligentPowerSwitchingEnabled();
-            
+
             if (_isIntelligentSwitchingEnabled)
             {
+                // -= before += keeps this idempotent; it is called both at
+                // startup and from the Settings page's profile load.
+                _enhancedGameDetectionService.GameDetected -= OnGameDetected;
+                _enhancedGameDetectionService.GameStopped -= OnGameStopped;
                 _enhancedGameDetectionService.GameDetected += OnGameDetected;
                 _enhancedGameDetectionService.GameStopped += OnGameStopped;
-                System.Diagnostics.Debug.WriteLine("Intelligent power switching initialized and enabled");
+                DebugLogger.Log("Intelligent switching initialized (enabled)", "PWR");
             }
         }
 
@@ -392,8 +396,8 @@ namespace HUDRA.Services.Power
                     _enhancedGameDetectionService.GameStopped -= OnGameStopped;
                     _enhancedGameDetectionService.GameDetected += OnGameDetected;
                     _enhancedGameDetectionService.GameStopped += OnGameStopped;
-                    System.Diagnostics.Debug.WriteLine("Intelligent power switching enabled");
-                    
+                    DebugLogger.Log($"Intelligent switching enabled; current game: {_enhancedGameDetectionService.CurrentGame?.ProcessName ?? "none"}", "PWR");
+
                     // Apply current game state immediately
                     if (_enhancedGameDetectionService.CurrentGame != null)
                     {
@@ -408,7 +412,7 @@ namespace HUDRA.Services.Power
                 {
                     _enhancedGameDetectionService.GameDetected -= OnGameDetected;
                     _enhancedGameDetectionService.GameStopped -= OnGameStopped;
-                    System.Diagnostics.Debug.WriteLine("Intelligent power switching disabled");
+                    DebugLogger.Log("Intelligent switching disabled", "PWR");
                 }
             }
         }
@@ -439,18 +443,11 @@ namespace HUDRA.Services.Power
                 if (gamingProfileId.HasValue)
                 {
                     var success = await SetActiveProfileAsync(gamingProfileId.Value);
-                    if (success)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Successfully switched to gaming power profile: {gamingProfileId.Value}");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("Failed to switch to gaming power profile");
-                    }
+                    DebugLogger.Log($"Switch to gaming profile {gamingProfileId.Value}: {(success ? "OK" : "FAILED")}", "PWR");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("No gaming power profile configured - skipping switch");
+                    DebugLogger.Log("No gaming power profile configured - skipping switch", "PWR");
                 }
             }
             catch (Exception ex)
@@ -467,18 +464,11 @@ namespace HUDRA.Services.Power
                 if (defaultProfileId.HasValue)
                 {
                     var success = await SetActiveProfileAsync(defaultProfileId.Value);
-                    if (success)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Successfully switched to default power profile: {defaultProfileId.Value}");
-                    }
-                    else
-                    {
-                        System.Diagnostics.Debug.WriteLine("Failed to switch to default power profile");
-                    }
+                    DebugLogger.Log($"Switch to default profile {defaultProfileId.Value}: {(success ? "OK" : "FAILED")}", "PWR");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine("No default power profile configured - skipping switch");
+                    DebugLogger.Log("No default power profile configured - skipping switch", "PWR");
                 }
             }
             catch (Exception ex)
