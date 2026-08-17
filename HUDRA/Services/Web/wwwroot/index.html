@@ -478,13 +478,6 @@ select:focus { border-color: var(--accent-light); }
                     <span class="control-label">CPU Boost</span>
                     <div class="toggle" id="boost-toggle" onclick="toggleBoost()"></div>
                 </div>
-                <div class="slider-row" style="margin-top: 12px;">
-                    <div class="slider-header">
-                        <span class="slider-label">EPP (0=CPU boost, 100=Efficiency)</span>
-                        <span class="slider-value" id="epp-value">--</span>
-                    </div>
-                    <input type="range" id="epp-slider" min="0" max="100" step="5" value="50">
-                </div>
             </div>
             <div class="card">
                 <div class="card-title">Connection</div>
@@ -542,7 +535,7 @@ const state = {
     resolutions: [], refreshRates: [],
     currentRes: null, currentRefresh: 0,
     powerProfiles: [], activeProfile: null,
-    boostEnabled: false, eppValue: -1,
+    boostEnabled: false,
     amdAvailable: false, rsrEnabled: false, rsrSharpness: 80,
     afmfEnabled: false, antiLagEnabled: false,
     lsRunning: false, lsHasGame: false
@@ -705,15 +698,6 @@ function applyStatus(s) {
         updateFpsDisplay(s.refreshRate);
     }
 
-    // EPP
-    if (s.epp !== undefined && s.epp !== null && !isRecentlyMutated('epp')) {
-        state.eppValue = s.epp;
-        if (!userInteracting['epp-slider']) {
-            document.getElementById('epp-slider').value = state.eppValue;
-            document.getElementById('epp-value').textContent = state.eppValue;
-        }
-    }
-
     // HDR
     if (s.hdr && !isRecentlyMutated('hdr')) {
         state.hdrEnabled = s.hdr.enabled;
@@ -831,12 +815,6 @@ function setupSliders() {
         state.fpsLimit = v;
         await api('/api/fps-limit', 'POST', { fps: v });
     }, 500);
-
-    setupSlider('epp-slider', 'epp-value', v => String(v), async v => {
-        lastLocalMutation['epp'] = Date.now();
-        state.eppValue = v;
-        await api('/api/power/epp', 'POST', { value: v });
-    }, 300);
 }
 
 function setupSlider(sliderId, valueId, format, onCommit, debounceMs) {
@@ -1072,13 +1050,6 @@ async function loadPowerProfiles() {
         const boost = await api('/api/power/boost');
         state.boostEnabled = boost.enabled;
         toggleClass('boost-toggle', state.boostEnabled);
-
-        const epp = await api('/api/power/epp');
-        if (epp.value >= 0) {
-            state.eppValue = epp.value;
-            document.getElementById('epp-slider').value = epp.value;
-            document.getElementById('epp-value').textContent = epp.value;
-        }
     } catch (e) { console.error('Power profiles load failed:', e); }
 }
 

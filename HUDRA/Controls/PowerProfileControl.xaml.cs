@@ -28,19 +28,9 @@ namespace HUDRA.Controls
         private bool _isUpdatingCpuBoost = false;
         private bool _isUpdatingIntelligentSwitching = false;
 
-        // EPP slider state (powercfg PERFEPP, 0 = max performance, 100 = max
-        // efficiency). EPP only biases the CPU's CPPC boost behavior; on a
-        // shared-TDP APU a high value indirectly frees budget for the iGPU in
-        // GPU-bound games, but it is not a direct CPU/GPU power split.
-        private int _currentEpp = -1; // last value confirmed applied to Windows
-        private bool _isUpdatingEppSlider = false;
-        private bool _eppInitialized = false;
-        private DispatcherTimer? _eppDebounceTimer;
-        private int _pendingEpp = -1;
-
         // Gamepad navigation fields
         private GamepadNavigationService? _gamepadNavigationService;
-        private int _currentFocusedElement = 0; // 0=DefaultProfile, 1=GamingProfile, 2=IntelligentSwitching, 3=CpuBoost, 4=EppSlider, 5=PowerOptionsLink
+        private int _currentFocusedElement = 0; // 0=DefaultProfile, 1=GamingProfile, 2=IntelligentSwitching, 3=CpuBoost, 4=PowerOptionsLink
         private bool _isFocused = false;
 
         public ObservableCollection<PowerProfile> AvailableProfiles
@@ -71,25 +61,15 @@ namespace HUDRA.Controls
 
         // IGamepadNavigable implementation
         public bool CanNavigateUp => _currentFocusedElement > 0;
-        public bool CanNavigateDown => _currentFocusedElement < 5;
+        public bool CanNavigateDown => _currentFocusedElement < 4;
         public bool CanNavigateLeft => false;
         public bool CanNavigateRight => false;
         public bool CanActivate => true;
         public FrameworkElement NavigationElement => this;
 
-        // Slider interface implementations
-        private bool _isSliderActivated = false;
-        public bool IsSlider => _currentFocusedElement == 4; // EPP slider
-        public bool IsSliderActivated
-        {
-            get => _isSliderActivated;
-            set
-            {
-                _isSliderActivated = value;
-                OnPropertyChanged();
-                UpdateFocusVisuals();
-            }
-        }
+        // Slider interface implementations - PowerProfile has no sliders
+        public bool IsSlider => false;
+        public bool IsSliderActivated { get; set; } = false;
 
         // ComboBox interface implementations
         public bool HasComboBoxes => true;
@@ -164,23 +144,11 @@ namespace HUDRA.Controls
             }
         }
 
-        public Brush EppFocusBrush
-        {
-            get
-            {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 4)
-                {
-                    return new SolidColorBrush(_isSliderActivated ? Microsoft.UI.Colors.DodgerBlue : Microsoft.UI.Colors.DarkViolet);
-                }
-                return new SolidColorBrush(Microsoft.UI.Colors.Transparent);
-            }
-        }
-
         public Brush PowerOptionsLinkFocusBrush
         {
             get
             {
-                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 5)
+                if (_isFocused && _gamepadNavigationService?.IsGamepadActive == true && _currentFocusedElement == 4)
                 {
                     return new SolidColorBrush(Microsoft.UI.Colors.DarkViolet);
                 }
@@ -193,9 +161,6 @@ namespace HUDRA.Controls
             this.InitializeComponent();
             this.DataContext = this;
             InitializeGamepadNavigation();
-
-            _eppDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-            _eppDebounceTimer.Tick += EppDebounceTimer_Tick;
         }
 
         private void InitializeGamepadNavigation()
@@ -284,9 +249,6 @@ namespace HUDRA.Controls
 
                 // Load and restore CPU boost state
                 await LoadCpuBoostStateAsync();
-
-                // Load and restore EPP state
-                await LoadEppStateAsync();
             }
             catch (Exception ex)
             {
@@ -433,125 +395,6 @@ namespace HUDRA.Controls
             }
         }
 
-        /// <summary>
-        /// First call restores the persisted EPP (or displays the live value
-        /// without writing when the user has never set one); subsequent calls
-        /// just re-query and sync.
-        /// </summary>
-        private async Task LoadEppStateAsync()
-        {
-            try
-            {
-                if (_powerProfileService == null) return;
-
-                if (!_eppInitialized)
-                {
-                    _eppInitialized = true;
-
-                    var storedEpp = SettingsService.GetEppValue();
-                    if (storedEpp >= 0)
-                    {
-                        var result = await _powerProfileService.SetEppAsync(storedEpp);
-                        if (result.Success)
-                        {
-                            SyncToEpp(storedEpp);
-                            return;
-                        }
-                        System.Diagnostics.Debug.WriteLine($"PowerProfileControl: failed to restore EPP {storedEpp}: {result.Message}");
-                    }
-                }
-
-                // Never set, restore failed, or a re-visit: reflect reality
-                var (success, liveEpp) = await _powerProfileService.GetEppAsync();
-                if (success)
-                {
-                    if (EppSlider != null) EppSlider.IsEnabled = true;
-                    SyncToEpp(liveEpp);
-                }
-                else if (_currentEpp < 0)
-                {
-                    // Setting unreadable (no CPPC / exotic power plan)
-                    if (EppSlider != null) EppSlider.IsEnabled = false;
-                    if (EppCaption != null) EppCaption.Text = "Not supported on this power plan";
-                    System.Diagnostics.Debug.WriteLine("PowerProfileControl: EPP not readable - control disabled");
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"PowerProfileControl: EPP init failed: {ex.Message}");
-            }
-        }
-
-        /// <summary>
-        /// Syncs the EPP UI to a value set externally (e.g. by a profile) without triggering hardware changes.
-        /// </summary>
-        public void SyncToEpp(int epp)
-        {
-            var clamped = PowercfgEppParser.ClampEpp(epp);
-            _currentEpp = clamped;
-
-            _isUpdatingEppSlider = true;
-            if (EppSlider != null) EppSlider.Value = clamped;
-            if (EppValueLabel != null) EppValueLabel.Text = FormatEppLabel(clamped);
-            _isUpdatingEppSlider = false;
-        }
-
-        private void OnEppSliderValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
-        {
-            if (_isUpdatingEppSlider) return;
-
-            int newEpp = PowercfgEppParser.ClampEpp((int)e.NewValue);
-
-            // Label always tracks the slider, even when the value change is
-            // cancelled below (same stale-label bug FpsLimiterControl hit).
-            if (EppValueLabel != null)
-                EppValueLabel.Text = FormatEppLabel(newEpp);
-
-            if (newEpp == _currentEpp)
-            {
-                // Back at the value Windows already has: cancel any pending
-                // write instead of letting a stale intermediate value apply
-                // itself 500 ms later.
-                _pendingEpp = -1;
-                _eppDebounceTimer?.Stop();
-                return;
-            }
-
-            // Restart debounce so we only hit powercfg after the user settles
-            _pendingEpp = newEpp;
-            _eppDebounceTimer?.Stop();
-            _eppDebounceTimer?.Start();
-        }
-
-        private async void EppDebounceTimer_Tick(object? sender, object e)
-        {
-            _eppDebounceTimer?.Stop();
-            if (_pendingEpp < 0 || _powerProfileService == null) return;
-
-            var epp = _pendingEpp;
-            _pendingEpp = -1;
-
-            var result = await _powerProfileService.SetEppAsync(epp);
-            if (result.Success)
-            {
-                _currentEpp = epp;
-                SettingsService.SetEppValue(epp);
-                System.Diagnostics.Debug.WriteLine($"⚡ PowerProfileControl: Debounced — applied EPP {epp}");
-            }
-            else
-            {
-                // Revert the slider to the last applied value
-                SyncToEpp(_currentEpp);
-                System.Diagnostics.Debug.WriteLine($"PowerProfileControl: failed to apply EPP {epp}, reverted slider: {result.Message}");
-            }
-        }
-
-        private static string FormatEppLabel(int epp)
-        {
-            var tier = epp <= 25 ? "Performance" : epp <= 74 ? "Balanced" : "Efficiency";
-            return $"{epp} · {tier}";
-        }
-
         private async void OnCpuBoostToggled(object sender, RoutedEventArgs e)
         {
             if (_isUpdatingCpuBoost || _powerProfileService == null || CpuBoostToggle == null)
@@ -623,13 +466,6 @@ namespace HUDRA.Controls
         // IGamepadNavigable event handlers
         public void OnGamepadNavigateUp()
         {
-            // If the EPP slider is activated, adjust value instead of navigating
-            if (_isSliderActivated)
-            {
-                AdjustSliderValue(1);
-                return;
-            }
-
             // Handle ComboBox navigation when open
             if ((_currentFocusedElement == 0 || _currentFocusedElement == 1) && IsComboBoxOpen)
             {
@@ -657,13 +493,6 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateDown()
         {
-            // If the EPP slider is activated, adjust value instead of navigating
-            if (_isSliderActivated)
-            {
-                AdjustSliderValue(-1);
-                return;
-            }
-
             // Handle ComboBox navigation when open
             if ((_currentFocusedElement == 0 || _currentFocusedElement == 1) && IsComboBoxOpen)
             {
@@ -681,7 +510,7 @@ namespace HUDRA.Controls
             }
 
             // Normal navigation between elements
-            if (_currentFocusedElement < 5)
+            if (_currentFocusedElement < 4)
             {
                 _currentFocusedElement++;
                 UpdateFocusVisuals();
@@ -691,20 +520,12 @@ namespace HUDRA.Controls
 
         public void OnGamepadNavigateLeft()
         {
-            // If the EPP slider is activated, adjust value
-            if (_isSliderActivated)
-            {
-                AdjustSliderValue(-1);
-            }
+            // No left navigation in PowerProfile control
         }
 
         public void OnGamepadNavigateRight()
         {
-            // If the EPP slider is activated, adjust value
-            if (_isSliderActivated)
-            {
-                AdjustSliderValue(1);
-            }
+            // No right navigation in PowerProfile control
         }
 
         public void OnGamepadActivate()
@@ -755,12 +576,7 @@ namespace HUDRA.Controls
                     }
                     break;
 
-                case 4: // EppSlider - toggle adjustment mode
-                    IsSliderActivated = !_isSliderActivated;
-                    System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: EPP slider adjustment {(_isSliderActivated ? "activated" : "deactivated")}");
-                    break;
-
-                case 5: // PowerOptionsLink
+                case 4: // PowerOptionsLink
                     OnPowerOptionsLinkClick(PowerOptionsLink, new RoutedEventArgs());
                     System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Activated PowerOptionsLink");
                     break;
@@ -778,7 +594,7 @@ namespace HUDRA.Controls
             get => _currentFocusedElement;
             set
             {
-                _currentFocusedElement = Math.Clamp(value, 0, 5);
+                _currentFocusedElement = Math.Clamp(value, 0, 4);
                 UpdateFocusVisuals();
             }
         }
@@ -802,30 +618,22 @@ namespace HUDRA.Controls
             _isFocused = false;
             IsComboBoxOpen = false;
             IsNavigatingComboBox = false;
-            _isSliderActivated = false;
             UpdateFocusVisuals();
             System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Lost gamepad focus");
         }
 
         public void FocusLastElement()
         {
-            // Focus the last element (element 5: advanced power settings link)
-            _currentFocusedElement = 5;
+            // Focus the last element (element 4: AC Power Profile)
+            _currentFocusedElement = 4;
             _isFocused = true;
             UpdateFocusVisuals();
-            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Focused last element (PowerOptionsLink)");
+            System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Focused last element (AC Power Profile)");
         }
 
         public void AdjustSliderValue(int direction)
         {
-            if (!_isSliderActivated || _currentFocusedElement != 4) return;
-
-            if (EppSlider != null && EppSlider.IsEnabled)
-            {
-                double newValue = EppSlider.Value + (direction * 5.0);
-                EppSlider.Value = Math.Clamp(newValue, EppSlider.Minimum, EppSlider.Maximum);
-                System.Diagnostics.Debug.WriteLine($"🎮 PowerProfile: Adjusted EPP slider to {EppSlider.Value}");
-            }
+            // No sliders in PowerProfile control
         }
 
         private void UpdateFocusVisuals()
@@ -837,7 +645,6 @@ namespace HUDRA.Controls
                 OnPropertyChanged(nameof(GamingProfileFocusBrush));
                 OnPropertyChanged(nameof(IntelligentSwitchingFocusBrush));
                 OnPropertyChanged(nameof(CpuBoostFocusBrush));
-                OnPropertyChanged(nameof(EppFocusBrush));
                 OnPropertyChanged(nameof(PowerOptionsLinkFocusBrush));
             });
         }

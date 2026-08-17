@@ -2673,25 +2673,6 @@ namespace HUDRA
                     System.Diagnostics.Debug.WriteLine($"  Sticky TDP failed: {ex.Message}");
                 }
 
-                // Apply EPP (null on profiles saved before EPP existed)
-                if (defaultProfile.EppValue is int epp)
-                {
-                    try
-                    {
-                        var eppResult = await _powerProfileService.SetEppAsync(epp);
-                        if (eppResult.Success)
-                        {
-                            SettingsService.SetEppValue(epp);
-                            _settingsPage?.PowerProfileControl?.SyncToEpp(epp);
-                        }
-                        System.Diagnostics.Debug.WriteLine($"  EPP: {epp} - {(eppResult.Success ? "OK" : "FAILED")}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"  EPP failed: {ex.Message}");
-                    }
-                }
-
                 // Note: Resolution/Refresh Rate are NOT applied on startup to avoid window rendering issues.
                 // They are still saved in the Default Profile and used when reverting after games exit.
 

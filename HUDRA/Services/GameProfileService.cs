@@ -1,6 +1,5 @@
 using HUDRA.Models;
 using HUDRA.Services.FanControl;
-using HUDRA.Services.Power;
 using System;
 using System.Linq;
 using System.Text.Json;
@@ -85,15 +84,6 @@ namespace HUDRA.Services
                 // Capture Sticky TDP setting
                 defaults.StickyTdpEnabled = SettingsService.GetTdpCorrectionEnabled();
                 System.Diagnostics.Debug.WriteLine($"  Captured Sticky TDP: Enabled={defaults.StickyTdpEnabled}");
-
-                // Capture EPP
-                var powerProfileService = new PowerProfileService();
-                var eppResult = await powerProfileService.GetEppAsync();
-                if (eppResult.Success)
-                {
-                    defaults.EppValue = eppResult.Value;
-                    System.Diagnostics.Debug.WriteLine($"  Captured EPP: {eppResult.Value}");
-                }
 
                 // Capture Resolution
                 var resResult = _resolutionService.GetCurrentResolution();
@@ -442,25 +432,6 @@ namespace HUDRA.Services
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"  Sticky TDP revert failed: {ex.Message}");
-                }
-
-                // Revert EPP (null on snapshots saved before EPP existed)
-                if (revertTarget.EppValue is int eppValue)
-                {
-                    try
-                    {
-                        var powerProfileService = new PowerProfileService();
-                        var eppResult = await powerProfileService.SetEppAsync(eppValue);
-                        if (eppResult.Success)
-                        {
-                            SettingsService.SetEppValue(eppValue);
-                        }
-                        System.Diagnostics.Debug.WriteLine($"  EPP: {eppValue} - {(eppResult.Success ? "OK" : "FAILED")}");
-                    }
-                    catch (Exception ex)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"  EPP revert failed: {ex.Message}");
-                    }
                 }
 
                 // Revert Resolution and Refresh Rate
