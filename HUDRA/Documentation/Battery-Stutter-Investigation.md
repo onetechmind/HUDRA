@@ -36,15 +36,23 @@ in the AMD GPU driver (`amdkmdag.sys`), triggered by GPU power-state churn on DC
 Also added edge-triggered `[PWR]` field-log diagnostics (game detect/stop, profile
 switch results, EPP re-apply) to `HUDRA_Debug.log`.
 
-## Finding 1 — EC resets TDP to ~50–60W on every power-source change
+## Finding 1 — EC resets TDP on every power-source change
 
-HWiNFO logging showed package power jumping to **59.7W at unplug and 59.8W at replug**,
-settling ~50W until manually reset in HUDRA (both directions, every cable event).
+HWiNFO logging showed package power jumping to **~55W at unplug and ~80W at replug**,
+and holding there until manually reset in HUDRA (both directions, every cable event).
 Sticky TDP can't catch it fast: it re-applies on a 60s timer and the Strix Halo SMU
 returns 0 for live TDP reads (drift detection is blind).
 
-**Planned feature (not yet built): listen for the Windows power-source-change
-broadcast (WM_POWERBROADCAST / PowerSettingChange) and immediately re-apply TDP + EPP.**
+**Built (this branch): TDP is re-applied immediately on every cable event.**
+`PowerEventService` registers `GUID_ACDC_POWER_SOURCE` on the MainWindow HWND and
+handles `PBT_POWERSETTINGCHANGE` in its existing WndProc subclass (not
+`PBT_APMPOWERSTATUSCHANGE`, which also fires on battery-percentage ticks).
+`Services/Power/PowerSourceTransitionTracker.cs` is the pure, unit-tested dedupe:
+the initial callback Windows sends at registration only sets the baseline, repeats of
+the current state are dropped, and short-term-UPS (payload 2) counts as DC.
+`App.OnPowerSourceChanged` then re-asserts via `TdpMonitorService.TryReapplyNow()`
+(falling back to the persisted last-used TDP), and repeats once after 2s because the
+EC's reset can land after the Windows broadcast. **TDP only — nothing EPP-related.**
 
 ## Finding 2 — Windows DC power-plan defaults cause CPU perf-state oscillation
 

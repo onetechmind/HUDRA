@@ -395,6 +395,7 @@ namespace HUDRA
                 _powerEventService = new PowerEventService(MainWindow, MainWindow.DispatcherQueue);
                 _powerEventService.HibernationResumeDetected += OnHibernationResumeDetected;
                 _powerEventService.SuspendDetected += OnSystemSuspendDetected;
+                _powerEventService.PowerSourceChanged += OnPowerSourceChanged;
 
                 System.Diagnostics.Debug.WriteLine("⚡ PowerEventService initialized successfully");
             }
@@ -417,6 +418,76 @@ namespace HUDRA
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"⚡ Failed to reset gamepad state on suspend: {ex.Message}");
+            }
+        }
+
+        // "No TDP target at all" is a persistent configuration state, not an event -
+        // log it once per session instead of on every cable event.
+        private bool _loggedMissingTdpTarget;
+
+        /// <summary>
+        /// The OEM EC resets package power on every cable event (measured ~55W at unplug,
+        /// ~80W at replug) and holds it until something writes the limit again. Sticky TDP
+        /// cannot catch that: it runs on a 60s timer and this APU's SMU returns 0 for live
+        /// TDP reads, so drift detection is blind. Re-assert as soon as Windows reports the
+        /// change, then once more shortly after because the EC's reset can land later than
+        /// the broadcast.
+        /// </summary>
+        private void OnPowerSourceChanged(object? sender, PowerSourceChangedEventArgs e)
+        {
+            string source = e.IsOnAc ? "AC" : "DC";
+
+            ReapplyTdpForPowerSource(source, "immediate");
+
+            // Each pass re-resolves the current target rather than capturing one now, so a
+            // second cable event inside the window cannot make this write a stale value.
+            Task.Delay(2000).ContinueWith(_ =>
+            {
+                MainWindow?.DispatcherQueue.TryEnqueue(() => ReapplyTdpForPowerSource(source, "follow-up"));
+            });
+        }
+
+        private void ReapplyTdpForPowerSource(string source, string phase)
+        {
+            try
+            {
+                // Preferred path: the monitor already holds the authoritative target and
+                // serializes the write against its own sticky re-asserts.
+                if (TdpMonitor?.TryReapplyNow() == true)
+                {
+                    DebugLogger.Log($"Power source changed to {source} ({phase}); re-applying TDP {TdpMonitor.TargetTdp}W", "PWR");
+                    return;
+                }
+
+                // Fallback to the persisted value, as the resume path does.
+                int lastUsedTdp = SettingsService.GetLastUsedTdp();
+                var tdpLimits = HardwareDetectionService.GetTdpLimits();
+                if (lastUsedTdp < tdpLimits.MinTdp || lastUsedTdp > tdpLimits.MaxTdp)
+                {
+                    if (!_loggedMissingTdpTarget)
+                    {
+                        _loggedMissingTdpTarget = true;
+                        DebugLogger.Log($"Power source changed to {source}; no valid TDP target to re-apply (last used {lastUsedTdp}W, limits {tdpLimits.MinTdp}-{tdpLimits.MaxTdp}W)", "PWR");
+                    }
+                    return;
+                }
+
+                using var tdpService = new TDPService();
+                var setResult = tdpService.SetTdp(lastUsedTdp * 1000); // Convert to milliwatts
+
+                if (setResult.Success)
+                {
+                    DebugLogger.Log($"Power source changed to {source} ({phase}); re-applying TDP {lastUsedTdp}W", "PWR");
+                    TdpMonitor?.UpdateTargetTdp(lastUsedTdp);
+                }
+                else
+                {
+                    DebugLogger.Log($"Power source changed to {source} ({phase}); TDP re-apply to {lastUsedTdp}W failed: {setResult.Message}", "PWR");
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugLogger.Log($"Power source changed to {source} ({phase}); TDP re-apply error: {ex.Message}", "PWR");
             }
         }
 
