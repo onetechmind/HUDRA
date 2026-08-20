@@ -149,6 +149,13 @@ Reading the *current* TDP back from the SMU uses Handheld Companion's pattern: r
 
 Because a live read is unavailable on such chips, **sticky-TDP** (`TdpMonitorService`) was changed from read-compare-correct to **unconditional re-assert**: it re-applies your target every 60 seconds regardless of the read. The SMU write is idempotent and echo-verified, so re-writing an unchanged limit is harmless, and if a game or the firmware lowered the limit this restores it. This makes sticky-TDP robust on all chips.
 
+The 60s cadence has one event-driven supplement: the OEM EC resets power limits on
+every AC/DC cable event (measured ~55W at unplug / ~80W at replug on the X2 Mini Pro),
+so `PowerEventService` registers `GUID_ACDC_POWER_SOURCE` and, on each genuine
+transition, `TdpMonitorService.TryReapplyNow()` re-asserts the target immediately and
+once more 2 s later — the same serialized write path the timer uses. See
+`Battery-Stutter-Investigation.md`, Finding 1.
+
 **Future enhancement:** a true live read via the SMU power-metrics table (like RyzenAdj's `get_stapm_limit`) would restore precise drift detection and enable showing actual-vs-set wattage.
 
 ---

@@ -33,7 +33,7 @@ Modern design, optimized for touch and full gamepad navigation.
 Your performance/quick settings command center. Everything you need to tweak on the fly lives here.
 
 - **TDP Control** — Scroll-based slider from 5W to 30W with instant hardware response
-- **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior
+- **Sticky TDP** — prevents your TDP from drifting due to OEM firmware behavior, and instantly re-applies your TDP when you plug or unplug the charger (some OEM firmware resets power limits on every cable event)
 - **System Controls** — Volume, brightness, resolution/refresh rate, HDR, and battery status
 - **FPS Limiter** — Set a framerate cap via RTSS integration (optional)
 
